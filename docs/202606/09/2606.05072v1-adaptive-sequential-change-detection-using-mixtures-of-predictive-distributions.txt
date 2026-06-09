@@ -1,0 +1,2085 @@
+Title: Adaptive Sequential Change Detection using Mixtures of Predictive Distributions
+
+URL Source: https://arxiv.org/pdf/2606.05072v1
+
+Published Time: Thu, 04 Jun 2026 01:22:16 GMT
+
+Number of Pages: 29
+
+Markdown Content:
+# Adaptive Sequential Change Detection using Mixtures of Predictive Distributions 
+
+Topi Halme 1, H. Vincent Poor 2, and Visa Koivunen 11Department of Information and Communcations Engineering, Aalto University, Finland 
+
+> 1
+
+{topi.halme, visa.koivunen }@aalto.fi 
+
+> 2
+
+Electrical and Computer Engineering, Princeton University, USA June 4, 2026 
+
+Abstract 
+
+This paper studies the problem of detecting a change in the distribution of a se-quence of independent observations when the post-change distribution is unknown. We propose a novel change detection algorithm, termed Predictive-Mixture CuSum (PM-CuSum), which combines predictive distributions constructed from sliding windows of different lengths within a CuSum recursion. The predictive distributions are aggregated using adaptive weights based on their recent predictive performance. We show that PM-CuSum achieves first-order asymptotic optimality under mild conditions, and that its asymptotic delay bound has a smaller remainder order than what is achieved by any fixed (even oracle) window. Numerical simulations demonstrate that PM-CuSum per-forms well compared to existing methods. Moreover, it is demonstrated that forming likelihood ratios using full predictive distributions can substantially improve performance compared to plug-in likelihoods. 
+
+# 1 Introduction 
+
+In the quickest change detection (QCD) problem, the goal is to detect a change in the under-lying probability model of a sequence of observations as quickly as possible while controlling a suitable rate of false alarms, [1, 2]. This problem finds applications in a wide variety of fields, including quality control, sensor networks, environmental monitoring, and cybersecurity. In the classical QCD problem, the pre- and post-change distributions are assumed to be com-pletely known. In this case, the Cumulative Sum (CuSum) procedure introduced by Page [3] exactly minimizes Lorden’s worst-case average detection delay subject to a false alarm rate constraint [4, 5]. The Shiryaev-Roberts (SR) procedure [6] also has strong optimality properties with respect to many metrics [7]. In most applications, the post-change distribution is not known in advance because it depends on the event causing the change. For example, in a sensor network, the same event may produce different signal intensities at different sensors depending on the event location. When the post-change distribution depends on an unknown (finite-dimensional) 1
+
+> arXiv:2606.05072v1 [math.ST] 3 Jun 2026
+
+parameter, the standard approaches in the literature are generalized likelihood ratio (GLR) [4, 8] or mixture-based tests [8]. In the former class of procedures, the unknown parameter is essentially replaced by its maximum likelihood estimate, while the latter integrates the parameter over a prior distribution. Although these procedures are effective and conceptually clean, they can be computationally expensive because they generally do not admit a simple recursive update. A recursive update is among the usual desiderata for QCD procedures, since observations can arrive at high rates and decisions must be made online. Many approaches have been proposed in the literature to lessen the computational burden, see e.g. [9] for a recent review. In some special cases, such as for the detection of a Gaussian mean-shift [10] or Poisson rate parameter [11], the computation of the GLR test statistic can be made efficient. An alternative class of methods utilizes an adaptive estimate of the post-change parameter based on past data to approximate the post-change distribution, and plugs the estimate into the recursive CuSum or SR update. In the sequential analysis literature, the idea appeared already in the work of Robbins and Siegmund [12, 13], but was introduced to change detection later by Sparks [14] and Lorden and Pollak [15]. A computationally effective adaptive procedure is presented in [16], where the estimator is updated recursively but restarted whenever the detection statistic hits zero. Related ideas of restarting were also proposed in [17]. In [18], the estimator is learned using online mirror descent. Recently [19] proposed estimating the post-change parameter from a sliding window of fixed size w. It was shown, that window-limited-CuSum (WL-CuSum) achieves asymptotic optimality with a window size that grows much slower than the window size required in the window-limited GLR test. The two central research questions and related design choices for an adaptive QCD pro-cedure are: 1) how much past data to use when estimating or predicting the post-change model? and 2) how can that data along with the new observation be converted into a new test-statistic increment? The typical approaches to item 1) are to either use a fixed window length as in [19], or to keep increasing the window unless the test statistic hits some small value, at which point the window length is reset to one as in [16, 17]. When using a fixed window, the choice of the window size is crucial for the performance of the procedure, and may not always be easy to choose beforehand. Similarly, for the resetting approach, the choice of the reset threshold is important. Regardin item 2), the existing methods have all formed the new likelihood ratio by directly plugging in the parameter estimated using some method, such as maximum likelihood or method of moments [15, 19, 18]. In this paper, we propose an algorithm with a novel approach to both points. For item 1), we use a set of window sizes of different lengths, and form the new likelihood ratio as an adaptive mixture of the likelihood ratios corresponding to each window size. The window lengths that have recently achieved the best predictive performance are given the most weight. This way, the algorithm automatically learns the appropriate window size for the problem at hand, reducing the need for tuning. For item 2), instead of forming the new likelihood ratio by plugging in a point estimate of the parameter, we consider full predictive distributions for the new observation based on the past data, and use this distribution to compute the new 2likelihood ratio. Results from the predictive density estimation literature [20] suggest that this approach can yield better performance than the plug-in approach. 
+
+Contributions 
+
+The main contributions of this paper are as follows: 
+
+• We propose an adaptive QCD algorithm named Predictive-Mixture CuSum (PM-CuSum) that employs a set of candidate predictors based on different window sizes, and combines them using adaptive weights. 
+
+• We prove that the algorithm is asymptotically first-order optimal under general con-ditions, including nonparametric classes of post-change distributions. Moreover, the procedure has a smaller asymptotic remainder term than the popular WL-CuSum pro-cedure [19] or its parallel variant. 
+
+• The procedure is broadly applicable to both parametric and non-parametric approaches for constructing the predictive distribution, and we provide concrete constructions for some parametric models. 
+
+• Numerical simulations demonstrate that the proposed algorithm performs well com-pared to existing methods, while being computationally efficient. The rest of this paper is structured as follows. In Section 2, we formalize the problem and review the existing approaches. In Section 3, we describe the proposed algorithm, and analyze its asymptotic properties. In Section 4, we present numerical simulations comparing the performance of the proposed algorithm to existing methods. Section 5 concludes the paper and discusses future research. 
+
+Notation 
+
+We use X(w) 
+
+> n−1
+
+to denote ( Xn−w, . . . , X n−1), i.e. the past w samples observed prior to time n.The full history X(n−1)  
+
+> n−1
+
+= ( X1, . . . , X n−1) is denoted by Xn−1 for short. If Xn is a vector, we use X(j) 
+
+> n
+
+to denote the j-th component of Xn. We write Fn = σ(Xn) to denote the 
+
+σ-algebra generated by the observations up to time step n. The expectation operator when change happens at time ν and the true distribution is P is denoted by EPν , and E∞ is the expectation when no change happens. 
+
+# 2 Problem formulation 
+
+Let X1, X 2, . . . be an independent sequence of random variables observed sequentially. Sup-pose there exists an unknown deterministic change-point ν such that 
+
+Xn i.i.d 
+
+∼
+
+(
+
+Q, n = 1 , 2, ..., ν − 1
+
+P, n = ν, ν + 1 , ... (2.1) i.e. at time ν the pdf of the observations changes from a known distribution Q to another distribution P . It is assumed that Q and P have density functions q and p, respectively, 3with respect to a common dominating measure μ. It is assumed that Q is completely known, while the post-change distribution is unknown. We assume that P ∈ P belongs to some known family of distributions. For example, P can be a family of parametric distributions parametrized by some vector θ ∈ R of length k. The goal is to detect the change from Q
+
+to P as quickly as possible, while avoiding false alarms. In this setting, a change detection procedure is a stopping time T with respect to the filtration {F n}, where Fn = σ(X1, . . . , X n)is the σ-algebra generated by the first n observations. The procedure is evaluated with respect to the following two criteria: 
+
+False Alarm Criterion. The rate of false alarms for a procedure T is quantified by the average run length (ARL) to false alarm in the pre-change regime. The family of tests with ARL at least γ is denoted by Cγ , i.e. 
+
+Cγ := {T : E∞(T ) ≥ γ} . (2.2) 
+
+Delay Criterion. The detection delay is measured in the ”worst worst-case” as defined by Lorden [4]. For any P ∈ P D(T ) := sup 
+
+> ν≥1
+
+ess sup EPν (( T − ν + 1) +|F ν−1), (2.3) with the worst-case evaluated over both all possible change-points ν and pre-change obser-vations. If the post-change distribution is known, i.e. P = {P } is a singleton, QCD theory is well-developed, and some optimal tests are known. The Lorden’s delay is minimized by the CuSum test [3, 5], which is also computationally convenient. The test is based on thresholding the recursive statistic 
+
+Wn = max( Wn−1, 0) + log p(Xn)
+
+q(Xn) , W0 = 0 . (2.4) When P is a parametric class depending on an unknown θ, the post-change density p can be written as p(·; θ) to highlight the dependence on θ. Adaptive change-point detection methods replace the unknown θ by a predictable 1 estimator bθn ∈ F n−1 which is then inserted as the parameter in the CuSum-update 
+
+Wn = max( Wn−1, 0) + log p(Xn; bθn)
+
+q(Xn) . (2.5) Various ways of constructing the estimator bθ have been proposed in the literature. In partic-ular, an important question is identifying the appropriate block of past data from which to estimate the parameter at any given time. Having a very long memory will lead to pre-change data biasing the estimation, while a memory that is too short will yield noisy estimates. In [16], the authors propose to restart the estimator bθ whenever the detection statistic hits zero. In [18], the estimator is learned using online mirror descent. Recently [19] proposed estimating θ from a sliding window of fixed size w. It was shown, that asymptotic optimality can be achieved with a window size that grows much slower than the window size required in           
+
+> 1A sequence of random variables bθ1,bθ2, ... is said to be predictable (with respect to a filtration {F n}) if
+> bθn∈ F n−1, i.e. the value of bθnis determined by the information available up to time n−1.
+
+4the window-limited GLR test. After the appropriate estimation window has been selected, relatively few works have studied how to form the new likelihood ratio using the chosen data. The standard approach in the above works has been to plug in the maximum likelihood estimator of θ. The use of shrinkage estimation for bθ was first proposed in [21] and recently shown to be a uniform improvement over the MLE for detecting Gaussian mean shifts in [22]. 
+
+2.1 Change detection by prediction 
+
+More generally, the adaptive change detection tests of the form (2.5) may be seen as consec-utive predictions of the next observation Xn. At time n, all available history Xn−1 may be used to formulate a predictive distribution ˆ pn(x) that assigns a probability (density) to each possible outcome x. The “quality” of the prediction is measured by the realized log-likelihood ratio ˆℓn = log ˆ pn(Xn)/q (Xn), where large values indicate that ˆ pn predicted the new obser-vation better than the pre-change model q. The log-likelihood ratio is used to recursively update a test-statistic 
+
+Sn = max( Sn−1, 0) + ˆℓn = max( Sn−1, 0) + log ˆpn(Xn)
+
+q(Xn) (2.6) In the pre-change regime where Xn ∼ q, when ˆ pn is any probability density function inde-pendent of Xn, the likelihood update eˆℓn always has unit expectation, since 
+
+E∞eˆℓn = E∞
+
+ ˆpn(Xn)
+
+q(Xn)
+
+
+
+=
+
+Z ˆpn(x)
+
+q(x) q(x)dx = 1 . (2.7) Therefore, being able to consistently obtain large likelihood ratios, and consequently large values of Sn, with some sequence of predictors ˆ pn implies that the pre-change model is no longer in place. Of particular interest is the growth of ˆℓn after the change n ≥ ν, which can be written as 
+
+EPν (ˆℓn) = EPν
+
+
+
+log ˆpn(Xn)
+
+q(Xn)
+
+
+
+= EPν
+
+
+
+log p(Xn)
+
+q(Xn)
+
+
+
+− EPν
+
+
+
+log p(Xn)ˆpn(Xn)
+
+
+
+. (2.8) On the right hand side of (2.8), the first term is simply the Kullback-Leibler (KL) divergence between the pre- and post-change distributions 
+
+EPν
+
+
+
+log p(Xn)
+
+q(Xn)
+
+
+
+= D(p ∥ q) := 
+
+Z
+
+log 
+
+ p(x)
+
+q(x)
+
+
+
+p(x)dx. (2.9) The second term is the expected KL-divergence 
+
+Rν (ˆ pn) := EPν [D(p ∥ ˆpn)] = EPν
+
+
+
+log p(Xn)ˆpn(Xn)
+
+
+
+(2.10) between the true post-change distribution p and the predicted ˆ pn, where the expectation is taken over the randomness in both ˆ pn and Xn. It follows from standard properties of KL-divergence that Rν (ˆ pn) is non-negative for n ≥ ν and equal to zero if and only if ˆ pn = p
+
+almost surely, maximizing EP 
+
+> 1
+
+(ˆℓn). Obviously, inserting ˆ pn = p into (2.6) recovers the optimal CuSum test statistic (2.4). 5Based on the above, the central question for constructing a change detection test of the form (2.6) is designing predictors ˆ pn such that Rν (ˆ pn) is as small as possible for n ≥ ν. If 
+
+{Xn} was an i.i.d. sequence from P , the loss R1(ˆ pn) or its cumulative version PNn=1 R1(ˆ pn)is known as KL-loss or (cumulative) predictive regret. This framework has been extensively studied in sequential prediction, predictive density estimation, and the minimum description length (MDL) literatures [23, 20]. An interesting takeaway from these works is that the plug-in approach, while simple, may be suboptimal. Suppose that P = {Pθ : θ ∈ Θ} is a parametric family of distributions, and θ ∼ ω(θ) for some prior distribution ω and Xn−1 is an i.i.d. sample from Pθ. It is well known [24] that the Bayesian posterior predictive distribution 
+
+ˆpbayes  
+
+> n
+
+(Xn) = 
+
+Z
+
+> θ
+
+p(Xn; θ)ω(θ|Xn−1)dθ (2.11) minimizes Eθ∼ω(θ)[R1(ˆ pn)] over all predictive distributions ˆ pn. In (2.11), ω(θ|Xn−1) denotes the posterior distribution of θ given data Xn−1.In practical problems, it may not make sense to talk about a distribution ω(θ) that generates θ. Regardless, there exists “priors” ω such that the resulting posterior predictive distribution (2.11) dominates sensible plug-in predictors ˆpplug-in  
+
+> n
+
+(Xn) = p(Xn; bθn) (2.12) under purely frequentist criteria. As an example, if Pθ is the standard univariate Gaussian distribution with unknown mean θ ∈ R, it was shown that the maximum likelihood predic-tive plug-in ˆ pplug-in  
+
+> n
+
+(Xn) = p(Xn; bθML  
+
+> n
+
+) is dominated by the posterior predictive distribution ˆpbayes  
+
+> n
+
+(Xn), computed by assuming an improper uniform prior ω(θ) ∝ 1 for θ. That is, for every θ ∈ R
+
+R1(ˆ pbayes  
+
+> n
+
+) < R1(ˆ pplug-in  
+
+> n
+
+). (2.13) Here, the plug-in predictive distribution corresponds to ˆ pplug-in  
+
+> n
+
+(x) = N (x; bθML , 1), while the posterior predictive is given by ˆ pbayes  
+
+> n
+
+= N (x; bθML , 1 + 1 /(n − 1)). In particular, ˆ pbayes 
+
+> n
+
+accounts for the uncertainty in the point estimate of the parameter, while this is ignored in the plug-in distribution. In general, constructing admissible or otherwise optimal predictive distributions is intricate even for Gaussian data models. It can be shown that all admissible rules correspond to Bayes posterior predictive distributions [20]. In the change detection context, the important quantity for effective detection is not 
+
+R1(ˆ pn), but Rν (ˆ pn) for n ≥ ν, where the change-pont ν is unknown. That is, the procedure for generating the predictive distribution ˆ pn should be effective even when an unknown segment of the prior data X1, . . . , X n−1 is not drawn from P , but from the pre-change model Q. When computing the predictive density ˆ pn, using all past data is most likely suboptimal, since it likely contains observations from Q. Determining how much past data should be used is itself nontrivial, because the optimal history length depends on the change-point ν, which is precisely the unknown quantity to be detected. 
+
+# 3 Predictive-Mixture CuSum (PM-CuSum) 
+
+In this section we propose the Predictive-Mixture CuSum procedure that can effectively construct the predictive distribution ˆ pn in a change-point detection context. PM-CuSum 6maintains a set of candidate predictors {ˆp(w) 
+
+> n
+
+}w∈W indexed by window lengths w ∈ W for generating the predictive distribution ˆ pn for each time instance. The defining feature of each candidate predictor ˆ p(w) 
+
+> n
+
+is that its predictive distribution is constructed based on the past 
+
+w observations, i.e. ˆp(w) 
+
+> n
+
+(x) = ˆ p(x|Xn−1, . . . , X n−w). (3.1) At time step n, the candidate predictive distributions are combined using weights {π(w) 
+
+> n
+
+}w∈W ∈Fn−1 independent of Xn to form the combined predictive distribution ˆpn(Xn) = X
+
+> w∈W
+
+π(w) 
+
+> n
+
+ˆp(w) 
+
+> n
+
+(Xn), X
+
+> w∈W
+
+π(w) 
+
+> n
+
+= 1 . (3.2) This distribution is then used to compute the new likelihood ratio ˆℓn = log ˆpn(Xn)
+
+q(Xn) , (3.3) and update the PM-CuSum statistic with 
+
+Sn = max {Sn−1, 0} + ˆℓn, S0 = 0 . (3.4) The procedure declares a change when the statistic crosses a user-defined threshold b > 0: 
+
+Tb = inf {n : Sn > b }. (3.5) The following lemma states that for any (predictable) choice of predictive densities {ˆp(w) 
+
+> n
+
+}
+
+and weights {π(w) 
+
+> n
+
+}, the average run length to false alarm (ARL) grows exponentially in b.
+
+Lemma 3.1. For any {ˆp(w) 
+
+> n
+
+} and {π(w) 
+
+> n
+
+}, the ARL of PM-CuSum satisfies: 
+
+E∞Tb ≥ eb. (3.6) 
+
+Therefore, setting b = log γ is sufficient to guarantee ARL (Tb) ≥ γ.Proof. The proof is given in Appendix A.1 
+
+3.1 Choosing the weights 
+
+The PM-CuSum algorithm depends on two central design parameters: the candidate pre-dictive distributions {ˆp(w) 
+
+> n
+
+} and the corresponding weights at each time. The choice of the predictive distributions is deferred to Section 3.2. The proposed weighting strategies are general and applicable to any choice of predictive distributions. At a general time n = ν + m, the ideal window size to use for constructing the predictive distribution would be m, since windows longer than m are “contaminated” by pre-change data. Of course, m is not known, since ν is unobserved. Therefore, of the available options 
+
+W, some windows w ∈ W may be too long and biased by pre-change data, while others may be unnecessarily short. Moreover, the best choice varies over time: initially after the change, short windows are able to react to the change the quickest and provide a small positive 7Figure 1: Illustration of the adaptive window weighting used in PM-CuSum. The red and blue lines correspond to adaptive change detection tests that utilize long and short windows, respectively. The statistic corresponding to the short window reacts quickly to the change, is eventually surpassed by the longer window. By adaptively combining the two statistics, a statistic larger than either of the individuals can be obtained. drift for the test statistic, but after a sufficient number of samples from the post-change distribution are available, longer windows are to be preferred. An oracle weighting procedure would then place all its weight at time n on whatever window provides the largest expected drift for the test statistic. Figure 1 illustrates this tradeoff. The short-window statistic reacts quickly after the change at ν = 50, but its noisy estimates lead to slower long-run growth. The long-window statistic initially adapts more slowly because its window contains pre-change observations, but it grows faster once the window is dominated by post-change data. The adaptively weighted statistic first tracks the short window and later shifts toward the long window, eventually exceeding both individual statistics. The problem of choosing the best predictor at a given time may be viewed as an “expert selection” problem [25]. Expert-selection methods are typically used in online prediction and learning to track the best-performing strategy in a changing environment [26], but have not been widely adopted in the QCD literature. In the present setting, the experts are predictive distributions based on different window lengths. Each expert is scored by the predictive likelihood it assigns to the realized observation, ˆp(w) 
+
+> n
+
+(Xn). To account for the fact that the best predictor may change over time as discussed above, we adopt the fixed-share (FS) algorithm [25] for calculating the weights. In the FS procedure, the weight π(w) 
+
+> n
+
+of predictor 
+
+w at time n is updated by ˜π(w) 
+
+> n+1
+
+∝ π(w) 
+
+> n
+
+ˆp(w) 
+
+> n
+
+(Xn) (3.7) 
+
+π(w) 
+
+> n+1
+
+= (1 − α)˜ π(w) 
+
+> n+1
+
++ α
+
+|W| , (3.8) 8with π(w)0 equal to some initial allocation of the weights, typically 1 /|W| for all w. In the update, parameter α represents the rate at which we expect the best predictor to change. Intuitively, the algorithm retains a share α of the weight mass that is redistributed uni-formly across predictors at each time step, ensuring continued adaptability. This prevents the weight of any predictor from vanishing. Pseudo-code for the proposed procedure is given in Algorithm 1. 
+
+Remark 3.2 . It will be shown, that using FS to set the weights leads to strong theoretical properties and good empirical performance of the proposed change-detection procedures. The fixed-share algorithm requires specifying the parameter α, although it will be observed that the empirical performance of the algorithm does not seem to depend heavily on α. Still, if one wants an adaptive algorithm without any tuning parameters, a simple choice is to maintain individual CuSum statistics {S(w) 
+
+> n
+
+} for each predictor w, and choose the weights for time n+1 based on these statistics. For example, a “follow-the-leader” strategy would place all weight on arg max w{S(w) 
+
+> n
+
+}. This approach would make the combined statistic behave approximately like the running maximum of the individual statistics. In contrast, fixed-share aggregation can produce a statistic that exceeds each individual statistic by switching between predictors over time; see Figure 1. 
+
+Algorithm 1 Predictive-Mixture CuSum 
+
+Require: Threshold b > 0; set of windows W; share parameter α ∈ [0 , 1]. 1: Initialize S0 ← 0; initial weights π(w)1 ← 1/|W| 
+
+2: for n = 2 , 3, . . . do 
+
+3: for all w ∈ W do 
+
+4: w ← min {w, n − 1}
+
+5: Compute predictive likelihood ˆ p(w) 
+
+> n
+
+(Xn) = ˆ p(Xn|Xn−w , . . . , X n−1)6: end for 
+
+7: Form aggregated predictive likelihood ˆpn(Xn) ← X
+
+> w∈W
+
+π(w) 
+
+> n
+
+ˆp(w) 
+
+> n
+
+(Xn).
+
+8: Update the test statistic ˆℓn = log ˆpn(Xn)
+
+q(Xn)
+
+Sn ← max {Sn−1, 0} + ˆℓn
+
+9: if Sn > b then 
+
+10: return T ← n and declare change. 11: end if 
+
+12: Fixed-share weight update: 13: for all w ∈ W do 
+
+14: Unnormalized update ˜ π(w) 
+
+> n+1
+
+← π(w) 
+
+> n
+
+ˆp(w) 
+
+> n
+
+(Xn)15: end for 
+
+16: Normalize ˜ π(w) 
+
+> n+1
+
+← ˜π(w)
+
+> n+1
+
+ P  
+
+> w∈W
+
+˜π(w) 
+
+> n+1
+
+for all w
+
+17: for all w ∈ W do 
+
+18: Share step π(w) 
+
+> n+1
+
+← (1 − α)˜ π(w) 
+
+> n+1
+
++ α/ |W| 
+
+19: end for 
+
+20: end for 
+
+93.2 Choosing the predictive distributions 
+
+The performance of the PM-CuSum procedure depends on the predictive densities ˆ p(w) 
+
+> n
+
+which determine the log-likelihood increments and thus the drift of the detection statistic. Thus, for each ˆ p(w) 
+
+> n
+
+, w ∈ W , the problem reduces to predictive density estimation based on w samples 
+
+X(w) 
+
+> n−1
+
+= ( Xn−1, . . . , X n−w) assumed to be drawn i.i.d. from P . As discussed in Sec. 2.1, the quality of the predictors are measured through KL-loss R1(ˆ p(w) 
+
+> n
+
+), which determine the post-change drift of the test-statistic Sn. While the proposed procedure can in principle be used in conjunction with any ˆ p(w) 
+
+> n
+
+, its KL-loss determines the asymptotic performance of the algorithm. In the following assumption, we require that in the stationary post-change regime, the KL-loss of the predictive distribution must decay polynomially in w.
+
+Assumption 3.3. There exist constants 0 < β ≤ 1 and C1 < ∞ such that the KL-loss of the predictor ˆ p(w) 
+
+> n
+
+with window size w satisfies, for n > w ,
+
+R1(ˆ p(w) 
+
+> n
+
+) = EP 
+
+> 1
+
+log p(Xn)ˆp(w) 
+
+> n
+
+(Xn)
+
+!
+
+≤ C1
+
+wβ , for all P ∈ P (3.9) Next, we give examples of predictors that satisfy (3.9) and the associated β in parametric and non-parametric cases. In the parametric case, the two important classes of predictors are Bayesian predictive distributions and the plug-in approach. 
+
+Example 3.4 (Bayesian predictive densities.) . Let P be a k-parameter exponential family, and ω a continuous prior with ω(θ) > 0 for all θ ∈ Θ. Then the predictor given by the posterior predictive distributions, defined by ˆp(w) 
+
+> n
+
+(Xn) = 
+
+Z
+
+> Θ
+
+p(Xn; θ)ω(θ|X(w)
+
+> n−1
+
+)dθ (3.10) satisfies 3.3 with β = 1 under standard regularity conditions for finite-dimensional exponential families [23]. 
+
+Example 3.5 (Plug-in maximum likelihood.) . In the absence of conjugate priors or closed-form distributions, the full predictive density (3.10) may be computationally expensive to evaluate. In such cases, the plug-in approach provides a simpler but useful alternative. Let 
+
+bθ(w) 
+
+> n−1
+
+denote an estimator of θ based on X(w)
+
+> n−1
+
+. Then, the plug-in predictor is given by ˆp(w) 
+
+> n
+
+(Xn) = p(Xn; bθ(w)
+
+> n−1
+
+). (3.11) In k-parameter exponential families, ˆ p(w) 
+
+> n
+
+satisfies Assumption 3.3 with β = 1 if bθn−1 is chosen as a (smoothed) maximum likelihood estimator [23], for example. When P is a non-parametric class of distributions, many ways of estimating P ∈ P exist. Kernel density estimators (KDEs) are among the most common such methods. A properly tuned KDE satisfies (3.9) with a β that depends on the dimension and smoothness of the distributions in P.10 Example 3.6 (Kernel density estimators (KDE)) . Let Pr be the r-H¨ older density class of probability distributions (see [27][28, pp. 5] for the exact definition). Intuitively, Pr contains distributions with densities that are ⌊r⌋ times differentiable and the ⌊r⌋-order derivative has bounded local variation. The KDE is defined as ˆp(w) 
+
+> n
+
+(Xn) = 1
+
+w Qki=1 h(i)
+
+> n−1
+
+X
+
+> j=n−wk
+
+Y
+
+> i=1
+
+K X(i) 
+
+> n
+
+− X(i)
+
+> j
+
+h(i)
+
+!
+
+, (3.12) where K(·) ≥ 0 is a kernel function and h(i), 1 ≤ i ≤ k are smoothing parameters. If K and 
+
+h are properly chosen, it is shown in [27, Lemma 1] that the KDE predictive satisfies (3.9) such that the KL-loss decreases with exponent 
+
+β = 2r
+
+2r + k < 1, (3.13) for all P ∈ P r.Besides the assumption on KL-loss, a technical assumption on the tail-behavior of the likelihood ratio increment ˆℓn is made for the purposes of theoretical analysis. 
+
+Assumption 3.7. It is assumed that there exists a constant C2 such that for all n
+
+sup 
+
+> t≥0
+
+Eν
+
+ˆℓn − t ˆℓn ≥ t, Fn−1
+
+
+
+≤ C2 almost surely. (3.14) Assumption 3.7 is used solely for bounding the overshoot of the test statistic over the stopping threshold. In some contexts, the expectation E(Z − t|Z ≥ t) is known as the mean residual life (MRL) of a random variable Z. The assumption requires that the MRL of ˆℓn is bounded for all t and is satisfied, for example, if its distribution is log-concave [29]. To obtain the smallest asymptotic growth rate of detection delay, it suffices to consider a logarithmically spaced collection of window lengths. Accordingly, we let 
+
+W = {2r : r = 0 , 1, . . . , ⌈log 2 b⌉} (3.15) so that the largest window is of order b = O(log γ) and the total number of windows |W| =
+
+O(log b) = O(log log γ) grows slowly w.r.t γ.
+
+Theorem 3.8. If the predictors ˆp(w) 
+
+> n
+
+satisfy Assumptions 3.3 and 3.7, the set of windows is chosen as in (3.15) , and α = 1 /b , then detection delay of PM-CuSum as γ → ∞ is given by 
+
+D(Tb) = log γD(p ∥ q) + O((log log γ)2), if β = 1 (3.16) 
+
+D(Tb) = log γD(p ∥ q) + O((log γ)1−β ), if 0 < β < 1 (3.17) 
+
+for all P ∈ P .Proof. The proof is given in Appendix A.2 11 In the change-detection literature, first-order optimality is usually given in the form 
+
+D(T ) = log γ/D (p ∥ q)(1 + o(1)). Theorem 3.8 states that for the proposed algorithm, the 
+
+o(1) term goes to zero at a particularly fast rate. In particular, the delay expressions can be rewritten as 
+
+D(Tb) = log γD(p ∥ q)
+
+
+
+1 + O
+
+ (log log γ)2
+
+log γ
+
+ 
+
+if β = 1 (3.18) 
+
+D(Tb) = log γD(p ∥ q)
+
+
+
+1 + O
+
+
+
+(log γ)−β  
+
+if 0 < β < 1. (3.19) When β = 1, the WL-CuSum procedure [19] achieves a remainder term of O((log γ)−1/2)in (3.18), larger than what is achieved by the proposed method. When β < 1, the re-mainder term with a single window has been shown to be of order O((log γ)−ρ), where 
+
+ρ = max κ∈[0 ,1] min( κβ, 1−β) < β [27], which is again larger than the remainder term achieved by the proposed method. Thus, adaptively combining predictors of different window lengths leads to better asymptotic performance than what can be achieved with any single (even oracle) window size. Moreover, the number of windows required by the proposed algorithm is only O(log log γ). In k-parameter exponential families, the minimax optimal second-order term in (3.16) is known to equal C log log γ [1], and can be achieved (including the optimal constant) by some algorithms, such as [15] and [18]. However, these algorithms are computationally expensive, essentially starting a new adaptive test at each time instance such that the computationally complexity grows linearly in time. For single-parameter exponential families, the restart-based estimation procedure of [16] achieves the optimal second-order term in terms of Pollak’s delay. While it may be possible to extend the result to e.g. multi-parameter exponential families, giving an upper bound with respect to Lorden’s worst-worst-case delay, like done in this paper, is likely more challenging. This is because it is hard to rule out the possibility of worst-case pre-change data causing the estimator to take unfavorable values at the time the change happens. 
+
+3.3 Setting the fixed-share parameter 
+
+The proposed algorithm involves setting a parameter α that determines how much of the total weight mass is redistributed uniformly among the windows at each time. In an informal sense, α defines the length of the “memory” of the weight assignment procedure. In the theoretical analysis, we considered a fixed value of α (that vanishes as γ → ∞ ), but for practical use it may be useful to let the α in (3.8) depend on n.Intuitively, when the change has not occurred, the algorithm should be able to quickly adapt to any window size being effective. Before the change, no window-length is systemat-ically better for detection (since there is nothing to detect), so premature concentration of the weights is undesirable. Conversely, when the change has happened, the procedure should eventually “zoom in” on the window lengths w where ˆ p(w) 
+
+> n
+
+has recently been the largest. A natural measure of evidence of the change having happened is the current value of the test statistic Sn ≥ 0. One simple way of setting αn+1 given Sn is to use a logistic function transform 
+
+αn+1 = 1 − 11 + e−Sn = 11 + eSn ∈ (0 , 1/2] . (3.20) 12 When Sn is small, αn+1 is large and the fixed share update can quickly adjust the weights between windows based on new data. When Sn is larger, indicating that a change may have occurred, αn+1 is reduced, meaning that less of the weights are redistributed, and more is placed on windows that have recently made good predictions (that caused Sn to grow in the first place). 0 50 100 150 200 250 adaptive α                    
+
+> 0.0 0.2 0.4 0.6 0.8 050 100 150 200 250
+> α=0.1 0.0 0.2 0.4 0.6 0.8 050 100 150 200 250
+> α=1e-04 0.0 0.2 0.4 0.6 0.8 window 24816 32 64 128
+
+Figure 2: The weights assigned to different windows by the PM-CuSum procedure with different specifications of α as a function of time on a sample run. The background color indicates the (unknown) most effective window-length at a given time. An adaptive choice of α keeps the weights roughly equally distributed before the change at time n = 100, and places weights on the currently effective window sizes after the change. The effect of the choice α is illustrated in Figure 2. Three versions of the PM-CuSum algorithm with different α are applied to the same set of data where a change happens at time n = 100. In the plots, the lines represent the weights π(w) 
+
+> n
+
+assigned to each window 
+
+w ∈ W as a function of time. In the top plot, α is set adaptively using (3.20), in the middle plot α is set to a large fixed value of α = 0 .1, and in the bottom plot α = 10 −4 is small. The set of windows is W = {2, 4, 8, 16 , 32 , 64 , 128 }. The other simulation parameters are as in Sec. 4.1, though the details are inconsequential for the purposes of this illustration. The colored background from time n = 100 onward represents the “optimal” window at any given time; the largest w ∈ W such that n − 100 ≤ w. For instance, between n = 132 and n = 164 13 the “optimal” choice of the options in W would be w = 32 (indicated by the light-blue color in the plots), as it is the largest window that is not biased by pre-change data 2.In the bottom plot of Figure 2, where α is small, the weights start to concentrate on the larger window lengths in the pre-change regime. This is because the long windows make good predictions of new data in a stationary setting. Of course, having most of the weight concentrated on the long windows when the change happens is suboptimal. In the middle plot, where α is large, the weights remain relatively equally distributed in the pre-change regime. Unfortunately, the large α also means that the weights may not be effectively placed on the best values of w ∈ W in the post-change regime. The time-varying choice of α,displayed in the top plot, causes the weights to behave as desired in both the pre- and post-change regimes. Before the change, the weights remain dispersed, but concentrate on the effective values of w after the change. 
+
+# 4 Performance evaluation with simulation 
+
+4.1 Comparison to the parallel WL-CuSum 
+
+We first isolate the effect of adaptive window aggregation by comparing PM-CuSum with the parallel WL-CuSum procedure of [19]. Since the “optimal” window size of WL-CuSum is generally unknown in practice, the parallel WL-CuSum procedure works by running multiple WL-CuSum procedures in parallel, each with a different window size, and stopping when any of the individual procedures stops. This approach was empirically shown to be effective in [19]. We consider a scenario where pre-change distribution q = N (0, I k), post-change distri-bution p = N (θ, I k) with ∥θ∥ = 1, for dimension k ∈ { 5, 100 }. The case k = 100 is a more difficult detection problem than k = 5, as the SNR is lower. For a fair comparison, both the PM-CuSum and parallel WL-CuSum utilize the MLE plug-in distribution, given by ˆp(w) 
+
+> n
+
+(Xn) = N (Xn; bθ(w) 
+
+> n
+
+, I k) (4.1) 
+
+bθ(w) 
+
+> n
+
+= 1
+
+w
+
+> n−1
+
+X
+
+> j=n−w
+
+Xj . (4.2) For both algorithms, the set of window sizes is set as W = {2r : 1 ≤ r ≤ 7}. Simulations were also run with other sets of windows, and the relative performance of the algorithms was similar. We consider three versions of the PM-CuSum procedure, one with weight-reallocation parameter α = 1 /50, one with α = 1 /1000, and one where the parameter α is set adaptively as in (3.20). The change-point is set to ν = 100. The observed empirical detection delays of the procedures for a range of ARL levels are displayed in Figure 3. The detection delay of PM-CuSum with a time-varying α is the smallest across all levels of ARL and for both values of k. A fixed α-parameter that is too large can lead to large detection delays compared to other algorithms when the change is relatively easy to detect, as seen from Fig. 3a. When            
+
+> 2The term “optimal” is used informally here, since the best window in terms of Rν(ˆ p(w)
+> n) would depend on the severity of the bias caused by the pre-change data on the predictive distribution. For example, at time
+> n=ν+ 63, it is likely that ˆ p(w)
+> nwith w= 64 generates better predictions than w= 32, since the bias from the single pre-change observation is likely negligible.
+
+14 16 18 20 22 24          
+
+> K = 5
+> ARL ADD 500 1000 2000 4000 6000
+> P-CuSum (adaptive α)P-CuSum ( α=1 50) P-CuSum ( α=1 1000) WL-CuSum
+
+(a) k = 5 55 60 65 70 75 80 85 90           
+
+> K = 100
+> ARL ADD 500 1000 2000 4000 6000
+> P-CuSum (adaptive α)P-CuSum ( α=1 50) P-CuSum ( α=1 1000) WL-CuSum
+
+(b) k = 100 
+
+Figure 3: Average detection delay versus ARL for PM-CuSum and parallel WL-CuSum for different number of data streams k. The average detection delay of PM-CuSum with a time-varying choice of α is the smallest for all ARL levels for both k.the detection delay is longer in Fig. 3b, all variants of the PM-CuSum have smaller detection delay than WL-CuSum with the same set of windows. 
+
+4.2 Sparsity-adaptive detection of Gaussian mean shifts 
+
+In this section, we examine the effect of using full predictive distributions in place of plug-in method (4.1), and evaluate the performance against state-of-the-art algorithms. Before the change, the observations Xn ∈ Rk are assumed to follow N (0, σ 2Ik), and N (θ, σ 2Ik) after the change for some unknown mean vector θ ∈ Rk. This problem is well-studied in the literature, and especially the setting where θ is a sparse vector, i.e. only an unknown subset of the streams experiences the change, has attracted attention. In [30] and [31], the GLR-CuSum test is modified to improve its performance when θ contains only a small fraction of non-zero components. Conversely, in the case of dense θ, it has been observed in [22, 21], that shrinkage estimation can be used to effectively reduce detection delay. Recently, [32] proposed an algorithm that works well for both sparse and dense θ.For PM-CuSum to adapt to both sparse and dense changes, we use two predictor families 
+
+{ˆp(s ,w ) 
+
+> n
+
+}w∈W and {ˆp(d ,w ) 
+
+> n
+
+}w∈W (short for “sparse” and “dense”, respectively). 
+
+Predictor for dense changes 
+
+The predictor for dense changes is formed by setting an independent Gaussian prior distri-bution 
+
+ω(θ(j)) = N (θ(j); μ0, τ 20 ), for all j = 1 , ..., k (4.3) on the components of θ. Based on a sample X(w)
+
+> n−1
+
+, and denoting the within-window sample mean of the jth component by ¯X(j) = (1 /w ) Pn−1 
+
+> i=n−w
+
+X(j) 
+
+> i
+
+, the dense predictive distribution 15 is then ˆp(d ,w ) 
+
+> n
+
+(Xn) = 
+
+Z
+
+p(Xn; θ)ω(θ|X(w)
+
+> n−1
+
+)dθ (4.4) =
+
+> k
+
+Y
+
+> j=1
+
+N (X(j) 
+
+> n
+
+; μ(j) 
+
+> n
+
+, σ 2 
+
+> n
+
++ σ2), (4.5) where 
+
+σ2 
+
+> n
+
+=
+
+ wσ2 + 1
+
+τ 20
+
+−1
+
+(4.6) 
+
+μ(j) 
+
+> n
+
+= σ2
+
+> n
+
+μ0
+
+τ 20
+
++ w ¯X(j)
+
+σ2
+
+!
+
+. (4.7) The hyperparameters μ0 and τ 20 in (4.3) can be estimated in an empirical Bayes fashion using maximum marginal likelihood, so that (ˆ μ0, ˆτ 2) = arg max  
+
+> μ0,τ 20
+
+Z
+
+p(X(w)
+
+> n−1
+
+; θ)ω(θ|μ0, τ 2)dθ. (4.8) Routine computations show that the maximizers are ˆμ0 = 1
+
+k
+
+> k
+
+X
+
+> j=1
+
+¯X(j) (4.9) ˆτ 20 = max 
+
+0, 1
+
+k
+
+> k
+
+X
+
+> j=1
+
+( ¯X(j) − ˆμ0)2 − σ2
+
+w
+
+ , (4.10) which can be inserted into (4.6)–(4.7). 
+
+Predictor for sparse changes 
+
+For the case where θ may be sparse, we consider a following coordinatewise spike-and-slab model for θ. For each j = 1 , ..., k , θ(j) is generated independently according to a mixture distribution 
+
+ω(θ(j)|λ) = ηω λ(θ(j)) + (1 − η)δ0(θ(j)), (4.11) where δ0 is the Dirac delta function representing a point mass at zero. The parameter 
+
+η ∈ [0 , 1] represents the prior probability that the jth component of θ is affected by the change, and ωλ is a distribution parametrized by λ that controls the typical magnitude of non-zero components. In the literature on sparse Gaussian estimation, it has been demonstrated that the slab-distribution ω1 needs to have heavy enough tails to effectively identify the few but possibly large non-zero components of θ [33]. Here, we set ωλ as the Laplace distribution, so that 
+
+ωλ(θ(j)) = λ
+
+2 exp( −λ|θ(j)|). (4.12) 16 Because both the likelihood and prior factorize over the coordinates due to independence, the predictive density factorizes to ˆp(s ,w ) 
+
+> n
+
+(Xn) = 
+
+Z
+
+p(Xn; θ)ω(θ|X(w)
+
+> n−1
+
+, η, λ )dθ (4.13) =
+
+> k
+
+Y
+
+> j=1
+
+ˆps(X(j) 
+
+> n
+
+| ¯X(j), η, λ ). (4.14) The predictive density of each coordinate j is a mixture of two terms ˆps(X(j) 
+
+> n
+
+| ¯X(j)) = ρ(j) 
+
+> n
+
+u(X(j) 
+
+> n
+
+| ¯X(j)) + (1 − ρ(j) 
+
+> n
+
+)q(X(j) 
+
+> n
+
+), (4.15) where u(X(j) 
+
+> n
+
+| ¯X(j)) is the predictive density of the affected (Laplace) component, and q(X(j) 
+
+> n
+
+)is the predictive density of the null component, i.e. the pre-change distribution. In (4.15), 
+
+ρ(j) 
+
+> n
+
+= P(θ(j)̸ = 0 | ¯X(j)) = η R p( ¯X(j); θ(j))ωλ(θ(j))dθ (j)
+
+R p( ¯X(j); θ(j))ωλ(θ(j))dθ (j) , (4.16) is the posterior probability that θ(j) is affected given ¯X(j). The hyperparameter η can again be set in an empirical Bayes fashion by maximizing the marginal likelihood of X(w)
+
+> n−1
+
+, that is, ˆη = arg max 
+
+> ηk
+
+Y
+
+> j=1
+
+Z 
+
+η p ( ¯X(j); θ(j))ωλ(θ(j))dθ (j) + (1 − η)q( ¯X(j))
+
+
+
+. (4.17) Closed form expressions for u(X(j) 
+
+> n
+
+| ¯X(j)) and ρ(j) 
+
+> n
+
+, as well as an efficient method for computing ˆ η are derived in Appendix B. 
+
+Combining the predictors 
+
+Combining the sparse and dense predictors to form the final predictive ˆ pn(Xn) used in the PM-CuSum test is immediate within the proposed weighting approach. If W denotes the set of windows used with both predictors, we require a total of 2 |W| weights {{ π(d ,w ) 
+
+> n
+
+}w∈W , {π(s ,w ) 
+
+> n
+
+}w∈W }
+
+such that X
+
+> w∈W
+
+π(d ,w ) 
+
+> n
+
++ X
+
+> w∈W
+
+π(d ,w ) 
+
+> n
+
+= 1 (4.18) and ˆpn(Xn) = X
+
+> w∈W
+
+π(d ,w ) 
+
+> n
+
+ˆp(d ,w ) 
+
+> n
+
+(Xn) + X
+
+> w∈W
+
+π(s ,w ) 
+
+> n
+
+ˆp(s ,w ) 
+
+> n
+
+(Xn). (4.19) 
+
+4.2.1 Simulation results 
+
+The performance of PM-CuSum is compared with other algorithms proposed in the literature for high-dimensional Gaussian mean change. To evaluate the performance of the methods in both sparse and dense settings, we set the true parameter θ ∈ Rk using the following process on each Monte Carlo run. For a given number of affected sensors s ∈ { 1, . . . , k }, we first select the set S of s affected components randomly. Then we sample θ = Z/∥Z∥2, where 17 Z = ( Z(1) , . . . , Z (k)) has independent components satisfying Z(j) ∼ N (0 , 1) 1{j∈S} . Hence, 
+
+∥θ∥2 = 1 by construction. A similar setup was considered in [32]. We set k = 100 , σ 2 = 1 and consider values of s ∈ { 1, 5, 10 , 20 , 50 , 100 }.The proposed PM-CuSum algorithm is run using the two predictors as described in Section 4.2. Additionally, we implement a “naive” version of the algorithm that utilizes only the plug-in MLE predictive distribution (4.1). The set of window sizes is chosen as 
+
+W = {2j : 1 ≤ j ≤ 7}. The procedure is compared with three methods designed specifically for Gaussian mean change detection, namely those proposed by Xie and Siegmund (XS) [30], Chan [31] and the OCD procedure [32]. For these algorithms, we utilize their implementations in the ocd R package [34]. Additionally, we benchmark against the windowed GLR-CuSum [8] procedure. The XS and Chan algorithms require a tuning parameter p0 that represents the (hypothesized) proportion of streams that undergo a change. This parameter is set to a default value 1 /√k = 0 .1, as suggested by the authors. The window length for XS, Chan and GLR-CuSum is set to w = 200, which is much larger than the detection delay encountered in the considered simulations. In these three procedures, windowing is used only to reduce computational complexity, and the choice does not affect statistical performance as long as the window is large enough. For all procedures, the detection threshold is calibrated via 1000 Monte Carlo simulations such that ARL-level γ = 5000. Figure 4a presents the average detection delays for all procedures for a varying number of affected sensors s. In general, all procedures except for GLR-CuSum have a smaller detection delay when the change is sparse, even if ∥θ∥2 (and hence KL-divergence between pre- and post-change) is the same for all values of s. This is because the algorithms are designed to utilize this extra structure present in θ. Across all levels of sparsity, the proposed PM-CuSum performs competitively with the alternatives. In the sparse regime, the observed detection delay is close to that of Chan and XS, which are specifically designed for sparse changes. In the dense case of s ∈ { 50 , 100 }, PM-CuSum performs better than sparsity-aware alternatives. Notably, the version of PM-CuSum utilizing the plug-in MLE predictive distribution performs much worse than the version utilizing the full predictive distribution across all levels of sparsity. Moreover, the flexible nature of predictive distributions can take advantage of additional structure in θ. In Figure 4b we repeat the setup of Figure 4a, except when sampling θ
+
+we select Z(j) ∼ N (δ, 1) 1{j∈S} with δ = 0 .3. With δ > 0, the non-zero components of θ
+
+are slightly biased toward positive values, but still ∥θ∥2 = 1. The results are presented in Figure 4b. For sparse changes the results are similar, but in the dense case of s = 100, the proposed PM-CuSum algorithm performs noticeably better than alternatives except GLR-CuSum. Interestingly, the delay curve as a function of s is non-monotone for PM-CuSum, but either increasing or approximately constant for the other methods. This follows from the use of two predictor families: the sparse predictor is well matched to changes affecting few components, and the dense predictor is well matched to changes affecting many components, especially when the values of the affected components are similar. For intermediate sparsity levels, neither model is as well matched to the post-change distribution, resulting in larger delay. 18 30 40 50 60 70 80 Number of a ff ected sensors ADD 1 5 20 50 100 
+
+> PM-CuSum XS Chan OCD GLR PM-CuSum (plug-in)
+
+(a) δ = 0 30 40 50 60 70 80 Number of a ff ected sensors ADD 1 5 20 50 100  
+
+> PM-CuSum XS Chan OCD GLR PM-CuSum (plug-in)
+
+(b) δ = 0 .3
+
+Figure 4: Comparison of detection delays of procedures across different levels of sparsity. The proposed PM-CuSum detector performs competitively across all levels of sparsity. 
+
+# 5 Conclusion 
+
+In this paper, we have proposed PM-CuSum, a novel procedure for sequential change de-tection when the post-change distribution is unknown. By adaptively combining predictive distributions computed from different lengths of past data, the procedure can effectively de-tect changes while remaining computationally effective. Analytically, it was established that the proposed procedure is first-order asymptotically optimal with respect to Lorden’s de-lay under general conditions. Additionally, it was shown that the second-order term of the asymptotic detection delay is smaller than what can be achieved by any fixed single window. The results apply also to the case where the family of post-change distributions is nonpara-metric, as long as the distribution can be estimated with Kullback-Leibler-loss that decreases sufficiently fast as a function of the sample size. The analysis focused on the i.i.d. setting, but for practical use, the proposed procedure can easily be extended to the case of dependent data by using predictors that take into account the dependence structure. Additionally, we have made the observation that in the change-point detection problem with an unknown post-change distribution, the relevant notion of estimation error is the KL-divergence between the true and estimated post-change distribution. In this regard, it is known that simple plug-in distributions can be inferior to predictive distributions that take into account the uncertainty in the estimation of the post-change distribution. We demonstrated this phenomenon in a simulation example of detecting a change in the mean of high-dimensional Gaussian data, where the proposed PM-CuSum procedure with predictive distributions considerably outperforms the plug-in method, and performs competitively with state-of-the-art algorithms designed specifically for this problem. While we have observed both empirically and theoretically that the fixed-share algorithm 19 works well for combining the predictors, it is by no means the only possible algorithm for assigning the weights. Moreover, the set of window sizes W does not have to be fixed in advance, but could vary over time. 
+
+# References 
+
+[1] A. Tartakovsky, I. Nikiforov, and M. Basseville, Sequential Analysis: Hypothesis Testing and Changepoint Detection . CRC Press, 2014. 1, 12, 22 [2] H. V. Poor and O. Hadjiliadis, Quickest Detection . Cambridge University Press, 2008. 1[3] E. S. Page, “Continuous inspection schemes,” Biometrika , vol. 41, no. 1/2, pp. 100–115, 1954. 1, 4 [4] G. Lorden, “Procedures for reacting to a change in distribution,” The Annals of Math-ematical Statistics , vol. 42, no. 6, pp. 1897–1908, 1971. 1, 2, 4 [5] G. V. Moustakides, “Optimal stopping times for detecting changes in distributions,” 
+
+The Annals of Statistics , vol. 14, no. 4, pp. 1379–1387, 1986. 1, 4 [6] S. W. Roberts, “A comparison of some control chart procedures,” Technometrics , vol. 8, pp. 411–430, 1966. 1 [7] A. S. Polunchenko and A. G. Tartakovsky, “On optimality of the shiryaev-roberts pro-cedure for detecting a change in distribution,” The Annals of Statistics , vol. 38, no. 6, pp. 3445–3457, 2010. 1 [8] T. L. Lai, “Information bounds and quick detection of parameter changes in stochastic systems,” IEEE Transactions on Information Theory , vol. 44, no. 7, pp. 2917–2929, 1998. 2, 18 [9] H. Wang and Y. Xie, “Sequential change-point detection: Computation versus statistical performance,” WIREs Computational Statistics , vol. 16, no. 1, p. e1628, 2024. 2 [10] G. Romano, I. A. Eckley, P. Fearnhead, and G. Rigaill, “Fast online changepoint detec-tion via functional pruning CUSUM statistics,” Journal of Machine Learning Research ,vol. 24, pp. 1–36, 2023. 2 [11] K. Ward, G. Dilillo, I. Eckley, and P. Fearnhead, “Poisson-focus: An efficient online method for detecting count bursts with application to gamma ray burst detection,” 
+
+Journal of the American Statistical Association , vol. 120, pp. 7–19, 2025. 2 [12] H. Robbins and D. Siegmund, “The expected sample size of some tests of power one,” 
+
+The Annals of Statistics , vol. 2, no. 3, pp. 415 – 436, 1974. 2 [13] ——, “A class of stopping rules for testing parametric hypotheses,” in Proceedings of the Sixth Berkeley Symposium on Mathematical Statistics and Probability (Univ. California, Berkeley, CA, 1970/1971) , vol. 4, 1972, pp. 37–41. 2 20 [14] R. S. Sparks, “CUSUM charts for signalling varying location shifts,” Journal of Quality Technology , vol. 32, no. 2, pp. 157–171, 2000. 2 [15] G. Lorden and M. Pollak, “Nonanticipating estimation applied to sequential analysis and changepoint detection,” The Annals of Statistics , vol. 33, no. 3, pp. 1422 – 1454, 2005. 2, 12 [16] ——, “Sequential change-point detection procedures that are nearly optimal and com-putationally simple,” Sequential Analysis , vol. 27, no. 4, pp. 476–512, 2008. 2, 4, 12 [17] A. G. Tartakovsky, B. L. Rozovskii, R. B. Blaˇ zek, and H. Kim, “Detection of intrusions in information systems by sequential change-point methods,” Statistical Methodology ,vol. 3, no. 3, pp. 252–293, 2006. 2 [18] Y. Cao, L. Xie, Y. Xie, and H. Xu, “Sequential change-point detection via online convex optimization,” Entropy , vol. 20, no. 2, 2018. 2, 4, 12 [19] L. Xie, G. V. Moustakides, and Y. Xie, “Window-limited CUSUM for sequential change detection,” IEEE Transactions on Information Theory , vol. 69, no. 9, pp. 5990–6005, 2023. 2, 3, 4, 12, 14 [20] L. D. Brown, E. I. George, and X. Xu, “Admissible predictive density estimation,” The Annals of Statistics , vol. 36, no. 3, pp. 1156–1170, 2008. 3, 6 [21] Y. Wang and Y. Mei, “Large-scale multi-stream quickest change detection via shrinkage post-change estimation,” IEEE Transactions on Information Theory , vol. 61, no. 12, pp. 6926–6938, 2015. 5, 15 [22] T. Halme, V. V. Veeravalli, and V. Koivunen, “Quickest change detection for multi-ple data streams using the James-Stein estimator,” IEEE Transactions on Information Theory , 2025. 5, 15 [23] P. Grunwald, “A tutorial introduction to the minimum description length principle,” 2004. 6, 10 [24] J. Aitchison, “Goodness of prediction fit,” Biometrika , vol. 62, no. 3, pp. 547–554, 1975. 6[25] M. Herbster and M. K. Warmuth, “Tracking the best expert,” Machine Learning , vol. 32, no. 2, pp. 151–178, 1998. 8, 24 [26] N. Cesa-Bianchi and G. Lugosi, Prediction, Learning, and Games . Cambridge Univer-sity Press, 2006. 8 [27] Y. Liang and V. V. Veeravalli, “Quickest Change Detection with Post-Change Density Estimation,” IEEE Transactions on Information Theory , p. 1, 2024. 11, 12 [28] A. B. Tsybakov, “Introduction to nonparametric estimation,” in Introduction to Non-parametric Estimation . Springer New York, NY, 2008. 11 21 [29] R. E. Barlow, A. W. Marshall, and F. Proschan, “Properties of Probability Distributions with Monotone Hazard Rate,” The Annals of Mathematical Statistics , vol. 34, no. 2, pp. 375 – 389, 1963. 11 [30] Y. Xie and D. Siegmund, “Sequential multi-sensor change-point detection,” The Annals of Statistics , vol. 41, no. 2, pp. 670 – 692, 2013. 15, 18 [31] H. P. Chan, “Optimal sequential detection in multi-stream data,” The Annals of Statis-tics , vol. 45, no. 6, pp. 2736–2763, 2017. 15, 18 [32] Y. Chen, T. Wang, and R. J. Samworth, “High-dimensional, multiscale online change-point detection,” Journal of the Royal Statistical Society Series B: Statistical Methodol-ogy , vol. 84, no. 1, pp. 234–266, 2022. 15, 18 [33] I. Castillo and A. van der Vaart, “Needles and straw in a haystack: Posterior con-centration for possibly sparse sequences,” The Annals of Statistics , vol. 40, no. 4, pp. 2069–2101, 2012. 16 [34] Y. Chen, T. Wang, and R. J. Samworth, ocd: High-Dimensional Multiscale Online Changepoint Detection , 2020, r package version 1.1. [Online]. Available: https://CRAN.R-project.org/package=ocd 18 [35] D. Adamskiy, W. M. Koolen, A. Chernov, and V. Vovk, “A closer look at adaptive regret,” in International Conference on Algorithmic Learning Theory . Springer, 2012, pp. 290–304. 24 [36] I. Johnstone and B. W. Silverman, “EbayesThresh: R programs for Empirical Bayes thresholding,” Journal of Statistical Software , vol. 12, pp. 1–38, 2005. 27 [37] K. B. Petersen, M. S. Pedersen et al. , “The matrix cookbook,” Technical University of Denmark , vol. 7, no. 15, p. 510, 2008. 28 [38] D. Scott, J. S. Fu, and S. Potter, NormalLaplace: The Normal Laplace Distribution ,2025, r package version 0.3-2. [Online]. Available: https://CRAN.R-project.org/ package=NormalLaplace 28 
+
+# A Omitted Proofs 
+
+A.1 Proof of Lemma 3.1 (ARL of Predictive Mixture CuSum) 
+
+The proof follows a standard argument commonly used in sequential change detection, see e.g. [1, Lemma 8.2.1]. Consider a Shiryaev-Roberts type statistic 
+
+Vn = (1 + Vn−1)eˆℓn , V0 = 0 , (A.1) and the stopping time τb = inf {n : Vn ≥ eb}. It can be shown that eSn ≤ Vn, and therefore 
+
+Tb ≥ τb. Assume E∞(Tb) < ∞, otherwise the result is trivial. It then follows that E∞(τb) <
+
+∞. The key observation is that since ˆ pn is Fn−1-measurable and Xn ∼ q, we have 
+
+E∞[eˆℓn | F n−1] = 
+
+Z ˆpn(x)
+
+q(x) q(x) dx =
+
+Z
+
+ˆpn(x) dx = 1 (A.2) 22 and 
+
+E∞[Vn | F n−1] = (1 + Vn−1)E∞[eˆℓn | F n−1] = 1 + Vn−1.
+
+Therefore, the process Mn := Vn − n is a zero-mean martingale with respect to {F n} under 
+
+P∞. Then by the optional stopping theorem E∞(Mτb ) = E∞(Vτb − τb) = 0. Since Vτb ≥ eb
+
+by definition of τb, we have E∞(τb) ≥ eb. Since Tb ≥ τb, the claim follows. 
+
+A.2 Proof of Theorem 3.8 
+
+In proving the result, we consider the statistic 
+
+U νn =
+
+> n
+
+X
+
+> i=ν+1
+
+ˆℓi =
+
+> n
+
+X
+
+> i=ν+1
+
+log ˆpi(Xi)
+
+q(Xi) , n ≥ ν + 1 , U ν 
+
+> 1
+
+, . . . , U νν = 0 , (A.3) and the related stopping time T ν = inf {n ≥ 1 : U νn > b }. Observe first that U νn ≤ Sn for all 
+
+n and ν by construction, and therefore Tb ≤ T ν . Hence, it is sufficient to prove the delay upper bound for T ν .By Wald’s equation and adding and substracting terms, we have 
+
+Eν (( T ν − ν + 1) + | F ν−1) = Eν (T ν − ν + 1 | F ν−1) (A.4) = 1
+
+D(p ∥ q) Eν 
+
+> Tν
+
+X
+
+> n=ν
+
+log p(Xn)
+
+q(Xn) | F ν−1
+
+!
+
+(A.5) = 1
+
+D(p ∥ q)
+
+"
+
+b + Eν 
+
+> Tν
+
+X
+
+> n=ν
+
+log p(Xn)
+
+q(Xn) − U νT | F ν−1
+
+!
+
++ Eν (U νT − b | F ν−1)
+
+#
+
+(A.6) = 1
+
+D(p ∥ q)
+
+h
+
+b + Eν
+
+ p(Xν )
+
+q(Xν )
+
+
+
++ Eν 
+
+> Tν
+
+X
+
+> n=ν+1
+
+log p(Xn)ˆpn(Xn) | F ν−1
+
+!
+
++ Eν (U νT ν − b | F ν−1)
+
+i
+
+(A.7) = 1 + 1
+
+D(p ∥ q)
+
+h
+
+b + Eν 
+
+> Tν
+
+X
+
+> n=ν+1
+
+log p(Xn)ˆpn(Xn) | F ν−1
+
+!| {z }
+
+> A
+
++ Eν (U νT ν − b | F ν−1)
+
+| {z }
+
+> B
+
+i
+
+. (A.8) (A.9) Term A relates to the cumulative estimation error of the predictive distribution ˆ pn, while B corresponds to the overshoot of the test statistic over the threshold b. An upper bound for the overshoot is derived in Lemma A.3. Term A can be further decomposed as follows: For 
+
+m ≥ 1, let ˜w(m) = max {w ∈ W : w ≤ m} = min {2⌊log 2 m⌋, W max } (A.10) denote the largest window less than or equal to m in the set of windows. Then when n ≥
+
+ν + 1, ( X ˜w(n−ν), . . . , X n−1) contains only post-change observations. We can split the total estimation error into two components  
+
+> Tν
+
+X
+
+> n=ν+1
+
+log p(Xn)ˆpn(Xn) = 
+
+> Tν
+
+X
+
+> n=ν+1
+
+log p(Xn)ˆp ˜w(n−ν) 
+
+> n
+
+(Xn) + 
+
+> Tν
+
+X
+
+> n=ν+1
+
+log ˆp ˜w(n−ν) 
+
+> n
+
+(Xn)ˆpn(Xn) , (A.11) 23 where the first term on the right-hand side represents the log-loss of an oracle algorithm that always uses only the predictor that has the largest “clean” window ˜ w(n − ν) at time n, and the second term is log-loss of the fixed share algorithm with respect to this oracle. Upper bounds for the two terms are derived below in Lemmas A.2 and A.1. 
+
+Lemma A.1 (KL-loss of fixed-share) .
+
+Eν 
+
+> Tν
+
+X
+
+> n=ν+1
+
+log ˆp ˜w(n−ν) 
+
+> n
+
+(Xn)ˆpn(Xn) | F ν−1
+
+!
+
+≤ 1
+
+b Eν (T ν − ν + 1 | F ν−1) + O(log 2 b) (A.12) 
+
+Proof. In proving the claim, we can utilize existing regret bounds for the Fixed Share algo-rithm. Each of the windows in W represents an “expert”, and for any sequence of data and any interval [ t1, t 2], t1 > 1, it holds that [35, Corollary 5] 
+
+> t2
+
+X
+
+> n=t1
+
+log ˆp(w) 
+
+> n
+
+(Xn)ˆpn(Xn) ≤ log( |W| − 1) + log 
+
+ 1
+
+α
+
+
+
++ ( t2 − t1) log 
+
+ 11 − α
+
+
+
+, (A.13) where |W| is the number of windows (or experts) and α is the fixed share parameter. In the litereture on prediction with expert advice, this notion of regret is often called adaptive regret [35]. Therefore, the total regret of the fixed share algorithm with respect to the oracle sequence { ˜w(n − ν)}T ν 
+
+> n=ν+1
+
+is upper bounded by  
+
+> Tν
+
+X
+
+> n=ν+1
+
+log ˆp ˜w(n−ν) 
+
+> n
+
+(Xn)ˆpn(Xn) =  
+
+> Tν−ν
+
+X
+
+> n=1
+
+log ˆp ˜w(n) 
+
+> n
+
+(Xν+n)ˆpν+n(Xν+n) = X  
+
+> w∈W
+> Tν−ν
+
+X
+
+> n=1
+
+1{ ˜w(n) = w} log ˆp(w) 
+
+> n
+
+(Xν+n)ˆpν+n(Xν+n)(A.14) 
+
+≤ |W| log |W| + |W| log 
+
+ 1
+
+α
+
+
+
++ ( T ′ − ν + 1) log 
+
+ 11 − α
+
+
+
+(A.15) = ⌈log 2 b⌉ log( ⌈log 2 b⌉) + ⌈log 2 b⌉ log b + ( T ′ − ν + 1) 1
+
+b + O(1) (A.16) 
+
+≤ O(log b log log b + log 2 b) + ( T ′ − ν + 1) 1
+
+b (A.17) = ( T ′ − ν + 1) 1
+
+b + O(log 2 b) (A.18) The above follows since { ˜w(n − ν)}T ν 
+
+> n=ν+1
+
+can be partitioned into |W| segments where the window is fixed inside each segment, and utilizing (A.13). Since ˜ w(n−ν) is piecewise constant and changes |W| − 1 times, summing the interval regret bounds over the segments where ˜w(n−ν) is constant yields the bound in (A.15). We note that upper bounds of the form (A.15) exist in the literature and are known as the switching regret [35, eq. 6], [25]. The step from (A.13) to (A.15) was presented to emphasize that (A.15) holds irrespective of what the fixed share weights π(w) 
+
+> ν
+
+are at time ν. Finally, (A.16) is obtained by inserting |W| = ⌈log 2 b⌉ =
+
+O(log b) and α = 1 /b into (A.15). The claim follows by taking expectation of (A.18) on both sides. 24 Lemma A.2 (KL-loss of oracle) .
+
+Eν 
+
+> Tν
+
+X
+
+> n=ν+1
+
+log p(Xn)ˆp ˜w(n−ν) 
+
+> n
+
+(Xn) | F ν−1
+
+!
+
+≤ C1
+
+bβ Eν (T ν − ν + 1 |F ν−1) + O(ξ(b, β )) , (A.19) 
+
+where 
+
+ξ(b, β ) = 
+
+> |W|− 1
+
+X
+
+> k=0
+
+2(1 −β)k =
+
+(
+
+O(log b), β = 1 
+
+O(b1−β ), 0 < β < 1 (A.20) 
+
+Proof. Let us denote the terms in the sum by 
+
+Rn = log p(Xn)ˆp ˜w(n−ν) 
+
+> n
+
+(Xn) (A.21) for n ≥ ν + 1. We have 
+
+Eν 
+
+> Tν
+
+X
+
+> n=ν+1
+
+log p(Xn)ˆp ˜w(n−ν) 
+
+> n
+
+(Xn) | F n−1
+
+!
+
+= Eν  
+
+> Tν+Wmax
+
+X
+
+> n=ν+1
+
+Rn | F n−1
+
+!
+
+−Eν  
+
+> Tν+Wmax
+
+X  
+
+> n=Tν+1
+
+Rn | F n−1
+
+!
+
+.
+
+(A.22) For the first term in (A.22), we have 
+
+Eν  
+
+> Tν+Wmax
+
+X
+
+> n=ν+1
+
+Rn | F n−1
+
+!
+
+= Eν
+
+> ∞
+
+X
+
+> n=ν+1
+
+Rn1{n ≤ T ν + Wmax } | F ν−1
+
+!
+
+(A.23) 
+
+> (a)
+
+= Eν
+
+> ∞
+
+X
+
+> n=ν+1
+
+Eν (Rn1{n ≤ T ν + Wmax } | F n−Wmax −1) Fn−1
+
+!
+
+(A.24) 
+
+> (b)
+
+= Eν
+
+> ∞
+
+X
+
+> n=ν+1
+
+Eν (Rνn)1{T ν + Wmax ≥ n} Fν−1
+
+!
+
+(A.25) = Eν  
+
+> Tν+Wmax
+
+X
+
+> n=ν+1
+
+Eν (Rn) Fν−1
+
+!
+
+. (A.26) where (a) is the tower property, (b) follows since {n ≤ T ν + Wmax } is Fn−Wmax −1-measurable and Rn is independent of Fn−Wmax −1, (d) follows since Rn is independent of Fn−Wmax −1,hence Eν (Rνn) is also independent of Fn−Wmax −1, and (e) is obtained from ( ?? ) since the terms in the sum are constants independent of T ν .The expectation inside the sum can be bounded using Assumption 3.3 by 
+
+Eν (Rn) = Eν log p(Xn)ˆp( ˜ w(n−ν))  
+
+> n
+
+(Xn)
+
+!
+
+= E1 log p(Xn)ˆp( ˜ w(n−ν))  
+
+> n
+
+(Xn)
+
+!
+
+= R1(ˆ p( ˜ w(n−ν))  
+
+> n
+
+) ≤ C1
+
+˜w(n − ν)β
+
+(A.27) Then, using the definition of ˜ w(n) and algebra, the sum of the expectations satisfies   
+
+> Tν+Wmax
+
+X
+
+> n=ν+1
+
+Eν (Rn) ≤  
+
+> Tν+Wmax
+
+X
+
+> n=ν+1
+
+C1
+
+˜w(n − ν)β = C1  
+
+> Tν+Wmax −ν
+
+X
+
+> m=1
+
+1˜w(m)β
+
+25 = C1
+
+> Wmax −1
+
+X
+
+> m=1
+
+12β⌊log 2 m⌋ +  
+
+> Tν−ν
+
+X
+
+> m=Wmax
+
+1
+
+W β
+
+> max
+
+!
+
+= C1
+
+
+
+> |W|− 1
+
+X
+
+> k=0
+
+2k 2−βk + T ν − ν + 1 − Wmax 
+
+W β
+
+> max
+
+
+
+= C1
+
+
+
+> |W|− 1
+
+X
+
+> k=0
+
+2(1 −β)k + T ν − ν + 1 − Wmax 
+
+W β
+
+> max
+
+ (A.28) 
+
+≤ C1
+
+
+
+ξ(b, β ) + T ν − ν + 1 
+
+bβ
+
+
+
+, (A.29) where ξ(b, β ) was defined in (A.20) and in the last inequality we used the fact that Wmax =2⌈log 2 b⌉ ≥ b. Inserting (A.29) into (A.26), we obtain 
+
+Eν  
+
+> Tν+Wmax
+
+X
+
+> n=ν+1
+
+Rn | F n−1
+
+!
+
+≤ C1
+
+bβ Eν (T ν − ν + 1 |F ν−1) + O(ξ(b, β )) . (A.30) To prove (A.19), it remains to show that the quantity being substracted in (A.22) is non-negative. Since KL-divergence is non-negative, Eν (Rn|F n−1) ≥ 0 and we obtain the simple lower bound 
+
+Eν  
+
+> Tν+Wmax
+
+X  
+
+> n=Tν+1
+
+Rn Fn−1
+
+!
+
+= Eν
+
+> ∞
+
+X
+
+> n=ν+1
+
+Rn1{T ν + 1 ≤ n ≤ T ν + Wmax } | F ν−1
+
+!
+
+(A.31) = Eν
+
+> ∞
+
+X
+
+> n=ν+1
+
+Eν (Rνn | F n−1)1{T ν + 1 ≤ n ≤ T ν + Wmax } | F ν−1
+
+!
+
+(A.32) 
+
+≥ 0. (A.33) Equations (A.30) and (A.33) together with (A.22) prove (A.19). To confirm (A.20), observe that β = 1, 
+
+ξ(b, β ) = 
+
+> |W|− 1
+
+X
+
+> k=0
+
+2(1 −β)k =
+
+> |W|− 1
+
+X
+
+> k=0
+
+= |W| = ⌈log 2 b⌉ = O(log b) (A.34) For 0 < β < 1, ξ(b, β ) is a geometric series, so that 
+
+ξ(b, β ) = 2(1 −β)|W| − 121−β − 1 = W 1−β 
+
+> max
+
+− 121−β − 1 = O(b1−β ), (A.35) since Wmax = 2 ⌈log 2 b⌉ ≤ 2b.
+
+Lemma A.3 (Upper-bound on overshoot) .
+
+Eν (U νT ν − b | F ν−1) = O(1) (A.36) 26 Proof. Write r = b − U νT ν −1 as the gap between the threshold and the test statistic at time 
+
+T ν − 1. Then, by the definition of T ν , we have ˆℓT ν > r on the event {T ν ≥ ν}, and therefore 
+
+Eν (U νT ν − log b | F ν−1) = Eν [Eν (U νT ν − b | F T ν −1)] = Eν [Eν (ˆℓT ν − (b − U νT ν −1) | F T ν −1, T ν )] = Eν [Eν (ˆℓT ν − r | F T ν −1, T ν )] 
+
+≤ Eν
+
+
+
+sup 
+
+> r≥0
+
+Eν (ˆℓT ν − r | F T ν −1, ˆℓT ν > r )
+
+
+
+≤ C2.
+
+The last inequality follows from Assumption 3.7. 
+
+Proof of Theorem 3.8 
+
+Writing x = Eν (( T ν − ν + 1) + | F ν−1) for brevity, we obtain from (A.8) and Lemmas A.1, A.2 and A.3, the inequality 
+
+x ≤ 1 + 1
+
+D(p ∥ q)
+
+
+
+b + xb + C log 2 b + C1
+
+bβ x + Cξ (b, β ) + C2
+
+
+
+(A.37) 
+
+≤ bD(p ∥ q) + C
+
+ xbβ + log 2 b + ξ(b, β )
+
+
+
+. (A.38) Rearranging, 
+
+x ≤
+
+
+
+1 − Cbβ
+
+−1  bD(p ∥ q) + log 2 b + ξ(b, β )
+
+
+
+, (A.39) where (1 − Cb −β )−1 = 1 + O(b−β ) for large b. Multiplying, we obtain 
+
+x ≤ bD(p ∥ q) + O(b1−β + log 2 b + ξ(b, β )) . (A.40) Recall from (A.20) that ξ(b, β ) = O(log b) if β = 1, and O(b1−β ) otherwise. Therefore, if 
+
+β = 1, the dominant remainder term in (A.40) is O(log 2 b), and if 0 < β < 1, the dominant term is b1−β , since b1−β >> log 2 b as b → ∞ . Finally, from Lemma 3.1, we can substitute 
+
+b = log γ, and the proof is complete. 
+
+# B Details of proposed sparse Gaussian predictor 
+
+In this section, we provide omitted details of the proposed sparse Gaussian predictor used in Section 4.2. The derivations make use of some ideas presented in [36], but we present all steps for completeness. 
+
+Predictive distribution m(X(j) 
+
+> n
+
+| ¯X(j)) for Laplace-slab 
+
+In this section, we derive the Laplace-slab predictive term (4.15) used in Section 4.2: 
+
+u(X(j) 
+
+> n
+
+| ¯X(j)) = 
+
+Z
+
+p(X(j) 
+
+> n
+
+; θ(j))p(θ(j)| ¯X(j))dθ (j), (B.1) 27 where 
+
+p(x; θ) = N (x; θ, 1) 
+
+θ ∼ Laplace( λ)¯X(j) ∼ N (θ, 1/w ).
+
+For brevity, we work with one fixed coordinate and suppress the superscript j. Let 
+
+ϕ(x; θ, σ 2) denote the univariate Gaussian pdf with mean θ and variance σ2. We have 
+
+u(Xn| ¯X) := P (Xn| ¯X) = P (Xn, ¯X)
+
+P ( ¯X) =
+
+R ϕ(Xn; θ, 1) ϕ( ¯X; θ, 1/w ) λ 
+
+> 2
+
+exp( −λ|θ|)dθ 
+
+R ϕ( ¯X; θ, 1/w ) λ 
+
+> 2
+
+exp( −λ|θ|)dθ . (B.2) Using standard Gaussian identities, see e.g. [37, Sec. 8.1.8], it holds that 
+
+ϕ (Xn; θ, 1) ϕ   ¯X; θ, 1/w  = ϕ
+
+
+
+Xn − ¯X; 0 , 1 + 1
+
+w
+
+
+
+ϕ  θ; μw, σ 2
+
+> w
+
+ , (B.3) where μw = ( w ¯X + Xn)/(w + 1), σ2 
+
+> w
+
+= 1 /(w + 1). Therefore, we obtain for the numerator in (B.2) 
+
+P (Xn, ¯X) = ϕ
+
+
+
+Xn − ¯X; 0 , 1 + 1
+
+w
+
+ Z 
+
+ϕ  θ; μw, σ 2
+
+> w
+
+ λ
+
+2 exp( −λ|θ|)dθ (B.4) = ϕ
+
+
+
+Xn − ¯X; 0 , 1 + 1
+
+w
+
+ Z 
+
+ϕ  μw − θ; 0 , σ 2
+
+> w
+
+ λ
+
+2 exp( −λ|θ|)dθ, (B.5) where we notice that the integral is a convolution between a normal distribution and a Laplace distribution. That is, if Y ∼ N (0 , σ 2
+
+> w
+
+) and Z ∼ Laplace( λ) are independent, then the pdf of 
+
+Y + Z is given by 
+
+h(t; σ2
+
+> w
+
+, λ ) = 
+
+Z
+
+ϕ(t − z; 0 , σ 2
+
+> w
+
+) λ
+
+2 exp( −λ|z|)dz. (B.6) The convolution can be computed in closed form, and is implemented in e.g. the R package 
+
+NormalLaplace [38]. For the denominator in (B.2), 
+
+p( ¯X) = 
+
+Z
+
+ϕ( ¯X; θ, 1/w ) λ
+
+2 exp( −λ|θ|)dθ = h( ¯X; 1 /w, λ ). (B.7) Combining the above and reintroducing the superscript j, we obtain the following expression for u(X(j) 
+
+> n
+
+| ¯X(j)) in (4.15) 
+
+u(X(j) 
+
+> n
+
+| ¯X(j)) = ϕ
+
+
+
+X(j) 
+
+> n
+
+− ¯X(j); 0 , 1 + 1
+
+w
+
+ h(μw; σ2
+
+> w
+
+, λ )
+
+h( ¯X(j); 1 /w, λ ) , (B.8) where 
+
+μw = w ¯X(j) + X(j)
+
+> n
+
+w + 1 , σ2 
+
+> w
+
+= 1
+
+w + 1 . (B.9) 28 Posterior probability of Laplace-component 
+
+The probability of θ(j) being non-zero given ¯X(j) is given by 
+
+ρ(j) 
+
+> n
+
+= P(θ(j)̸ = 0 | ¯X(j)) (B.10) = η p ( ¯X(j) | θ(j)̸ = 0) 
+
+η p ( ¯X(j) | θ(j)̸ = 0) + (1 − η) p( ¯X(j) | θ(j) = 0) (B.11) = η R ϕ( ¯X(j); θ, 1/w ) λ 
+
+> 2
+
+exp( −λ|θ|)dθ η R ϕ( ¯X(j); θ, 1/w ) λ 
+
+> 2
+
+exp( −λ|θ|)dθ + (1 − η) ϕ( ¯X(j); 0 , 1/w ) (B.12) = η h ( ¯X(j); 1 /w, λ )
+
+η h ( ¯X(j); 1 /w, λ ) + (1 − η)ϕ( ¯X(j); 0 , 1/w ) , (B.13) where the last line follows from the definition of h in (B.6). Writing 
+
+κj = h( ¯X(j); 1 /w, λ )
+
+ϕ( ¯X(j); 0 , 1/w ) − 1, (B.14) the posterior probability can be written as 
+
+ρ(j) 
+
+> n
+
+= 1 + κj
+
+1/η + κj
+
+. (B.15) 
+
+Solving for η
+
+Finally, the maximum marginal likelihood estimate for η is given by ˆη = arg max 
+
+> ηk
+
+Y
+
+> j=1
+
+Z 
+
+η p (X(w)
+
+> n−1
+
+; θ)ω1(θ(j)|λ)dθ (j) + (1 − η)q(X(w)
+
+> n−1
+
+)
+
+
+
+(B.16) = arg max 
+
+> ηk
+
+X
+
+> j=1
+
+log 
+
+h
+
+η h ( ¯X(j); 1 /w, λ ) + (1 − η)q(X(w)
+
+> n−1
+
+)
+
+i
+
+(B.17) = arg max 
+
+> η
+
+l(η). (B.18) The derivative of the log-likelihood is given by 
+
+l′(η) = 
+
+> k
+
+X
+
+> j=1
+
+h( ¯X(j); 1 /w, λ ) − q( ¯X(j))
+
+η h ( ¯X(j); 1 /w, λ ) + (1 − η)q( ¯X(j)) (B.19) =
+
+> k
+
+X
+
+> j=1
+
+κj
+
+1 + ηκ j
+
+. (B.20) Since l′(η) is decreasing in η on [0 , 1], the maximum marginal likelihood estimate is attained at the root of l′(η) if it exists, and at a boundary otherwise. The root can be found using binary search, for example. 29

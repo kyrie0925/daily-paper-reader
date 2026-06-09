@@ -1,0 +1,892 @@
+Title: TPA-AD: A Two-Stage Pseudo Anomaly-Guided Method for Bearing Time-Series Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2606.04073v1
+
+Published Time: Thu, 04 Jun 2026 00:05:03 GMT
+
+Number of Pages: 80
+
+Markdown Content:
+# Highlights 
+
+TPA-AD: A Two-Stage Pseudo Anomaly-Guided Method for Bearing Time-Series Anomaly Detection 
+
+Xiancheng Wang, Zhibo Zhang, Ran Li, Rui Wang, Minghang Zhao, Shisheng Zhong, Lin Wang 
+
+• We propose a two-stage pseudo anomaly-guided framework for scenarios with normal-only training, combining reconstruction-driven pseudo-anomaly generation with con-trastive representation learning to improve the separability of axle-box bearing anoma-lies without relying on real anomaly samples. 
+
+• We design a per-feature target-error control and pseudo-anomaly filtering mechanism to generate boundary samples with controllable deviation magnitudes and a more continu-ous distribution in the continuous-feature subspace, thereby alleviating the problems of scattered injected anomalies and unstable boundaries in traditional anomaly injection. 
+
+• We construct an experimental system covering fault detection, degradation detection, and an extension on public TSAD datasets, systematically evaluating the proposed method on multi-condition bearing data and long-horizon degradation sequences, while also analyzing its broader applicability to generic time-series anomaly detection tasks. 
+
+> arXiv:2606.04073v1 [cs.LG] 2 Jun 2026
+
+# TPA-AD: A Two-Stage Pseudo Anomaly-Guided Method for Bearing Time-Series Anomaly Detection 
+
+Xiancheng Wang a, Zhibo Zhang b, Ran Li c, Rui Wang a, Minghang Zhao a, Shisheng Zhong a,Lin Wang a, ∗
+
+> aSchool of Ocean Engineering, Harbin Institute of Technology, West Wenhua Road, Weihai, 264209, Shandong, China
+> bTechnical Center, Bogie Development Department, CRRC Qingdao Sifang Locomotive and Rolling Stock Co., Ltd, Jinhong East Road, Qingdao, 266111, Shandong, China
+> cQingdao University, No. 308 Ningxia Road, Qingdao, 266071, Shandong, China
+
+Abstract 
+
+This paper proposes a two-stage pseudo anomaly-guided anomaly detection method ( Two-stage Pseudo Anomaly-guided Anomaly Detection, TPA-AD ) for axle-box bearing time-series anomaly detection (time series anomaly detection, TSAD) under the setting where only normal samples are available for training. The method first generates pseudo-anomalous win-dows near the normal boundary using a reconstruction model and per-feature target-error control. It then learns anomaly-sensitive representations through contrastive learning be-tween normal and pseudo-anomalous windows, and finally produces window-level and point-level anomaly scores using k-nearest neighbors (KNN). Compared with existing methods that rely on known fault categories, real anomaly priors, or random anomaly injection, TPA-AD improves the separability of the normal boundary by constructing pseudo-anomalies in boundary neighborhoods and can jointly handle continuous and discrete features in mixed-variable scenarios. The main experiments are conducted on bearing fault detection datasets and degradation-process datasets, with an additional exploratory extension on 13 public TSAD datasets. The results show that the proposed method yields relatively stable anomaly responses, is sensitive to degradation evolution, and demonstrates a certain degree of broader applicability on public TSAD benchmarks and real high-speed-train-related bearing data. 
+
+Keywords: fault detection, bearing fault detection, high-speed railway fault detection, TSAD, contrastive learning              
+
+> ∗Corresponding author
+> Email addresses: 402196277@qq.com (Xiancheng Wang), zhangzhibo@cqsf.com (Zhibo Zhang),
+> 13573280825@163.com (Ran Li), wangrui@hitwh.edu.cn (Rui Wang), zhaomh@hit.edu.cn (Minghang Zhao), zhongss@hit.edu.cn (Shisheng Zhong), wanglin_007@hitwh.edu.cn (Lin Wang)
+
+1. Introduction 
+
+Axle-box bearings of high-speed trains are critical rotating components in the bogie sys-tem, and their service condition directly affects operational safety, ride comfort, and main-tenance cost. During long-term operation, axle-box bearings are influenced by high-speed rotation, wheel–rail excitation, load variation, track irregularity, and environmental noise. Under these conditions, abnormal states such as local damage, wear, and lubrication degra-dation may gradually accumulate and eventually evolve into severe faults. Vibration signals can sensitively reflect impact, modulation, and non-stationary dynamic characteristics inside the bearing. Therefore, state monitoring and anomaly detection based on vibration sig-nals collected by axle-box accelerometers are of great practical importance. In recent years, rolling-bearing fault diagnosis has gradually shifted from handcrafted feature extraction to deep representation learning. Related surveys indicate that convolutional neural networks, attention mechanisms, graph neural networks, and Transformer-based models have become important tools for intelligent bearing diagnosis Zhao et al. (2025). Under complex operat-ing conditions, previous studies have improved model robustness from perspectives such as variable speed and sample imbalance Dong et al. (2024a), pseudo-label-based time–frequency supervised contrastive learning and unsupervised domain adaptation Pang et al. (2024), and dynamic-model-assisted disentanglement Xu et al. (2025). In terms of model design, meth-ods such as convolution with cross-fusion Transformer Lin et al. (2023), GAF combined with CNN-ViT Zhou et al. (2024a), and few-shot learning frameworks Li et al. (2024) have been used to enhance vibration-signal feature representation. In multi-sensor and industrial sce-narios, approaches such as multi-sensor frequency-domain fusion Dai et al. (2025), VMD com-bined with lightweight networks Wang and Feng (2024), lightweight contrastive Transformer Dong et al. (2024b), and multi-source residual convolutional fusion networks Ye et al. (2025) further address noise, limited samples, and multi-source information fusion. For high-speed-train bogie bearings, methods such as AGFCN consider diagnosis under complex conditions with strong noise and varying loads He et al. (2025). In addition, zero-shot diagnosis Li et al. (2025), frequency-pattern graph modeling Liu et al. (2025a), and complex-domain comple-tion with unsupervised time–frequency alignment under cross-domain missing-data settings Wang et al. (2025) all suggest that real bearing-monitoring scenarios often involve insufficient labels, cross-condition shifts, scarce anomaly samples, and multi-source noise interference si-multaneously. However, most existing bearing fault diagnosis studies target the identification of known fault categories and usually rely on fault samples, class labels, or source-domain fault knowledge. In real high-speed-train maintenance scenarios, severe fault samples are scarce, anomaly labels are difficult to obtain, and many anomalies do not belong to prede-fined fault categories. Therefore, modeling axle-box vibration monitoring as a time-series 2Figure 1: Schematic comparison between conventional fault injection and the pseudo-anomaly generation mechanism proposed in this paper. The former usually produces scattered negative samples and thus struggles to form a stable boundary outside the normal manifold. The latter generates pseudo-anomalous samples with multiple strength levels in the reconstruction-error space, thereby forming a more continuous anomalous boundary band around the normal region. 
+
+anomaly detection (TSAD) problem is more consistent with practical application needs. In recent years, deep TSAD methods have developed into a relatively complete research landscape, covering prediction-based, reconstruction-based, generative, and representation-learning paradigms Zamanzadeh Darban et al. (2024). At the same time, the reliability of anomaly-detection benchmarks, evaluation metrics, and experimental protocols has also drawn increasing attention Liu and Paparrizos (2024); Qiu et al. (2025). In terms of spe-cific methods, multi-pattern normality learning in the frequency domain Chen et al. (2024), joint self-supervised modeling in the time, frequency, and residual domains Sun et al. (2024), and time–frequency masked autoencoders Fang et al. (2024) all highlight the importance of frequency structure and multi-domain representation for anomaly detection. ImDiffusion combines imputation mechanisms with diffusion models for multivariate TSAD Chen et al. (2023), while METER addresses concept drift in online anomaly detection through dynamic concept adaptation Zhu et al. (2023). For multivariate time series, graph-alignment methods are used to characterize changes in channel dependencies Wang et al. (2024), and CATCH captures fine-grained frequency features and channel correlations through frequency-domain patching and channel-fusion modules Wu et al. (2025). In addition, recent methods such as DADA Shentu et al. (2025), hybrid prototype learning Shen (2025), CARLA self-supervised contrastive representation learning Darban et al. (2025), KAN-AD Zhou et al. (2024b), and RTDetector based on reconstruction trends Liu et al. (2025b) have further advanced TSAD from the perspectives of generic anomaly detection, prototype constraints, contrastive learn-3ing, and suppression of reconstruction overfitting. Although the above methods have achieved promising results in generic anomaly detec-tion and mechanical fault diagnosis, two key limitations remain for axle-box bearing moni-toring scenarios in which only normal training samples are available. First, many methods implicitly rely on real anomalies, anomaly-injection priors, or relatively stable fault templates. Second, even when artificial negative samples are introduced, they are often scattered and thus fail to form a continuous and stable discriminative boundary outside the normal mani-fold. Therefore, a key issue in improving the discriminative capability of TSAD for axle-box bearings is how to construct “near-anomalous” reference samples with genuine boundary sig-nificance without relying on real anomaly samples. As illustrated in Fig. 1, conventional fault injection is usually highly task-specific, and the generated samples tend to resemble several known fault patterns. When unseen anoma-lies or weak anomalies at the early stage of degradation appear during testing, such models may fail to maintain stable discrimination. In contrast, this paper does not directly fab-ricate specific fault morphologies. Instead, it generates pseudo-anomalous windows with controllable deviation magnitudes based on the reconstruction behavior of normal samples within multiple feature-wise error intervals. The resulting pseudo-anomalous samples are more concentrated in the neighborhood just outside the normal manifold, thereby providing continuous and stable negative references for subsequent contrastive representation learning. To more clearly position this work with respect to existing research on bearing fault diagnosis and time-series anomaly detection, Tables 1 and 2 summarize two groups of repre-sentative studies that are most relevant to this paper. In summary, this paper establishes a TSAD framework for high-speed-train axle-box bearing monitoring centered on “pseudo-anomaly construction–contrastive representation learning–point-level anomaly scoring.” The main contributions of this paper are as follows: 1. We propose a two-stage pseudo anomaly-guided framework for scenarios with normal-only training, combining reconstruction-driven pseudo-anomaly generation with con-trastive representation learning to improve the separability of axle-box bearing anoma-lies without relying on real anomaly samples. 2. We design a per-feature target-error control and pseudo-anomaly filtering mechanism to generate boundary samples with controllable deviation magnitudes and a more continu-ous distribution in the continuous-feature subspace, thereby alleviating the problems of scattered injected anomalies and unstable boundaries in traditional anomaly injection. 3. We construct an experimental system covering fault detection, degradation detection, and an extension on public TSAD datasets, systematically evaluating the proposed method on multi-condition bearing data and long-horizon degradation sequences, while 4Table 1: Key references in bearing fault diagnosis 
+
+Reference Scenario/Problem Method Relevance to this work Dong et al.Dong et al. (2024a) Variable speed and sample imbalance Multi-scale dynamic super-vised contrastive learning for enhancing discrimination among different state repre-sentations. Supports the effectiveness of contrastive learning in bearing diagnosis under complex operating conditions. Pang et al.Pang et al. (2024) Unsupervised do-main adaptation under variable speed Combines pseudo labels with time–frequency super-vised contrastive learning to alleviate cross-condition distribution shifts. Related to our use of pseudo-anomaly/pseudo-label information for representation learning. He et al.He et al. (2025) Complex operating conditions of high-speed-train bogie bearings Fault diagnosis for high-speed-train bogie bearings under strong noise and varying loads. Closest to the application scenario of this paper and supports the background of axle-box bearing vibration monitoring. Li et al.Li et al. (2025) Zero-shot bearing diagnosis Uses fault-spectrum knowledge and self-driven contrastive learning under the absence of fault samples. Supports the need to exploit weak priors or pseudo-information when real fault samples are scarce. Wang et al.Wang et al. (2025) Cross-domain diag-nosis with missing data Addresses cross-domain and missing-data issues through complex-domain completion and unsupervised time– frequency alignment. Supports the need to handle distribution shifts, missingness, and unsupervised alignment in real industrial data. 
+
+Table 2: Key references in time-series anomaly detection 
+
+Reference Scenario/Problem Method Relevance to this work Zamanzadeh Darban et al.Zamanzadeh Dar-ban et al. (2024) Survey of deep TSAD Systematically summa-rizes prediction-based, reconstruction-based, gen-erative, and representation-learning methods. Provides the overall TSAD research context and problem definition. Liu and Paparri-zosLiu and Pa-parrizos (2024) TSAD benchmarks and evaluation Analyzes how datasets, met-rics, and evaluation protocols affect result reliability. Supports the need for point-level scoring and careful metric design in this work. Chen et al.Chen et al. (2024) Multi-pattern nor-mality learning Learns multiple normal pat-terns in the frequency domain to improve anomaly detection efficiency in complex systems. Relevant to multiple normal operating modes and frequency structure in axle-box vibration signals. Wu et al.Wu et al. (2025) Multivariate frequency-domain and channel rela-tions Uses frequency-domain patch-ing and channel-fusion mod-ules to capture frequency fea-tures and channel correlations. Supports the importance of frequency-domain and channel information in multi-channel vibration signals. Darban et al.Darban et al. (2025) Self-supervised con-trastive TSAD Obtains discriminative time-series representations through anomaly injection and con-trastive learning. Related to our idea of constructing boundaries in the embedding space using pseudo-anomalous negative samples. 
+
+also analyzing its broader applicability to generic time-series anomaly detection tasks. 
+
+2. Method 
+
+This paper studies time-series anomaly detection under the setting where only normal samples are used for training. Given normal training sequences, the goal is to assign higher scores to anomalous time points in the test sequence without using test labels. To this end, we propose a two-stage pseudo anomaly-guided representation learning framework, as 5Figure 2: The proposed two-stage framework. The upper part shows reconstruction-driven pseudo-anomalous window generation, and the lower part shows normal–pseudo-anomalous contrastive representation learning and KNN scoring. Stage 1 generates controlled pseudo-anomalous samples from normal windows, while Stage 2 pulls normal neighborhoods closer, pushes pseudo-anomalous samples farther away in the embedding space, and outputs both window-level and point-level anomaly scores. 
+
+shown in Fig. 2. In the first stage, a reconstruction model is learned in the continuous subspace, and pseudo-anomalous windows near the normal boundary are generated through per-feature error control. In the second stage, contrastive representation learning is performed using normal windows and pseudo-anomalous windows, and anomaly scoring is carried out in the embedding space based on KNN distances. By constructing “near-anomalous” reference samples, the framework enhances the separability of the normal boundary without relying on any real anomaly samples. 
+
+2.1. Problem formulation 
+
+Let the training sequence and test sequence be denoted by Xtr = {xtr  
+
+> t
+
+}Ttr  
+
+> t=1
+
+and Xte =
+
+{xte  
+
+> t
+
+}Tte 
+
+> t=1
+
+, respectively, where xt ∈ RD. The training set contains only normal operating states, while the test set may contain anomalous segments. The test labels yte ∈ { 0, 1}Tte are used only for final evaluation and do not participate in model training or pseudo-anomaly generation. Given a window length W and a sliding stride s, the sequence is segmented into a set of windows 
+
+Xi = [ xti , xti+1 , . . . , xti+W −1] ∈ RW ×D, ti = 1 + ( i − 1) s. (1) 6During evaluation, the window label is determined by the point labels within its covered interval, namely yi = max t∈[ti,t i+W −1] yt. The goal of this paper is to learn a point-level anomaly scoring function S(t) such that anomalous segments receive higher scores. 
+
+2.2. Preprocessing for mixed features 
+
+Industrial sensing data often contain both continuous features and low-cardinality dis-crete features. We therefore first identify the feature type according to the cardinality ob-served in the training set: if the number of unique values in the j-th dimension of the training set does not exceed a threshold Kmax , that dimension is treated as discrete; otherwise, it is treated as continuous. Let the index sets of continuous and discrete features be C and D,respectively, satisfying C ∪ D = {1, . . . , D } and C ∩ D = ∅.Stage 1 performs reconstruction and pseudo-anomaly generation only in the continuous subspace. For j ∈ C , feature-wise scaling is applied using training-set statistics, i.e., ˜xt,j =  
+
+> xt,j −aj
+> bj
+
+, where aj and bj are estimated from the training set. The framework supports three scaling schemes: z-score, min–max, and robust min–max. Discrete features are not involved in the continuous editing procedure of Stage 1; instead, they are modeled and scored later through an independent discrete KNN branch. 
+
+2.3. Stage 1: Reconstruction-driven pseudo-anomalous window generation 
+
+As shown in Fig. 3, Stage 1 consists of four steps: continuous-feature normalization, reconstruction-model training, per-feature error control, and pseudo-anomalous window col-lection. The goal of this stage is not to directly perform anomaly discrimination, but rather to generate a set of boundary samples with controllable deviation magnitudes around the nor-mal manifold, thereby providing effective negative references for the representation learning in Stage 2. 
+
+2.3.1. Continuous-subspace reconstruction model 
+
+Let the representation of window Xi in the continuous subspace be denoted by ˜XC 
+
+> i
+
+∈
+
+RW ×|C| . For each input window, an initial hidden representation is first obtained through a linear layer, i.e., H(0) = Linear   ˜XC
+
+> i
+
+. Then, an ExtremeKAN module is introduced to enhance amplitude-related nonlinear responses, and its output is injected into the Transformer encoder as a residual term: 
+
+H(1) = TransformerEncoder  PE  H(0) + EKAN( H(0) ) . (2) Here, PE( ·) denotes positional encoding and EKAN( ·) denotes the ExtremeKAN nonlinear enhancement module. 7Figure 3: Stage 1 pipeline. The left part shows data normalization in the continuous subspace and the reconstruction model; the middle part shows a shared controller based on per-feature states; and the right part shows the pseudo-anomalous window collection process based on target-error constraints and error-bin balancing. 
+
+To preserve the independent reconstruction capability of each sensor dimension, a ded-icated decoding head is assigned to every continuous feature. Let hi,t denote the hidden state of H(1) at time step t. The reconstruction result for the j-th continuous feature is then 
+
+ˆxi,t,j = Dj (hi,t ), where j ∈ C and Dj (·) is the feature-specific decoding mapping. Accordingly, the window-wise, feature-wise reconstruction error is defined as 
+
+ei,j = 1
+
+W
+
+> W
+
+X
+
+> t=1
+
+(˜ xi,t,j − ˆxi,t,j )2 , j ∈ C . (3) The reconstruction model is trained using the mean squared error over continuous features: 
+
+Lrec = 1
+
+|C| 
+
+X
+
+> j∈C
+
+1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ei,j . (4) 
+
+2.3.2. Target-error modeling and per-feature control 
+
+To generate pseudo-anomalous windows that deviate from the normal manifold without becoming excessively distorted, this paper does not directly impose arbitrary perturbations on the raw signal. Instead, a target error interval is specified for each continuous feature in the reconstruction-error space. Specifically, the reconstruction-error distribution on the training set is used to construct target intervals τ low  
+
+> j
+
+= Qql
+
+ {etrain  
+
+> i,j
+
+}i
+
+ and τ high  
+
+> j
+
+= Qqu
+
+ {etrain  
+
+> i,j
+
+}i
+
+,8where Qq(·) denotes the q-th quantile. A target error is then sampled for each window and each edited feature as τi,j = τ low  
+
+> j
+
++ ui,j 
+
+
+
+τ high  
+
+> j
+
+− τ low 
+
+> j
+
+
+
+, where ui,j ∈ [0 , 1] can be obtained by uniform sampling, Beta sampling, or grid sampling. This design is mainly motivated by an empirical phenomenon observed in bearing data: the upper tail of the reconstruction-error distribution for normal training windows is often closer to the boundary-strength range required for subsequent pseudo-anomaly generation. Therefore, the higher-quantile interval of reconstruction errors on normal training samples in Stage 1 can serve as an empirical reference for the target error strength of pseudo-anomalies. It should be emphasized that this reference is derived solely from the normal training data, does not rely on anomaly labels, and does not constitute the final anomaly decision threshold. As shown in the middle part of Fig. 3, we further adopt a shared per-feature actor–critic controller to adaptively adjust the editing step size for each continuous feature. Let Ce ⊆ C 
+
+denote the subset of features being edited in the current window. At the r-th iteration, the state vector corresponding to the j-th feature of window i is defined as 
+
+s(r) 
+
+> i,j
+
+= e(r) 
+
+> i,j
+
+, τ i,j , e (r) 
+
+> i,j
+
+− τi,j , δ (r) 
+
+> i,j
+
+, d (r) 
+
+> i,j
+
+, r/R, ¯e(r) 
+
+> i
+
+, std( e(r) 
+
+> i
+
+), (5) where δ(r) 
+
+> i,j
+
+is the mean absolute reconstruction residual, d(r) 
+
+> i,j
+
+∈ {− 1, +1 } is the current editing direction, R is the maximum number of iterations, and ¯e(r) 
+
+> i
+
+and std( e(r) 
+
+> i
+
+) are the mean and standard deviation of the per-feature errors within the current window, respectively. All features share the same actor parameters so that the control policy remains consistent and transferable across different sensor dimensions. Given the state s(r) 
+
+> i,j
+
+, the actor outputs a step-size multiplier m(r) 
+
+> i,j
+
+= mmin +( mmax − mmin ) πϕ
+
+ s(r)
+
+> i,j
+
+,which is then used to obtain the actual update step η(r) 
+
+> i,j
+
+= clip 
+
+
+
+η0m(r) 
+
+> i,j
+
+, η min , η max 
+
+
+
+, where η0
+
+is the base step size. The editing direction is determined by the relative position between the current error and the target error: 
+
+d(r) 
+
+> i,j
+
+=
+
+
+
++1 , e(r) 
+
+> i,j
+
+≤ τi,j ,
+
+−1, e(r) 
+
+> i,j
+
+> τ i,j .
+
+(6) The update applied to the j-th continuous feature in the original window is therefore 
+
+˜x(r+1)  
+
+> i,t,j
+
+= ˜ x(r) 
+
+> i,t,j
+
++ η(r) 
+
+> i,j
+
+d(r)
+
+> i,j
+
+
+
+˜x(r) 
+
+> i,t,j
+
+− ˆx(r)
+
+> i,t,j
+
+
+
+. (7) If the error crosses the target value before and after the update, a crossing indicator is defined as 
+
+c(r) 
+
+> i,j
+
+= I
+
+h 
+
+e(r) 
+
+> i,j
+
+− τi,j 
+
+  
+
+e(r+1)  
+
+> i,j
+
+− τi,j 
+
+
+
+≤ 0
+
+i
+
+. (8) 9The corresponding per-feature reward is defined as 
+
+R(r) 
+
+> i,j
+
+= − e(r+1)  
+
+> i,j
+
+− τi,j + λold e(r) 
+
+> i,j
+
+− τi,j + λcross c(r) 
+
+> i,j
+
+. (9) This reward encourages the updated error to approach the target interval while preserving an incentive for effective crossing behavior. The controller is trained using experience replay and a target network. 
+
+2.3.3. Pseudo-anomalous window filtering 
+
+After completing R iterations, the deviation between the final error and the target error is computed for each candidate pseudo-anomalous window as ∆i,j = e(R) 
+
+> i,j
+
+− τi,j . If the j-th feature satisfies 
+
+∆i,j ≤ max ( ϵabs , ϵ rel |τi,j |) , (10) then that feature is regarded as having hit the target. The hit rate of window i is further defined as 
+
+hi = 1
+
+|C e|
+
+X
+
+> j∈C e
+
+I [∆ i,j ≤ max ( ϵabs , ϵ rel |τi,j |)] . (11) Only candidate windows whose hit rate exceeds a threshold are retained as valid pseudo-anomalous samples. To prevent samples from concentrating in a single error-strength region, we further adopt an error-bin balancing strategy to collect pseudo-anomalous windows evenly across different target-error intervals, as shown on the right side of Fig. 3. The final pseudo-anomalous window set is denoted by P = {Pk}Np
+
+> k=1
+
+, where Pk ∈ RW ×|C| .
+
+2.4. Stage 2: Normal–pseudo-anomalous contrastive representation learning 
+
+As shown in Fig. 4, Stage 2 uses normal windows and pseudo-anomalous windows gen-erated in Stage 1 to learn an anomaly-sensitive representation space. The left side of the figure corresponds to training-sample construction and the contrastive objective, while the right side corresponds to KNN-based anomaly scoring during testing. 
+
+2.4.1. Training-sample construction and contrastive objective 
+
+Let the normal window bank be N and the pseudo-anomalous window bank be P. For a window X in the continuous subspace, its embedding is defined as z = gψ(fθ(X)) ∈ Rm,where fθ is the window encoder and gψ is the projection head. In the experiments, a CNN is used as the default encoder. In each training iteration, an anchor window Xa is sampled from N . Its corresponding positive sample X+ is selected from its normal neighbors, i.e., a nearest-neighbor list is first 10 Figure 4: Stage 2 pipeline. The left side shows normal–pseudo-anomalous contrastive training, where normal neighbors are pulled closer while pseudo-anomalous windows and hard normal samples are pushed farther away. The right side shows KNN-based anomaly scoring at test time, where each test window obtains an anomaly score according to its distance to the normal sample bank. 
+
+constructed for normal samples in the raw window space, and then one neighboring window is randomly chosen as the positive sample. The pseudo-anomalous negative sample Xp− is selected by hard negative mining from the pseudo-anomalous candidate pool as the sample closest to the current anchor in the embedding space. Meanwhile, the farthest normal sample from the current anchor is selected from the normal candidate pool as a normal-hard negative sample Xh−.Given a triplet (Xa, X+, X−), the triplet loss is defined as 
+
+Ltri (Xa, X+, X−; m) = max  0, ∥za − z+∥2 − ∥ za − z−∥2 + m . (12) The overall contrastive objective consists of a pseudo-anomalous negative term and a normal-hard negative term: 
+
+Lstage2 = Ltri (Xa, X+, Xp−; mp) + λLtri (Xa, X+, Xh−; mh), (13) where mp and mh denote the pseudo-anomaly margin and the normal-hard margin, respec-tively, and λ is a weighting coefficient. This loss keeps normal neighborhoods compact while pushing pseudo-anomalous boundary samples and difficult normal samples away from the anchor, thereby producing a clearer distance structure. 
+
+2.4.2. KNN anomaly scoring and point-level aggregation 
+
+After training, normal windows, pseudo-anomalous windows, and test windows are en-coded to obtain the embedding sets ZN , ZP , and ZT , respectively. For a test-window em-11 bedding zti, its average KNN distance to the normal sample bank is defined as 
+
+dN (zti) = 1
+
+k
+
+X   
+
+> z∈N k(zti;ZN)
+
+∥zti − z∥2, (14) and its average KNN distance to the pseudo-anomalous sample bank is defined as 
+
+dP (zti) = 1
+
+k
+
+X   
+
+> z∈N k(zti;ZP)
+
+∥zti − z∥2. (15) By default, this paper adopts a window-level anomaly score based on the distance to the normal sample bank. Let dN (zti) denote the average KNN distance from the test-window embedding zti to the normal sample bank. After robust normalization with quantile clipping, the final window-level anomaly score is obtained as Si = robust _minmax  dN (zti). Hereafter, 
+
+Si is referred to as the normal score . It should be noted that robust _minmax( ·) here operates on the anomaly-distance scores output by Stage 2, which is different from the robust scaling used earlier for input-feature preprocessing. As a complement, a relative-distance score can also be defined as Srel  
+
+> i
+
+= dN (zti )     
+
+> dN(zti)+ dP(zti)+ ϵ
+
+, which is referred to below as the relative score . In addition, a distance-weighted KNN classifier can be trained on ZN ∪Z P to obtain an auxiliary 
+
+OOC score .Since the model outputs window-level scores while the evaluation uses point-level labels, the point-level anomaly score is obtained by averaging the scores of all windows covering that time point: 
+
+S(t) = 1
+
+|Ω( t)|
+
+X
+
+> i∈Ω( t)
+
+Si, Ω( t) = {i | ti ≤ t ≤ ti + W − 1}. (16) 
+
+2.5. Discrete-feature processing and score fusion 
+
+For fully discrete data, the continuous reconstruction and pseudo-anomaly generation of Stage 1 are no longer applicable. In this case, each discrete dimension is first one-hot encoded according to the training-set categories, and each window is flattened into a vector. The anomaly score is then defined by comparing the test window against the bank of normal training windows using KNN: 
+
+Sdisc (Xti) = 1
+
+k
+
+X  
+
+> X∈N k(Xti;Ndisc )
+
+d(Xti, X), (17) where d(·, ·) is Hamming distance by default, but can also be replaced with Euclidean dis-tance. 12 For mixed-feature data, anomaly scores are computed separately by the continuous branch and the discrete branch. Let the continuous score produced by Stage 2 be Scont ,and let the discrete KNN score be Sdisc . After normalizing the two scores to [0 , 1] , denote them by ¯Scont = Norm 01 (Scont ) and ¯Sdisc = Norm 01 (Sdisc ), respectively. Score-level fusion is then performed using Sfuse = max   ¯Scont , ¯Sdisc 
+
+. This strategy avoids the combinatorial explosion that would arise from generating pseudo-anomalous samples in the discrete state space, while preserving the ability to jointly sense continuous anomalies and discrete-state anomalies. 
+
+2.6. Evaluation metrics 
+
+The experiments use AUROC, AUPR, and best F1 to evaluate the ranking ability of anomaly scores and the performance of threshold-based detection, and further use VUS-ROC and VUS-PR to evaluate detection robustness at the anomaly-interval level. These metrics can be computed on either window-level or point-level anomaly scores depending on the experimental setting, as detailed in the experimental section. Together, they reflect model performance from three aspects: ranking capability, interval tolerance, and threshold-based detection performance. 
+
+3. Experiments and Results Analysis 
+
+This section evaluates the effectiveness of the proposed method from four aspects: bear-ing fault detection, degradation-process detection, ablation analysis, and hyperparameter sensitivity. The central question is whether the proposed two-stage pseudo anomaly-guided representation learning framework can produce stable anomaly scores on different rotating machinery datasets and maintain sensitivity to anomaly evolution in complex degradation scenarios when trained using only normal samples. Results on public TSAD datasets are presented later in the discussion section as a supplementary analysis of the method’s broader applicability. Unless otherwise specified, all experiments use normal samples as the training set, while the test set consists of normal segments and fault/anomalous segments. Labels are used only for metric computation and visualization during testing. 
+
+3.1. Experimental datasets and evaluation settings 3.1.1. Dataset overview 
+
+To systematically evaluate the applicability of the proposed method under different equipment conditions, fault patterns, and temporal scales, we construct an experimental suite centered on bearing fault detection datasets and degradation-process datasets. The fault 13 detection part includes the CWRU (Case Western Reserve University) bearing dataset Case Western Reserve University Bearing Data Center (2024), the HTBF dataset related to high-speed-train bogie faults, the PHM2009 gearbox challenge dataset PHM Society (2009), and the REALBOX axle-box bearing field-measurement dataset. The degradation-detection part includes the XJTU-SY full-life bearing degradation dataset Wang (2021) and the IMS run-to-failure bearing dataset NASA Open Data Portal (2023). In addition, the discussion section later provides an extended analysis on simulated anomaly data and 13 public time-series datasets from the TSB-AD benchmark to examine the broader applicability of the method when transferred from bearing vibration scenarios to more general TSAD tasks. The four fault-detection datasets correspond to different validation goals. CWRU was collected on a standard test rig and contains clearly defined fault types with a relatively high signal-to-noise ratio, making it suitable for validating the model’s basic discriminative ability on typical bearing faults. In this work, we use the normal baseline and the DE channel from the 12 kHz drive-end and fan-end fault files, covering ball, inner-race, and outer-race fault states; the 48 kHz drive-end data are not used. HTBF comes from a mechanical system related to high-speed-train bogies and contains gearbox faults, axle-box faults, and compound fault combinations under multiple operating conditions. We use five synchronized vibration channels to assess model stability in multi-channel and multi-fault-combination scenarios. PHM2009 is based on a generic industrial gearbox. We use the two acceleration channels at the input and output ends and exclude the tachometer channel; spur 1 and helical 1 are treated as normal classes, while spur 2–8 and helical 2–6 are treated as fault classes. REALBOX consists of measured axial acceleration vibration records from an axle-box bearing of a high-speed train, sampled at 10 kHz , with an inner-race failure as the fault type. Because measured fault samples are limited, this dataset is mainly used to verify the applicability of the method in small-sample real engineering scenarios. Unlike fixed fault-category detection, degradation-process detection involves anomalous states that usually do not appear abruptly, but instead evolve gradually over a long period. The XJTU-SY dataset contains complete run-to-failure sequences for 15 bearings under 3
+
+speed/load conditions, with both horizontal and vertical vibration channels recorded at each acquisition. The IMS dataset contains run-to-failure bearing sequences over an even longer time scale, making it suitable for examining the model’s response to weak degradation, long transitional states, and late-stage failure. We do not interpret degradation-detection results as remaining useful life prediction; instead, anomaly scores are viewed as the degree to which test windows deviate from the early-life normal training distribution. 14 3.1.2. Construction of fault-detection datasets 
+
+To conform to the one-class anomaly-detection setting, all fault-detection experiments train the model using only normal-state samples, while fault samples are used only for eval-uation at test time. Rather than directly using the complete raw sequences from the public datasets, we extract fixed-length segments from the raw files according to a unified protocol to construct a normal training segment and a normal/fault test sequence. Specifically, a normal training segment XNtr is first extracted from the normal-state data. This segment is used for Stage 1 reconstruction-model training, Stage 2 representation-encoder training, and the construction of the KNN normal reference bank. The remaining normal test segment is then concatenated directly with fault segments along the time dimension to form a long test sequence. For multi-channel data, the channel dimension remains unchanged during concatenation, and only the time dimension is extended. Let the retained normal test segment be XNte , and let the m-th fault segment be XF,m  
+
+> te
+
+.The test sequence for fault detection is then constructed as 
+
+Xte = [ XNte ; XF,1te ; XF,2te ; · · · ; XF,M  
+
+> te
+
+], (18) where [·; ·] denotes concatenation along the time dimension. The corresponding point-level labels are defined as 
+
+yt =
+
+
+
+0, xt ∈ XNte ,
+
+1, xt ∈ XF,m  
+
+> te
+
+.
+
+(19) The normal test segment participates in the final computation of AUROC, AUPR, best F1, Precision, and Recall as the negative class, but it is not used for parameter updates in Stage 1 or Stage 2 and is not added to the KNN normal reference bank. The construction of test sequences for each fault-detection dataset is summarized in Table 3. 15 Table 3: Construction of test sequences in the fault-detection experiments Dataset Normal segments (10 4 points) Fault/anomalous segments (10 4 points) Description of test-sequence construction CWRU 4 × 5.0 105 × 2.0 The first 20 .0 × 10 4 sampling points form the normal test segment, followed by 105 fault segments covering ball, inner-race, and outer-race faults. HTBF 3 × 15 .0 84 × 1.0 The front part consists of normal test segments under three operating conditions, followed by 84 fault combinations; the five vibration channels remain time-aligned. PHM2009 2 × 10 .0 40 .0 helical 1 and spur 1 form the normal test segment; the anomalous part is obtained by approximately balanced concatenation of 12 fault classes from helical 2–6 and spur 2–8. REALBOX 7.0+12 .0+1 .0 40 .0 The first 20 .0 × 10 4 sampling points are formed by three normal fragments, followed by an inner-race fault fragment; only samples in the speed interval 295 –305 are retained during construction. Note: The values for normal and fault/anomalous segments in the table are measured in units of 10 4 sampling points. For example, 4 × 5.0 indicates four fragments, each with length 5.0 × 10 4. The test fragments are concatenated sequentially along the time dimension only for presentation and for plotting continuous anomaly-score curves. During window construction, however, each original fragment is segmented separately, and no windows are created across concatenation boundaries between different fragments. Window labels are determined by the point-level labels of the underlying fragments. CWRU uses the DE single channel, while the other multi-channel datasets keep channel synchronization during concatenation. 
+
+The above test sequences are concatenated sequentially along the time dimension only for description and result visualization. No additional padding, smoothing segments, or transition segments are inserted. This design facilitates unified presentation of the tempo-ral relationship between the normal segment and the subsequent fault segments, as well as continuous plotting of anomaly-score curves. 
+
+3.1.3. Construction of degradation-detection datasets 
+
+For the XJTU-SY and IMS degradation datasets, the test sequences preserve the original temporal continuity of the full-life process and do not artificially concatenate normal files with fault files. The model uses only early-life snapshots as the normal training segment, and the remaining snapshots are treated as the test segment. The degradation onset is automatically determined using snapshot-level vibration-amplitude statistics. Specifically, statistics such as RMS, p95, and maximum amplitude are computed for each snapshot, compared by ratio 16 against statistics from the early normal segment, and an abnormal increase is required to persist for at least 3 snapshots (sustain = 3 ) to reduce the influence of isolated shocks on onset detection. Sampling points after the degradation onset are labeled as anomalous, while test samples before the onset that do not belong to the training segment are labeled as normal. The XJTU-SY samples used in this paper include Bearing1-1, Bearing1-3, Bearing2-2, Bearing2-5, Bearing3-3, and Bearing3-5, covering three operating conditions: 35 Hz/ 12 kN, 
+
+37 .5 Hz/ 11 kN, and 40 Hz/ 10 kN. Except for Bearing3-5, which uses the first 23 snapshots as the training segment due to an earlier detected degradation onset, all other XJTU-SY samples use the first 30 snapshots for training. For IMS, Bearing4 from the 1st-test is used, with the first 200 snapshots for training and the remaining snapshots for testing. The training lengths and degradation-onset settings are listed in Table 4. 
+
+> Table 4: Training-segment and degradation-onset settings for degradation detection
+
+Dataset Sample Number of training snapshots Total snapshots Degradation onset XJTU-SY Bearing1-1 30 123 77 Bearing1-3 30 158 89 Bearing2-2 30 161 49 Bearing2-5 30 339 182 Bearing3-3 30 371 343 Bearing3-5 23 114 24 IMS Bearing4 200 2156 1436   
+
+> Note: Sampling points after the degradation onset are labeled as anomalous, and the window label is determined by whether the window contains anomalous points. For Bearing3-5, the training segment is restricted to the period before the degradation onset because the onset is detected early.
+
+3.1.4. Window segmentation, label generation, and normalization 
+
+All sequences are segmented using sliding windows with length L = 512 and stride 
+
+H = 256 . The j-th window is defined as 
+
+Wj = Xsj :sj +L−1,:, sj = jH. (20) Sampling points at the tail that do not form a complete window are discarded. Window-level labels are generated using a conservative rule: if any time point within the window belongs 17 to an anomalous interval, that window is labeled as anomalous, i.e., 
+
+Yj = I
+
+ 
+
+> sj+L−1
+
+X
+
+> t=sj
+
+yt > 0
+
+ . (21) Therefore, a window that crosses a normal/fault concatenation boundary or a degradation-onset boundary is labeled anomalous as long as it contains any anomalous point. All main experimental metrics are computed on window-level anomaly scores and window-level labels. To avoid leakage of test information, normalization statistics for continuous features are estimated only from the normal training segment and then fixed for the test sequence and for baseline methods. Multi-channel data are normalized channel-wise. Stage 2 applies the same input transformation using the training-normal statistics saved from Stage 1. Baseline methods likewise estimate normalization parameters from the normal training windows and compute anomaly scores on the same test windows. For the window-energy heatmaps shown in the figures, we compute the RMS energy for each window and feature channel as 
+
+ri,c =
+
+vuut 1
+
+L
+
+> L
+
+X
+
+> t=1
+
+x2
+
+> i+t,c
+
+, (22) and then use the 5th and 99 th percentiles of the RMS energy of the same channel in the training windows as lower and upper bounds to robustly scale the test-window values ri,c and clip them to [0 , 1] . This quantity is denoted as scaled RMS energy in the figures and is used only to visualize input-energy changes across windows and channels; it does not participate in Stage 2 KNN anomaly scoring and is not included in the final evaluation metrics. 
+
+3.1.5. Training settings and pseudo-anomalous samples 
+
+The proposed method consists of two training stages. Stage 1 trains a reconstruction model on normal training windows to generate pseudo-anomalous windows with controllable deviation strength. Stage 2 uses the normal training windows together with the pseudo-anomalous windows generated in Stage 1 to train the representation encoder and compute anomaly scores in the embedding space using a normal reference bank. Unless otherwise specified, the Stage 1 reconstruction model is trained for 12 epochs, including 4 epochs of pretraining for the continuous branch, and the Stage 2 representation encoder is trained for 12 
+
+epochs. In the main experiments, the normal score with k = 5 (i.e., the anomaly score based on the KNN distance to the normal sample bank) is used as the window-level anomaly score. The KNN normal reference bank consists only of embeddings of normal training windows and does not include normal test windows or fault windows. 18 Pseudo-anomalous windows are generated only from normal training windows; no fault test samples or test labels are used. The number of pseudo-anomalous windows for each dataset is jointly determined by Stage 1 generation and error-interval filtering. For CWRU, HTBF, and REALBOX, pseudo-anomalous samples are balanced across five error bins, with 
+
+2400 windows retained per bin, yielding a total of 12000 pseudo-anomalous windows. For PHM2009, the acceptable sample numbers after error-bin filtering are 866 , 890 , 970 , 992 , and 
+
+1006 in the five bins, respectively, so the final number of retained pseudo-anomalous win-dows is 4724 . For the XJTU-SY and IMS degradation experiments, 6500 pseudo-anomalous windows are retained in each case. Table 5 summarizes the main data scales and training configurations for all datasets. 
+
+Table 5: Experimental scale and main configurations of each dataset                                              
+
+> Dataset Sample/subset Dimension index Training sequence length Test sequence length Number of training windows Number of test windows Number of pseudo-anomalous windows CWRU –[1] 400000 2300000 1561 8983 12000
+> HTBF –[1,2,3, 4,5] 900000 1290000 3514 5038 12000
+> PHM2009 –[1,2] 400000 600000 1561 2342 4724
+> REALBOX –[1] 400000 600000 1561 2342 12000
+> XJTU-SY Bearing1-1 [1,2] 983040 3047424 3839 11903 6500
+> IMS Bearing4 [1,2] 4096000 40058880 15999 156479 6500
+
+Note: The dimension index indicates the channel numbers used for modeling; for example, [1,2] means that Channels 1 and 2 are used. Unless otherwise specified, all experiments use sliding windows with length L = 512 and stride H = 256 .
+
+3.1.6. Evaluation metrics and visualization 
+
+The quantitative evaluation metrics include AUROC, AUPR, best F1, Precision, and Recall. Among them, AUROC and AUPR measure the ranking ability of anomaly scores on normal and anomalous windows and do not depend on a fixed threshold. Best F1 is obtained by sweeping thresholds over the anomaly scores of the test windows, and Precision and Recall are reported at the threshold that maximizes F1. Therefore, best F1 and its corresponding Precision/Recall reflect the upper-bound thresholding performance under the given test labels, rather than the performance of a fixed threshold determined in advance for unsupervised deployment. For the TSAD extension analysis in the later discussion, VUS-ROC and VUS-PR Boniol et al. (2025) are further reported to characterize detection quality in the neighborhood of anomalous intervals. In addition to quantitative metrics, we conduct qualitative analysis using anomaly-score curves and representation-space visualization. Anomaly-score curves are used to observe the temporal response of the model to fault segments, degradation stages, or anomalous intervals. t-SNE or PCA visualization is used to analyze the relative distributions of normal training windows, normal test windows, pseudo-anomalous windows, and real anomalous windows 19 in the representation space. The fault-detection result figures follow a unified layout: Part A presents the scaled RMS energy heatmap together with the anomaly-score curves of the proposed method and baseline methods, where light background shading indicates anomalous intervals and dashed lines denote the posterior best-F1 threshold obtained by scanning on the test-window labels, used only to facilitate interpretation of the anomaly-score curves; Part B presents radar charts for AUROC, AUPR, Precision, Recall, and best F1; and Part C shows representation-space visualization. It should be emphasized again that normal test windows participate in final metric evaluation but are not used for model training and are not added to the KNN normal reference bank. To ensure consistency across methods, the bearing fault-detection and degradation-detection experiments use fixed data splits, fixed window settings, and a fixed random seed of 42 . Deterministic baseline methods are reported directly under this fixed protocol. For deep models involving random initialization or random sampling, the random seed is fixed to ensure reproducibility. Repeated runs are used only to check implementation stability and are not treated as independent repeated trials. All baseline methods use the same training windows, test windows, and window-level labels as the proposed method and are evaluated under the same protocol using AUROC, AUPR, best F1, Precision, and Recall. 
+
+3.1.7. Computational cost 
+
+To complement the implementation analysis, we further report the inference cost of each method for completing one full scoring pass over all test windows on CWRU, as shown in Table 6. This experiment scores all 8983 test windows once, and training/fitting time as well as reference-bank construction cost are excluded for all methods. For the proposed method, only the online inference of Stage 2 is counted, i.e., test-window encoding and KNN distance computation against the normal sample bank; Stage 1 pseudo-anomaly generation is excluded. On CWRU, the proposed method requires only 0.113 s on average to complete one full scoring pass over all test windows, corresponding to 0.0126 ms /window , with peak GPU memory of about 169 .3 MB . Compared with other methods, our method is clearly faster than heavier deep sequence baselines such as Adjacent Transformer, Transformer AE, and TranAD, but slower than KNN Distance, LOF Novelty, and Deep SVDD, which do not require reconstruction decoding or use lighter scoring schemes. This indicates that even after introducing encoder forward passes and KNN retrieval against the normal bank, the online inference cost of the proposed method remains within an acceptable range. 20 Table 6: Comparison of inference cost for one complete test-window scoring pass on CWRU. The statistics are based on scoring all 8983 test windows once; for the proposed method, only Stage 2 inference is counted and Stage 1 pseudo-anomaly generation is excluded; training/fitting and reference-bank construction costs are not included for any method. (3080ti)                                                             
+
+> Method Model params Reference bank size Test windows Inference time (s) ms/window Peak GPU mem (MB) Deep SVDD 213,568 08,983 0.044 0.0049 13.5 KNN Distance 01,561 8,983 0.062 0.0069 0.0 LOF Novelty 01,561 8,983 0.066 0.0073 0.0
+> TPA-AD (Stage 2 only) 123,840 1,561 8,983 0.113 0.0126 169.3
+> Isolation Forest 01,561 8,983 0.226 0.0251 0.0 One-class SVM 01,561 8,983 0.360 0.0401 0.0 TranAD 401 08,983 0.493 0.0549 302.3 Transformer AE 67,265 08,983 0.548 0.0610 141.9 Adjacent Transformer 67,265 08,983 0.961 0.1070 1261.4
+
+3.2. Bearing fault detection experiments 
+
+This subsection evaluates the proposed method on four datasets, namely CWRU, HTBF, PHM2009, and REALBOX, to assess its discriminative ability on fault samples. The analysis focuses on two issues: first, whether anomaly scores can form a stable and clear boundary between normal and fault segments; and second, whether the representation space learned in Stage 2 can effectively push real fault samples away from the normal region. The data presentation and detection results are discussed below on a dataset-by-dataset basis. 21 3.2.1. CWRU dataset 
+
+> Figure 5: Illustration of the CWRU dataset. A shows the experimental device, B shows the long sequence obtained by concatenating samples from different classes, and C shows the corresponding FFT spectra. The figure highlights the time-domain and frequency-domain differences between normal samples and different fault types.
+
+The CWRU dataset was released by the Case Western Reserve University Bearing Data Center Case Western Reserve University Bearing Data Center (2024). Its test rig consists of a 2 hp motor, a torque transducer/encoder, and a dynamometer. Faults of different sizes were introduced by electro-discharge machining on the drive-end and fan-end bearings, and vibration signals were collected under loads of 0–3 hp. The original repository provides both 
+
+12 kHz and 48 kHz sampled data and covers multiple fault locations such as ball, inner-race, and outer-race faults. In this work, we use the normal baseline and the DE channel from the 
+
+12 kHz drive-end and fan-end fault files, covering ball, inner-race, and outer-race fault states, while the 48 kHz drive-end data are not used. A training set is constructed from normal segments, and the remaining normal segments are concatenated with fault segments to form the test sequence. Figure 5 shows the experimental setup, the concatenated long-horizon sequence, and its FFT spectrum. As can be seen, normal and fault samples differ clearly in both time-domain amplitude and frequency-domain structure, making CWRU a benchmark dataset for validating basic fault separability. 22 Figure 6: Fault-detection results on the CWRU dataset. A shows the window-energy heatmap together with the anomaly-score curves of the proposed method and baseline methods; B compares AUROC, AUPR, Precision, Recall, and best F1 across methods; and C visualizes the low-dimensional distributions of normal training windows, normal test windows, pseudo-anomalous windows, and real anomalous windows. 
+
+Figure 6 shows that the proposed method maintains anomaly scores close to zero during the normal stage of the CWRU test sequence, rapidly crosses the threshold when the fault segment begins, and then remains in a high-score region for most of the remaining sequence, with only brief local drops around a few mixed windows. Part A further shows that the jump in the proposed anomaly score is broadly aligned with the entrance into the high-energy region in the heatmap, thereby producing a clear stage boundary among the normal segment, transition segment, and fault segment. By contrast, Deep SVDD, KNN Distance, LOF Novelty, Adjacent Transformer, and Transformer AE all respond strongly around the first fault injection, but their scores later fall back close to zero for many fault windows, behaving more like instantaneous amplification of local transients than stable characterization of persistent abnormal states. One-class SVM maintains an elevated background score over a long interval, which weakens threshold interpretability, while TranAD mainly produces isolated spikes and lacks continuity. Therefore, in this relatively ideal test-rig scenario, the main advantage of the proposed method is not simply generating an earlier spike at a single point, but rather integrating local anomaly evidence into a sustained high-score plateau, 23 thereby balancing low false alarms with a clear stage boundary. The radar chart in Part B is almost saturated along the outer ring, indicating that on strongly separable data such as CWRU, most methods can already achieve very high AUROC, AUPR, and Recall. Hence, the key issue here is not whether a method can detect anomalies at all, but whether it can maintain more stable Precision and best F1 while preserving high Recall. Although the outward expansion of the proposed method on the radar chart is only slightly better than that of several baselines, this slight advantage is consistent with the smoother high-score plateau observed in Part A. The t-SNE visualization in Part C provides more interpretable evidence: normal training windows and normal test windows overlap heavily in the center, pseudo-anomalous windows are mainly distributed along the outer edge of the normal cluster, and real anomalous windows form an independent arc-shaped region far from the center. This structure suggests that the pseudo-anomalous windows generated in Stage 1 do not need to coincide point by point with the real fault cluster; rather, they act more like a learnable expanded boundary around the normal region, thereby providing an effective directional constraint for the discriminative representation learning in Stage 2. It should also be noted that CWRU is a relatively ideal laboratory dataset, so this result mainly serves to validate the effectiveness of the method on typical bearing-fault scenarios. 24 3.2.2. HTBF dataset  
+
+> Figure 7: Illustration of the HTBF dataset. A shows the experimental setup, B shows the long sequence obtained by concatenating samples from different classes, and C shows the corresponding FFT spectra. This dataset contains high-speed-train-bogie-related vibration signals under multiple operating conditions and is used to evaluate the model’s detection ability in multi-channel, multi-fault-category scenarios.
+
+The HTBF dataset is used to evaluate performance on a mechanical system related to high-speed-train bogies. It is built around the bogie drivetrain and covers key components such as the gearbox, axle box, main shaft, and wheelset. In this work, five synchronized vibration channels are used to construct long sequences. Compared with the single test-rig bearing data in CWRU, HTBF contains both control states and multiple gearbox-/axle-box-related fault categories, with stronger operating-condition disturbance and more pronounced channel coupling. Figure 7 shows the experimental setup, the long sequence obtained by con-catenating multiple categories, and the corresponding FFT spectra. As the figure indicates, HTBF exhibits not only differences among fault categories but also more significant changes in operating conditions and channels, making it a more challenging detection scenario than single-rig bearing data. 25 Figure 8: Fault-detection results on the HTBF dataset. A shows the window-energy heatmap and the anomaly-score curves of different methods, B shows the multi-metric radar chart, and C shows the representation-space distributions of normal training windows, normal test windows, pseudo-anomalous win-dows, and real anomalous windows. 
+
+Figure 8 shows that the boundary between normal and anomalous samples is weaker on HTBF than on CWRU, yet the proposed method still forms relatively continuous score responses over multiple anomalous intervals. Part A shows that the proposed method main-tains a low background score in most of the early normal interval. After about 1800 windows and during subsequent condition/fault switching intervals, its score rises along with local en-ergy enhancement and remains at a medium-to-high level over clearly anomalous segments. In contrast, Deep SVDD and TranAD exhibit strong fluctuations over long intervals, already producing many isolated high peaks during normal segments. KNN Distance, LOF Novelty, Isolation Forest, and One-class SVM can sense overall distribution shifts, but they are also more likely to map operating-condition switching and channel-amplitude differences to ele-vated background scores, thereby limiting Precision. Adjacent Transformer and Transformer AE respond more sparsely and often peak only at a few sharp impacts, providing insufficient coverage for weak anomalies spread across wider temporal ranges. In other words, in a multi-channel and strongly perturbed scenario such as HTBF, the main advantage of the proposed method lies in its balance of “low background + continuous response”: it neither prematurely 26 raises the whole sequence to a high-score level nor relies solely on a few isolated spikes to indicate anomalies. The radar chart in Part B further shows that this advantage mainly comes from simultaneous improvements in Precision, best F1, AUROC, and AUPR, rather than from simply achieving higher Recall. In fact, multiple baselines already approach the outer ring on Recall, indicating that they are not short of the ability to “flag anomalies.” The more important difference is whether they also raise many normal windows to high scores. The proposed method keeps Recall high while placing Precision and best F1 farther outward, indicating that its gains mainly come from better false-alarm control. The visualization in Part C is consistent with this observation: normal training windows and normal test win-dows form a large left-side manifold; pseudo-anomalous windows are distributed more along the right-side outer edge; and real anomalous windows partly lie adjacent to this outer edge, while another part still mixes into the left-side normal manifold. This structure suggests that HTBF indeed contains a subset of pronounced anomalies that can be effectively captured by the pseudo-anomalous boundary, but it also contains weak anomalies or transitional samples that remain close to the normal state. In such a case, the proposed method improves the sep-arability of the major anomalous samples, but cannot yet completely separate all anomalous samples. 27 3.2.3. PHM2009 dataset 
+
+> Figure 9: Illustration of the PHM2009 dataset. A shows the experimental setup, B shows the long sequence obtained by concatenating samples from different classes, and C shows the corresponding FFT spectra. The figure illustrates the input characteristics of complex rotating-machinery fault data from a gearbox system.
+
+The PHM2009 dataset comes from the 2009 Gearbox Challenge released by the PHM Society PHM Society (2009). It is based on a generic industrial gearbox and synchronously records two vibration channels on the retaining plates of the input and output shafts as well as a tachometer pulse, covering shaft speeds of 30 –50 Hz and both high- and low-load conditions. The faulty objects are no longer limited to a single bearing, but rather to a more complex rotating transmission system. In this paper, the two vibration sequences are recast into a one-class anomaly-detection task to provide supplementary cross-equipment validation. Figure 9 shows the experimental setup, the long sequence obtained by concatenating samples from different states, and the corresponding FFT spectra. Compared with CWRU, some anomalous samples in PHM2009 are more similar to normal samples in both the time and frequency domains, making it useful for testing method robustness under weak-difference fault scenarios. 28 Figure 10: Fault-detection results on the PHM2009 dataset. A shows the window-energy heatmap and the anomaly-score curves of different methods, B shows the multi-metric radar chart, and C shows the representation-space distributions of normal training windows, normal test windows, pseudo-anomalous win-dows, and real anomalous windows. In this dataset, normal windows and some anomalous windows are highly similar. 
+
+Figure 10 indicates that the metric differences among methods are relatively small on PHM2009, and the anomaly-score curves do not exhibit a fully separated pattern. Part A shows that the proposed method maintains a low background score over most normal windows in the early portion and produces concentrated, relatively strong peak responses mainly in the high-energy region around 1700 –1950 , so its high scores are more focused on locally complex anomalies corresponding to the bright regions of the heatmap. By contrast, Deep SVDD, KNN Distance, Isolation Forest, and LOF Novelty are more likely to maintain moderately high scores over a wider temporal range, suggesting that they can sense overall distribution perturbations but find it difficult to further separate truly stronger anomalous segments from ordinary fluctuations. One-class SVM oscillates strongly across almost the entire test segment, making thresholding less meaningful. Adjacent Transformer, Trans-former AE, and TranAD tend to respond only to a few sharp events with discrete peaks and therefore under-cover sustained but not strong anomalies. Hence, the advantage of the proposed method on this dataset is no longer “complete separation,” but rather its ability to 29 prioritize relatively more suspicious compound-fault windows into a high-score region with-out substantially raising the normal background. The radar chart in Part B confirms this interpretation: the proposed method maintains a slight outward expansion on AUROC and AUPR, and its Recall is close to that of the best baseline, but its gains in Precision and best F1 are not large. This suggests that the difficulty of this dataset is not complete miss detec-tion, but the fact that many anomalous windows differ from normal windows only weakly, making it hard for any method to produce a particularly sharp threshold boundary. The visualization in Part C further reveals the source of this difficulty: normal training windows, normal test windows, and real anomalous windows together form several intertwined ring-like manifolds, while pseudo-anomalous windows are more concentrated on an outer branch toward the right. In other words, pseudo-anomalous windows provide the model with one dominant anomaly direction, but real complex faults do not deviate along only that single direction. As a result, a considerable portion of real anomalous windows remain close to the normal manifold. This finding is consistent with the characteristics of PHM2009, where some fault windows in compound transmission systems exhibit only local or relatively weak frequency-domain differences. Overall, the proposed method provides a useful boundary ref-erence for PHM2009, but pseudo-anomalous windows still cannot completely substitute for real complex-fault windows. 30 Figure 11: Illustration of the REALBOX field-measurement data. A shows the real data-acquisition scenario, B shows the long sequence formed by concatenating normal and fault samples, and C shows the corresponding FFT spectra. The data come from axial acceleration vibration records of an axle-box bearing of a high-speed train, sampled at 10 kHz , with an inner-race failure as the fault type; part of the vertical-axis information is hidden at the request of the data provider. 
+
+3.2.4. REALBOX field-measurement data 
+
+The REALBOX dataset consists of axial vibration records from an axle-box bearing of a high-speed train, sampled at 10 kHz by an accelerometer, with an inner-race failure as the fault type. Compared with public laboratory datasets, its main characteristic is the extreme scarcity of measured fault samples. In real high-speed-train maintenance, severe fault samples are inherently rare, and related anomalies are often discovered or handled 31 early by other monitoring means, so publicly available vibration fault records for analysis are very limited. The REALBOX data used in this paper come from one such retained fault-vibration record under a condition where temperature monitoring failed. Figure 11 shows the data-collection scenario, the concatenated normal/fault time series, and the corresponding FFT spectra. Due to confidentiality requirements from the data provider, some vertical-axis information in the figure is hidden. Despite its limited sample size, this dataset is closer to real maintenance conditions and is therefore suitable for examining the applicability of the method in scarce real engineering scenarios.  
+
+> Figure 12: Fault-detection results on the REALBOX field-measurement data. A shows the window-energy heatmap and the anomaly-score curves of different methods, B shows the multi-metric radar chart, and C shows the representation-space distributions of normal training windows, normal test windows, pseudo-anomalous windows, and real anomalous windows. The dataset comes from scarce vibration records of a high-speed-train axle-box bearing with an inner-race failure.
+
+Figure 12 shows that the proposed method forms a relatively clear normal/anomalous boundary on REALBOX. In Part A, the proposed method maintains low scores in the early normal interval, then exhibits a clear step-like rise after about 800 windows, and subsequently remains on a relatively stable medium-to-high plateau during the fault segment, with even higher peaks only when local impacts intensify. This “boundary first, plateau later” pattern makes the threshold easy to interpret. By contrast, although Isolation Forest, KNN Distance, 32 LOF Novelty, and One-class SVM can also sense the distribution shift in the later segment, they are more prone to issues such as elevated background scores in the normal segment, near saturation in the later segment, or compressed contrast between earlier and later parts. Deep SVDD fluctuates more strongly inside the fault segment. Adjacent Transformer and Transformer AE behave more like sparse pulses, while TranAD produces spikes scattered throughout the whole sequence, making it difficult to form a stable anomaly plateau. There-fore, in this scarce field-measurement scenario, the main advantage of the proposed method is that it neither excessively raises the normal segment nor represents the fault segment merely as a few isolated peaks; instead, it produces a continuous response that is more favorable for thresholding and engineering interpretation. The radar chart in Part B shows that, except for TranAD, many methods are already close to the outer ring, so the chart is somewhat saturated here as well. Nevertheless, the proposed method still maintains the outermost con-tour on AUROC, AUPR, best F1, and Precision, while Recall does not decrease despite the tighter boundary. This indicates that its gains come mainly from clearer separation rather than from simply producing more anomaly alarms. The visualization in Part C provides an even more practically meaningful explanation: normal training windows lie in the middle, normal test windows form a neighboring but still continuous normal manifold on the right, pseudo-anomalous windows mainly occupy the left side and outer regions, and real anoma-lous windows are pushed as a whole into an independent cluster below. In other words, the pseudo-anomalous windows do not simply duplicate the real fault cluster; rather, to-gether with the real anomalies, they surround the normal manifold from different directions, thereby encouraging a wider safety margin in the representation space. Since REALBOX contains only one publicly usable vibration fault record, this experiment should be regarded as engineering validation rather than a large-sample statistical generalization result. Taken together, the results on the four fault-detection datasets show that the proposed method performs most stably on CWRU and REALBOX, while still maintaining favorable metrics on more complex datasets such as HTBF and PHM2009, although some anomalous samples still overlap with normal ones. If one looks only at the score curves in Part A of the figures, conventional one-class classification or distance-based methods are more easily af-fected by operating-condition switching and overall amplitude drift and thus tend to raise the background level, while reconstruction-/prediction-based temporal models more often appear as isolated spikes or locally delayed responses. In contrast, the proposed method more stably achieves a response pattern of “low background in normal segments and continuous elevation in anomalous segments.” If Parts B and C are considered together, radar charts on strongly separable datasets such as CWRU and REALBOX are often close to saturation, and the real distinction among methods lies in whether the representation space forms a clear normal 33 core and anomalous outer edge. On complex datasets such as HTBF and PHM2009, the outward expansions in Precision/best F1 or AUROC/AUPR on the radar charts correspond more directly to whether anomalous samples truly leave the normal manifold in Part C. This is consistent with the design goal of our method: pseudo-anomalous samples are not direct substitutes for real fault samples, but controllable boundary samples for one-class detection, used to enhance the discriminability of the normal representation space. 
+
+3.3. Degradation-process detection experiments 
+
+In addition to fixed fault-category detection, we further validate the ability of the pro-posed method to respond to life-cycle evolution on the XJTU-SY and IMS degradation datasets. The key difference between degradation data and fault-classification data is that anomalies usually do not emerge abruptly, but instead develop gradually over a relatively long period. Therefore, an ideal anomaly score should not only rise during the late failure stage, but should also exhibit continuous trend changes during at least part of the early degradation stage. 
+
+3.3.1. XJTU-SY data presentation and experimental split    
+
+> Figure 13: Illustration of the XJTU-SY degradation data. A shows the experimental setup, B shows the full-life degradation trends, and C and D show representative raw sequences and their FFT spectra. The figure is intended to illustrate the temporal evolution characteristics in the degradation experiments.
+
+34 The XJTU-SY dataset was jointly released by Xi’an Jiaotong University and Changxing Sumyoung Wang (2021). It contains complete run-to-failure sequences for 15 bearings under 3
+
+speed/load conditions. At each acquisition, both horizontal and vertical acceleration channels are recorded, with a sampling frequency of 25 .6 kHz and a signal length of 32768 saved every minute. Part B of Fig. 13 shows that different bearings exhibit markedly different degradation trajectories: some remain stable for a long time and then rise sharply, while others show sustained gradual growth. Parts C and D further show that the changes in time-domain impacts and frequency-domain energy concentration in the late degradation stage are also inconsistent across samples. Therefore, this dataset is more suitable for validating the adaptability of anomaly scores to different degradation trends rather than evaluating only a single failure pattern. We select Bearing1-1, Bearing1-3, Bearing2-2, Bearing2-5, Bearing3-3, and Bearing3-5 for validation, covering different degradation trajectories under the three operating conditions of 35 Hz/ 12 kN, 37 .5 Hz/ 11 kN, and 40 Hz/ 10 kN. For each sample, the model is trained on early-life normal snapshots, and the remaining sequence is used for testing. Bearing3-5 uses the first 23 snapshots as training data because an earlier degradation onset is detected, whereas all other samples use the first 30 snapshots. The window length and stride are 
+
+512 and 256 , respectively. The target error interval for Stage 1 is set to [0 .0008 , 0.006] , and pseudo-anomalous windows are sampled from this interval. The purpose of this setting is not to directly predict remaining useful life, but to test whether the anomaly score can reflect deviations in health state relative to the early normal state. 
+
+3.3.2. Multi-bearing degradation detection results on XJTU-SY 
+
+Figures 14 to 19 present the detection results for the six XJTU-SY bearing samples. Each figure contains anomaly-score curves, metric comparisons, and representation-space visual-izations. The anomaly-score curves are used to observe detection responses as time evolves, while t-SNE is used to help assess the relative positions of normal training windows, normal test windows, pseudo-anomalous windows, and real anomalous windows in the representation space. Part A of these figures also reveals that the baseline methods in degradation tasks roughly fall into three groups: one group, such as One-class SVM and Isolation Forest, tends to maintain an elevated background or saturate too early over long intervals; a second group, such as Deep SVDD, KNN Distance, and LOF Novelty, can sense late-stage distribution shifts but often responds with delayed rises or strong fluctuations depending on the sample; and a third group, such as Adjacent Transformer, Transformer AE, and TranAD, tends to produce local spikes. Parts B and C play a slightly different role here than in fault detection: because many samples contain a high proportion of late-stage degradation windows, radar 35 charts often become nearly saturated for multiple methods, so Part B is mainly useful for checking whether a method sacrifices Precision/best F1 in order to detect early signs. The more interpretable evidence lies in Part C, namely whether real anomalous windows leave the normal manifold to form one or more outer branches, and whether pseudo-anomalous windows push the boundary outward without fragmenting the normal cluster. The goal of the proposed method is not necessarily to cross the threshold earliest on every sample, but to make the score evolution consistent with the stage-wise strengthening of the degradation process.   
+
+> Figure 14: Degradation-detection results for XJTU-SY Bearing1-1. The proposed method maintains low scores during the normal stage and produces a steadily increasing anomaly response in the late degradation stage; a slight score rise appears in some pre-failure windows.
+
+For Bearing1-1 in Fig. 14, a clear boundary appears after about 6000 windows: the window-energy heatmap in Part A gradually changes from mixed colors into a sustained high-energy region, and the anomaly score of the proposed method correspondingly jumps from a low value near the threshold to a stable high level. Compared with the baselines, Isolation Forest also exhibits a rapid transition near the failure point, but its plateau saturates earlier and has a smaller dynamic range in the later segment. Deep SVDD, KNN Distance, and LOF Novelty increase gradually in the later stage, but do so more slowly and with stronger 36 fluctuations. One-class SVM maintains an elevated background far earlier, while Adjacent Transformer and Transformer AE are overly flat for most of the sequence and only respond near the very end. By contrast, the proposed method preserves a low background in the early stage and forms a smooth, sustained high-score plateau after failure, which is more consistent with the stage characteristics of samples exhibiting rapid late-stage failure. In Part B, the metrics of many methods are already close to the outer ring except for TranAD, indicating that detecting the late fault stage of this sample is not particularly difficult in itself. Thus, the key here is not the absolute value of any single metric, but whether high scores can be achieved while preserving interpretability across the degradation stages. Part C shows that normal training windows and normal test windows are mainly concentrated in a left-side core region, pseudo-anomalous windows form a wider envelope around them, and real anomalous windows gather into a slender independent cluster on the right. This structure indicates that the model has learned not a random dispersion, but a clear separation direction from the normal core toward the late failure region.           
+
+> Figure 15: Degradation-detection results for XJTU-SY Bearing1-3. The anomaly-score curve and representation-space visualization jointly show the model’s response to the degradation stages.
+
+Unlike the jump-like transition of Bearing1-1, Bearing1-3 in Fig. 15 exhibits a smoother degradation trend. The proposed method does not rise sharply immediately after the train-37 ing segment ends; instead, it grows slowly over a long period and approaches the high-score region only in the later part, which is consistent with the stable degradation trend marked in the figure. The baseline comparison in Part A shows that Deep SVDD, KNN Distance, LOF Novelty, Adjacent Transformer, and Transformer AE tend to surge only near the end, compressing the long progressive degradation into what appears to be a late abrupt change. One-class SVM and Isolation Forest rise earlier, but their background is higher in the early and middle stages, making it difficult to distinguish slight degradation from severe degrada-tion. In contrast, the proposed method preserves a continuous score transition from weak deviation to strong degradation, making it more suitable for describing this kind of long and smooth degradation evolution. Part B is again nearly saturated, indicating that many meth-ods can identify the severe late-stage degradation if only final labels are considered. However, Part C better reveals the difference: real anomalous samples form a smooth arc-shaped man-ifold on the right and continue to separate from the dense normal/pseudo-anomalous cloud on the left, rather than separating abruptly only at the end as with some baselines. This continuously unfolding geometry is consistent with the gradual rise observed in Part A. 
+
+> Figure 16: Degradation-detection results for XJTU-SY Bearing2-2. The proposed method shows continuous score variation before and after degradation and can be used to observe early degradation trends.
+
+Bearing2-2 in Fig. 16 exhibits a more typical early-warning pattern. Part A shows that 38 before the arrival of the large-scale high-score region, the proposed anomaly score has already risen continuously in the earlier stage and has crossed the posterior best-F1 threshold shown in the figure; the corresponding heatmap also begins to exhibit local energy enhancement after about 2000 windows. Notably, some baseline methods also respond early, but in different ways. One-class SVM quickly approaches saturation at an early stage and loses the ability to distinguish mild degradation from severe late-stage degradation. Isolation Forest, KNN Distance, LOF Novelty, and Transformer AE all show sustained growth later on, but more often remain on a long intermediate plateau, and their stage boundaries are less clear than those of the proposed method. Deep SVDD, Adjacent Transformer, and TranAD respond more strongly only later. In contrast, the proposed method preserves two distinct rising levels between early warning and later strengthening, making it more suitable for highlighting weak precursor signals in degradation monitoring. Part B suggests that most methods still achieve relatively high final AUROC/AUPR values, so the real value here lies in whether an interpretable signal can be produced earlier without significantly sacrificing Precision/best F1. Part C shows that real anomalous windows do not form a single cluster, but instead split into multiple substructures such as an upper-right arc and a lower branch, echoing the two-stage rise seen in Part A. The pseudo-anomalous windows mainly remain close to the outer boundary of the normal manifold, suggesting that they play a boundary-expansion role rather than directly substituting for these specific anomalous submodes. 39 Figure 17: Degradation-detection results for XJTU-SY Bearing2-5. The figure shows anomaly scores, metric comparisons, and representation-space distributions, with the late anomalous stage overall receiving higher scores. 
+
+Bearing2-5 has a longer life sequence, and its late degradation does not occur as a single jump but strengthens in multiple stages. In Fig. 17, the anomaly score of the proposed method begins to rise continuously after about 2 × 10 4 windows, and several stepwise high-score intervals appear in the middle and later stages, consistent with the fact that the two channels enter high-energy regions successively in the heatmap. Part A also shows that Deep SVDD, KNN Distance, and LOF Novelty can follow the general worsening trend, but with stronger fluctuations and blurrier boundaries among different stages. Isolation Forest rises clearly in the middle stage but also exhibits more local drops. One-class SVM enters the high-score region too early and approaches saturation quickly, while Adjacent Transformer and Transformer AE strengthen only in a relatively late stage. Thus, for this kind of multi-stage degradation sample, the advantage of the proposed method lies in preserving the form of progressive worsening rather than compressing the entire late stage into a single uniformly high-score state. Part B again appears nearly saturated near the outer ring, indicating that if only late-life labels are aggregated, many methods can score highly. However, Part C reveals finer structure: real anomalous samples do not collapse into a single group but instead split into multiple isolated island-like branches, indicating that the late-stage degradation indeed 40 contains multiple states with different severities, while normal and pseudo-anomalous samples remain mainly in a relatively compact left-side core region. This suggests that the proposed method separates normal and anomalous states while also preserving stage hierarchy inside the anomalous region. 
+
+> Figure 18: Degradation-detection results for XJTU-SY Bearing3-3. The model shows progressively stronger anomaly responses before and after failure.
+
+Bearing3-3 in Fig. 18 remains approximately normal over most of the test interval, exhibits only one local high-score pulse before the actual failure, and then rapidly enters a sustained high-score region near the end. The comparison in Part A especially highlights the difference between the proposed method and the baselines: Deep SVDD, KNN Distance, LOF Novelty, Isolation Forest, Adjacent Transformer, and Transformer AE mostly surge only at the end and show almost no significant response to the precursor; One-class SVM also rises rapidly at the end, but has a higher background beforehand; TranAD is dominated almost entirely by the final spikes. This sample suggests that the precursors of some degradation sequences do not manifest as a long gradual rise, but rather as a combination of sparse precursors and a final abrupt change. In such a case, the value of the proposed method lies not only in identifying the final failure, but also in separating a brief, local, yet meaningful early deviation from a long low-background stage. Since the radar chart in Part B is almost unable 41 to differentiate most methods on this sample, it also shows that final summary statistics alone do not fully reflect the value of precursor sensitivity. Part C is more interpretable: real anomalous samples on the right split into several relatively compact small clusters, while normal and pseudo-anomalous samples on the left remain as a dominant manifold, indicating that both a small number of early precursors and severe late-stage failure are mapped outside the normal region without breaking the consistency of the normal samples. 
+
+> Figure 19: Degradation-detection results for XJTU-SY Bearing3-5. The proposed method yields stable high scores in the late degradation stage and score elevations in part of the early stage.
+
+The test segment of Bearing3-5 exhibits sustained anomaly responses above the thresh-old shortly after it begins, indicating that distribution shift has already occurred relatively early after the training segment ends. Although the anomaly score of the proposed method fluctuates in the middle stage, its overall trend continues to move toward higher-score regions and eventually forms a stable high-score plateau near the end. The comparison in Part A shows that One-class SVM, KNN Distance, and Isolation Forest also enter the high-score region early, but they are more likely to maintain an elevated background over a long inter-val, compressing the difference between early deviation and later severe degradation. Deep SVDD, Adjacent Transformer, and Transformer AE rise later, while TranAD mainly pro-duces a large number of fluctuating spikes. In contrast, under this challenging setting where 42 the test segment is already degraded for almost its entire duration, the proposed method still preserves a hierarchy from moderately high scores to an even higher plateau, meaning that it can indicate not only that the sequence has already deviated from normality, but also whether the degradation continues to intensify. In Part B, almost all methods except TranAD are again close to the outer ring, which further shows that overall AUROC/AUPR alone is insufficient for reflecting which method better captures degradation hierarchy in long degradation sequences. Part C more clearly indicates that real anomalous windows form a continuous arc-shaped branch on the right, whereas normal training windows, normal test windows, and pseudo-anomalous windows are distributed among several adjacent subclusters on the left. This structure of “multiple but connected normal subclusters and an overall out-ward shift of anomalies” is consistent with the continuous progression from early deviation to severe late-stage degradation shown in Part A. Across the six XJTU-SY samples, three typical response patterns can be observed. Bearing1-1 and Bearing3-3 are closer to the pattern of “long stable period followed by rapid failure.” Bearing1-3 and Bearing2-5 exhibit more continuous progressive degradation. Bearing2-2 and Bearing3-5 provide more explicit early warning signals before formal failure. If one summarizes the shapes of the baseline score curves in Part A, One-class SVM and some tree-/distance-based methods are more likely to show elevated backgrounds or overly early saturation, compressing the hierarchy among degradation stages. Deep SVDD, KNN Distance, and LOF Novelty are sensitive to overall shifts, but their rise timing and fluctu-ation strength are not stable across samples. Adjacent Transformer, Transformer AE, and TranAD are more likely to express degradation responses as local spikes or late concentrated surges. If Parts B and C are considered together, many radar charts for XJTU-SY are already near the performance ceiling; thus, they more strongly reflect whether a method can detect late-stage degradation than whether it can capture early warnings. What more directly reflects method differences is whether real anomalous windows form one or more outer branches detached from the normal manifold in Part C. Compared with the baselines, the proposed method more consistently preserves the temporal order of degradation stages, enabling anomaly scores not only to detect late-stage fault states but also to capture weak pre-failure signs in some samples. At the same time, we do not interpret these scores as direct estimates of remaining useful life, nor do we claim that they can precisely locate the degrada-tion onset. A more appropriate interpretation is that the score curve characterizes the degree to which test windows deviate from the early normal training distribution. Low-dimensional visualization also shows that, for most samples, real anomalous windows form relatively clear boundaries away from normal windows, while pseudo-anomalous windows serve as boundary references. 43 3.3.3. IMS degradation data experiment 
+
+The IMS bearing degradation dataset was provided by the Center for Intelligent Main-tenance Systems (IMS) at the University of Cincinnati and later released through the NASA open data portal NASA Open Data Portal (2023). We select the Bearing4 sequence as a representative long-life degradation sample to examine the stability of the proposed method under long-duration weak degradation and transitional states. 
+
+> Figure 20: Illustration of the IMS bearing degradation data. The figure shows the experimental setup, long-sequence degradation trend, time-domain signal, and frequency-domain changes in the IMS run-to-failure data, and is intended to illustrate the input characteristics of long-sequence degradation scenarios.
+
+Figure 20 highlights three key characteristics of IMS Bearing4. First, the RMS degrada-tion trajectory in Part C remains relatively stable over most of the early and middle stages, but already exhibits scattered spikes before the official degradation onset, indicating that the dataset does not consist of only two sharply separated stages, i.e., “normal” and “failed.” Second, the comparison of normal and anomalous windows in Part B shows that anomalous samples have enhanced time-domain impact amplitudes and stronger dominant frequency peaks, although the enhancement is not as drastic as in some XJTU-SY samples. Finally, the figure suggests that IMS is better suited as a validation scenario for long-duration gradual degradation, where the key issue is model tolerance to weak signs and transitional states. 44 Figure 21: Degradation-detection results on the IMS bearing data. The proposed method captures part of the anomaly response that strengthens over time, although some anomalous windows still receive scores close to those of normal windows. 
+
+The IMS test sequence is much longer and contains more transitional states in which normal and anomalous samples overlap. Taking Bearing4 as an example, the training-set size is 4096000 × 2, the test-set size is 40058880 × 2, and the window length and stride re-main 512 and 256 , respectively. Part A of Fig. 21 shows that the window energy of the two channels as a whole enters a higher region after about 10 5 windows, while the anomaly score of the proposed method already exhibits multiple isolated peaks before that point, echoing the early warning signs before failure marked in Fig. 20. After about 1.05 × 10 5 windows, many windows continuously enter the high-score region, indicating that the model can accu-mulate responses to progressively worsening degradation. Compared with the baselines, the difference is again evident here. Deep SVDD and TranAD show strong fluctuations or dense peaks over a long early interval, making them prone to mapping normal fluctuations in long sequences to high scores. One-class SVM maintains an elevated background over almost the entire test segment, leaving little room for threshold discrimination. KNN Distance, LOF Novelty, and Isolation Forest also show an overall rise in the later stage, but more in the form of gradual elevation on top of a relatively high background, making them less targeted at early sparse weak signs. Adjacent Transformer and Transformer AE respond mainly to 45 larger regions in later stages and provide insufficient coverage for smaller early signs. In contrast, the strength of the proposed method on IMS is not that all anomalous windows are clearly separated, but that it simultaneously preserves two types of information: sparse early warning spikes and a sustained high-score platform in the late stage. The radar chart in Part B supports this observation: the proposed method maintains a relatively large outward area on AUROC, AUPR, best F1, and Precision, whereas methods such as Adjacent Transformer are more aggressive on Recall at the expense of Precision, and Deep SVDD lags on multiple metrics. This suggests that, in long-sequence degradation scenarios such as IMS, the more valuable property is not to crudely label more windows as anomalous, but to maintain a rela-tively balanced Precision–Recall trade-off while preserving strong ranking ability. The t-SNE visualization in Part C further shows that a substantial portion of real anomalous windows have already detached from the normal manifold along a right-side arc-shaped branch, while another portion remains close to or even partially overlaps with the region of normal test windows. Meanwhile, pseudo-anomalous windows mainly lie outside the normal manifold in another direction. This structure indicates that degradation in IMS does not follow a sin-gle, clear anomaly trajectory, but simultaneously includes late-stage states that have clearly moved away from normality and transitional states that are still close to normal. Therefore, for long-life degradation data such as IMS, anomaly-detection scores are better interpreted as references to degradation trends rather than as the sole basis for pointwise failure decisions. 46 Figure 22: Summary of the core metrics across multiple datasets. A–E compare the results of 9 methods on AUROC, AUPR, best F1, Precision, and Recall across 11 datasets, and F shows the radar chart of cross-dataset averages. This figure summarizes the overall performance of the proposed method on bearing fault detection and degradation detection tasks. 
+
+3.3.4. Experimental summary 
+
+Figure 22 provides a unified summary of the core metrics from the above 11 fault-detection and degradation-detection experiments. Panels A–E correspond to the five evalua-tion metrics, and Panel F is the averaged radar chart over different metrics. This figure is not intended to replace the dataset-by-dataset anomaly-score analysis given earlier, but rather to compare the overall trend of different methods under a unified coordinate system. Overall, the proposed method occupies the largest area in the averaged radar chart and achieves the highest average performance on AUROC, AUPR, best F1, and Precision, with average values of 0.9673 , 0.9778 , 0.9562 , and 0.9485 , respectively. The average Recall is 0.9695 , which is not the highest among all methods but still remains high. This indicates that the strength of the proposed method does not lie mainly in more aggressive recall, but rather in a more sta-ble balance of ranking ability, threshold-based detection performance, and Precision–Recall 47 trade-off across datasets. A closer examination of the single-dataset results shows that the proposed method achieves the best AUROC and AUPR on 5 datasets each, and the best best-F1 and Pre-cision on 4 datasets each, indicating that its advantage does not come from only one type of metric. This advantage is more pronounced on datasets that better differentiate methods, such as HTBF, PHM2009, and REALBOX. On IMS Bearing4 and some XJTU-SY subsets, however, the gaps between the proposed method and LOF Novelty, KNN Distance, and One-class SVM are smaller, and some individual metrics are slightly better for those baselines. In other words, this summary figure is better suited to support the conclusion that the proposed method is superior in overall cross-dataset stability and comprehensive performance, rather than to suggest that it has absolute superiority in every scenario and on every metric. In addition, the larger dispersion among methods on IMS, HTBF, and REALBOX also indi-cates that these datasets are more discriminative in terms of anomaly-detection capability and threshold-selection stability. 
+
+3.4. Ablation studies 
+
+To further explain the effectiveness of the proposed framework, we conduct ablation analyses from three perspectives: how pseudo-anomalies are generated, whether pseudo-anomalies form effective boundaries in the representation space, and how such boundaries are translated into final anomaly scores. Unlike the main experiments, which focus on final detection metrics, the ablation studies focus more on the mechanism of the method itself. Ideally, pseudo-anomalous samples should not simply be “easy negatives” that lie far away from normal samples; instead, they should lie outside the normal manifold, exhibit some directional consistency with possible real anomalies, and be transformed into a stable distance structure after Stage 2 training. Accordingly, the following analysis combines two-dimensional embedding distributions, distance statistics, PCA/Sankey coverage relations, anomaly-score curves, and metrics such as AUROC, AUPR, and best F1. 
+
+3.4.1. Ablation I: pseudo-anomaly injection strategy 
+
+Figure 23 compares the proposed pseudo-anomaly generation method, CARLA anomaly injection, and several alternative strategies obtained by removing key design components. The core question in this group of experiments is whether the negative samples generated by different anomaly-injection schemes truly act as “boundary samples.” For bearing anomaly detection under normal-only training, pseudo-anomalies do not need to reproduce the real fault morphology point by point during testing. More importantly, they should form a continuous, learnable reference region outside the normal sample manifold without deviating 48 Figure 23: Ablation on pseudo-anomaly injection strategies. The upper row corresponds to HTBF and the lower row to XJTU-SY Bearing1-1. The figure compares six strategies—our method, CARLA, removing error-bin balancing, removing positive-pair pulling, random pseudo-anomalous negatives, and random pseudo-anomalies—in terms of the distributions of normal training samples, pseudo-anomalies, validation-normal samples, and real anomalies in the two-dimensional embedding space. 
+
+excessively from the physical data distribution. If pseudo-anomalies are too close to normal samples, Stage 2 cannot learn a sufficiently discriminative margin; if they are too random or too far from the normal manifold, the model is more likely to learn artifacts unrelated to real faults, resulting in representations that are easy to separate during training but unstable during testing. 
+
+> Table 7: Quantitative results of Ablation I on HTBF and XJTU-SY Bearing1-1.
+
+Setting HTBF XJTU-SY Bearing1-1 AUROC AUPR Best F1 AUROC AUPR Best F1 Proposed method 0.9711 0.9842 0.9347 0.9889 0.9954 0.9784 
+
+CARLA pseudo-anomalies 0.9694 0.9655 0.9187 0.9595 0.9686 0.9548 Without error-bin balancing 0.9618 0.9815 0.9251 0.9889 0.9954 0.9777 Without positive pulling 0.8663 0.9228 0.8543 0.9777 0.9897 0.9742 Random pseudo-anomalous negatives 0.7935 0.8667 0.8426 0.9470 0.9327 0.9590 Random pseudo-anomalies 0.8416 0.9091 0.8541 0.9914 0.9913 0.9771 
+
+Table 7 further reports the quantitative results of the above six strategies on HTBF and XJTU-SY Bearing1-1. On the more complex HTBF dataset, the proposed method achieves the highest AUROC (0.9711), while remaining close to CARLA pseudo-injection on AUPR (0.9842) and best F1 (0.9347). After removing error-bin balancing, all metrics decrease slightly, indicating that simply generating boundary samples is not sufficient for stable de-tection; balanced coverage of different boundary strengths also affects the final performance. By contrast, random pseudo-anomalies, random pseudo-anomalous negatives, and removing positive pulling all lead to more obvious performance degradation, suggesting that when 49 negative samples are not properly aligned with the normal boundary, or when the normal neighborhood is not sufficiently compacted, the representation learned in Stage 2 becomes more easily influenced by artifacts from random perturbations. On XJTU-SY Bearing1-1, all six strategies perform relatively well overall, indicating that the anomaly direction of this degradation sample is relatively concentrated and that several pseudo-anomaly construction schemes can provide useful training signals. Even so, the proposed method still achieves the highest best F1 (0.9784), whereas CARLA is slightly higher on AUROC and AUPR, suggest-ing that on relatively easy data, the difference among pseudo-anomaly strategies is reflected more in boundary details and threshold-based results than in global separability itself. The distributions on HTBF and XJTU-SY Bearing1-1 in Fig. 23 show that the pseudo-anomalous samples generated by the proposed method tend to expand along the outside of the normal samples and maintain some directional consistency with the main shift directions of real anomalies. Taking HTBF as an example, the normal training samples and validation-normal samples form a relatively compact normal region, the proposed pseudo-anomalies are mainly distributed outside that region, and the real anomalies lie further along or adjacent to the outer edge. This indicates that the samples generated in Stage 1 are not simple random perturbations, but are instead extrapolated along vulnerable directions of the normal manifold in the reconstruction-error space, thereby providing hard negatives that are close to real anomaly directions for Stage 2. In XJTU-SY Bearing1-1, the life-stage difference between real degradation samples and normal samples is more pronounced, and the proposed method likewise constructs negative references near the normal region, making it easier for real degradation windows to be pushed away from the normal core in the embedding space. By contrast, CARLA’s contextual, global, seasonal, shapelet, and trend injection schemes impose stronger template priors and can generate multiple semantically explicit types of time-series anomalies, but these templates do not necessarily align with the reconstruction-residual boundary in bearing vibration data. CARLA may produce effective negative samples in scenarios where trend anomalies or shapelet anomalies are more pronounced; however, in multi-channel and strongly perturbed data such as HTBF, template-based injection can eas-ily create several discrete anomaly directions, and the overlap between pseudo-anomalies and real anomalies may occur only in local regions. In other words, CARLA has the ad-vantage of anomaly-pattern diversity, whereas its limitation is that anomaly directions are determined by predefined transformations. The advantage of the proposed method lies in the fact that anomaly strength is adaptively derived from the reconstruction-error distribu-tion of the normal training samples, which is more suitable for constructing bearing-specific pseudo-anomalies close to the normal boundary. The results after removing key modules further show the necessity of boundary construc-50 tion. Without error-bin balancing, pseudo-anomalies are more likely to concentrate in the error intervals that are easiest for the controller to hit, leading to insufficient samples along some boundary directions. Although such pseudo-anomalies may still separate from normal samples, their uneven coverage makes Stage 2 biased toward a few anomaly-strength regions and weakens generalization to complex real anomalies. Removing positive pulling weakens the compactness constraint among normal neighbors, so the repulsion term from pseudo-anomalies is more likely to spread the normal samples apart, leading to elevated background scores or reduced threshold stability. RandomNegative and RandomPseudo illustrate the limitations of random negative samples and random pseudo-anomalies, respectively: in two-dimensional plots, they may sometimes appear clearly separated, but that separation often comes from “easy differences” inconsistent with the structure of normal reconstruction resid-uals, so the model may learn random perturbation artifacts rather than the true boundary between bearing anomalies and the normal manifold. Therefore, this ablation study indicates that pseudo-anomaly quality mainly depends on three factors: first, the pseudo-anomalies should be located in the outer-neighbor region relative to the normal manifold rather than arbitrarily far away; second, their strength should cover multiple reconstruction-error intervals rather than concentrate at a single difficulty level; and third, the normal samples themselves should remain compact, otherwise negative-sample repulsion is converted into elevated background scores. The proposed target-error control, error-bin balancing, and normal positive-pulling term jointly satisfy these conditions, which explains their greater stability compared with template-based injection and random injection. 51 3.4.2. Ablation II: shared encoder design and CARLA coverage relation   
+
+> Figure 24: Ablation on the shared encoder design and the coverage relation with CARLA. Panels A and B show the nearest-training-sample distance and the intra-pseudo-anomaly distance statistics for pseudo-anomalies generated by different Stage 1 encoders, respectively. Panel C shows the difference between the proposed method and CARLA pseudo-anomalies in PCA space and sector-wise coverage relations.
+
+Figure 24 further analyzes the effect of the Stage 1 representation structure from two perspectives. The Nearest Train-Data Distance in Panel A measures the distance from a pseudo-anomaly to its nearest normal training sample and can be understood as whether the pseudo-anomaly is sufficiently close to the normal boundary. The Pseudo-Pseudo Distance in Panel B measures the dispersion among pseudo-anomalous samples and can be understood as whether the pseudo-anomalies have sufficient coverage. An effective pseudo-anomaly gen-erator should not simply maximize both quantities: if the distance to the nearest normal 52 sample is too small, pseudo-anomalies become almost indistinguishable from normal samples and can introduce label noise; if it is too large, pseudo-anomalies turn into easy negatives and fail to provide fine-grained boundary information. Likewise, if the intra-pseudo-anomaly distance is too small, coverage is insufficient; if it is too large, the sample distribution may become fragmented and lose boundary continuity. The boxplots for different encoders show that the shared-encoder structure adopted in this paper achieves a relatively balanced trade-off between “staying close to the normal boundary” and “maintaining pseudo-anomaly diversity.” Structures such as residual MLP generate pseudo-anomalies that lie closer to normal training samples, suggesting that their perturbations remain closer to normality, but the insufficient boundary margin may weaken the contrastive training signal. GRU, CNN, or some more complex encoders can generate more dispersed pseudo-anomalies, but if they place pseudo-anomalies too far from the normal samples, they are more likely to produce easy negatives unrelated to real bearing degradation. In the proposed method, a shared encoder is combined with feature-specific decoding heads, allowing different sensor dimensions to learn normal patterns under a common temporal context while preserving the independence of per-feature reconstruction errors. The resulting pseudo-anomalies are thus constrained by the same normal manifold while still allowing each channel to deviate in a controllable way along its own residual direction, making them more suitable for subsequent contrastive learning in a unified embedding space. The PCA and Sankey analyses in Fig. 24 further indicate that the proposed method and CARLA are not simply “two implementations of the same anomaly injection.” CARLA’s five types of injected samples occupy several semantically explicit sectors in PCA space, such as trend, shapelet, seasonal, global, and contextual directions. These directions are helpful for simulating typical time-series anomalies, but in bearing-vibration tasks they do not necessarily cover all residual boundaries outside the normal manifold. The samples generated by the proposed method use reconstruction error as the coordinate and do not assume specific fault templates. As a result, some regions in PCA space are adjacent to or overlap with CARLA, while others fall into no-match regions not covered by CARLA. The varying widths of the flows from different CARLA types into overlap, nearby, uncovered, and no-match regions in the Sankey diagram suggest that the two methods have both common and complementary coverage. This observation has two implications. First, the proposed method covers some anomaly directions also represented by CARLA, which means that the pseudo-anomalies obtained by extrapolating reconstruction error are not semantically meaningless random perturbations; they bear some correspondence to anomaly types such as trends, shape changes, or contex-tual shifts. Second, the proposed method also covers regions that CARLA cannot easily 53 enumerate explicitly, indicating that the anomaly boundary of bearings cannot be fully rep-resented by a small set of predefined time-series transformations. In real bearing monitoring, faults may appear as compound changes in energy, frequency, impact sparsity, channel cou-pling, and condition disturbance. Using the upper tail of reconstruction errors on normal training samples as the basis for extrapolation makes it possible to build a boundary closer to the equipment’s own data distribution without relying on fault templates. Therefore, the contribution of the proposed shared-encoder and error-control mechanism is not merely that they generate more pseudo-anomalies, but that they place these pseudo-anomalies at more reasonable boundary locations and with more reasonable coverage in the representation space. 
+
+3.4.3. Ablation III: Stage 2 contrastive loss and anomaly score      
+
+> Figure 25: Ablation on the Stage 2 contrastive loss and anomaly score. Panels A and B show the anomaly-score curves under different contrastive losses on HTBF and CWRU, respectively. Panels C, D, and E compare the comprehensive metrics of the normal score ,relative score , and OOC score on the two datasets.
+
+Figure 25 compares three contrastive losses in Stage 2—Triplet-Margin, Pairwise-Margin, and InfoNCE—and further compares three anomaly scores, namely the normal score , relative score , and OOC score . This experiment reveals an important phenomenon: pseudo-anomalies can serve as boundary references during training, but may not be suitable as “real anomaly prototypes” that directly participate in scoring at test time. Therefore, the loss function and the anomaly score must be consistent with the role played by pseudo-anomalies. From the score curves over time, all three losses achieve nearly saturated detection perfor-54 mance on CWRU, with Triplet-Margin, Pairwise-Margin, and InfoNCE all reaching AUROC, AUPR, and best F1 of 1.0000. This indicates that the difference between normal and fault samples is strong in CWRU, so sufficiently separable representations can be learned even with different contrastive objectives. Therefore, CWRU is better suited to verifying that the model has basic detection capability than to distinguishing which Stage 2 loss is superior. The HTBF results are more informative: Triplet-Margin achieves AUROC=0.9711, AUPR=0.9842, and best F1=0.9346, clearly outperforming Pairwise-Margin (AUROC=0.8057, AUPR=0.8864, best F1=0.8342) and InfoNCE (AUROC=0.7590, AUPR=0.8329, best F1=0.8358). This difference shows that for multi-channel data under strong operating-condition disturbance, it is not enough simply to separate normal and pseudo-anomalous samples; what matters more is learning local relative distance relations. Triplet-Margin has the advantage that it simultaneously constrains the relative distances among anchor, positive, and negative samples: the normal neighbor is required to be closer to the anchor than the pseudo-anomalous negative sample, with an explicit margin retained. This objective is highly consistent with the final normal score adopted in this paper: during training, the local normal neighborhood is compacted and the boundary samples are pushed away; during testing, the anomaly degree is measured by the KNN distance from the test window to the normal sample bank. Pairwise-Margin mainly emphasizes absolute attraction or repulsion between sample pairs and lacks the ranking constraint among anchor, positive, and negative, which makes it more likely that the internal structure of the normal samples is not sufficiently compacted. Although pseudo-anomalies are pushed away, the ranking of real anomalies can remain unstable. InfoNCE relies on in-batch negatives and a temperature parameter; when the number of pseudo-anomalies is large and their difficulty is uneven, the loss may be dominated by many easy negatives. As a result, the model may learn a global separation trend, but the background scores of normal segments are more easily elevated, leading to decreases in Precision/best F1 and ranking metrics on HTBF. The comparison among different anomaly scores supports the same explanation. The 
+
+normal score uses only the distance from a test window to the normal training sample bank and therefore directly answers the one-class anomaly-detection question “Has this window deviated from the normal manifold?” The relative score uses distances to both the normal bank and the pseudo-anomalous bank, and the OOC score further treats normal and pseudo-anomalous samples as two reference categories. These two scores work well on strongly separable data such as CWRU, but are less stable than the normal score on complex data such as HTBF. The reason is that the main role of the Stage 1 pseudo-anomalies is to shape the boundary, not to exhaust all possible real anomaly categories. Real fault windows may deviate along some pseudo-anomaly directions, but may also deviate along directions not fully 55 covered by CARLA or by the pseudo-anomalies generated in this paper. In that case, if the pseudo-anomaly bank is used as an anomaly prototype in scoring, the inconsistency between real anomalies and pseudo-anomalies can partially offset the deviation from the normal bank. Therefore, the final choice in this paper is the combination of Triplet-Margin and the 
+
+normal score . This combination provides stronger consistency between the training objective and the test-time scoring: Triplet-Margin compacts the normal neighborhood and establishes a margin outside it, while the normal score measures distance with respect to this compacted normal neighborhood. In this framework, pseudo-anomalies play the role of “boundary-shaping samples” rather than “anomaly-category templates.” This conclusion also explains why, in our framework, the value of generating high-quality pseudo-anomalies is mainly man-ifested in the representation-learning stage rather than in simply adding pseudo-anomalies to the test-time KNN classifier. 
+
+3.4.4. Ablation IV: RL step-size controller 
+
+To further analyze the specific role of the reinforcement-learning step-size controller in pseudo-anomaly generation, we construct control experiments on CWRU and HTBF in which RL-based step control is removed. The two settings are: 1) TPA-AD w/ RL step controller , where the actor in Stage 1 adaptively controls the perturbation step size for continuous features according to the current reconstruction error, target error, and pertur-bation progress; and 2) TPA-AD w/o RL step controller , where the actor controller is removed and the perturbation magnitude is computed directly using an analytic target-ratio step-size strategy. To eliminate the effect of differences in the number of pseudo-anomalous samples, both settings collect a fixed number of 3000 pseudo-anomalous windows with target-error bin filtering and pseudo-bin balancing turned off. Thus, the focus of this experiment is not “which setting generates more pseudo-anomalies,” but rather “given the same number of pseudo-anomalous samples, does RL-based step control improve their effective diversity, source coverage, and boundary-crossing ability?”                      
+
+> Table 8: Compact metrics for the RL step-size-controller ablation. Each cell reports the raw values as “RL / No-RL,” and the better RL value is highlighted in bold.
+> Dataset Source coverage Pseudo-anomaly– normal NN distance Intra-pseudo-anomaly NN distance PCA 95% area Boundary-crossing hit rate CWRU 0.735 / 0.386 17.296 / 6.528 18.033 / 3.183 955.4 / 864.3 0.760 / 0.265 HTBF 0.775 / 0.762 13.938 / 9.547 55.339 / 53.401 3157.0 / 3036.0 0.347 / 0.214
+
+The left column of Fig. 26 reports indicators with different units in terms of relative gains of RL over no-RL, making it easier to compare the magnitude of improvement across indicators. Table 8 gives the corresponding raw values. Overall, the RL step-size controller 56 Figure 26: Ablation results for the RL step-size controller. The left column reports the relative gains of RL over no-RL on five Stage 1 diversity indicators, including source coverage, average distance from pseudo-anomalies to the nearest normal training samples, intra-pseudo-anomaly nearest-neighbor distance, PCA 95% coverage area, and target-error boundary-crossing hit rate. The middle and right columns show the PCA distributions with and without the RL step-size controller, respectively. The figure shows that, under a fixed number of pseudo-anomalies, the main benefit of RL step control lies in improving the dispersion of boundary samples, their separation from the normal manifold, and their ability to cross the target-error boundary. It should be noted that the PCA plots are used only for qualitative visualization and not as standalone quantitative evidence. 
+
+improves not the number of pseudo-anomalous samples, but their effective diversity and boundary expression ability. Taking CWRU as an example, the RL step-size controller brings clear improvements on all five indicators. Specifically, source coverage increases from 0.386 to 0.735, indicating that pseudo-anomalous samples come from a broader variety of normal training windows instead of repeatedly perturbing only a few samples. The average distance from pseudo-anomalies to their nearest normal training samples increases from 6.528 to 17.296, showing that the RL-controlled pseudo-anomalies deviate more fully from the normal manifold. The intra-pseudo-anomaly nearest-neighbor distance increases from 3.183 to 18.033, indicating greater dispersion and lower redundancy among samples. The boundary-crossing hit rate increases from 0.265 to 0.760, showing that RL step control makes it easier for samples to cross the target-error boundary. In relative terms, the intra-pseudo-anomaly nearest-neighbor distance on CWRU improves by about 5.67 times, the boundary-crossing hit rate by about 2.86 times, 57 the pseudo-anomaly–normal nearest-neighbor distance by about 2.65 times, and the source coverage by about 90.2%. These results jointly show that on more standard bearing-fault data, the RL step-size controller can substantially enhance the coverage, dispersion, and boundary character of pseudo-anomalous samples. The conclusion on HTBF is consistent with that on CWRU, although the gains are distributed more unevenly across indicators. Table 8 shows that source coverage on HTBF increases only slightly from 0.762 to 0.775, and the improvements in intra-pseudo-anomaly nearest-neighbor distance and PCA 95% area are also relatively moderate. By contrast, the boundary-crossing hit rate increases from 0.214 to 0.347, and the pseudo-anomaly–normal nearest-neighbor distance increases from 9.547 to 13.938, corresponding to relative gains of about 62.6% and 46.0%, respectively. This suggests that in more complex multi-channel scenarios, the main benefit of the RL step-size controller is not necessarily to cover more training-source windows, but rather to push pseudo-anomalies away from the normal manifold more effectively and improve their ability to cross the target-error boundary. In other words, on HTBF the role of the RL step-size controller is more about improving the “effective strength” of boundary samples than substantially expanding source coverage. The PCA results in Fig. 26 provide intuitive support for these findings. On CWRU, after introducing the RL step-size controller, pseudo-anomalous samples expand over a wider region around the normal samples and become more dispersed. Without RL control, pseudo-anomalies still deviate from the normal region, but their overall coverage is narrower and local clustering is more obvious. On HTBF, both methods can form a relatively clear ring-like or outward-expanding distribution, but the RL-controlled pseudo-anomalies cover the outer-edge regions and cross-boundary directions more fully, whereas the no-RL version tends to concentrate in a few relatively fixed regions. It should again be emphasized that PCA visualizations are used only to qualitatively illustrate pseudo-anomaly distribution trends; the conclusions are still primarily supported by the quantitative indicators in Table 8. Overall, under a fixed number of pseudo-anomalous samples, the RL step-size controller mainly improves the separation of pseudo-anomalies from the normal manifold, their internal dispersion, and their ability to cross the target-error boundary, while on some datasets it further increases source coverage. This indicates that its main contribution lies in improving the effective diversity of boundary samples rather than simply increasing the number of pseudo-anomalous samples. 
+
+3.4.5. Ablation V: empirical basis of the Stage 1 target reconstruction-error interval 
+
+Stage 1 requires a pre-specified target reconstruction-error interval to control the devia-tion strength of pseudo-anomalous windows relative to normal windows. If this interval is too 58 low, the generated pseudo-anomalies may still remain close to the normal manifold and fail to form an effective boundary. If it is too high, the generated pseudo-anomalies are more likely to lie too far away from normal samples, weakening the subsequent representation-learning constraint toward real degradation directions. To examine whether the interval setting has an empirical basis, we further analyze the distributions of window-level reconstruction errors for normal training windows (Train-N), validation-normal windows (Val-N), and validation fault/degradation windows (Val-F). The purpose here is not to prove that reconstruction error itself is the final anomaly detector, but rather to verify whether high-quantile statistics of reconstruction errors on normal training windows can serve as an empirical reference for the target error strength used in Stage 1 pseudo-anomaly generation. For each dataset, we reuse the trained Stage 1 reconstruction model and compute window-level reconstruction errors under the same window settings ( L = 512 , H = 256 ). For multi-channel data, the maximum channel-wise error is used as the window error to avoid masking local fault responses through channel averaging. In Fig. 27, the blue, green, and pink histograms denote the reconstruction-error distributions of Train-N, Val-N, and Val-F, respectively. The black dashed and dash-dotted lines denote the Q95 and Q99 of Train-N, respectively, and the purple shaded region denotes the target-error interval currently used for pseudo-anomaly generation in Stage 1. The horizontal axis is log 10 (window reconstruction error ),so a rightward shift indicates a global increase in window reconstruction error. 
+
+Table 9: Compact results for the reconstruction-error target-interval ablation. Train-N Q99 denotes the high-quantile reference of reconstruction error on normal training windows; Val-N FPR@Train-N Q99 denotes the proportion of validation-normal windows lying to the right of the Train-N Q99 reference line; Val-F 
+
+Q10 /Train-N Q99 measures the rightward shift of the lower quantile of fault/degradation windows relative to the high quantile of normal training windows; and Val-F below Train-N Q99 denotes the proportion of fault/degradation windows below Train-N Q99 . This table is used only to analyze the empirical basis of the Stage 1 target-error interval and does not correspond to a final deployment threshold.                                                        
+
+> Dataset Train-N Q99 Val-N FPR@Train-N Q99 (%) Val-F Q10 /Train-N Q99 Val-F below Train-N Q99 (%) CWRU 0.0049 0.38 3.46 2.66 HTBF 0.0066 1.88 0.10 72.00 PHM2009 0.0735 1.15 0.01 85.79 REALBOX 0.0114 0.00 0.03 92.83 XJTU-SY Bearing1-1 0.0145 4.74 42.11 1.14 XJTU-SY Bearing1-3 0.0020 41.44 36.03 0.00 XJTU-SY Bearing2-2 0.0020 12.18 166.41 0.22 XJTU-SY Bearing2-5 0.0037 14.56 108.05 0.00 XJTU-SY Bearing3-3 0.0022 0.82 4475.29 0.00 XJTU-SY Bearing3-5 0.0042 74.80 11.98 0.16 IMS Bearing4 0.0011 4.38 0.25 27.60
+
+Table 9 and Fig. 27 jointly indicate that on CWRU and on most XJTU-SY degradation samples, the reconstruction errors of fault/degradation windows shift clearly to the right relative to the high quantiles of the normal training windows. Taking CWRU as an example, 59 Figure 27: Analysis of the empirical basis of the Stage 1 target reconstruction-error interval. The figure com-pares the window-level reconstruction-error distributions of Train-N, Val-N, and Val-F on different datasets. The black dashed/dash-dotted lines denote the Train-N Q95 /Q99 , and the purple shaded region denotes the current Stage 1 target-error interval. The figure illustrates that the high-quantile region of normal-training reconstruction error can serve as an empirical reference for the pseudo-anomaly target error on some bearing datasets, but this reference is neither a unified cross-dataset threshold nor the final anomaly decision thresh-old. 
+
+the 10 th-percentile error of Val-F is about 3.46 times the 99 th-percentile error of Train-N, and only 2.66% of fault windows lie below Train-N Q99 ; meanwhile, Val-N FPR@Train-N 
+
+Q99 is only 0.38% , suggesting that the high quantiles of normal training errors also provide a relatively stable conservative reference for normal windows on this dataset. The phenomenon is even more pronounced for most XJTU-SY samples. For example, Val-F Q10 /Train-N Q99 
+
+reaches 42 .11 , 166 .41 , and 4475 .29 for Bearing1-1, Bearing2-2, and Bearing3-3, respectively, while the corresponding Val-F below Train-N Q99 values are only 1.14% , 0.22% , and 0.00% .This suggests that the upper tail of normal-training reconstruction errors can naturally serve as a reference for pseudo-anomaly strength. On the other hand, HTBF, PHM2009, and REALBOX provide clear counterexamples. The Val-F Q10 /Train-N Q99 value of HTBF is only 0.10 , and 72 .00% of fault windows lie below Train-N Q99 ; the corresponding proportions for PHM2009 and REALBOX are even higher, reaching 85 .79% and 92 .83% , respectively. This indicates that in these datasets there are many real fault windows with low reconstruction errors, so the high quantiles of normal training errors cannot be interpreted as a unified final anomaly decision threshold. At the 60 same time, Val-N FPR@Train-N Q99 varies substantially across datasets. For example, it reaches 41 .44% and 74 .80% on XJTU-SY Bearing1-3 and Bearing3-5, respectively, further showing that the role of Train-N Q99 is better understood as an empirical reference line for Stage 1 rather than a stable deployment threshold across datasets. This is consistent with the two-stage design of the proposed method. The target-error interval in Stage 1 is not directly used for the final decision; instead, it is used to generate pseudo-anomalous windows with controlled deviation relative to normal samples, thereby establishing a boundary band outside the normal manifold for representation learning. The final anomaly score is still determined by the KNN distance to the normal sample bank in the Stage 2 representation space. Therefore, this experiment supports a more restrained conclu-sion: in bearing data, high-quantile statistics of reconstruction errors on normal training win-dows can provide an empirical reference for the Stage 1 pseudo-anomaly target-error interval, thereby reducing the need to completely handcraft the pseudo-anomaly strength. However, because fault patterns, operating-condition disturbances, and degradation processes vary substantially across datasets, this reference is neither a unified theoretical threshold across datasets nor the final anomaly decision threshold. The IMS Bearing4 result in Fig. 27 can be regarded as a supplementary observation, but should not be used as the main argument to further strengthen the conclusion above. 
+
+3.4.6. Ablation VI: CARLA-style pseudo-anomalies versus the original Stage 2 logic 
+
+To further examine whether the performance of the proposed method comes merely from external pseudo-anomalous samples and whether CARLA’s original Stage 2 logic is suitable for bearing scenarios, we add two groups of CARLA-related comparison experiments. In the first group, the pseudo-anomaly generation in Stage 1 is replaced with CARLA-style pseudo-anomalous windows, while the representation learning in Stage 2 and the anomaly score based on the KNN distance to normal samples are kept unchanged; this setting is denoted as CARLA pseudo + ours Stage 2 . In the second group, an adapted version of CARLA’s original classification/clustering-based Stage 2 is further adopted under the same training-normal-window and test-window protocol; this setting is denoted as CARLA original Stage 2 adapter . These two control settings are used, respectively, to test whether external pseudo-anomalous samples can directly replace the target-error-controlled generation strategy of this paper, and whether CARLA’s own Stage 2 discrimination logic can stably replace the normal-sample KNN representation score used in this paper. Table 10 and Fig. 28 together show that CARLA pseudo + ours Stage 2 clearly outper-forms CARLA original Stage 2 adapter overall, indicating that simply replacing our Stage 2 with CARLA’s original classification/clustering-style logic does not work stably under the 61 Figure 28: Comparison of score curves for CARLA-style pseudo-anomaly injection and the original CARLA Stage 2 logic on different bearing datasets. The left column shows CARLA anomaly injection → Ours Stage 2, i.e., only the pseudo-anomaly generation is replaced while keeping our Stage 2 representation learning and the 
+
+normal score (the anomaly score based on KNN distance to normal samples). The right column shows the CARLA original Stage 2 adapter, i.e., the adapted version using CARLA’s original classification/clustering-based Stage 2 logic. Background shading indicates anomalous or degradation stages, and the curves qual-itatively illustrate the differences in score stability between the two CARLA-related schemes on different datasets. 
+
+62 Table 10: Comparison of the proposed method and two CARLA-related controls on 11 bearing datasets. Best F1 is a posterior separability metric obtained by scanning thresholds on the test scores and should not be interpreted as deployment-threshold performance. Bold indicates the best result on the same dataset and metric based on the original unrounded values.                                                                                                               
+
+> Dataset TPA-AD CARLA pseudo + ours Stage 2 CARLA original Stage 2 adapter AUROC AUPR Best F1 AUROC AUPR Best F1 AUROC AUPR Best F1 CWRU 1.0000 1.0000 1.0000 1.0000 1.0000 1.0000 0.9998 1.0000 0.9986 HTBF 0.9711 0.9842 0.9347 0.9665 0.9841 0.9344 0.4905 0.6474 0.8149 PHM2009 0.7522 0.8751 0.8028 0.7223 0.8245 0.7614 0.6486 0.7758 0.8115
+> REALBOX 0.9996 0.9998 0.9981 0.9999 0.9999 0.9978 0.0910 0.4711 0.8048 XJTU-SY Bearing1-1 0.9980 0.9984 0.9902 0.9982 0.9985 0.9904 0.9977 0.9982 0.9895 XJTU-SY Bearing1-3 0.9977 0.9981 0.9776 0.9973 0.9978 0.9756 0.9978 0.9981 0.9784
+> XJTU-SY Bearing2-2 0.9979 0.9996 0.9874 0.9981 0.9997 0.9886 0.9986 0.9998 0.9909
+> XJTU-SY Bearing2-5 0.9999 0.9999 0.9970 0.9999 0.9999 0.9957 0.9990 0.9990 0.9849 XJTU-SY Bearing3-3 1.0000 0.9999 0.9972 1.0000 0.9998 0.9969 0.0000 0.0814 0.1518 XJTU-SY Bearing3-5 0.9941 0.9999 0.9959 0.9956 0.9999 0.9969 0.1071 0.9697 0.9945 IMS Bearing4 0.9297 0.9011 0.8376 0.8828 0.7845 0.7699 0.8845 0.8741 0.7723
+
+bearing-window protocol used in this paper. In terms of grouped average results, CARLA pseudo + ours Stage 2 achieves average AUROC/AUPR/best F1 of 0.9222 /0.9521 /0.9234 on fault detection and 0.9817 /0.9686 /0.9591 on degradation detection, whereas CARLA original Stage 2 adapter reaches only 0.5575 /0.7236 /0.8575 and 0.7121 /0.8457 /0.8375 , respectively. This difference is also visually evident in the score curves. For example, on CWRU and REALBOX, the left column forms relatively clear anomaly boundaries, whereas the right column is more prone to sustained high platforms, compressed scores, or unstable ranking inside anomalous intervals. Looking further at the relation between CARLA pseudo + ours Stage 2 and the pro-posed method, one can see that external pseudo-anomalous samples can indeed provide useful boundary information on some datasets, but their benefit is clearly dataset-dependent. This scheme performs well on CWRU, REALBOX, and most XJTU-SY degradation samples, indicating that CARLA-style pseudo-anomalies are not entirely ineffective. However, the proposed method remains superior on HTBF, PHM2009, and IMS Bearing4. For exam-ple, on HTBF, TPA-AD achieves AUROC/AUPR/best F1 of 0.9711 /0.9842 /0.9347 , whereas 
+
+CARLA pseudo + ours Stage 2 obtains 0.9665 /0.9841 /0.9344 ; on PHM2009, TPA-AD ob-tains 0.7522 /0.8751 /0.8028 , while CARLA pseudo + ours Stage 2 drops to 0.7223 /0.8245 /0.7614 ;and on IMS Bearing4, TPA-AD achieves 0.9297 /0.9011 /0.8376 , while CARLA pseudo + ours Stage 2 decreases to 0.8828 /0.7845 /0.7699 . These results indicate that the performance of the proposed method does not simply come from “introducing arbitrary pseudo-anomalous samples”; rather, the specific construction of pseudo-anomalies and their deviation strength relative to the normal manifold still significantly affect the subsequent representation learn-ing. 63 On the other hand, CARLA original Stage 2 adapter can achieve relatively high results on CWRU and some XJTU-SY samples, but it shows clear instability on multiple datasets. For example, its AUROC is only 0.0910 on REALBOX, nearly 0 on XJTU-SY Bearing3-3, and only 0.1071 on XJTU-SY Bearing3-5. Correspondingly, the right column of Fig. 28 shows obvious score instability, score flattening, or ranking inversion on these datasets. This indicates that CARLA’s original classification/clustering-style Stage 2 logic is more sensitive to dataset structure, anomaly proportion, and degradation process, and cannot be stably transferred to normal-only bearing scenarios. Taken together, these two CARLA-related controls support a more robust attribution of the advantage of the proposed method to the combination of controlled pseudo-anomaly generation under target-error constraints and the Stage 2 representation score based on KNN distances to normal samples, rather than to a generic recipe of “arbitrary pseudo-anomalies + arbitrary Stage 2.” 
+
+3.5. Hyperparameter sensitivity analysis 
+
+The target-error interval in Stage 1 is one of the more important empirical hyperpa-rameters of the proposed method. As defined in the method section, we construct the target interval as τ low  
+
+> j
+
+= Qql ({etrain  
+
+> i,j
+
+}i) and τ high  
+
+> j
+
+= Qqu ({etrain  
+
+> i,j
+
+}i) from the per-feature reconstruction-error distribution of the normal training samples, and then sample target errors within this interval to generate pseudo-anomalies. It should be emphasized that ql and qu are not fault-alarm thresholds used at deployment time; rather, they are unsupervised empirical parame-ters used in Stage 1 to construct a pseudo-anomaly boundary band. They depend only on the reconstruction-error distribution of the normal training data. Figure 29 shows the effect of different combinations of lower and upper quantiles on AUROC, AUPR, and best F1. Overall, the role of the target-error interval can be un-derstood from two dimensions: boundary strength and boundary coverage. A relatively low upper quantile makes the pseudo-anomalies too close to the main body of the normal reconstruction-error distribution. Although such samples are difficult, they often lack suf-ficient anomaly magnitude and can easily treat normal operating fluctuations as negative samples, ultimately resulting in insufficient margin between normal and anomalous states. By contrast, an excessively high and overly narrow interval concentrates pseudo-anomalies in the extreme tail of the error distribution. Although such pseudo-anomalies can serve as strong negatives, they may sacrifice boundary continuity and make the model overly biased toward strong anomalies while weakening its response to early degradation or complex weak anomalies. Therefore, a stable target interval usually needs to satisfy both of the following: the upper bound should be sufficiently high to ensure that pseudo-anomalies leave the nor-mal core, while the lower bound should not be too high so that pseudo-anomalies can cover 64 Figure 29: Hyperparameter sensitivity analysis of the target-error quantile interval. Each subplot shows the AUROC, AUPR, and best-F1 results obtained by different combinations of the lower quantile ql and upper quantile qu on CWRU, XJTU-SY, PHM2009, HTBF, REALBOX, and the cross-dataset average. 
+
+multiple boundary levels ranging from weak shifts to strong shifts. The sensitivity differences across datasets further indicate that this hyperparameter is related to the intrinsic fault separability and operating-condition complexity of the data. CWRU, XJTU-SY, and REALBOX maintain high metrics under many valid quantile com-binations, suggesting that these datasets contain relatively clear amplitude or degradation differences between normal and anomalous states. As long as Stage 1 can generate pseudo-anomalies outside the normal region, Stage 2 can produce stable separation. PHM2009 and HTBF are more sensitive to the target-error interval. PHM2009 represents a gearbox compound-fault scenario in which real anomalies and normal samples are locally entangled, while HTBF contains both multi-channel coupling and operating-condition disturbance. For such data, overly low target-error intervals easily generate pseudo-anomalies that still resem-ble normal data, leading to elevated score backgrounds. If only extremely high quantiles are used, pseudo-anomalies may become easy negatives along only a few directions and fail to cover the multiple deviation modes of real anomalies. Therefore, a moderately wide interval with a mid-to-high upper quantile is usually more robust. From the cross-dataset average, the better-performing region is not an isolated single 65 point but rather a stable area composed of medium lower quantiles and relatively high up-per quantiles. This observation supports the empirical thresholding strategy adopted in this paper: for bearing vibration data, the upper tail of the reconstruction-error distribution of normal training windows can be treated as a range of “candidate anomaly strengths near the normal boundary,” and bin-wise sampling can be carried out within this region instead of manually setting perturbations with fixed amplitudes. The advantage of this strategy is that reconstruction-error values can vary greatly across datasets, channels, and scales, whereas quantiles are relatively comparable. In addition, upper-tail quantiles naturally in-clude the hardest-to-reconstruct normal operating samples, which helps generate difficult pseudo-anomalies closer to early degradation. Based on the above results, we provide the following practical interpretation for bearing scenarios. If a dataset exhibits clear fault differences and relatively stable normal operating conditions, a relatively broad mid-to-high quantile interval can yield stable results. If strong operating-condition disturbances or multi-channel coupling are present, overly low upper quantiles should be avoided, and the lower quantile can be moderately increased to reduce overlap with the main normal region. If the goal is to enhance sensitivity to early degradation, one should not rely exclusively on extreme high quantiles; some lower-strength boundary samples should also be retained. In other words, the role of the target-error interval in Stage 1 is not to locate the final anomaly decision line, but to define the “training boundary band” for pseudo-anomaly generation. Figure 29 shows that this boundary band has a reasonably wide usable range across multiple bearing datasets, suggesting that the proposed method is not overly dependent on the target-error quantiles. However, on more complex datasets such as PHM2009 and HTBF, a proper choice of a mid-to-high quantile interval can still significantly improve boundary quality and final detection stability. 
+
+4. Discussion and extended analysis 
+
+As a discussion-oriented extension, we further examine the broader applicability of the proposed method on public time-series anomaly detection datasets. This part does not re-place the main conclusions drawn from the bearing fault-detection and degradation-detection experiments above; rather, it supplements them by observing how the framework transfers to non-bearing data. To this end, we select 13 representative public datasets from the TSB-AD benchmark Liu and Paparrizos (2024) and adopt the data organization scheme of TSB-UAD Paparrizos et al. (2022) for the univariate sequences. The selected data include both univariate sequences converted from classification datasets and multivariate sequences from spacecraft telemetry, wearable sensing, Web-service KPIs, industrial system monitoring, and 66 cluster runtime logs. The corresponding anomaly types include point anomalies, interval anomalies, trend drifts, and pattern switches. 
+
+4.0.1. Experimental setup for the TSAD extension 
+
+The TSAD extension analysis uses 13 public data sources or subsets from the TSB-AD benchmark, namely UCR, YAHOO, WSD, CATSv2, Daphnet, Exathlon, NEK, IOPS, LTDB, MSL, SMAP, SMD, and PSM. Unlike the manually constructed normal/fault concatenated sequences used in the bearing fault-detection experiments, the TSAD data mainly follow the existing training segments, test segments, and point-level anomaly labels provided by the public data sources. If an official training/test split is available, we adopt it directly; otherwise, the training and test segments are constructed according to the fixed protocol implemented in the code. Only the training segment is used during training, and anomaly-detection metrics are computed on point-level labels during testing. Here, both training size and test size refer to the number of point-level samples, and the anomaly ratio is calculated from the point-level labels in the test segment. For multivariate data, the number of effective features actually involved in the current implementation is reported for both continuous and discrete dimensions. In the TSAD experiments, the model likewise outputs a window-level anomaly score using the robustly normalized normal score , which is then mapped to a point-level anomaly score by averaging over overlapping windows, and the evaluation metrics are computed against point-level labels. Window labels are still generated using the conservative rule that a window is marked anomalous if it contains at least one anomalous point. The robust normalization here still acts on the anomaly-distance scores output by Stage 2 rather than on input-feature preprocessing. This transformation mainly affects the numerical scale of the scores and the threshold location; its influence on ranking metrics such as AUROC and AUPR is relatively small, although quantile clipping may cause ties among extreme scores. The TSAD extension reports five metrics: VUS-PR, VUS-ROC, AUPR, AUROC, and Point-F1. Among them, AUPR and AUROC are point-level ranking metrics, and Point-F1 is the point-level best F1 obtained by sweeping thresholds over the point-level anomaly scores on the test set. This threshold depends on the test labels and is used only to measure the upper bound of threshold-based detection performance; it does not represent a fixed threshold that can be determined without labels at deployment time. VUS-ROC and VUS-PR are computed using a range-based VUS implementation with point-level labels and point-level anomaly scores as input. In the implementation, RangeAUC_volume is used to compute the volumetric metrics, and the volume window is set to twice the sliding-window size. In most experiments, the VUS window parameter is 40 , corresponding to a volume window of 80 .67 Conventional AUC and Point-F1 are computed without point-adjust, event-adjust, or other post-processing. Unlike the bearing fault-detection and degradation-detection experiments, the TSAD extension results are obtained with repeated random runs. Specifically, under fixed data splits and input-preprocessing protocols, the Stage 2 representation learning is repeated 5
+
+times. The randomness mainly comes from model initialization, mini-batch construction, or sampling during training. The TSAD results in the tables are reported as the mean and standard deviation over the 5 Stage 2 runs. This setting is used to reflect the random fluctuations introduced by deep representation learning on generic TSAD data, whereas the main bearing experiments are reported under a fixed protocol and repeated runs are used only as stability checks. 
+
+4.0.2. Processing strategy for continuous and discrete variables 
+
+The TSAD experiments adopt a separated continuous/discrete branch strategy. For continuous features, the model follows the Stage 1 pseudo-anomaly generation and Stage 2 representation-learning pipeline, and for multivariate data it uses per-feature reconstruction and normalization to reduce the influence of different scales on reconstruction errors and KNN distances. For fully discrete data, continuous pseudo-anomalies are no longer gener-ated; instead, KNN distances are computed directly on one-hot encoded discrete windows. For mixed data containing both continuous and discrete variables, continuous scores and discrete KNN scores are first obtained separately and then normalized and fused. This strat-egy preserves the advantage of target-error control for continuous variables while avoiding semantically inappropriate continuous perturbations on discrete state variables. 
+
+4.0.3. Simulated anomaly experiment 
+
+To further analyze the basic response of the proposed method to different anomaly patterns, we construct a set of controlled simulated time-series anomaly experiments. Unlike the real-data experiments, the anomaly positions, anomaly durations, and anomaly types in the simulated experiments are predefined, making them more suitable for observing whether the anomaly scores align with the anomalous intervals and whether the model can respond to both point-level anomalies and pattern-level anomalies. This experiment is not intended as a substitute for evaluating generalization in real complex scenarios; rather, it complements the analysis by illustrating the detection behavior of the proposed pseudo anomaly-guided representation-learning framework under typical TSAD anomaly patterns. Figure 30 presents the results of the simulated time-series anomaly experiments. We divide the simulated anomalies into two categories: point anomalies and pattern anomalies. 68 Figure 30: Anomaly-detection results on simulated TSAD data. The top row shows the input time series and predefined anomalous intervals, where red shading indicates anomalous intervals and red circles mark the major anomaly patterns; the middle row shows anomaly-score curves under different score-mapping schemes; and the bottom row shows representation-space visualization, the score distributions of normal and anomalous samples, and integrated detection curves for point anomalies and pattern anomalies. This experiment covers five typical forms of time-series anomalies: global point anomalies, contextual point anomalies, shapelet anomalies, periodic anomalies, and trend anomalies. 
+
+Point anomalies further include global point anomalies and contextual point anomalies. A global point anomaly refers to a single sampling point whose amplitude clearly deviates from the normal range of the entire sequence. A contextual point anomaly refers to a sampling point whose global amplitude may not be extreme, but which is inconsistent with the normal pattern under its local context or periodic phase. Pattern anomalies include shapelet anoma-lies, periodic anomalies, and trend anomalies. Shapelet anomalies correspond to changes in local short-subsequence shapes; periodic anomalies correspond to disruptions of local peri-odic structure or anomalous phase/amplitude patterns; and trend anomalies correspond to deviations in the overall direction or growth rate within a local time interval. The anomaly-score curves in Fig. 30 show that the proposed method produces clear score increases in all five simulated anomalous intervals. In the global point-anomaly scenario, the anomaly score forms sharp peaks near the anomalous points, indicating that the model can identify local abrupt changes with significant amplitude deviations. In the contextual point-anomaly scenario, the anomaly score not only responds to the local anomalous point itself but also remains at a relatively high level within the contextual interval, showing that the model 69 does not rely solely on global amplitude magnitude but can use the local temporal background to judge anomalousness. For shapelet anomalies, periodic anomalies, and trend anomalies, the anomaly score rises continuously within the anomalous intervals instead of producing only isolated spikes at individual time points, indicating that the learned representation can capture pattern-level deviations such as local shapes, periodic structures, and trend changes. The representation-space visualization at the bottom of Fig. 30 further verifies these observations. Normal training samples and normal test samples are mainly distributed in nearby regions, pseudo-anomalous samples lie outside the normal region, and real anomalous samples are separated from normal samples to some extent in the representation space. This suggests that the pseudo-anomalous samples generated in Stage 1 provide effective boundary constraints for Stage 2 representation learning, enabling the model to form distinguishable embedding distributions when facing different types of real anomalies. The boxplots for point anomalies and pattern anomalies also show that anomalous windows have higher anomaly scores overall than normal windows, indicating that the proposed method has good response consistency for both point-level and pattern-level anomaly detection tasks. It should be noted that the anomalous boundaries and anomaly types in the simu-lated experiments are relatively explicit, and the data complexity is lower than that in real industrial scenarios. Therefore, the main significance of this experiment is to verify the in-terpretability of the proposed method’s response to different anomaly forms rather than to prove its ultimate performance on real data. The actual anomaly-detection capability in real scenarios still needs to be comprehensively evaluated together with the quantitative results on CWRU, HTBF, PHM2009, REALBOX, XJTU-SY, IMS, and the public TSAD datasets. 70 4.0.4. Score visualization on public TSAD data 
+
+> Figure 31: Example anomaly scores on public TSAD data I. The figure shows the anomaly-score curves and annotated anomalous intervals on representative time series.
+
+Figure 31 summarizes multiple representative sequences from univariate KPIs, multi-variate sensor data, and system monitoring data. For sequences with more explicit interval anomalies, such as Exathlon and PSM, the anomaly scores typically form relatively long high-score plateaus inside the annotated intervals. For sequences dominated by sparse spikes, such as IOPS and MSL, the score response is closer to narrow pulses. The results on LTDB, Daph-net, and SMAP further indicate that when background fluctuations are strong or anomaly 71 density is high, the model can still produce interpretable score increases around major anoma-lous intervals, although it does not necessarily produce ideal step-like responses at every anomaly boundary. Figure 32 further illustrates differences among three types of public univariate sequences. Isolated anomaly points in UCR correspond to obvious local peaks, suggesting that the model remains highly sensitive to sudden point anomalies. In WSD sequences, high-score peaks are sparser, indicating that against a complex periodic background the model tends to respond strongly only to the most salient deviations. In YAHOO samples, multiple interval anomalies correspond to relatively smooth high-score plateaus, showing that the method is more stable on sustained anomalies. Taken together, these two figures mainly serve as qualitative evidence that the model has indeed been tested on public sequences with different anomaly densities and background complexities, and that it can produce response patterns matched to the anomaly forms. Final cross-dataset performance should still be judged according to the metrics in Table 11. 
+
+> Figure 32: Example anomaly scores on public TSAD data II. The figure further shows the model’s detection results on different datasets or sequences.
+
+4.0.5. Quantitative metrics on public TSAD data 
+
+The quantitative TSAD results are shown in Table 11. The table summarizes the average dimensionality and the corresponding AUROC, AUPR, Point-F1, VUS-ROC, and VUS-PR for the 13 public TSAD data subsets. AUROC and AUPR measure point-level ranking ability, Point-F1 reflects point-level threshold-based detection performance, and VUS-ROC and VUS-PR Boniol et al. (2025) further account for the detection quality in the neighborhood 72 of anomalous intervals. We additionally report VUS metrics because anomalies in TSAD often occur in interval form, and point-level metrics alone may not fully reflect the model’s overall response around anomalous segments. 
+
+Table 11: Detection results on 13 public TSAD datasets. All results are reported as mean and standard deviation over 5 runs, and larger values indicate better performance for all metrics. 
+
+Data subset Average dimension AUROC AUPR Point-F1 VUS-ROC VUS-PR UCR 1 0.9048 ± 0.0017 0.3386 ± 0.0098 0.4125 ± 0.0123 0.9125 ± 0.0017 0.3423 ± 0.0086 
+
+YAHOO 1 0.9173 ± 0.0134 0.5325 ± 0.0148 0.6048 ± 0.0186 0.9148 ± 0.0123 0.6512 ± 0.0154 
+
+WSD 1 0.6452 ± 0.0486 0.1512 ± 0.0123 0.1292 ± 0.0470 0.6852 ± 0.0142 0.1158 ± 0.0451 
+
+CATSv2 17 0.7428 ± 0.0098 0.5144 ± 0.0132 0.5642 ± 0.0386 0.7473 ± 0.0083 0.4109 ± 0.0288 
+
+Daphnet 9 0.9226 ± 0.0095 0.4460 ± 0.0217 0.5123 ± 0.0348 0.9294 ± 0.0122 0.4643 ± 0.0395 
+
+Exathlon 20.16 0.9765 ± 0.0004 0.8550 ± 0.0015 0.8549 ± 0.0042 0.9782 ± 0.0007 0.8416 ± 0.0052 
+
+NEK 1 0.8345 ± 0.0086 0.6712 ± 0.0785 0.7564 ± 0.0042 0.8124 ± 0.0048 0.6435 ± 0.0235 
+
+IOPS 1 0.8595 ± 0.0105 0.4596 ± 0.0230 0.6153 ± 0.0153 0.8196 ± 0.0154 0.1484 ± 0.0212 
+
+LTDB 2.25 0.8844 ± 0.0034 0.7608 ± 0.0158 0.7332 ± 0.0067 0.8635 ± 0.0039 0.7301 ± 0.0042 
+
+MSL 55 0.5337 ± 0.0047 0.2543 ± 0.0230 0.4891 ± 0.0191 0.4299 ± 0.0039 0.2643 ± 0.0115 
+
+SMAP 25 0.9264 ± 0.0105 0.2397 ± 0.0117 0.3529 ± 0.0145 0.9253 ± 0.0088 0.2208 ± 0.0072 
+
+SMD 38 0.7621 ± 0.0150 0.4598 ± 0.0123 0.5761 ± 0.0143 0.5914 ± 0.0046 0.2191 ± 0.0275 
+
+PSM 25 0.6451 ± 0.0221 0.1966 ± 0.0254 0.4273 ± 0.0184 0.5832 ± 0.0269 0.2238 ± 0.0114 
+
+Average – 0.8042 ± 0.0122 0.4618 ± 0.0202 0.5513 ± 0.0191 0.7733 ± 0.0091 0.4112 ± 0.0192 
+
+Overall, this TSAD extension analysis indicates that the proposed method has a certain degree of broader applicability to general time-series anomaly detection tasks, although its performance is still clearly affected by data type, anomaly density, and feature scale. Com-pared with bearing data, anomaly patterns in public TSAD datasets are more diverse, and some datasets also contain sparse anomalies, long-period drift, or discrete state switching. Therefore, the results in this part are more appropriate as supplementary evidence of trans-fer performance rather than as a replacement for the main conclusions drawn in bearing scenarios. 
+
+4.1. Limitations and discussion 
+
+Although the proposed method achieves promising results on bearing time-series anomaly detection under normal-only training, several aspects still merit further discussion and im-provement. 
+
+1) Reconstruction and pseudo-anomaly generation for discrete variables remain difficult.. We attempted to introduce a Gumbel-Softmax mechanism into the decoder to reconstruct dis-crete samples and generate corresponding pseudo-anomalous samples. However, preliminary experiments show that stable reconstruction on discrete variables usually requires substan-tially more samples than continuous variables. As the sample size further increases, training cost, search space, and generation-quality control also become more difficult. Therefore, reconstruction modeling and pseudo-anomaly generation for discrete variables still require further study. 73 2) The method is relatively sensitive to shifts in the normal-sample distribution.. On some TSAD datasets, one important reason for weaker performance is that when the normal sam-ples at test time shift substantially relative to the normal training distribution, some samples that should still be considered normal may also receive high anomaly scores. Such shifts weaken the reference role of the Stage 1 target-error interval and further affect the stability of Stage 2 representation learning. In the future, techniques such as transfer calibration or test-time adaptation may be introduced to mitigate the influence of shifts in the normal distribution, although whether these directions can stably improve performance still requires further verification. 
+
+3) The fusion mechanism for continuous and discrete scores is still incomplete.. For data containing both continuous and discrete variables, the anomaly scores output by the con-tinuous and discrete branches are not fully consistent in either statistical scale or semantic meaning. Direct fusion can therefore introduce substantial bias. Building a more reasonable cross-branch calibration and fusion mechanism remains an important issue for future work. This issue is also closely related to the ability to reconstruct discrete variables effectively and to generate pseudo-anomalies for them. 
+
+4) Validation on real engineering data is still limited.. This paper validates the method on only one real high-speed-train bearing case, and the scale of real engineering samples remains limited. This limitation also indirectly reflects the fact that anomalous samples are often extremely scarce in real scenarios, which is precisely an important motivation for adopting the normal-only training setting and for designing TPA-AD. Nevertheless, from the perspective of engineering deployment and generalization, further evaluation on larger-scale real data under more operating conditions is still necessary. 
+
+5) The method shows some promise for engineering deployment.. From a deployment per-spective, the proposed method does not rely on large quantities of fault samples. In a high-speed-train scenario, it would be sufficient to collect a portion of normal bearing data from the early operation stage of the train to complete Stage 1 and Stage 2 training. In terms of training-sample demand, data-storage cost, and per-inference computational cost, the method places relatively modest demands on deployment resources and therefore has potential for further evaluation in online or edge-deployment settings. Even so, its practical engineering applicability still needs to be further verified on larger-scale field data under more diverse operating conditions. 74 5. Conclusion 
+
+This paper proposes TPA-AD, a two-stage pseudo anomaly-guided anomaly detection method for bearing time-series anomaly detection under the normal-only training setting. In Stage 1, pseudo-anomalous windows near the normal boundary are generated through reconstruction-based target-error control, and in Stage 2, normal and pseudo-anomalous windows are jointly used for contrastive representation learning, with anomaly detection performed by measuring the distance to the normal sample bank. Experimental results on fault-detection and degradation-detection tasks show that the proposed method achieves com-petitive and stable performance across multiple bearing datasets, while the ablation studies confirm the importance of target-error-controlled pseudo-anomaly generation, representa-tion learning, and normal-sample distance scoring. The discussion-oriented extension further suggests that the method has certain external applicability to general time-series anomaly detection tasks. Future work will focus on robustness to distribution shift, mixed-variable modeling, and validation on larger-scale real engineering data. 
+
+Acknowledgments 
+
+This work was supported by the National Key Research and Development Program of China (2023YFB3308100), the China State Railway Group Co., Ltd. Science and Tech-nology Research and Development Program Project (K2024J011),National Key R&D Pro-gram of China (2023YFB4302400) and the Natural Science Foundation of Shandong Province (ZR2023ME124). 
+
+CRediT authorship contribution statement 
+
+Xiancheng Wang: Conceptualization, Methodology, Software, Formal analysis, Investi-gation, Visualization, Writing - original draft. Zhibo Zhang: Data providing. Other authors: Supervision, Validation, Writing - review & editing. 
+
+Data availability 
+
+The data that support the findings of this study are available from the authors upon rea-sonable request. Due to data access restrictions, the REALBOX dataset cannot be publicly shared or redistributed by the authors. 75 Declaration of competing interest 
+
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper. 
+
+References 
+
+Jiangdong Zhao, Wenming Wang, Ji Huang, and Xiaolu Ma. A comprehensive review of deep learning-based fault diagnosis approaches for rolling bearings: Advancements and challenges. AIP Advances , 15(2), 2025. Yutong Dong, Hongkai Jiang, Renhe Yao, Mingzhe Mu, and Qiao Yang. Rolling bearing intelligent fault diagnosis towards variable speed and imbalanced samples using multiscale dynamic supervised contrast learning. Reliability Engineering & System Safety , 243:109805, 2024a. Bin Pang, Qiuhai Liu, Zhenduo Sun, Zhenli Xu, and Ziyang Hao. Time-frequency supervised contrastive learning via pseudo-labeling: An unsupervised domain adaptation network for rolling bearing fault diagnosis under time-varying speeds. Advanced Engineering Informat-ics , 59:102304, 2024. Yuhui Xu, Yimin Jiang, Tangbin Xia, Dong Wang, Zhen Chen, Ershun Pan, and Lifeng Xi. Dynamic model-assisted disentanglement framework for rolling bearing fault diagnosis under time-varying speed conditions. Mechanical Systems and Signal Processing , 230: 112588, 2025. Tantao Lin, Yongsheng Zhu, Zhijun Ren, Kai Huang, and Dawei Gao. Ccft: The convolution and cross-fusion transformer for fault diagnosis of bearings. IEEE/ASME Transactions on Mechatronics , 29(3):2161–2172, 2023. Zijun Zhou, Qingsong Ai, Ping Lou, Jianmin Hu, and Junwei Yan. A novel method for rolling bearing fault diagnosis based on gramian angular field and cnn-vit. Sensors , 24(12):3967, 2024a. Yang Li, Xiaojiao Gu, and Yonghe Wei. A deep learning-based method for bearing fault diagnosis with few-shot learning. Sensors , 24(23):7516, 2024. Miao Dai, Hangyeol Jo, Moonsuk Kim, and Sang-Woo Ban. Msff-net: Multi-sensor frequency-domain feature fusion network with lightweight 1d cnn for bearing fault diagnosis. Sensors ,25(14):4348, 2025. 76 Shouqi Wang and Zhigang Feng. Multi-sensor fusion rolling bearing intelligent fault diagnosis based on vmd and ultra-lightweight googlenet in industrial environments. Digital Signal Processing , 145:104306, 2024. Yutong Dong, Hongkai Jiang, Mingzhe Mu, and Xin Wang. Multi-sensor data fusion-enabled lightweight convolutional double regularization contrast transformer for aerospace bearing small samples fault diagnosis. Advanced Engineering Informatics , 62:102573, 2024b. Maoyou Ye, Xiaoan Yan, Xing Hua, Dong Jiang, Ling Xiang, and Ning Chen. Mrcfn: A multi-sensor residual convolutional fusion network for intelligent fault diagnosis of bearings in noisy and small sample scenarios. Expert Systems with Applications , 259:125214, 2025. Deqiang He, Jinxin Wu, Zhenzhen Jin, ChengGeng Huang, Zexian Wei, and Cai Yi. Agfcn: A bearing fault diagnosis method for high-speed train bogie under complex working con-ditions. Reliability Engineering & System Safety , 258:110907, 2025. Guoqiang Li, Meirong Wei, Defeng Wu, Yiwei Cheng, Jun Wu, and Jin Yan. Zero-sample fault diagnosis of rolling bearings via fault spectrum knowledge and autonomous contrastive learning. Expert Systems with Applications , 275:127080, 2025. Yanlei Liu, Yonggang Xu, Miaorui Yang, Hong Jiang, and Kun Zhang. Frequency pattern graph spectrum model and its applications in rolling bearing fault diagnosis. Mechanical Systems and Signal Processing , 240:113426, 2025a. Xuan Wang, Zhanqiang Hou, Gao Liu, Junwei Xue, Qingsong Li, Xuezhong Wu, and Ding-bang Xiao. Intelligent diagnosis of rolling bearings under cross-domain missing data: A lightweight complex domain imputation and unsupervised time–frequency alignment ap-proach. Mechanical Systems and Signal Processing , 241:113504, 2025. Zahra Zamanzadeh Darban, Geoffrey I Webb, Shirui Pan, Charu Aggarwal, and Mahsa Salehi. Deep learning for time series anomaly detection: A survey. ACM Computing Surveys , 57(1):1–42, 2024. Qinghua Liu and John Paparrizos. The elephant in the room: Towards a reliable time-series anomaly detection benchmark. Advances in Neural Information Processing Systems , 37: 108231–108261, 2024. Xiangfei Qiu, Zhe Li, Wanghui Qiu, Shiyan Hu, Lekui Zhou, Xingjian Wu, Zhengyu Li, Chenjuan Guo, Aoying Zhou, Zhenli Sheng, et al. Tab: Unified benchmarking of time series anomaly detection methods. arXiv preprint arXiv:2506.18046 , 2025. 77 Feiyi Chen, Yingying Zhang, Zhen Qin, Lunting Fan, Renhe Jiang, Yuxuan Liang, Qingsong Wen, and Shuiguang Deng. Learning multi-pattern normalities in the frequency domain for efficient time series anomaly detection. In 2024 IEEE 40th International Conference on Data Engineering (ICDE) , pages 747–760. IEEE, 2024. Yuting Sun, Guansong Pang, Guanhua Ye, Tong Chen, Xia Hu, and Hongzhi Yin. Unraveling the ‘anomaly’in time series anomaly detection: a self-supervised tri-domain solution. In 
+
+2024 IEEE 40th International Conference on Data Engineering (ICDE) , pages 981–994. IEEE, 2024. Yuchen Fang, Jiandong Xie, Yan Zhao, Lu Chen, Yunjun Gao, and Kai Zheng. Temporal-frequency masked autoencoders for time series anomaly detection. In 2024 IEEE 40th international conference on data engineering (ICDE) , pages 1228–1241. IEEE, 2024. Yuhang Chen, Chaoyun Zhang, Minghua Ma, Yudong Liu, Ruomeng Ding, Bowen Li, Shilin He, Saravan Rajmohan, Qingwei Lin, and Dongmei Zhang. Imdiffusion: Imputed diffusion models for multivariate time series anomaly detection. arXiv preprint arXiv:2307.00754 ,2023. Jiaqi Zhu, Shaofeng Cai, Fang Deng, Beng Chin Ooi, and Wenqiao Zhang. Meter: Adynamic concept adaptation framework for online anomaly detection. arXiv preprint arXiv:2312.16831 , 2023. Yuanyi Wang, Haifeng Sun, Chengsen Wang, Mengde Zhu, Jingyu Wang, Wei Tang, Qi Qi, Zirui Zhuang, and Jianxin Liao. Interdependency matters: graph alignment for multivari-ate time series anomaly detection. In 2024 IEEE International Conference on Data Mining (ICDM) , pages 869–874. IEEE, 2024. Xingjian Wu, Xiangfei Qiu, Zhengyu Li, Yihang Wang, Jilin Hu, Chenjuan Guo, Hui Xiong, and Bin Yang. Catch: Channel-aware multivariate time series anomaly detection via frequency patching. In International conference on learning representations , volume 2025, pages 17017–17045, 2025. Qichao Shentu, Beibu Li, Kai Zhao, Yang Shu, Zhongwen Rao, Lujia Pan, Bin Yang, and Chenjuan Guo. Towards a general time series anomaly detector with adaptive bottlenecks and dual adversarial decoders. In International Conference on Learning Representations ,volume 2025, pages 81358–81381, 2025. Ke-Yuan Shen. Learn hybrid prototypes for multivariate time series anomaly detection. In 
+
+The Thirteenth International Conference on Learning Representations , 2025. 78 Zahra Zamanzadeh Darban, Geoffrey I Webb, Shirui Pan, Charu C Aggarwal, and Mahsa Salehi. Carla: Self-supervised contrastive representation learning for time series anomaly detection. Pattern Recognition , 157:110874, 2025. Quan Zhou, Changhua Pei, Fei Sun, Jing Han, Zhengwei Gao, Dan Pei, Haiming Zhang, Gaogang Xie, and Jianhui Li. Kan-ad: Time series anomaly detection with kolmogorov-arnold networks. arXiv preprint arXiv:2411.00278 , 2024b. Xinhong Liu, Xiaoliang Li, Yangfan Li, Fengxiao Tang, and Ming Zhao. Rtdetector: Deep transformer networks for time series anomaly detection based on reconstruction trend. In 
+
+Proceedings of the Thirty-Fourth International Joint Conference on Artificial Intelligence, IJCAI-25, J. Kwok, Ed. International Joint Conferences on Artificial Intelligence Organi-zation , volume 8, pages 5788–5796, 2025b. Case Western Reserve University Bearing Data Cen-ter. Bearing data center: Apparatus & procedures. 
+
+https://engineering.case.edu/bearingdatacenter/apparatus-and-procedures ,2024. Accessed: 2026-05-30. PHM Society. 2009 phm challenge competition data set. 
+
+https://phmsociety.org/public-data-sets/ , 2009. Accessed: 2026-05-30. Biao Wang. Xjtu-sy bearing datasets. https://biaowang.tech/xjtu-sy-bearing-datasets/ ,2021. Accessed: 2026-05-30. NASA Open Data Portal. Ims bearings. https://data.nasa.gov/dataset/ims-bearings ,2023. Experiments on bearings provided by the Center for Intelligent Maintenance Systems (IMS), University of Cincinnati. Accessed: 2026-05-30. Paul Boniol, Ashwin K. Krishna, Marine Bruel, Qinghua Liu, Mingyi Huang, Themis Pal-panas, Ruey S. Tsay, Aaron Elmore, Michael J. Franklin, and John Paparrizos. Vus: effective and efficient accuracy measures for time-series anomaly detection. The VLDB Journal , 34:32, 2025. doi: 10.1007/s00778-025-00907-x. John Paparrizos, Yuhao Kang, Paul Boniol, Ruey S. Tsay, Themis Palpanas, and Michael J. Franklin. Tsb-uad: An end-to-end benchmark suite for univariate time-series anomaly detection. Proceedings of the VLDB Endowment , 15(8):1697–1711, 2022. doi: 10.14778/3529337.3529354. 79

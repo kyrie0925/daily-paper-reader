@@ -1,0 +1,1875 @@
+Title: Extending TCLUST to higher dimensions
+
+URL Source: https://arxiv.org/pdf/2606.03750v1
+
+Published Time: Wed, 03 Jun 2026 01:20:01 GMT
+
+Number of Pages: 37
+
+Markdown Content:
+# Extending TCLUST to higher dimensions 
+
+Luc´ ıa Trapote, Luis ´Angel Garc´ ıa-Escudero and Agust´ ın Mayo-Iscar University of Valladolid Department of Statistics and Operations Research, Valladolid, Spain June 3, 2026 
+
+Abstract 
+
+Outliers are known to significantly distort the results of many commonly used clus-tering methods, often leading to unreliable partitions. To address this issue, several robust clustering approaches have been developed that not only reduce their influence but also facilitate the detection of meaningful outliers. This presentation focuses on robust clustering methods based on trimming, especially TCLUST, which extends the type of trimming used by MCD in one-population problems to the more general case of multiple and unknown clusters. While TCLUST performs well on low-dimensional data, it struggles with high-dimensional datasets due to the complexity of estimat-ing a large number of parameters. The Robust Linear Grouping (RLG) method of-fers an alternative by assuming clusters lie near lower-dimensional subspaces, thereby combining clustering with dimensionality reduction. However, RLG has limitations when subspaces intersect and assumes overly simplistic isotropic orthogonal errors. A robust clustering method extending TCLUST will be presented, building on the High Dimensional Data Clustering (HDDC) approach by incorporating trimming and eigenvalue constraints. This new approach, called tHHDC, combines TCLUST and RLG, requiring careful modification and integration of both methodologies within that HDDC framework. A study of the theoretical properties of this approach, together with a feasible algorithm for its implementation, will be presented. The interest of the proposed methodology, along with the issue of selecting input parameters, will be illustrated through a simulation study and a real-data example. 
+
+## 1 Introduction 
+
+Outliers are a well-known challenge in cluster analysis, often leading to misleading or erroneous conclusions. Specifically, their presence can result in relevant and well-defined clusters being incorrectly merged or, conversely, in the detection of spurious clusters that do not correspond to any meaningful structure in the data. This motivates the interest in the use of robust clustering techniques (Garc´ ıa-Escudero et al., 2010; Banerjee and Dav´ e, 2012; Ritter, 2014; Garc´ ıa-Escudero et al., 2016; Garc´ ıa-Escudero and Mayo-Iscar, 2024). These methods are specifically designed to withstand a certain proportion of outlying observations. In some cases, outliers can be interpreted as forming small, isolated clusters themselves, thereby suggesting an increase in the total number of clusters, G. However, inflating the number of clusters is not always a viable or effective strategy. It can be computationally infeasible and may undermine the interpretability of the clustering results. Additionally, clustered outliers represent one of the most difficult forms of contamination, as they can affect even robust statistical procedures. Consequently, adopting a unified approach that simultaneously addresses both clustering and outlier detection is a natural and effective strategy. This unified approach is also motivated by the close connection between cluster analysis and anomaly detection goals, since cluster analysis seeks to identify dense regions 1
+
+> arXiv:2606.03750v1 [stat.ME] 2 Jun 2026
+
+or “crowds” of data points, and anomaly detection focuses on identifying observations that lie far from these regions. Several robust clustering strategies have been proposed in the literature. One approach relies on heavy-tailed mixture models, such as mixtures of t-distributions or mixtures of contaminated Gaussian distributions (Peel and McLachlan, 2000; Punzo and McNicholas, 2016). Another strategy is noise modeling, where outliers are fitted through uniformly distributed noise components (Banfield and Raftery, 1993; Coretto and Hennig, 2016). A third major direction consists of trimming-based approaches, where outliers are tried to be excluded from the clustering process (Cuesta-Albertos et al., 1997; Neykov et al., 2007; Garc´ ıa-Escudero et al., 2008). In this paper, we focus on that trimming-based approach to robust clustering and, in particular in the TCLUST method (Garc´ ıa-Escudero et al., 2008). Trimming methods are easy to interpret and statistically appealing: a predefined fraction α of the data is excluded, under the assumption that these observations are the most outlying ones, and standard statistical tools are subsequently applied to the remaining data. The trimming approach adopted is data-driven and is similar to approaches used in robust statistics with high-breakdown-point behavior already applied in regression and multivariate estimation, such as the Least Trimmed Squares (LTS) estimator (Rousseeuw, 1984) and the Minimum Covariance Determinant (MCD) estimator (Rousseeuw, 1985). The computational imple-mentation of these techniques has been facilitated by the development of “concentration steps” or “C-steps”, introduced by Rousseeuw and Van Driessen (1999). The TCLUST method, applying trimming as well as appropriate constraints on the eigenvalues of the component scatter matrices, has shown good properties in terms of the-oretical behavior, algorithmic performance, and robustness. We will review this TCLUST method in Section 2.1. Unfortunately, these good properties become less satisfactory in practical applications when TCLUST is applied to high or even moderately high dimen-sions (for example, dimensions not smaller than 8 or 10). This performance degradation of TCLUST as p increases will be illustrated in Sections 4 and 5. Two primary difficulties arise in high dimensions for TCLUST: first, the problem of initialization, as the algorithm heavily relies on a good random initialization for the concentration steps; and second, the high number of parameters to estimate, which grows rapidly with p due to the consid-eration of full covariance structures. It is obvious that higher-dimensional problems are increasingly common in modern statistical practice, and therefore it seems reasonable to attempt to extend this good performance of TCLUST to higher dimensions. Assuming that the observations are clustered around subspaces of lower dimension than the ambient space, it is reasonable to consider simultaneous robust clustering and dimensionality reduction. With this idea in mind, the robust linear clustering (RLG) method introduced in Garc´ ıa-Escudero et al. (2009) incorporates trimming into a subspace-based clustering approach. This procedure, which we will review in Section 2.1, has some limitations due to its simplifying assumptions of isotropic orthogonal errors, not adequately modeling the projections onto the approximating spaces, and troubles with intersecting subspaces. To extend the applicability of TCLUST to higher dimensions, we will present in Sec-tion 3 a compromise between TCLUST and RLG. This compromise builds on the HDDC methodology introduced in Bouveyron et al. (2007) by incorporating trimming and suitable constraints on the different dispersion-related parameters. After presenting the method-ology in Section 3.1, Section 3.2 introduces its population formulation, together with theoretical results on existence and consistency. A feasible algorithm for its practical implementation is presented in Section 3.3. That algorithm requires certain modifica-tions compared to the algorithms already proposed for RLG, TCLUST and HDDC. The methodology introduced in Section 3 involves the selection of a considerable number of 2tuning parameters. Section 4 provides guidance to help the reader understand the different roles these tuning parameters play. A procedure will also be introduced to determine, in a data-driven way, the intrinsic dimensions of the approximating subspaces. This procedure requires a modification of the objective function to include a model complexity penalty, similar to that considered in Cerioli et al. (2018). The practical interest of the proposal will be supported through simulations in Section 5 and by analyzing a well-known real dataset in Section 6. Finally, Section 7 summarizes the main results obtained and outlines some open directions for future research. 
+
+## 2 TCLUST and RLG 
+
+2.1 TCLUST 
+
+Although the first robust clustering method considering a data-driven trimmed approach was the trimmed k-means in Cuesta-Albertos et al. (1997). Trimmed k-means, being an extension of the classical k-means method, inherits its preference for homoscedasticity and spherical clusters. To address this shortcoming, TCLUST was proposed in Garc´ ıa-Escudero et al. (2008) as a more flexible, but still robust, alternative. TCLUST performs maximum likelihood estimation by assuming that the data arise from G Gaussian dis-tributed components, while incorporating both trimming and regularization on the scatter matrix via eigenvalue ratio constraints. If we consider a dataset {x1, . . . , x n} in Rp, TCLUST searches for G centers μ1, . . . , μ G,
+
+G symmetric positive definite scatter matrices Σ 1, . . . , ΣG, and G mixing weights π1, . . . , π G
+
+satisfying PGg=1 πg = 1, along with a partition {R0, R 1, . . . , R G} of the data, where R0
+
+contains [ nα ] observations considered as the potentially most outlying ones (for α ∈ [0 , 1) being the trimming level), and the rest of observations with indexes in R1,..., RG are allo-cated to G assumed Gaussian clusters. The goal is to maximize the classification trimmed log-likelihood : GX
+
+> g=1
+
+X
+
+> i∈Rg
+
+log [ πg ϕ(xi; μg, Σg)] , (1) where ϕ(x; μ, Σ) denotes the density function of a p-variate normal distribution with mean 
+
+μ ∈ Rp and Σ being a p × p scatter matrix. Another key feature of TCLUST is the consideration of the eigenvalues-ratio constraint , which imposes that the scatter matrices of the clusters remain “well-conditioned” by bounding the ratio of the largest to the smallest eigenvalue across all clusters: max  
+
+> g=1 ,...,G
+
+max 
+
+> l=1 ,...,p
+
+λl(Σ g)min  
+
+> g=1 ,...,G
+
+min 
+
+> l=1 ,...,p
+
+λl(Σ g) ≤ c, (2) where λl(Σ) denotes the l-th largest eigenvalue of the matrix Σ, and c ≥ 1 is a user-defined parameter. The inclusion of this constraint ensures that the maximization problem remains mathematically well-posed, because it avoids the unboundedness of the target function (1) when a component concentrates around a single point, i.e. μg = xi, and its scatter matrix collapses, i.e. |Σj | ↓ 0. Moreover, it provides robustness by preventing the algorithm from capturing so-called “spurious” components, formed by a few almost collinear observations, being almost degenerate and not very informative clusters (with 
+
+|Σj | ≃ 0). If c = 1 and π1 = · · · = πG, the TCLUST method reduces to trimmed 
+
+K-means. In the particular case where the number of clusters is G = 1 (so that a single common covariance matrix is required) and the eigenvalue-ratio constraint parameter c is large, 3the TCLUST approach becomes equivalent to the well-known Minimum Covariance De-terminant (MCD) estimator introduced by Rousseeuw (1985), which seeks the subset size 
+
+n − [nα ] with the smallest determinant of the sample covariance matrix. A closely related approach to TCLUST that generalizes the idea of trimming within a mixture model framework is based on the maximization of the trimmed mixture likelihood .This methodology was initially proposed by Neykov et al. (2007) and later extended by Garc´ ıa-Escudero et al. (2014) by incorporating the eigenvalues-ratio constraints. Instead of assigning each observation to a specific cluster during optimization, the trimmed mixture likelihood considers a full mixture density and trims a proportion α of the data points that contribute least to the overall mixture log-likelihood. Formally, the goal in that trimmed mixture likelihood approach is to find G weight parameters, π1, . . . , π G satisfying PGg=1 πg = 1, G location parameters, μ1, . . . , μ G, and G scatter matrices, Σ 1, . . . , ΣG,as well as a subset R ⊂ { 1, . . . , n } with # R = n − [nα ], that maximize the trimmed log-likelihood: 
+
+X
+
+> i∈R
+
+log 
+
+
+
+> G
+
+X
+
+> g=1
+
+πg ϕ(xi; μg, Σg)
+
+ . (3) The constraint (2) is also incorporated, again to get mathematically well-defined problems and prevent for detecting spurious solutions. The TCLUST method exhibits good properties both in terms of asymptotic behavior and robustness. Under mild assumptions, existence of both empirical and population problem solutions can be guaranteed together with a consistency result (Garc´ ıa-Escudero et al., 2008). Regarding influence behavior, it exhibits desirable theoretical properties. Specifically, it has been shown to possess a bounded influence function (Ruwet et al., 2012), and good breakdown point properties for “well-clusterized” datasets (Ruwet et al., 2013). Additionally, an efficient algorithm (Fritz et al., 2013) is also available for its application based on adapted C-steps (kind of trimmed classification/mixture EM steps). Notably, this type of algorithm can be applied with the tclust() function of the tclust 
+
+package in R (Fritz et al., 2012b) or through its implentation within the FSDA toolbox for 
+
+Matlab (Riani et al., 2012). Higher-dimensional problems are increasingly common in modern statistical prac-tice, particularly in areas such as bioinformatics, image analysis, and finance. Although TCLUST performs well in low-dimensional settings, it faces notable challenges as the num-ber of variables p increases. This will be illustrated in Sections 5 and 6. Two primary difficulties arise in high dimensions when using TCLUST (hard and mixture versions): first, the problem of initialization, as the algorithm becomes more sensitive to starting values, increasing the risk of convergence to suboptimal solutions; and second, the high number of parameters to estimate, which grows rapidly with p and can lead to computa-tional inefficiency and overfitting, especially when dealing with full covariance structures. Although the eigenvalue ratio constraint serves to “regularize” the target functions (1) and (3) when c is small and prevents eigenvalues in Σ g from being arbitrarily close to 0, unfortunately, a small c, i.e. c close to 1, would also impose highly constrained cluster partitions, with almost spherical, equal-scatter, trimmed k-means-type structures, which can be unsatisfactory for many applications. 
+
+2.2 RLG 
+
+In high-dimensional settings, it is unrealistic to assume that the data are uniformly dis-persed throughout the ambient space. Instead, it is common to assume that the obser-vations lie close to lower-dimensional structures, such as affine subspaces or manifolds, which capture the intrinsic variability of the data. In clustering problems, this translates into the assumption that each cluster is concentrated around its own subspace, potentially 4with a different orientation and dimensionality. Such an assumption aligns with many practical applications, where different groups or classes of observations are governed by distinct generative mechanisms that vary along only a few relevant directions. A common strategy for clustering and dimension reduction involves first applying Prin-cipal Component Analysis (PCA) to reduce dimensionality, followed by clustering on the transformed data. This sequential or “tandem” approach may distort the original cluster structure and lead to suboptimal results, as noted by Chang (1983). A more effective strategy is to perform clustering and dimension reduction simultaneously, for instance, by assuming that the observations are distributed around a union of G affine subspaces, each associated with a different cluster. With the aim of robustifying the process of detecting clustering around affine sub-spaces, the Robust Linear Grouping (RLG) searches for G affine subspaces B1, ..., B G with intrinsic dimensions q1, ..., q G and a partition {R0, R 1, ..., R G} with # R0 = [ nα ] minimizing 
+
+> G
+
+X
+
+> g=1
+
+X
+
+> i∈Rg
+
+∥xi − Pr Bg (xi)∥2,
+
+where Pr B(x) denotes the orthogonal projection of x ∈ Rp onto subspace B. This method (a particular case of it where qg = p−1 for g = 1 , ..., G ) was introduced in Garc´ ıa-Escudero et al. (2009). A particular case of it, as a robustification by trimming of the classical PCA, was already introduced through the LTS-PCA method with G = 1 (Maronna, 2005; Croux et al., 2017). Moreover, trimmed k-means can be also seen as a particular case when 
+
+q1 = ... = gG = 0, where affine subspaces are just centroids. The algorithm proposed for its implementation is analogously based on concentration steps. This method can be also applied throughout the rlg() function in the tclust package or by applying the fsda 
+
+Matlab toolbox. As RLG is just based on orthogonal distances to the cluster-specific approximating affine subspaces, then it assumes isotropic orthogonal errors, and modeling certain het-eroskedasticity for those errors. Note also that it does not take into account the particular position of the projected observation, and does not take into account that information for labeling outliers. In fact, RLG exhibits troubles with intersecting subspaces as can be seen in Figure 1. It can be observed that one of the clusters “absorbs” part of another, due to the fact that observations distant from the main cluster that clearly defines the approximating subspace eventually become incorporated as that subspace extends. 
+
+## 3 Trimmed HDDC 
+
+3.1 Methodology 
+
+The robust clustering approaches associated to TCLUST presented in Section 2.1 require estimating full Σ g covariance matrices when c > 1, which implies that the number of parameters grows quadratically with the data dimension. However, we can assume that high-dimensional data often concentrate near low-dimensional subspaces, as considered in Section 2.2. That assumption is going to be adopted, but following the High-Dimensional Data Clustering (HDDC) approach introduced in Bouveyron et al. (2007). Therefore, it is assumed that each class-conditional distribution follows a multivariate Gaussian with location vectors μ1, ..., μ G and scatter matrices Σ 1, ..., ΣG. However, a particular parsimo-nious structure is assumed for the Σ g covariance matrices. To present this parsimonious assumption, let Qg be the orthogonal matrix whose columns are the eigenvectors of Σ g.The covariance matrix Σ g is assumed to satisfy ∆ g = QTg ΣgQg, where ∆ g is a diagonal matrix which contains the sorted eigenvalues of Σ g. To reduce the number of parameters, 5Figure 1: Troubles with intersecting subspaces when using RLG with q1 = q2 = 2. The trimmed observations are the black points. it is assumed that ∆g has a parsimonious structure 
+
+∆g =
+
+
+
+λg1 0. . .0 λgq g
+
+λg 0. . .0 λg
+
+
+
+∈ Rp×p, (4) where λgl > λ g for l ≤ qg, and qg ∈ { 0, . . . , p −1} is an unknown intrinsic dimension specific to the g-th group. Note that if qg = 0 then no λgl values exist and, in that particular case, 
+
+Σg = ∆g = λgIp, where Ip is the p × p identity matrix. A class-specific subspace Bg is defined as the affine subspace spanned by the qg eigenvectors associated with the qg largest eigenvalues λgl of Σg, and such that μg ∈ B g. The orthogonal complement B⊥ 
+
+> g
+
+satisfies 
+
+Rp = Bg ⊕ B ⊥ 
+
+> g
+
+, with μg ∈ B ⊥ 
+
+> g
+
+as well. In B⊥ 
+
+> g
+
+, the variance is modeled by a single parameter 
+
+λg. Bg is referred to as the specific subspace of the g-th group and it is expected that most of the data in that group lie near this subspace. Let Pr Bg (x) = ˜Qg ˜QTg (x − μg) + μg and Pr B⊥ 
+
+> g
+
+(x) = ¯Qg ¯QTg (x − μg) + μg denote the projections of x onto Bg and B⊥ 
+
+> g
+
+, respectively. Here, ˜Qg ∈ Rp×p is the matrix formed by the first qg columns of Qg, corresponding to the directions of greatest variance, and completed with p − qg zero columns to preserve dimensionality. Similarly, ¯Qg = Qg − ˜Qg contains the remaining directions and satisfies ¯QTg ˜Qg = 0. To enhance robustness to outliers, we also consider the use of trimming within that HDDC framework. Therefore, it is considered that a proportion α of observations are discarded by using trimmed likelihoods when maximizing trimmed classification likelihoods (1) or trimmed mixture likelihood (3), with the parsimonious parameterization of the Σ g
+
+matrices assumed in the HDDC approach, yielding the ∆g matrices shown in (4). 6Moreover, two different sets of eigenvalue-ratio constraints are also considered in the maximizations of the trimmed likelihoods (1) or (3) by imposing: max  
+
+> g=1 ,...,G
+
+max 
+
+> l=1 ,...,q g
+
+λgl 
+
+min  
+
+> g=1 ,...,G
+
+min 
+
+> l=1 ,...,q g
+
+λgl 
+
+≤ c1 and max 
+
+> g=1 ,...,G
+
+λg
+
+min 
+
+> g=1 ,...,G
+
+λg
+
+≤ c2, (5) for two prefixed constants c1 and c2, both being greater than or equal to 1. We assume that c2 < ∞, while c1 may also be taken as c1 = ∞ if desired. Note that setting c1 = ∞
+
+allows the largest eigenvalues to remain unconstrained if desired, whereas c2 < ∞ is al-ways required to ensure the existence of solutions for both the associated empirical and population problems, as well as to guarantee consistency results. These restrictions on the eigenvalues may be seen as an extension of those in (2) and lead to mathematically well-defined constrained trimmed likelihood maximization problems (see Section 3.2), pro-moting a higher degree of regularization so as to help avoid the detection of non-interesting spurious solutions. The choice c1 = 1 would force the largest eigenvalues to be the same in all the different groups and, analogously, with the smallest eigenvalues when c2 = 1. However, the main advantage of this approach is the fact that the parameters c1 and c2
+
+allow us to achieve a certain (controlled) freedom in how we want to handle the different scattering of the groups in Bg and B⊥ 
+
+> g
+
+.We can summarize all the parameters involved for the constrained maximization of the trimmed likelihoods (1) and (3) through a set of parameters that we simply denote as θ
+
+where θ = ( π1, . . . , π G, μ 1, . . . , μ G, Σ1, . . . , ΣG) includes weights πg ∈ [0 , 1] with PGg=1 πg =1, mean vectors μg ∈ Rp, and symmetric positive definite covariance matrices Σ g ∈ Rp×p,that do satisfy the parsimonious assumptions for their eigenvalues yielding ∆g matrices of eigenvalues fulfilling the pair of eigenvalues-ratio constraints in (5). The set of parameters 
+
+θ that obeys these conditions will be denoted as Θ c1,c 2 throughout the manuscript. For the proposed algorithms, that will be presented in Section 3.3, we will see that their basic C-steps require to handle expressions of the form log[ πgϕ(xi; μg, Σg)]. As done in Bouveyron et al. (2007), this term can be rewritten as log[ πg ϕ(xi; μg, Σg)] = log( πg) − 12
+
+
+
+∥Pr Bg (xi) − μg∥2 
+
+> Bg
+
++ 1
+
+λg
+
+∥xi − Pr Bg (xi)∥2
+
++
+
+> qg
+
+X
+
+> l=1
+
+log( λgl ) + ( p − qg) log( λg) + p log(2 π)
+
+
+
+, (6) where ∥Pr Bg (xi) − μg∥2 
+
+> Bg
+
+is the Mahalanobis distance (in a TCLUST-type of distance in 
+
+Bg) of the projection of xi into the approximating subspace with respect to the “cen-troid” used to define that affine subspace. On the other hand, ∥xi − Pr Bg (xi)∥2/λ g is the orthogonal distance (in a RLG-type of distance), but not assuming isotropic orthogonal errors, because of the λg terms. This view of log[ πg ϕ(xi; μg, Σg)] is a convenient way to see that this approach serves indeed as a kind of compromise between TCLUST (within the approximating affine space) and RLG (in its orthogonal). If Bg corresponds to the affine subspace passing through μg and spanned by the first 7qg columns of Qg, which are denoted as ug1, ..., u gq g , then log[ πgϕ(xi; μg, Σg)] = log( πg) − 12
+
+> qg
+
+X
+
+> l=1
+
+⟨xi − μg, u gl ⟩2
+
+λgl 
+
++ 1
+
+λg
+
+xi − μg −
+
+> qg
+
+X
+
+> l=1
+
+⟨xi − μg, u gl ⟩ugl 
+
+> 2
+
++
+
+> qg
+
+X
+
+> l=1
+
+log( λgl ) + ( p − qg) log( λg) + p log(2 π)
+
+!
+
+. (7) Note that only the first qg eigenvalues/eigenvectors corresponding to the qg largest eigen-values in ∆g, together with the smallest common eigenvalue λg, are required when com-puting expression (7). Therefore, computing all eigenvectors is not required. Even though a more reduced notation for the parameters in θ required to compute log[ πgϕ(xi; μg, Σg)] could be adopted, we retain the full parametrization of θ in Θ c1,c 2 for clarity of exposition. A graphical summary of the notation considered can be observed in Figure 2. 
+
+Figure 2: Summary of the type of distances considered (see text for explanation). A methodology combining HDDC and trimming was briefly outlined in Bellas et al. (2012), although in a more restricted setting and with a less comprehensive treatment. 
+
+3.2 Existence and consistency results 
+
+In this section, we will introduce population versions for the empirical problems given in Section 3.1 and analyze their theoretical properties. With that purpose, we introduce when dealing with the classification trimmed-likelihood a set of assignment functions zg :
+
+Rp → { 0, 1}, for g = 0 , 1, . . . , G . Given a probability measure P , we consider maximizing CL( θ, P ) := EP
+
+
+
+> G
+
+X
+
+> g=1
+
+zg(·) log ( πgϕ(·; μg, Σg)) 
+
+ , (8) with respect to assignment functions zg : Rp → { 0, 1} satisfying PGg=0 zg(x) = 1, for every 
+
+x ∈ Rp, and that EP [z0(·)] = α. Additionally, the parameter θ ∈ Θc1,c 2 , with Θ c1,c 2 as defined in Section 3.1. 8As P is often unknown, if Pn stands for the empirical measure from the result X1 =
+
+x1, ..., X n = xn of an independent identically distributed (i.i.d) sample X1, ..., X n, we can replace P by Pn (i.e., by Pn = 1 /n Pni=1 δ{xi}) to recover the (empirical) classification trimmed HDDC problem introduced in Section 3.1. Notice that, perhaps, EPn [z0(·)] = α
+
+cannot be exactly achieved but this fact will not be important in our reasoning. On the other hand, for the mixture trimmed HDDC problem, we may consider the constrained maximization of ML( θ, P ) := EP
+
+z(·) log 
+
+
+
+> G
+
+X
+
+> g=1
+
+πgϕ(·; μg, Σg)
+
+ , (9) with respect to assignment functions z : Rp → { 0, 1} such that EP [z(·)] = 1 − α, and θ
+
+is constrained to be in Θ c1,c 2 . If Pn stands for the empirical measure, we also recover the trimmed mixture likelihood in Section 3.1. The assignments function can be obtained in both, trimmed classification and mixture likelihoods, from θ as follows. Given θ, let us define the functions 
+
+
+
+DH (x; θ) = max 
+
+> g=1 ,...,G
+
+{Dg(x; θ)}
+
+DM (x; θ) = PGg=1 exp( Dg(x; θ)) ,
+
+(10) where Dg(x; θ) = log[ πg ϕ(x; μg, Σg)] , is defined as in (6). When considering hard assign-ment, the assignment functions can be defined as 
+
+zg(x) := zg(x; θ) = I{{ x : DH (x; θ) = Dg(x; θ)} ∩ { x : DH (x; θ) ≥ R(θ; P )}} ,
+
+with R(θ; P ) = inf u{H(u; θ, P ) ≥ α} for H(u; θ, P ) = P (DH (·, θ ) ≤ u). On the other hand, when considering the mixture approach, we have 
+
+z(x) := z(x; θ) = I{x : DM (x; θ) ≥ R(θ; P )},
+
+with now H(u; θ, P ) = P (DM (·, θ ) ≤ u). To exclude in the subsequent analysis the probability distributions obviously unappro-priated for the introduced approach, we will assume on the underlying distribution P the very mild condition in (11). Failure to satisfy this condition would make the proposed methodology completely inappropriate for that P .The distribution P is not concentrated on G subspaces of dimensions 
+
+q1, . . . , q G after removing a probability mass equal to α (11) Under that mild assumption, we can state the following general existence result, that can be applied to both the population P and the empirical P = Pn problems when the 
+
+qg, g = 1 , ..., G intrinsic dimensions and the number of clusters G are fixed beforehand: 
+
+Proposition 3.1. If (11) holds for the distribution P , then there exists some θ ∈ Θc1,c 2
+
+such that the maximum of (8) and (9) when θ ∈ Θc1,c 2 is attained whenever α ∈ (0 , 1) 
+
+(1 ≤ c1 ≤ ∞ is allowed but 1 ≤ c2 < ∞ is required). 
+
+Note that, in the previous result, no moment conditions on P are required, provided that a strictly positive trimming level α > 0 is considered. This implies that the existence result remains valid even for heavy-tailed distributions, since a strictly positive trimming level can effectively remove the influence of heavy tails. Note that the condition (11) trivially holds for absolutely continuous distributions P , as well as for empirical measures 
+
+Pn based on a sufficiently large samples from such a continuous distributions P. The following consistency result also establishes that the empirical constrained maxi-mizer converges to the population constrained maximizer for the unknown distribution P
+
+as the sample size n increases: 9Proposition 3.2. Let α > 0 and P be a distribution with a strictly positive density func-tion and such that θ0 ∈ Θc1,c 2 is the unique constrained maximizer of (8) (or, respectively, (9)). If θn ∈ Θc1,c 2 denotes a sequence of constrained sample maximizers based on the empirical measure Pn obtained from an i.i.d. sample X1, ..., X n from P , then θn → θ0
+
+almost surely (in both cases). 
+
+It is not straightforward to provide conditions under which the population maximizer 
+
+θ0 is unique for a given P , specially in the case of the use of classification trimmed likeli-hoods. This can also be observed in simpler and highly constrained classification likelihood problem with α = 0, which lead to the k-means method (see C´ arcamo et al. (2024)). Nev-ertheless, this assumption is at least plausible when dealing with G well-separated normal components, although we acknowledge that a rigorous proof is definitely challenging. Note also that the stated consistency result, even in cases where the data sets are generated from Gaussian components satisfying the required conditions on their covariance matri-ces, does not guarantee that the empirical estimators converge exactly to the parameters of those Gaussian components. The consistency result should be understood as conver-gence toward the parameters that solve the population-level maximization of the trimmed likelihood functions, which only coincide with the parameters of the underlying Gaussian distributions in the ideal case where the components do not overlap at all, and where the scatter matrices estimated by trimming are corrected with appropriate correction fac-tors. A detailed discussion of all these issues in the context of TCLUST is provided in Garc´ ıa-Escudero et al. (2025). On the one hand, the identifiability of the parameters of finite mixtures of multivari-ate normal distributions is well established. These identifiability results ensure that the population maximizer is unique whenever the underlying P belongs to the corresponding finite-mixture model. However, this property may be lost when a positive trimming pro-portion α > 0 is introduced into the population framework. On the other hand, when the classification likelihood is considered, even in the absence of trimming, it is far from straightforward to establish conditions under which this uniqueness property holds. This issue is well-known in the case of k-means clustering, which corresponds to the simplest and most constrained classification-likelihood problem (see C´ arcamo et al. (2024)). Neverthe-less, the assumption of uniqueness is at least plausible when dealing with G well-separated normal components, although we acknowledge that providing a rigorous proof is highly challenging. Moreover, the consistency result should be interpreted as convergence toward the parameters that maximize the population-level trimmed (or classification) likelihood target function. These parameters coincide with those of the underlying Gaussian distribu-tions only in the idealized case where the components do not overlap at all and appropriate correction factors are applied to the scatter matrices estimates to account for the effect of trimming. A detailed discussion of these issues in the context of TCLUST can be found in Garc´ ıa-Escudero et al. (2025). 
+
+3.3 Algorithm 
+
+An algorithm to approximately maximize the classification trimmed likelihood (1) or the mixture trimmed likelihood (3), under the parsimonious scatter parameterization and the eigenvalue-ratio constraints (5), will be presented in this section. The proposed algorithm relies on multiple random initializations ( nstart random ini-tializations) of the parameters, followed by iterative C-steps until convergence or until a maximum number of iterations ( csteps ) is attained. The iterated parameters providing the highest value of the corresponding (classification or mixture) trimmed likelihood tar-get functions are chosen as final output of the algorithm. The C-steps can be viewed as a type of trimmed (classification) EM step, where zig “membership values” are updated 10 using the parameters θ(t−1) from the previous iteration. These zig values are binary (0–1) in the case of the trimmed classification likelihood, or posterior probabilities in the case of mixture likelihoods, but in both settings it is necessary to compute the Dg(·, θ ) values as in (6). Trimming is applied by setting the membership values zig equal to 0 for the fraction α of observations with the smallest Da(x; θ) values, with a = H and a = M ,that is, for those observations that are least likely to have been generated from the cur-rent parameter values. Finally, in the C-steps, the parameters are updated through the constrained maximization of the so-called “trimmed complete-data likelihood,” defined as 
+
+> n
+
+X
+
+> i=1
+> G
+
+X
+
+> g=1
+
+zig log 
+
+h
+
+πgϕ(xi; μ(t) 
+
+> g
+
+, Σ(t) 
+
+> g
+
+)
+
+i
+
+.
+
+In fact, parameters are updated starting from weighted sample means and weighted sample covariance matrices with weights given by these zig values, where also a proper truncation of the eigenvalues has to be performed. That proper eigenvalue truncation is a an exten-sion of the eigenvalue truncation introduced in Fritz et al. (2013). It can be shown that a complete C-step increases the trimmed likelihoods monotonically, but several random initializations are performed in order to obtain a global maximum rather than a local maximum. It is also important to note that only the first eigenvectors/eigenvalues (corre-sponding to the qg largest eigenvalues), {u(t) 
+
+> gl
+
+, λ (t) 
+
+> gl
+
+}qg
+
+> l=1
+
+, and the common smallest eigenvalue 
+
+λ(t) 
+
+> g
+
+for each component, g = 1 , . . . , G , need to be updated. 1. Random initializations: Consider nstart random initializations by defining nstart 
+
+initial parameter sets, each denoted by θ(0) . Details of this initialization step are given in Remark 1. 2. C-steps: For each θ(0) , repeat the C-steps for a maximum of csteps iterations (t = 1 , . . . , csteps ), or until a convergence criterion is met (for instance, when the change in the updated parameters is sufficiently small). 2.1. Update zig membership values : From the parameters θ(t−1) in the previous iteration, compute Da(xi; θ(t−1) ) as in (10), where a = H for the classification likelihood maximization and a = M for the mixture case, for each observation and sort them in 
+
+Da(x(1) ; θ(t−1) ) ≤ Da(x(2) ; θ(t−1) ) ≤ ... ≤ Da(x(n); θ(t−1) ).
+
+Select the set R0 consisting of the [ nα ] indexes with the smallest Da(xi; θ(t−1) )values, i.e., R0 = {i : Da(xi; θ(t−1) ) ≤ Da(x([ nα ]) ; θ(t−1) )}.Then, compute the membership values zig as 
+
+zig =
+
+(
+
+1 if Dg(xi, θ (t−1) ) = DH (xi; θ(t−1) )0 otherwise ,
+
+for classification trimmed likelihoods, and 
+
+zig = exp( Dg(xi, θ (t−1) )) 
+
+DM (xi; θ(t−1) ) ,
+
+for mixtures trimmed likelihoods. Finally, perform the trimming step by im-posing zig = 0 for all g = 1 , . . . , G , if i ∈ R0.2.2. Update parameters: 
+
+11 2.2.1. Update weights: 
+
+π(t) 
+
+> g
+
+=
+
+Pni=1 zig 
+
+[n(1 − α)] 2.2.2. Update means: 
+
+μ(t) 
+
+> g
+
+=
+
+Pni=1 zig xi
+
+Pni=1 zig 
+
+2.2.3. Update subspaces and scatter parameters: Start by computing the weighted sample covariance matrices 
+
+Sg = 1
+
+Pni=1 zig nX
+
+> i=1
+
+zig (xi − μ(t) 
+
+> g
+
+)( xi − μ(t) 
+
+> g
+
+)⊤
+
+Extract the eigenvectors u(t) 
+
+> g1
+
+, . . . , u (t) 
+
+> gq g
+
+associated with the qg largest eigen-values dg1, . . . , d gq g , and compute: 
+
+dg = 1
+
+p − qg
+
+trace( Sg) −
+
+> qg
+
+X
+
+> l=1
+
+dgl 
+
+!
+
+.
+
+Since only the eigenvectors corresponding to the qg largest eigenvalues in (7) are required, the Arnoldi method can be applied to Sg to reduce com-putation time, as previously noted in Bouveyron et al. (2007). It is clear that the eigenvalues in {dgl }qg 
+
+> l=1
+> Gg=1
+
+and {dg}Gg=1 do not nec-essarily should satisfy the required constraints, depending on c1 and c2.A eigenvalues-truncation operation has to be then performed, which can be seen as an adaptation of the approach followed for TCLUST and intro-duced in Fritz et al. (2013). Details on this truncation of eigenvalues will be given Remark 2. The result of the complete process returns updated 
+
+{λ(t) 
+
+> gl
+
+}qg 
+
+> l=1
+
+and λ(t) 
+
+> g
+
+eigenvalues for every g = 1 , ..., G .3. Output: Return the iterated parameters that achieve the maximum value of the target function in (1) or (3) among the nstart initializations. 
+
+Remark 1. One of the drawbacks of the application of TCLUST when increasing dimen-sion p is that G(p + 1) observations needed to be randomly selected to initialize the Σ (0) 
+
+> g
+
+matrices (Fritz et al., 2013). Note that p + 1 random observations in general position are needed to derive non-singular scatter matrices, for p-variate variates, by computing their sample covariance matrix. Additionally, when applying TCLUST, it is required G(p + 1) observations ideally free of outliers but also partitioned in such a way that the first p + 1 observation belongs to one of the G underlying cluster, the following p + 1 observations to the second cluster and so on. Of course, this is a idealized situation and TCLUST can work if this ideal initialization assumptions do not hold, but it serves to give us an idea on how difficult became the task of initializing TCLUST when p is large. On the other hand, we will see that PGg=1 (qg + 2) random observations are actually needed, which is notably smaller than G(p + 1), when applying the proposed trimmed HDDC algorithm, which makes more feasible to think of relying in appropriate random initializations, mainly when the intrinsic dimension qg are small in comparison with the ambient space dimension 
+
+p.For the initialization of the parameters in θ(0) , we propose randomly selecting a sub-sample {xg1 , . . . , x gqg +2 } ⊂ { x1, . . . , x n}. Note that qg + 2 random observations in general position is the smallest number of observations required to initialize the parameters of each cluster. The initial location parameters can be set as μ0 
+
+> g
+
+= ( xg1 +· · · +xgqg +2 )/(qg +2), and 12 a sample covariance matrix Sg can be computed using these qg + 2 observations which has rank equal to qg +1. We then extract the eigenvectors u(0)  
+
+> g1
+
+, . . . , u (0)  
+
+> gq g
+
+corresponding to the qg
+
+largest eigenvalues of that Sg matrix for initializing the vectors spanning the subspace Bg,and the qg largest eigenvalues are considered as initial λ(0)  
+
+> g1
+
+, . . . , λ (0)  
+
+> gq g
+
+eigenvalues. Finally, we take λ(0)  
+
+> g
+
+being equal to the smallest eigenvalue of the Sg matrix divided by p − qg.Of course, these initial eigenvalues may not satisfy the required eigenvalue constraint, but since this approach is used only for initialization, the constraints can be enforced later via eigenvalue truncation in subsequent C-steps. Moreover, to make the computation of eigenvectors and eigenvalues more efficient, the following strategy can be employed. Let X be a ( qg + 2) × p matrix whose columns correspond to the observations centered by μ0
+
+> g
+
+. Instead of computing the eigenvalues and eigenvectors of the covariance matrix 
+
+Sg = 1  
+
+> qg+2
+
+X⊤X, which is of dimension p × p, we work with its transpose 1  
+
+> qg+2
+
+XX ⊤, which is of size ( qg + 2) × (qg + 2), since qg + 2 ≪ p and both matrices share the same non-zero eigenvalues due to the properties of Gram matrices. In this way, if u is an eigenvector of ( qg + 2) × (qg + 2) matrix associated with eigenvalue λ, then v = 1√λ X⊤u is also an eigenvector of Sg associated with the same eigenvalue λ. Regarding the initialization of the weights, the π(0)  
+
+> g
+
+can be set either to 1 /G for all components or randomly in [0 , 1], ensuring that they sum to one. 
+
+Remark 2. It is not difficult to see (essentially combining the arguments in Bouveyron et al. (2007) and Garc´ ıa-Escudero et al. (2008)) that the vectors spanning the optimal approximating subspaces Bg should be the eigenvectors of the weighted sample covariance 
+
+Sg matrices in Step 2.2.3. of the algorithm associated to the qg largest eigenvalues. With respect to how the eigenvalues should be updated, let us start from the {dgl }qg
+
+> l=1
+> Gg=1
+
+and {dg}Gg=1 derived from the weighted sample covariance Sg matrices, as described in Step 2.2.3. of the presented algorithm. As justified in Garc´ ıa-Escudero et al. (2008) and Fritz et al. (2013), conditional on the available eigenvectors, it would be ideally needed to replace the values {dgl }qg 
+
+> l=1
+
+and dg by new values {λgl }qg 
+
+> l=1
+
+and λg such that they minimize 
+
+> G
+
+X
+
+> g=1
+
+ngqg
+
+X
+
+> l=1
+
+
+
+log λgl + dgl 
+
+λgl 
+
+
+
++
+
+> G
+
+X
+
+> g=1
+
+ng(p − qg)
+
+
+
+log λg + dg
+
+λg
+
+
+
+,
+
+while still ensuring that the values {λgl }qg 
+
+> l=1
+
+and λg satisfy the relative order among the largest and smallest eigenvalues, together with the imposed constraints (2), and where 
+
+ng = Pni=1 zig . With that purpose, let us use the following notation for the truncated eigenvalues [d]mc = min {max {d, m }, cm } .
+
+We may consider the following two separated minimizations min 
+
+> m1>0
+> G
+
+X
+
+> g=1
+
+ngqg
+
+X
+
+> l=1
+
+
+
+log[ dgl ]m1 
+
+> c1
+
++ dgl 
+
+[dgl ]m1
+
+> c1
+
+
+
+, (12) and min 
+
+> m2>0
+> G
+
+X
+
+> g=1
+
+ng(p − qg)
+
+
+
+log[ dg]m2 
+
+> c2
+
++ dg
+
+[dg]m2
+
+> c2
+
+
+
+, (13) for the two constants c1 and c2 considered for the eigenvalue ratio constraints in (5). These two minimization can be efficiently carried out by performing an slightly modified version of the optimal eigenvalues-truncation procedure in Fritz et al. (2013). Let mopt  
+
+> 1
+
+and mopt 
+
+> 2
+
+be the values of m1 and m2 where the minimum values of, respectively, (12) and (13) are 13 attained. We can use these two values, mopt  
+
+> 1
+
+and mopt  
+
+> 2
+
+, to obtain the initial truncated eigenvalues 
+
+d∗ 
+
+> gl
+
+= [ dgl ]mopt  
+
+> 1
+> c1
+
+, for l = 1 , ..., q g, and d∗ 
+
+> g
+
+= [ dg]mopt  
+
+> 2
+> c2
+
+.
+
+If these initial d∗ 
+
+> gl
+
+and d∗ 
+
+> g
+
+do directly satisfy the desired constraint imposed on the largest and smallest eigenvalues (i.e. it holds that d∗ 
+
+> gl
+
+≥ d∗ 
+
+> g
+
+for every g and l = 1 , ..., q g) then we can trivially update λ(t) 
+
+> gl
+
+= d∗
+
+> gl
+
+, l = 1 , ..., q g, and λ(t) 
+
+> g
+
+= d∗ 
+
+> g
+
+in Step 2.2.3 of the algorithm. On the other hand, if the constraints do not hold for any g then a iterative procedure has to applied. In that case, if there exists g ∈ { 1, . . . , G } and j ≤ qg such that d∗ 
+
+> gl
+
+≥ d∗
+
+> g
+
+for l < j but d∗ 
+
+> gj
+
+< d ∗
+
+> g
+
+, then we redefine all the eigenvalues violating the constraints and setting them equal to a common value given by 
+
+d∗ 
+
+> gj
+
+= d∗ 
+
+> gj +1
+
+= · · · = d∗ 
+
+> gq g
+
+= d∗ 
+
+> g
+
+=
+
+Pqg 
+
+> l=j
+
+[dgl ]mopt  
+
+> 1
+> c1
+
++ ( p − qg)[ dg]mopt 
+
+> 2
+> c2
+
+p − j . (14) Note that the common value in (14) coincides with the value of λ that minimizes the following expression 
+
+> qg
+
+X
+
+> l=j
+
+log λ + [dgl ]mopt 
+
+> 1
+> c1
+
+λ
+
+ + ( p − qg)
+
+log λ + [dg]mopt 
+
+> 2
+> c2
+
+λ
+
+ .
+
+With these updated values, d∗ 
+
+> gl
+
+and d∗
+
+> g
+
+, the minimizations (12) and (13) are carried out again, where the original dgl and dg are replaced by these new d∗ 
+
+> gl
+
+and d∗ 
+
+> g
+
+values. In a completely analogous and iterative manner, any subsequently truncated eigenvalues that still violate the constraints are replaced by a common eigenvalue as in (14). This iterative procedure is repeated until no further changes are required, yielding the final updates 
+
+λ(t) 
+
+> gl
+
+and λ(t) 
+
+> g
+
+in Step 2.2.3 of the proposed algorithm. In most cases, we have observed that only a few iterations are required for the proposed eigenvalue update. Obviously, the eigenvalue truncation procedure becomes considerably simpler when c1 = ∞, since the iterative scheme is no longer needed in that case. 
+
+Remark 3. To improve the computational efficiency of the proposed algorithm, we adopt a two stage strategy for the C-steps. The proposal is to consider a number of random starts nstart as large as possible, but to apply only a very small number cstep1 of initial C-steps (for example, cstep1 equal to 2 or 4) to each random initialization. Based on these preliminary iterations, only the nkeep most “promising” initializations, namely those yielding the largest values of (1) or (3), are retained and subsequently iterated until convergence or until a larger number of final C-steps cstep2 is reached ( cstep1 < cstep2 ). This approach avoids fully iterating poor initializations and makes more effective use of the available computational effort, allowing for a better exploration of the parameter space than would be achieved with a smaller number of unnecessarily fully iterated initializations. There is also the possibility of running versions of the proposed algorithms assuming equal weights for the components, i.e., we keep the weights fixed as π(t) 
+
+> g
+
+= 1 /G from initialization. This is achieved by selecting equal.weights=TRUE in the code implementation, which contributes to obtaining groups of more similar sizes in terms of assignments for non-trimmed observations based on posterior probabilities. The complete code to replicate the experiments and apply the proposed method-ology can be found in the GitHub repository: https://github.com/luciatrapote/ thddc-experiments .14 4 Selection of tuning parameters 
+
+The application of the tHDDC approach requires the specification of several tuning pa-rameters. Of course, the selection of all these parameters, such as G, q1, . . . , q G, α, c1, and 
+
+c2, is a challenging task. This difficulty is analogous to that encountered in many other robust (and even non-robust) clustering methods. In fact, determining the number of clus-ters G is rarely straightforward in most widely used clustering techniques. In the robust clustering framework, this problem becomes even more complex, because G and α may be interrelated. For instance, a higher trimming level α may lead to the removal of small clusters, which are then treated as outliers and discarded, thereby reducing the number of clusters G. Similarly, the parameters c1 and c2 also determine the type of clusters the user is interested in identifying and may affect the number G of clusters required. It is also important to stress that this process of parameter selection cannot be fully automated, since (subjective) user choices are often required at different stages of the analysis to determine the type of clusters to be detected and which the user is willing to assume as “cluster”, which in turn depends on the ultimate purpose of the clustering analysis. Anyway, it makes sense to assist the user in reducing the set of “interesting” partitions to a smaller number, associated with particularly meaningful choices of the parameters (Garc´ ıa-Escudero et al., 2011; Cerioli et al., 2018; Garc´ ıa-Escudero et al., 2025). This is precisely the type of strategy that has been followed in some tools developed within the TCLUST framework, and similar ideas could be transferred to the present setting. In this work, however, we do not aim to explore or discuss these possibilities. Instead, we focus on presenting a nearly automated way of determining the intrinsic dimensions q1, . . . , q G,together with some graphical diagnostic tools that allow us to reassess the extent to which our parameter choices may lead to questionable decisions or, conversely, to confirm the cluster and outlier assignments and to clarify the quality of these decisions. 
+
+4.1 Automated determination of the intrinsic dimensions 
+
+As already mentioned, even when the number of clusters G is fixed by the user, selecting the intrinsic dimensions q1, . . . , q G remains a challenging task. In this section, we show that these q1, . . . , q G can be treated as internal parameters to be estimated within the iterative steps of the algorithm, thereby partially alleviating the burden of manual specification and turning them into data-driven, cluster-dependent parameters. To this end, we adopt the procedure described in Bouveyron et al. (2007), which relies on a Cattell-type criterion based on consecutive differences dgl +1 − dgl when l = 0 , ..., q max − 1, where dgl are the sorted eigenvalues of the weighted sample covariance matrix Sg computed in step 2.2.3 of the algorithm in Section 3.2. As the intrinsic dimensions are not fixed in advance, the initialization step in Step 1 of the proposed algorithm, detailed in Remark 1, can be carried out with different “initial” intrinsic dimensions. Our proposal is to begin the initialization described in Remark 1 with equal intrinsic dimensions, that is, q1 = · · · = qG = qini .We have observed that, in many cases, the final intrinsic dimensions obtained by the procedure are not excessively sensitive to the choice of qini , although in other situations they clearly are. Our initial experiments (see Section 5) seem to indicate that it is often advisable to start with a not excessively large value of qini , as this tends to facilitate the correct initial partitioning into clusters of the G × (qini + 2) random observations used for the initialization. Note that we have set a qmax value which acts as an upper bound on the clusters’ intrinsic dimensions, so with the assumption that qg < q max for a sufficiently large qmax ≤ p−1. To be more precise, instead of differences, we propose using normalized 15 sorted differences to update the qg in the C-steps by setting 
+
+qg = max 
+
+j ∈ { 0, . . . , q max − 1} : dgj +1 − dgj 
+
+max  
+
+> l=0 ,...,q max −1
+
+{dgl +1 − dgl } > tresh 
+
+ ,
+
+and where tresh is a (small) threshold value. With qmax and tresh fixed, after applying C-steps for the nstart random initializa-tions, we obtain nstart (or nkeep values when applying Remark 3) values of the target trimmed likelihood (either mixture or classification), possibly associated with different in-trinsic dimensions qg, g = 1 , . . . , G . The problem is that if we simply choose the solution with the largest value of (8) or (9), we would tend to favor solutions with larger intrinsic dimensions qg, thus encouraging “overfitting” and leading to models that are more complex than actually needed. To prevent this failure, Bouveyron et al. (2007) propose choosing the iterated solution with the largest complex-penalized likelihood (in fact, they proposed a BIC-type solution). With this difficulty in mind, we propose the iterated solution with the smallest value of 
+
+−2 × trimmed log-likelihood + complexity penalty ,
+
+where “ trimmed log-likelihood ” stands for the value attained in (1) or (3) after iteration, and for measuring that “ complexity penalty ” it is proposed using log  [n(1 − α)] 
+
+G − 1| {z } 
+
+> weight pars.
+
++ Gp 
+
+|{z} 
+
+> means pars.
+
++ 1 + 
+
+
+
+> G
+
+X
+
+> g=1
+
+qg − 1
+
+
+
+1 − 1
+
+c1
+
+| {z }
+
+> largest eigenvalues pars.
+
++1 + ( G − 1) 
+
+
+
+1 − 1
+
+c2
+
+| {z }
+
+> smallest eigenvalues pars.
+
++
+
+> G
+
+X
+
+> g=1
+
+
+
+qgp − qg(qg − 1) 2
+
+| {z }  
+
+> first qgorthonormal eigenvectors
+
+
+
+.
+
+In the previous expression, we take into account a kind of “number of free parameters”, noting that higher values of c1 and c2 in (5) yield less restricted solutions. Note how the “complexity penalty ” changes as c1 and c2 approach their extreme values, namely 1 and 
+
+∞. This is obviously an extension of the modified BIC introduced in Cerioli et al. (2018). 
+
+4.2 Graphical summaries and diagnostic tools 
+
+The vectors ug1, u g2, . . . , u gq g that generate the approximating subspaces Bg can be re-garded as loading vectors and may be interpreted as “modes of variation” that serve to characterize how observations fluctuate around the clusters’ means μg. Associated with these loadings, the cluster scores tig,l = ⟨xi − μg, u gl ⟩ for l = 1 , . . . , q g provide a low-dimensional representation of each observation within its cluster. In different plots, for each component g, we can represent the scores for the observations assigned to that cluster. The scores corresponding to the trimmed observations can also be displayed, by assigning each of them to the cluster that yields the highest posterior probability under the esti-mated parameters. The scores (of both trimmed and non-trimmed observations) not only capture the proximities of observations within the corresponding cluster, but also provide interpretability through their direct relationship with the loading vectors defined above. 16 To assess cluster adequacy and detect potential atypical observations, two types of diagnostic measures can be considered. The score distances SD ig = Pr Bg (xi) − μg Bg =
+
+vuut
+
+> qg
+
+X
+
+> l=1
+
+t2
+
+> ig,l
+
+λgl 
+
+quantifies how far the projection of xi onto the subspace Bg lies from the clusters’ mean centers μg, measured in the metric induced by the eigenvectors and eigenvalues corre-sponding to the qg largest eigenvalues in each cluster. Complementarily, the orthogonal distances OD ig = 1
+
+pλg
+
+xi − Pr Bg (xi) = 1
+
+pλg
+
+xi − μg −
+
+> qg
+
+X
+
+> l=1
+
+tig,l ugl 
+
+provide the properly scaled orthogonal residual deviations of xi from the approximating 
+
+Bg subspaces, and therefore captures the extent to which the observation departs from the linear structure defining cluster g.As already commented, both distances are computed for the indices in Ag = {i : Dig =
+
+Di}, where trimmed observations are also included. To determine whether a point should be considered extreme with respect to its cluster, cutoff values are employed. For the score distances, the threshold 
+
+q
+
+χ2  
+
+> qg;0 .975
+
+can be used, while for the orthogonal distances the cutoff is given by ( bμOD +bσOD z0.975 )3/2, where bμOD and bσ2OD denote the robust mean and variance obtained via the MCD estimator applied to {OD 2/3 
+
+> ig
+
+}ni=1 , following the approach in Hubert et al. (2005). These graphical diagnostic tools provide a coherent and robust framework for evaluating cluster membership and detecting potential outliers within each group. In addition to the graphical summaries described above, further exploratory tools can be used to assess the stability of both cluster assignments and trimming decisions along the so-called “discriminant factors”. Let ˆθ denote the estimated parameters obtained after the maximization of (8) or (9). Recall from Section 3.2 that, for any θ and any component 
+
+g, the value Dg(x; θ) = log  πgϕ(x; μg, Σg) is associated to how likely is that x would have been generated by the normal component g. Therefore, if we consider ordered values 
+
+D(1) (xi; ˆθ) ≤ · · · ≤ D(G)(xi; ˆθ), we can gain insight into how reliable or trustworthy the classification decision for xi is when using tHDDC. To be more precise, if xi is a not trimmed observation and is assigned to cluster g, i.e. D(G)(xi; ˆθ) = Dg(xi; ˆθ), then the strength of this allocation can be evaluated by comparing the largest and second-largest component contributions. Accordingly, we define DF( i) = D(G)(xi; ˆθ) − D(G−1) (xi; ˆθ), when xi is not trimmed .
+
+Note that using a difference of logarithms is equivalent to consider the logarithm of a ratio, and we can denote it as “discriminant factor” and write as DF( i). On the other hand, for the trimmed observations xi, let us consider x(1) , . . . , x ([ nα ]) the trimmed observations by using the same notation as in Step 2, while x([ nα ]+1) denotes the first non-trimmed observation. Although trimmed observations are not assigned to any cluster, their maximal component contribution can still be computed. The trimming decision for xi can therefore be assessed by comparing D(G)(xi; ˆθ) with the boundary value D(G)(x(⌈nα ⌉+1) ; ˆθ) and we consequently use DF( i) = D(G)(x(⌈nα ⌉+1) ; ˆθ) − D(G)(xi; ˆθ) for xi when trimmed. In both cases, for both trimmed and untrimmed observations, we have that DF( i) ≥ 0, but DF( i) values close to zero indicate borderline or ambiguous assignments or trimming 17 decisions, whereas large positive values correspond to clear cluster assignments or clearly identified outlying trimmed observations. Discriminant-type measures of this nature were previously considered in robust clustering based on trimming in Fritz et al. (2012a) and, in the absence of trimming, in Van Aelst et al. (2006). Note that in these two previous work, −DF( i) was used instead. However, here we adopt the opposite sign convention so that the resulting plots are more consistent with standard silhouette-type displays (Rousseeuw, 1987), yielding a similar interpretation. Some illustrations of these proposed graphical summaries will be given in Section 6. 
+
+## 5 Simulation study 
+
+In this section, we present simulation results for artificial datasets to illustrate the per-formance of tHDDC compared with the two previously commented TCLUST and RLG approaches. Three scenarios were considered and, in all cases, two groups were generated from Gaussian distributions in R200 . The total sample size is n = 1000, with 570 observations generated from the first Gaussian distribution, 380 generated from the second Gaussian distribution, and an additional 50 observations corresponding to uniformly distributed noise component. A parameter δ controls the separation between the two Gaussian dis-tributions in such a way that when δ is close to 0, the groups exhibit substantial overlap, whereas larger values of δ yield more clearly separated clusters. The covariance matrices are constructed through spectral decompositions of the form Σ g = Ug∆gU ⊤ 
+
+> g
+
+, where ∆ g are diagonal matrices containing controlled eigenvalues and Ug are random orthogonal matrix. When entering the eigenvalues, we use the notation seq (a, b ; q) to denote a sequence of 
+
+q equally spaced points with endpoints a and b, that is, with step size ( b − a)/(q − 1). The random orthogonal matrices Ug will be obtained by considering SVD decompositions of 200 × 200 random matrices with independent standard normal entries. In addition to the two normally distributed populations, each scenario included 50 contaminating obser-vations generated independently from a uniform distribution on the hypercube [ −2, 2] 200 .This region was chosen because it approximately overlaps with the range where the ob-servations from the Gaussian components takes values. Two different orthogonal matrices U1 and U2 are randomly taken in Scenarios 1 and 2. This setting will reflect situations in which groups are going to differ not only in their intrinsic dimensionality and shape of the components, but also in the orientation of their latent subspaces. To be more precise, we consider: 
+
+• Scenario 1: Cluster 1 with q1 = 3, μ1 = 0 · 1200 , and Σ 1 = diag( seq (9 , 7; 3) ,
+
+0.15 , 0.15 , . . . ); and Cluster 2 with q2 = 1, μ2 = δ·1200 , and Σ 2 = diag(5 , 0.45 , 0.45 , . . . ). 
+
+• Scenario 2: Cluster 1 with q1 = 10, μ1 = 0 · 1200 , and Σ 1 = diag( seq (20 , 11; 10) ,
+
+0.15 , 0.15 , . . . ); and Cluster 2 with q2 = 1, μ2 = δ ·1200 , and Σ 2 = diag( seq (15 , 11; 5) ,
+
+0.25 , 0.25 , . . . ). In contrast, for Scenario 3 both groups will share the same orthogonal matrix, i.e., 
+
+U1 = U2. This scenario was deliberately included to induce a higher degree of overlap between the clusters. Indeed, when the intrinsic dimensions of the subspaces are small (as in Scenario 1, with q1 = 3 and q2 = 1), substantial overlap may arise even if the covariance matrices are oriented differently. However, for higher intrinsic dimensions (such as q1 = 10 and q2 = 5), distinct orientations typically lead to well-separated subspaces. Therefore, in Scenario 3 we enforce a common orientation in order to create a more challenging clustering setting, where separation relies primarily on differences in eigenvalues and mean vectors rather than on subspace orientations. Specifically, in Scenario 3, we consider: 18 • Scenario 3: Cluster 1 with q1 = 10, μ1 = 0 · 1200 , and Σ 1 = diag( seq (20 , 15; 10) ,
+
+0.15 , 0.15 , . . . ); and Cluster 2 with q2 = 1, μ2 = δ ·1200 , and Σ 2 = diag( seq (18 , 16; 5) ,
+
+0.25 , 0.25 , . . . ). The performance of the TCLUST, RLG, and tHDDC methods for scenarios 1 to 3 will be analyzed for different values of the parameter δ. Specifically, the values δ used are 
+
+seq (−0.3,0 .3;7). For each method and each value of δ, 20 realizations were generated, and these three approaches were applied to the resulting data sets. The trimming proportion and the number of groups were set at the true values used in the synthetic data generation for all three analyzed methods, namely α = 0 .05 and G = 2. When applying tHHDC, we considered four settings with respect to the determination of the qg parameters: the true intrinsic dimensions are provided, and the Cattell’s method is applied for determining them with thresh = 0 .3, and initial intrinsic dimensions qini being smaller, of the same order, and larger than the true ones. In this way, the true intrinsic dimensions are first directly specified for Scenario 1, with q1 = 3 and q2 = 1, and for Scenarios 2 and 3, with q1 = 10 and q2 = 5. On the other hand, initial intrinsic dimensions for applying Cattell’s method being qini = 1, 3 and 5 are used for Scenario 1, while qini = 1, 5 and 15 are used for Scenarios 2 and 3. For RLG, the true dimensions were always used to initialize the intrinsic dimensions of each subspace. For the tHDDC and TCLUST methods, the constants involved in the constraints on the eigenvalues were set as c1 = 5 and c2 = 3 for tHDDC. These values ensure that the constraints on the eigenvalues are satisfied in the three considered scenarios. On the other hand, c = 12 for TCLUST has been used, which corresponds to the default value in the tclust package. It is worth noting that larger values of c for TCLUST (such as c = 150) were also tested to cover the actual eigenvalue ratio, but no performance improvements were observed. Regarding the remaining algorithmic parameters required by the tHHDC, TCLUST, and RLG, we set for all three methods the same values nstart = 250 and nkeep = 5 and, as discussed in Remark 3, the concentration steps are divided into two stages: first, cstep1 = 2 initial concentration steps are applied to all initializations, and subsequently cstep2 = 25 final concentration steps are performed on the nkeep = 5 most promising ones. Figure 3 reports the results of the simulation study for the scenarios considered. The boxplots display the clustering accuracy, where the set of trimmed observations is consid-ered as an extra cluster for comparison purposes (take also into account that the same fixed trimming level is considered for the compared methods). Regarding the model pa-rameters, the true intrinsic dimensions are initially provided for both tHDDC and RLG. However, their subsequent handling differs between the two methods: for tHDDC, the algorithm is executed with Cattell=TRUE , meaning that these intrinsic dimensions are dynamically re-estimated at each iteration. In contrast, the dimensions remain fixed for RLG at their true initial values throughout the entire iterative process. For Scenario 1 (Figure 3a), the proposed tHDDC method achieves nearly perfect ac-curacy across all values of the separation parameter δ. In contrast, the performance of the RLG method strongly depends on the separation between the group means. As δ
+
+approaches zero, that is, as the overlap between the two Gaussian distributions increases, the accuracy deteriorates. The TCLUST method performs considerably worse in this scenario. The tHDDC method again achieves near-perfect classification accuracy for Sce-nario 2 (Figure 3b) and all values of the separation parameter δ. The RLG method also exhibits almost perfect accuracy across all values of δ, which is likely due to the reduced overlap between the underlying subspaces, as the groups do not share the same orthogonal matrix defining their orientations. As in the previous scenario, TCLUST continues to yield unsatisfactory results for all values of δ. Finally, in Scenario 3 (Figure 3c), tHDDC main-tains again excellent performance across all values of δ. In fact, this scenario highlights the limitations of the RLG approach when the underlying subspaces associated with the clus-19 0.6 0.8 1.0 
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Accuracy  Method
+> tHDDC
+> tclust
+> rlg
+
+(a) 0.6 0.8 1.0  
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Accuracy  Method
+> tHDDC
+> tclust
+> rlg
+
+(b) 0.6 0.8 1.0 
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Accuracy  Method
+> tHDDC
+> tclust
+> rlg
+
+(c) 
+
+Figure 3: Boxplots of the accuracy obtained by TCLUST, RLG, and tHDDC for different values of δ, and where the true intrinsic dimensions are initially provided for RLG and tHDDC (fixed in the case of RLG and further updated in the case of tHDDC). The results for Scenario 1 are shown in (a), for Scenario 2 in (b), and Scenario 3 in (c). ters intersect. In this case, the boxplots display substantial variability, indicating a wide dispersion of accuracy values across repetitions, with average performance consistently below 0 .9. Once again, TCLUST exhibits poor results. We have also analyzed the behavior of the proposed tHDDC method under different choices for the initial values of qini in the automatized Cattell’s based procedure for esti-mating the intrinsic dimensions presented in Subsection 4.1 with thresh = 0 .3. Figure 4 displays the corresponding boxplots for accuracy in the three considered scenarios. For Scenario 1 (Figure 4a), we observe almost perfect accuracy values for all qini values analyzed. Although for Scenario 2 (Figure 4b) and Scenario 3 (Figure 4c), the tHDDC method achieves near-perfect classification accuracy for all values of δ, the performance deteriorates when the intrinsic dimensions are initialized with large values ( qini = 15). In this case, accuracy drops to approximately 0 .6–0 .65, which can be attributed to the in-creased difficulty of identifying suitable initial subsets when a large number of observations must be selected to initialize parameters when qini = 15. Note that two randomly selected subsets with 15 + 2 observations each, in this case, should ideally be selected from each cluster and correctly partitioned. For the remaining initialization choices, the results are remarkably stable and highly accurate. In all cases, the boxplots for the accuracies are concentrated in the interval [0 .95 , 1].As mentioned, we have also analyzed other values of the constant c for the eigenvalue-ratio constraint in (2) when applying TCLUST, includ-ing a larger value c = 150, which satisfies the true eigenvalue ratio in the data generation scheme. The results do not improve; in general, the accuracy rate never exceeds 0.6. Regarding computing times, all simulations were carried out on a server equipped with four Intel Xeon Gold 6148 processors (2.4 GHz, 160 hardware threads) and 1 TB of RAM. In addition, the server includes an NVIDIA RTX A6000 GPU with 48 GB of GDDR6 memory. We focus our comparison on TCLUST and tHHDC, comparing the execution 20 0.5 0.6 0.7 0.8 0.9 1.0           
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Accuracy  Method
+> tHDDC (3,1)
+> tHDDC qini =1
+> tHDDC qini =3
+> tHDDC qini =5
+
+(a) 0.5 0.6 0.7 0.8 0.9 1.0               
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Accuracy  Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(b) 0.5 0.6 0.7 0.8 0.9 1.0              
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Accuracy  Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(c) 
+
+Figure 4: Boxplots of the classification accuracy of the tHDDC method when q1 and q2
+
+are equal to true values of the intrinsic dimensions, and also when using different values 
+
+qini for their automatized determination by using the Cattell’s approach. The results for Scenario 1 are shown in (a), for Scenario 2 in (b), and Scenario 3 in (c). times of tHDDC (for different values of qini ) with those of TCLUST. We do not include RLG in this computational time comparison, since when the intrinsic dimensions are fixed, its computational cost is comparable to that of tHDDC. Indeed, both methods require the computation of similar quantities such as eigenvalues, eigenvectors, and distance measures. In fact, if Cattell’s method were also applied to estimate the intrinsic dimension in RLG, the associated computational burden would be similar to that of tHDDC, as it would involve analogous steps. Moreover, regarding that comparison of computational times, it is important to note that TCLUST is available through the tclust R package, in which part of the implementation is written in C++ . In contrast, our proposed tHDDC method is currently implemented entirely in R, although a C++ implementation is planned for future work. As a consequence, a direct comparison of absolute execution times between these methods is not entirely fair. Therefore, we are going to base our comparison in a similar purely R implementation of both TCLUST and tHHDC. Table 1 reports the ratio between the computation time of TCLUST and that of tHDDC (initialized with the true intrinsic dimensions) for different values of the separation parameter δ and for the three previously introduced simulation scenarios. 
+
+δ −0.3 −0.2 −0.1 0.0 0.1 0.2 0.3Scenario 1 2.923 2.944 2.898 2.922 2.958 2.876 2.941 Scenario 2 2.663 2.628 2.640 2.640 2.662 2.679 2.670 Scenario 3 2.511 2.480 2.522 2.460 2.536 2.483 2.476 Table 1: Ratio between the computation times of TCLUST and tHDDC for the three scenarios and for each value of the separation parameter δ.21 These results show that the computational cost of TCLUST is consistently higher than that of tHDDC across all scenarios and values of the separation parameter δ. Although minor fluctuations are observed with different values of δ, no clear pattern emerges, in-dicating that the relative computational advantage of tHDDC is largely independent of the degree of separation between groups. Overall, tHDDC is roughly 2.5 to 3 times faster than TCLUST under comparable conditions. We finally analyze the computational cost of tHDDC under different values of the initial intrinsic dimension qini for the Cattell’s procedure described in Subsection 4.1. Figure 5 displays the boxplots of the execution times. 789          
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Time
+> Method
+> tHDDC (3,1)
+> tHDDC qini =1
+> tHDDC qini =3
+> tHDDC qini =5
+
+(a) 789              
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Time
+> Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(b) 789             
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Time
+> Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(c) 
+
+Figure 5: Boxplots of the computation time for tHDDC different initial qini values for automated determination of the intrinsic dimensions, for each value of δ. The results for Scenario 1 are shown in (a), for Scenario 2 in (b), and Scenario 3 in (c). In Scenario 1 (Figure 5a), which represents the simplest setting, the tHDDC method initialized with the true intrinsic dimensions achieves the lowest median computation time. The initialization with qini = 1 leads to slightly higher computation times, while larger initial values result in increased computational cost. This behavior is expected, since larger initial dimensions require the computation of a greater number of eigenvalues and eigenvectors, particularly during the initialization stage of the clustering algorithm. For Scenario 2 (Figure 5b) and Scenario 3 (Figure 5c), the differences in computational time among the various initializations are less pronounced. In these cases, the execution times are more homogeneous across different values of qini . Interestingly, the initialization with 
+
+qini = 15 most of the times yields lower computation times than the other initializations. This effect can be explained by the fact that, for qini = 15, the resulting clustering quality is poorer, leading to faster convergence due to less demanding optimization steps. Finally, we also take advantage of this simulation study to further assess the perfor-mance of the Cattell-based procedure used by tHDDC to estimate the intrinsic dimensions of the cluster-specific subspaces. For each scenario and each value of the separation pa-rameter δ, we analyze the estimated dimensions obtained at convergence of the algorithm. Figures 6 and 7 summarize these results by reporting boxplots of the estimated intrinsic 22 dimensions for each scenario and each value of δ. Figure 6 displays boxplots of the esti-mated intrinsic dimensions corresponding to the larger intrinsic dimension in each scenario, whereas Figure 7 shows those for the smaller ones. 135          
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Dimension  Method
+> tHDDC (3,1)
+> tHDDC qini =1
+> tHDDC qini =3
+> tHDDC qini =5
+
+(a) 10 12 14 16            
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Dimension  Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(b) 10 12 14           
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Dimension  Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(c) 
+
+Figure 6: Boxplots of the estimated larger intrinsic dimension when using the Cattell-based procedure. The results for Scenario 1 are shown in (a), for Scenario 2 in (b), and Scenario 3 in (c). The horizontal dashed line indicates the true value to be estimated. Across all three scenarios, the intrinsic dimensions are accurately recovered in the majority of replications. In Scenario 1, where the true dimensions are small ( q1 = 3 and 
+
+q2 = 1), the Cattell-based criterion consistently identifies the correct dimensionality for both clusters, independently of δ. In Scenario 2, the larger intrinsic dimension tends to be overestimated across the different initializations of qini , with the worst results observed for the initialization qini = 15, but the smaller intrinsic dimension is generally well estimated, except again for qini = 15. For Scenario 3, the only initialization that produces notably poor estimates for both dimensions is again qini = 15. All other initializations provide accurate estimates for both the larger and smaller intrinsic dimensions in this scenario. These comments can be related with previous findings regarding clustering accuracy and computational time: the initialization qini = 15 yielded very poor accuracy in Scenarios 2 and 3. Overall, all the results shown in this section highlight the robustness of the proposed tHDDC method with respect to the choice of initialization, both in terms of classification accuracy and computational efficiency. However, based on the results shown in this section, it is perhaps recommended using relatively small values of qini . Although this choice may result in a modest increase in computational cost, it seems to lead to more stable and accurate results than unnecessarily large qini values. 23 −1 13          
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Dimension  Method
+> tHDDC (3,1)
+> tHDDC qini =1
+> tHDDC qini =2
+> tHDDC qini =3
+
+(a) 57911 13 15            
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Dimension  Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(b) 57911           
+
+> −0.3 −0.2 −0.1 00.1 0.2 0.3
+> Delta
+> Dimension  Method
+> tHDDC (10,5)
+> tHDDC qini =1
+> tHDDC qini =5
+> tHDDC qini =15
+
+(c) 
+
+Figure 7: Boxplots of the estimated smaller intrinsic dimension when using the Cattell-based procedure. The results for Scenario 1 are shown in (a), for Scenario 2 in (b), and Scenario 3 in (c). The horizontal dashed line indicates the true value to be estimated. 
+
+## 6 Real data example: Digits data 
+
+For a real data example, we use a data set containing images of handwritten digits col-lected from envelopes processed by the United States Postal Service (USPS). Each digit, originally varying in size and orientation, was segmented, standardized, and normalized, and finally represented as a 16 × 16 grayscale image, i.e., a 256-dimensional vector. We focus on a subset of digits “3”, “5”, and “8”, yielding 1756 images, commonly referred to as USPS358 , and available in the R package MBCbook (Bouveyron et al., 2024). These dig-its were chosen because they are typically the most difficult to distinguish in handwriting recognition, due to their more similar shapes. Moreover, we introduce outliers into the dataset of interest in a controlled manner. Specifically, we select 195 observations corre-sponding to some remaining digits (i.e., digits other than “3”, “5”, and “8”) from the USPS 
+
+dataset available in the R package Rdimtools (You and Shung, 2022), so that the resulting dataset surely contains at least a fraction 10% of outliers to be trimmed. In addition, with the aim of incorporating clearly atypical observations, we introduce another 45 artificially generated outliers. These outliers are constructed by defining simple geometric or struc-tural patterns on the corresponding image grid, such as checkerboard patterns, vertical or horizontal stripe patterns, spiral-like shapes, and concentric square frames. Finally, we also include a set of outliers obtained by inverting the grayscale intensities of selected digit images from the original dataset. For this experiment, we employed the TCLUST and tHDDC procedures. In both cases, we set G = 3, and since the dataset contains 12% artificially added outliers, we have selected a higher trimming level α = 0 .2, as it is also reasonable to expect additional atypical observations in a dataset derived from non-standard annotations of handwritten 24 digits. Our aim at such a high trimming level is to retain some of the “clearest” digit representations within each cluster, that can serve as a starting point for further analyses. For tHDDC, following the insights gained from the simulation study, we initialize the intrinsic dimensions when applying the Cattell’s procedure with a small qini = 1 value. We additionally set qmax = 20 and tresh=0.2 . The constants appearing in the eigenvalue constraints were set to c1 = 5 and c2 = 1 .1, enforcing similarity among the smallest eigenvalues while allowing some flexibility for largest ones. For TCLUST, we set c = 12, allowing a certain departure from spherical and equally scattered clusters while maintaining protection against spurious solutions. Finally, for both TCLUST and tHDDC (in its trimmed classification likelihood version), we used nstart = 200, nkeep =5, csteps1 = 10, and csteps2 = 150. With these choices, the dimensions estimated using Cattell’s method when running tHDDC in a typical run were q1 = 13, q2 = 14, and q3 = 20. The associated confusion matrix is reported in Table 2a. On the other hand, the confusion matrix obtained when using TCLUST is shown in Table 2b. Comparing the performance of the two robust proce-dures, tHDDC achieves a classification error (computed considering only the observations that survive the trimming step) slightly above 7% whereas TCLUST exhibits a substan-tially larger error exceeding 38%. On the server described above, the computational time required by tHDDC is approximately three times smaller than that of TCLUST. For comparison, we also consider the HDDC method (Bouveyron et al., 2007), where no trimming is performed, when using the HDclassif package (Berg´ e et al., 2012) with the input parameters K = 3, itermax = 150, algo = EM , d select = “ Cattell ”, d max 
+
+= 20, threshold = 0.2, init = mini-em , and mini.nb = (200, 10) in order to match as closely as possible the settings of the previous application of tHDDC (for instance, d max 
+
+= 20 is analogous to setting qmax = 20, or mini.nb = (200, 10) for nstart = 200, and 
+
+csteps1 = 10), we obtain the confusion matrix reported in Table 2c. We clearly observe that HDDC suffers from the presence of outliers, exhibiting a classification error above 39%, since, for instance, it confuses digits “3” and “5” and forms a cluster containing most of the outliers together. This behavior under contamination is not surprising for HDDC, as the method is not designed to be robust to contamination. out1 out2 3 5 80 195 45 49 31 79 1 0 0 10 0 429                                                      
+
+> 200529 132 30070 524 2
+> (a) tHDDC
+> out1 out2 3580180 45 40 88 46 140307 251 29 25031 43 459
+> 360280 174 8
+> (b) TCLUST
+> out1 out2 35810070369
+> 2193 26 671 97 3219 645 485 76
+> (c) HDDC
+
+Table 2: Classification tables for the Digits data when using tHDDC in (a), TCLUST in (b), and HDDC in (c). Columns correspond to the supposedly “true” digits (3, 5 and 8), where label “out1” denotes the group of outliers consisting of digits different from 3, 5, and 8, while label “out2” corresponds to the group of artificially synthetic outliers. Rows represent the clusters detected, with row 0 corresponding to trimmed observations. We also focus on illustrating some graphical tools for exploring the results of applying tHDDC. First, the cluster mean vectors μg, for g = 1 , 2, 3, can be visualized in Figure 8, where some kind of prototypical digits “3”, “5”, and “8” can be observed in their perhaps most “standard” form. As commented, the estimated intrinsic dimensions when applying tHDDC were 13, 14 and 20, but, in Figure 9, we only represent the first 8 eigenvectors obtained for each cluster, commonly referred to as loading vectors. Each loading vector assigns positive weights (orange cells), negative weights (blue cells), or near-zero weights (white cells) to the different pixels of the 16 × 16 grid. These eigenvectors capture the main sources of within-25 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0           
+
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+
+Figure 8: Cluster centers means. class variability and, together with their associated eigenvalues, provide the flexibility needed to correctly classify digits whose handwriting deviates from these most “standard” forms shown in Figure 8. For instance, in the particular case of cluster associated to digit 3, we observe in Figure 9a that the model serves to accommodate a range of varied shapes: more rounded versions that touch the borders of the grid both at the top and bottom; more centered and compact shapes; or versions where the upper part of the digit is noticeably smaller. 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0                                    
+
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+
+(a) 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0                                     
+
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+
+(b) 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0                                    
+
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0  0.2  0.4  0.6  0.8  1.0
+
+(c) 
+
+Figure 9: Representation of the loading vectors for the clusters corresponding to digits 3, 5, and 8. The loading vectors for digit 3 in (a), for digit 5 in (b), and for digit 8 in (c). ■
+
+positive weights; ■ negative weights. When further analyzing this data set, it can be seen that the first observations trimmed, i.e., those with the smallest DH (xi; ˆθ) values, correspond to the artificially generated outliers, and the subsequently trimmed ones are mostly from digits other than “3”, “5”, and “8”, which we had introduced artificially. This is a desirable outcome, as the images and digits not conforming to the structure of the majority digits are so removed first. In Figure 10, we display 16 examples of these artificially introduced outliers that are trimmed. We can further analyze these trimmed observations with the tools discussed in Sec-tion 4.2, namely the score distances, SD i, and the orthogonal distances, OD i. By jointly plotting these two quantities, together with the cut-offs introduced in Section 4.2, we can obtain additional insight into these detected anomalies. Figures 11a, 11b, and 11c dis-play these diagnostic plots based on these SD i and OD i distances. Note that trimmed observations are also “assigned to clusters” in these plots by assigning each of them to the cluster for which it attains the largest value of DH (x; θ). Each observation appears 26 Figure 10: Examples of trimmed outliers artificially introduced into the dataset. in these plots labeled by the digit it represents, while a cross “ ×” is used for outlying images that do not correspond to digits but rather to synthetic patterns. It could be seen that all these 20 images shown in Figure 10 appear outside the considered cutoffs. Note that the second type of outliers (those not representing digits) appears in the diagnostic plot corresponding to digit 8. To further illustrate the structure of these diagnostic plots, Figure 11d displays 12 particular observations for which their distances have been high-lighted, using labels 1 to 12 . Note first that some of these 12 highlighted observations are clearly visually ambiguous, making them difficult to unambiguously identify as digits “3”, “5”, or “8”, which further justifies the use of a trimming proportion exceeding the level of artificially added contamination.    
+
+> (a) (b)
+> (c) 𝟏𝟏 𝟏𝟎 𝟖 𝟕 𝟔 𝟒 𝟑 𝟗 𝟓 𝟏 𝟐 𝟏𝟐 (d)
+
+Figure 11: Score distance versus orthogonal distance plots for the images assigned to cluster 3 in (a), cluster 5 in (b), and cluster 8 in (c). Some illustrative observations highlighted in these plots are shown in (d). 27 Observations labeled as 1 and 2 appear within the SD i and OD i diagnostic plot for images assigned to the cluster of 3’s (Figure 11a), but they clearly exhibit visibly non-standard representations. In the diagnostic plot corresponding to the cluster with the 5 (Figure 11b), the observations labeled as 3, 4, 5, 6, 7, and 8 appear. The first five correspond to digits originally labeled as “5” but exhibiting highly atypical shapes. They appear outside the cutoffs and clearly separated from the main cloud. On the other hand, the image labeled as 8, originally labeled as “8”, lies near the main cloud of points. This observation was misclassified into the cluster including the 5’s, as the incomplete hand-written form of the digit “8” resembles the digit “5”. Finally, the last row in Figure 11d contains images assigned to the cluster with the 8’s (Figure 11c). Images 9 and 10 lie outside both cut-offs, and exhibit clearly atypical shapes of the digit “8”. Image 11 , cor-responds to a misclassified digit “3”, whose closed shape makes it visually similar to the digit “8”. Finally, image 12 , originally labeled as digit “2”, appears in the central region of the plot but far from the main cloud of points, reflecting the highly atypical handwritten form of this digit . Finally, Figure 12a, displays the discriminant factors DF( i) introduced in Section 4.2 for each observation, grouped according to the clusters produced by tHDDC, and with the trimmed observations represented in black color. It is worth noting that, within the group of trimmed observations, the last block of observations with discriminant factors exactly equal to 600 has been obtained by truncating their DF( i) values at this 600 threshold. This block exactly corresponds to the artificially generated outliers, whose discriminant factor values were notably larger than 600. 0 100 200 300 400 500 600      
+
+> 15236478
+> (a) 12345678(b)
+
+Figure 12: Display of the DF( i) values (horizontal axis) for tHDDC results. Colors indi-cate cluster assignments: black (trimmed), blue (mostly 3’s), green (mostly 5’s), and red (mostly 8’s). Eight illustrative observations highlighted in the silhouette plot are shown in (b). As discussed previously, observations with DF( i) values close to zero indicate doubtful assignment or trimming decisions. Therefore, clusters containing many such observations would suggest weak separation or a poorly determined clusters’ structure. In Figure 12a, however, only a small number of observations lie close to zero, while most display clearly high and positive DF( i) values. This pattern provides additional support for the stability of the obtained clustering solution. In Figure 12a, we highlight 8 observations that are displayed in Figure 12b, labeled 1 to 8. The first four correspond to doubtful assignment 28 cases due to their discriminant factors being close to zero. For example, observation 2
+
+visually resembles a digit “5”, although it was originally labeled as digit “8”, because that handwritten digit is incomplete. Observations 5 and 6 correspond to clearly trimmed observations: the first one is a digit “3” clearly written in a nonstandard way, and the second corresponds to a digit “0”. Finally, images 7 and 8 correspond to artificially generated outliers exhibiting very large discriminant factor values (above 600). 
+
+## 7 Conclusions and further directions 
+
+A tHDDC methodology has been introduced in this work, providing a robust approach for clustering data in increasing dimensionality by unifying the parsimonious modeling of HDDC with the trimming and eigenvalue-constraint mechanisms underlying TCLUST. The proposed methodology aims to overcome the difficulties that TCLUST faces when dealing with datasets of even moderate dimensionality, while also offering a less simplistic alternative to the approach provided by RLG. The development of a feasible trimmed EM-type algorithm based on properly modi-fied C-steps, which are able to estimate the intrinsic dimensions, establishes tHDDC as a feasible approach when robustness is particularly required. The theoretical analysis presented (including existence and consistency results) provides additional support for its use. Additionally, tHDDC enables the development of graphical diagnostic tools that are useful for detecting anomalies in moderately high-dimensional datasets with heterogeneity arising from the presence of unknown clusters. Our experimental results on both synthetic and real datasets demonstrate that tHDDC is capable of achieving better performance than standard TCLUST and RLG in complex scenarios involving moderately high-dimensional settings. Notably, this gain in robustness is achieved alongside a substantial reduction in computational cost compared to TCLUST as the dimension increases. Furthermore, the inclusion of trimming and constraints allows tHDDC to improve the original HDDC in environments with contaminating observations, where HDDC performance deteriorates due to its lack of robustness. There are several promising directions for future research. A functional version of the tHDDC algorithm is currently under development. Adapting the trimming and subspace projection techniques to a functional data context represents a natural and highly relevant extension of the proposed methodology. Additionally, another major line of research in-volves exploring alternative robustification strategies, specifically cellwise trimming. The traditional casewise trimming approach adopted in this paper discards an entire observa-tion if it is identified as an outlier. However, in high-dimensional settings, an observation may be contaminated in only a few variables (cells), while the remaining data entries in the observation still contain valuable structural information Alqallaf et al. (2009). Incorpo-rating cellwise trimming into the tHDDC framework would allow the algorithm to ignore only the corrupted cell entries rather than the entire observation, potentially leading to more efficient use of the data under the presence of cellwise contamination. 
+
+## A Appendix: Proofs of the existence and consistency re-sults 
+
+The existence and consistency proofs follow the general structure of Garc´ ıa-Escudero et al. (2008), and Garc´ ıa-Escudero et al. (2014), adapted to the HDDC scatter parameterization used here. Differences are discussed below, while analogous parts are omitted and the reader is referred to the original proofs. 29 A.1 Proof of the existence result 
+
+Recall that the classification version of the problem can be expressed as the maximiza-tion, over θ ∈ Θc1,c 2 , of CL( θ; P ) defined in (8). Let us consider a sequence {θn}∞ 
+
+> n=1
+
+=
+
+{(πn 
+
+> 1
+
+, . . . , π nG, μ n 
+
+> 1
+
+, . . . , μ nG, Σn 
+
+> 1
+
+, . . . , ΣnG)}∞ 
+
+> n=1
+
+⊂ Θc1,c 2 such that lim  
+
+> n→∞
+
+CL( θn; P ) = sup 
+
+> θ∈Θc1,c 2
+
+CL( θ; P ) = M > −∞ . (15) The boundedness from below in (15) follows by considering the parameter configuration defined by π1 = 1, μ1 = 0 ∈ Rp, and Σ 1 = Ip, while setting all remaining weights πg = 0 and choosing the remaining location and scatter parameters arbitrarily, as long as they satisfy the constraints imposed by c1 and c2 (for instance, with Σ 2 = ... = Σ G = Ip). This configuration can always be used for any pair of constants c1 and c2, greater than or equal to 1, and therefore establishes a finite lower bound for M .Since [0 , 1] G is a compact set, a subsequence of {θn}∞ 
+
+> n=1
+
+(denoted again by the same notation) can be extracted such that 
+
+πng → π0 
+
+> g
+
+∈ [0 , 1] for 1 ≤ g ≤ G. 
+
+For this subsequence, let us introduce the following notation: 
+
+M ng = max 
+
+> l=1 ,...,q g
+
+λngl , M ng = min 
+
+> l=1 ,...,q g
+
+λngl ,mn = max  
+
+> g=1 ,...,G
+
+λng , and, mn = min  
+
+> g=1 ,...,G
+
+λng .
+
+Our goal is to show that it is always possible to extract a further subsequence which converges to an optimal solution. In order to prove this, we first show that mn cannot converge to 0 and that if M ng diverge to ∞ then necessarily EP [zg(·, θ n)] converges to 0. We consider the following upper bound: CL( θn; P ) ≤ EP
+
+" GX
+
+> g=1
+
+zg(·, θ n) log( πng ) − 12
+
+
+
+∥Pr Bng (·) − μng ∥2
+
+> Bng
+
++ 1
+
+mn ∥Pr Bng (·) − ·∥ 2 +
+
+> qg
+
+X
+
+> j=1
+
+log( λngj ) + ( p − qg) log( mn) + p log(2 π)
+
+!# 
+
+, (16) where Bng denotes the approximating subspace associated with the gth component (for simplicity, the dependence of Bng on θn is omitted from the notation). Starting from (8) and using the standard expression for the multivariate normal density, we also obtain the bound CL( θn; P ) ≤ EP
+
+" GX
+
+> g=1
+
+zg(·, θ n) log( πng ) − 12
+
+1
+
+M ng
+
+∥· − μng ∥2
+
++
+
+> qg
+
+X
+
+> j=1
+
+log( λngj ) + ( p − qg) log( mn) + p log(2 π)
+
+!!# 
+
+. (17) Moreover, it holds that 
+
+EP
+
+
+
+> G
+
+X
+
+> g=1
+
+zg(·, θ n)∥Pr Bng (·) − μng ∥2
+
+> Bng
+
+ ≥ 0, (18) 30 and that there exists a constant h > 0 such that 
+
+EP
+
+
+
+> G
+
+X
+
+> g=1
+
+zg(·, θ n)∥Pr Bng (·) − ·∥ 2
+
+ ≥ h. (19) The existence of such a constant h is proven in part (i) of Lemma A.1. Combining inequality (16) with (18) and (19), and noting that log( πng ) ≤ 0, we obtain CL( θn; P ) ≤ − 12
+
+hmn +
+
+> G
+
+X
+
+> g=1
+
+
+
+EP [zg(·, θ n)] 
+
+> qg
+
+X
+
+> j=1
+
+log( λngj )
+
+
+
++ (1 − α)( Gp − Q) log( mn) + (1 − α)p log(2 π)
+
+!
+
+, (20) where Q = PGg=1 qg.Let us first suppose that mn → 0. Then, the bound (20) and the eigenvalue constraint with constant c2 < ∞ in (5) would imply that mn → 0, and therefore CL( θn; P ) →−∞ , contradicting (15). Moreover, since mn ≤ c2mn, the term 1 /m n asymptotically dominates log( mn). On the other hand, suppose that for some component g it holds that lim sup n→∞ M ng = ∞. Then, it would follow that EP [zg(·, θ n)] → 0, since otherwise CL( θn; P ) → −∞ , again contradicting (15). From inequality (17), it further follows that, for components g whose eigenvalues re-main bounded while the corresponding means diverge (lim sup n→∞ ∥μng ∥ = ∞), one neces-sarily has EP [zg(·, θ n)] → 0, since otherwise it would follow that CL( θn; P ) → −∞ . This follows by considering a ball B(0 , R ) such that P [B(0 , R )] > α and noting that the set 
+
+An = {x : PGg=1 zg(x, θ n) = 1 } must intersect this ball B(0 , R ) with positive probability. Take also into account that at least one of the sequences {∥ μng ∥} n, for g = 1 , ..., G ,must be bounded, because otherwise PGg=1 EP [zg(·, θ n)] → 0, contradicting that P [x :
+
+PGg=1 zg(x, θ n) = 1] = 1 − α. The proof concludes by recalling that for the other compo-nents with diverging means (but bounded eigenvalues), the limiting weights should verify that π0 
+
+> g
+
+= 0, because otherwise the limiting value of the target function CL( θn; P ) can be improved by redefining the associated components’ weights. For such components with 
+
+π0 
+
+> g
+
+= 0 and EP [zg(·, θ n)] → 0, the sequences of means and eigenvalues may be replaced arbitrarily by convergent ones without affecting the limit of CL( θn; P ). Consequently, a convergent subsequence attaining the optimum can always be extracted for all components. Finally, an analogous argument also applies to the trimmed mixture likelihood. An initial bound as in (15) trivially holds. Then, a similar reasoning to that used for the classification likelihood case can be applied by using the bound ML( θ; P ) = EP
+
+z(·, θ ) log DM (·, θ ) ≤ EP
+
+
+
+z(·, θ ) log 
+
+
+
+G max  
+
+> g=1 ,...,G
+
+{exp Dg(·, θ )}
+
+ 
+
+≤ log G(1 − α) + EP
+
+
+
+> G
+
+X
+
+> g=1
+
+zg(·, θ )Dg(·; θ)
+
+ = (1 − α) log G + CL( θ; P ), (21) where the same definitions for the z(·, θ ) and zg(·, θ ) functions are used (this result would be the analogous in the HDDC framework of Lemma 1 in Garc´ ıa-Escudero et al. (2014)). 
+
+A.2 Proof of the consistency result 
+
+The consistency proof combines arguments similar to those seen in Section A.1 combined with empirical process techniques (van der Vaart and Wellner, 1996). Since the arguments 31 closely follow those in Garc´ ıa-Escudero et al. (2008) and Garc´ ıa-Escudero et al. (2014), we only provide a sketch of them and refer to these works for further details. From the sequence of empirical estimates {θn}∞
+
+> n=1
+
+, as in Section A.1, we can extract a subsequence (denoted again by the same notation) such that πng → π0 
+
+> g
+
+∈ [0 , 1], for all 1 ≤ g ≤ G, P -a.e.. We first see that there exists a constant M ′ such that CL( θn; Pn) ≥ M ′ > −∞ P -a.e. for n ≥ n0. (22) Due to the tightness of the sequence {Pn}∞ 
+
+> n=1
+
+of empirical measures, we can find a constant 
+
+R > 0 such that Pn(B(0 , R )) > 1 − α. Therefore, we have CL( θn; Pn) ≥
+
+Z
+
+> B(0 ,R )
+
+
+
+− p
+
+2 log(2 π) − 12 ∥x∥2
+
+
+
+dP n(x) (23) The bound (23) is derived by substituting P by Pn in (17) and taking into account that 
+
+θn ∈ Θc1,c 2 should improve upon the particular parameter configuration given by π1 = 1, 
+
+π2 = ... = πG = 0, together with μg = 0 and Σ g = Ip for g = 1 , ..., G . The bound then follows now by applying the Strong Law of Large Numbers.. We can also consider (16), but now substituting P by Pn. The analogue of (19), which is also proven in part (ii) of Lemma A.1, guarantees the existence of a constant h′ > 0such that 
+
+EPn
+
+
+
+> G
+
+X
+
+> g=1
+
+zg (·; θn) ∥Pr Bng (·) − ·∥ 2
+
+ ≥ h′. (24) The proof now follows similar steps to those presented in Section A.1, by showing that from (20), but substituting P by Pn, and observing that if mn → 0, then CL( θn; Pn) →−∞ P -a.e., yielding a contradiction with (22). Additionally, for any component g such that lim sup n→∞ M ng = ∞, it must hold that EPn [zg(·, θ n)] → 0, because otherwise CL( θn; Pn) → −∞ , so contradicting (22). The next step in the proof of this consistency result has to do with the empirical centers μng . As in Section A.1, working with inequality (17) but again substituting P by 
+
+Pn, we can see that for a components g with bounded eigenvalues but diverging means, it necessarily holds that EPn [zg(·, θ n)] → 0, because otherwise, CL( θn; Pn) → −∞ . This follows by considering again a ball B(0 , R ) such that Pn[B(0 , R )] > α uniformly in n,for n large enough, and noting that the set An = {x : PGg=1 zg(x, θ n) = 1 } satisfy that 
+
+Pn[B(0 , R ) ∩ An] > 0. Consequently, arguments, analogous to those employed in in Section A.1 and Garc´ ıa-Escudero et al. (2008) shows that there exists a compact set K such that θn ∈ K for all n ≥ n0 with probability 1. In fact, for components whose eigenvalues or location parameters diverge to infinity, the corresponding empirical parameters can be modified without affecting the value of the limit objective function. Note also that at least one component must have bounded eigenvalues and means. Let z∗ 
+
+> g
+
+(x; θ) = I{x : DH (x; θ) = Dg(x; θ)}, i.e. all the points in Rp are assigned to some class through the functions z∗ 
+
+> g
+
+. The proof concludes by noting that the objective function in the empirical case can be rewritten as CL( θ; Pn) = 
+
+Z   
+
+> {x:DH(x;θ)≥R(θ;Pn)}
+
+
+
+> G
+
+X
+
+> g=1
+
+z∗ 
+
+> g
+
+(x; θ) log( Dg(x, θ )) 
+
+ dP n(x).
+
+In the previous expression, we can asymptotically replace R(θ; Pn) by R(θ; P ), because sup 
+
+> θ∈K
+
+|R(θ, P n) − R(θ, P )| = oP (1) ,
+
+32 by using Lemma A.3 and the fact that the integrand can be bounded from above from some constants uniformly for θ in the compact set K. Finally, the Glivenko–Cantelli property of the class H in (27), together with Theorem 3.2.3 in van der Vaart and Wellner (1996), yields the desired consistency, as done in Garc´ ıa-Escudero et al. (2008). So far, we have considered the classification trimmed likelihood, but the same scheme of proof can be analogously applied to trimmed mixture likelihoods, as in Garc´ ıa-Escudero et al. (2014). In this case, we consider the class of functions 
+
+H′ := I[u, ∞)
+
+ DM (·, θ ) log  DM (·, θ ) : θ ∈ K, u ≥ 0 ,
+
+which is also a Glivenko–Cantelli class. The desired result then follows by the same arguments as in the trimmed classification likelihood case. 
+
+A.3 Auxiliary results 
+
+Lema A.1. The following results hold: (i) If P satisfies condition (11) , then there exists a constant h > 0 such that inequal-ity (19) holds. (ii) If P is an absolutely continuous distribution satisfying condition (11) , then there exists a constant h′ > 0 such that (24) holds with probability 1 for n large enough. Proof. The proof of both parts relies on a contradiction argument based on the regularity condition (11), which prevents the distribution P from being concentrated on G subspaces of dimensions q1, . . . , q G after trimming a fraction α of the probability mass. 
+
+(i) We reason by contradiction. Let us assume that no such h > 0 exists. Then, there exists a sequence of parameters {θn}∞ 
+
+> n=1
+
+⊂ Θc1,c 2 such that lim  
+
+> n→∞
+
+EP
+
+
+
+> G
+
+X
+
+> g=1
+
+zg(·; θn)∥Pr Bng (·) − ·∥ 2
+
+ = 0 , (25) where zg(·, θ n) are the optimal assignments for the objective function of the tHDDC algo-rithm for the θn parameters. Given an affine subspace B and r > 0, let S(B, r ) = {x ∈ Rp : ∥x − Pr B(x)∥ ≤ r}
+
+denote the “strip” of radius r centered at the affine subspace B. Taking into account the arguments in Garc´ ıa-Escudero et al. (2009) for the RLG, we may consider radii rn defined as 
+
+rn = inf {r ≥ 0 : P [∪Gg=1 S(Bng , r )] ≥ 1 − α},
+
+such that 
+
+EP
+
+
+
+> G
+
+X
+
+> g=1
+
+zg(·; θn)∥Pr Bng (·) − ·∥ 2
+
+ ≥ EP
+
+
+
+I ∪Gg=1 S(Bng , r n) (·) min  
+
+> g=1 ,...,G
+
+∥Pr Bng (·) − ·∥ 2
+
+
+
+,
+
+because the zg are 0-1 functions (as indicator functions) such that P [x ∈ Rp : PGg=1 zg(x; θn) = 1] ≥ 1 − α. Consequently, (25) would then imply lim  
+
+> n→∞
+
+EP
+
+
+
+I ∪Gg=1 S(Bng , r n) (·) min  
+
+> g=1 ,...,G
+
+∥Pr Bng (·) − ·∥ 2
+
+
+
+= 0 . (26) Let us also consider bng = arg min x∈B ng ∥x∥, so that the affine subspace Bng can be written as the translation of the linear subspace generated by qg orthonormal vectors, passing through bng . Like the orthogonal bases belong to a compact group we can extract a 33 convergent subsequence for each index g. So working with the corresponding subsequences (denoted again with the same notation {B ng }∞
+
+> n=1
+
+), the potential lack of convergence of subsequences of the affine subspaces arises only if the sequence of ∥bng ∥∞ 
+
+> n=1
+
+diverges to ∞.Taking into account that P is a tight probability, we may consider a sequence { α 
+
+> 2n
+
+}∞
+
+> k=1
+
+and an increasing sequence {Mn}∞ 
+
+> n=1
+
+such that 
+
+P (B(0 , M n)) > 1 − α
+
+2n for every n. 
+
+Let us now consider J = {g ∈ { 1, . . . , G } : Bng → B 0 
+
+> g
+
+}, as the set of indices g such that the sequence of affine subspaces Bng converges to limiting affine subspaces B0 
+
+> g
+
+. Let us first prove that J is non-empty, i.e., that it is not possible that all the {bng }∞ 
+
+> n=1
+
+sequences diverge. In that case, given that the sets Sn = ∪Gg=1 S(Bng , r n) have probability equal or greater than 1 − α, we would have that P Sn ∩ B(0 , M 1) > 1 − 3α/ 2, and that for all points x ∈ Sn ∩ B(0 , M 1) it holds that 
+
+∥x − Pr Bng (x)∥ ≥ min  
+
+> 1≤g≤G
+
+∥bng ∥ − M1 n→∞ 
+
+−−−→ ∞ ,
+
+yielding a contradiction with (26). Additionally, for the indices g / ∈ J, we can extract further subsequences such that ∥bng ∥ ≥ 2Mn, for every n. We will use this subsequence to show that the sequence of radii {rn}∞ 
+
+> n=1
+
+can not diverge. Suppose, to the contrary, that 
+
+rn → ∞ and let any g0 ∈ J, with bng0 → b0 
+
+> g0
+
+for b0 
+
+> g0
+
+∈ Rp, and take any R > ∥b0 
+
+> g0
+
+∥ + M1.For any x ∈ B(0 , M 1), we have ∥x − Pr Bng0 (x)∥ ≤ ∥ bng0 ∥ + M1 → ∥ b0 
+
+> g0
+
+∥ + M1 < R ,and thus B(0 , M 1) ⊂ S(Bng0 , R ), for n large enough, such that P [S(Bng0 , R )] > 1 − α
+
+and, consequently, by the definition of rn we should have rn < R , so contradicting the unboundedness of {rn}∞
+
+> n=1
+
+.Finally, we will show that divergent subspaces cannot attract mass in the limit, in the sense that P [S(Bng0 , r n)] → 0, as n → ∞ , for any g / ∈ J. In that case, due to the divergence of ∥bng ∥ for g / ∈ J, we can take a subsequence satisfying ∥bng ∥ ≥ 2Mn + R, for some R < ∞ satisfying rn ≤ R uniformly. Therefore, if x fulfill that ∥x − Pr Bng (x)∥ ≤ rn
+
+then, the triangular inequality, would tell us that x / ∈ B(0 , M n) for a further appropriate subsequence, and, consequently, P [S(Bng , r n)] ≤ P [B(0 , M n)c] ≤ α/ 2n → 0. To conclude the proof, note that we have just seen that EP
+
+ ∪Gg∈J S(Bng , r n) → 1 − α,as n → ∞ . Consequently, the fact that there exist subsequences such that Bng → B 0 
+
+> g
+
+, for some g ∈ J indices (with J̸ = ∅), and rn → r0 for some 0 ≤ r0 < ∞, implies that the convergence in (26) can only hold if the probability mass of P within the set ∪Gg∈J S(B0 
+
+> g
+
+, r 0), whose probability mass is at least 1 − α, is in fact concentrated on the affine subspaces 
+
+B0 
+
+> g
+
+, for g ∈ J (note that ∥Pr B0 
+
+> g
+
+(x) − x∥2 > 0 when x / ∈ ∪ g∈J B0 
+
+> g
+
+). This finally implies that the distribution P is concentrated on G subspaces of dimensions q1, . . . , q G.
+
+(ii) To prove the empirical version of (i), we also proceed by contradiction, showing that it is not possible that lim inf  
+
+> n→∞
+
+EPn
+
+
+
+> G
+
+X
+
+> g=1
+
+zg(·; θn)∥Pr Bng (·) − ·∥ 2
+
+ = 0 ,P -almost surely. Analogously to the previous case, we can replace the optimal assign-ments in the objective function of tHDDC by the assignment functions associated with the (empirical) RLG, which are based on G “strips” around the empirical affine subspaces 
+
+Bng with the same empirical radius rn. The proof technically follows analogous steps to those shown in the proof of part (i), but relies on the tightness of the sequence of empirical measures {Pn}∞
+
+> n=1
+
+. Take also into account that the family of functions representing the truncated orthogonal distances to a finite set of affine subspaces forms a Glivenko-Cantelli class, so that uniform convergence transfers this empirical limit back to the population measure. 34 Other technical results necessary for the proof of consistency are stated below. The complete proofs can be found in Garc´ ıa-Escudero et al. (2008). 
+
+Lema A.2. Given a compact set K, the class of functions 
+
+H = {I[u, ∞)
+
+ DH (·; θ) GX
+
+> g=1
+
+z∗ 
+
+> g
+
+(·; θ) log( Dg(·; θ)) : θ ∈ K, u ≥ 0} (27) 
+
+is a Glivenko-Cantelli class, with z∗ 
+
+> g
+
+(x; θ) = I{x : DH (x; θ) = Dg(x; θ)}, i.e. all the points in Rp are assigned to some class through the functions z∗ 
+
+> g
+
+.
+
+Lema A.3. Let P be an absolutely continuous distribution with a strictly positive density function. Then, for every compact subset K, we have that 
+
+sup 
+
+> θ∈K
+
+|R(θ, P n) − R(θ, P )| → 0, P -a.e. , (28) 
+
+where R(θ, P ) is as defined in Section 3.2. 
+
+## References 
+
+Alqallaf, F., Aelst, S. V., Yohai, V. J., and Zamar, R. H. (2009). Propagation of outliers in multivariate data. The Annals of Statistics , 37(1):311 – 331. Banerjee, A. and Dav´ e, R. N. (2012). Robust clustering. Wiley Interdisciplinary Reviews: Data Mining and Knowledge Discovery , 2(5):353–367. Banfield, J. D. and Raftery, A. E. (1993). Model-based gaussian and non-gaussian clus-tering. Biometrics , 49(3):803–821. Bellas, A., Bouveyron, C., Cottrell, M., and Lacaille, J. (2012). Robust clustering of high-dimensional data. In Proceedings of the European Symposium on Artificial Neural Networks, Computational Intelligence and Machine Learning (ESANN) , pages 25–27. Berg´ e, L., Bouveyron, C., and Girard, S. (2012). Hdclassif: An r package for model-based clustering and discriminant analysis of high-dimensional data. Journal of Statistical Software , 46(6):1–29. Bouveyron, C., Celeux, G., Murphy, T. B., and Raftery, A. (2024). MBCbook: Companion Package for the Book ”Model-Based Clustering and Classification for Data Science” . R package version 0.1.2. Bouveyron, C., Girard, S., and Schmid, C. (2007). High-dimensional data clustering. 
+
+Computational Statistics & Data Analysis , 52(1):502–519. C´ arcamo, J., Cuevas, A., and Rodr´ ıguez, L. A. (2024). On uniqueness of the set of k-means. 
+
+arXiv preprint arXiv:2410.13495 .Cerioli, A., Garc´ ıa-Escudero, L. A., Greselin, F., and Mayo-Iscar, A. (2018). Finding the number of normal groups in model-based clustering via constrained likelihoods. Journal of Computational and Graphical Statistics , 27(2):404–416. Chang, W. (1983). On using principal components before separating a mixture of two multivariate normal distributions. Applied Statistics , 32(3):267–275. 35 Coretto, P. and Hennig, C. (2016). Robust improper maximum likelihood: tuning, com-putation, and a comparison with other methods for robust gaussian clustering. Journal of the American Statistical Association , 111(516):1648–1659. Croux, C., Garc´ ıa-Escudero, L. A., Gordaliza, A., Ruwet, C., and San Mart´ ın, R. (2017). Robust principal component analysis based on trimming around affine subspaces. Sta-tistica Sinica , 27(3):1437–1459. Cuesta-Albertos, J. A., Gordaliza, A., and Matr´ an, C. (1997). Trimmed k-means: An attempt to robustify quantizers. The Annals of Statistics , 25(2):553–576. Fritz, H., Garc´ ıa-Escudero, L. A., and Mayo-Iscar, A. (2012a). tclust: An r package for a trimming approach to cluster analysis. Journal of Statistical Software , 47:1–26. Fritz, H., Garc´ ıa-Escudero, L. A., and Mayo-Iscar, A. (2012b). tclust: An r package for a trimming approach to cluster analysis. Journal of Statistical Software , 47(12):1–26. Fritz, H., Garc´ ıa-Escudero, L. A., and Mayo-Iscar, A. (2013). A fast algorithm for robust constrained clustering. Computational Statistics & Data Analysis , 61:124–136. Garc´ ıa-Escudero, L. A., Gordaliza, A., Matr´ an, C., and Mayo-Iscar, A. (2008). A general trimming approach to robust cluster analysis. The Annals of Statistics , 36(3):1324–1345. Garc´ ıa-Escudero, L. A., Gordaliza, A., Matr´ an, C., and Mayo-Iscar, A. (2010). A review of robust clustering methods. Advances in Data Analysis and Classification , 4(2–3):89– 109. Garc´ ıa-Escudero, L. A., Gordaliza, A., Matr´ an, C., and Mayo-Iscar, A. (2011). Exploring the number of groups in robust model-based clustering. Statistics and Computing ,21(4):585–599. Garc´ ıa-Escudero, L. A., Gordaliza, A., Matr´ an, C., Mayo-Iscar, A., and Hennig, C. (2016). Robustness and outliers. In Hennig, C., Meila, M., Murtagh, F., and Rocci, R., editors, 
+
+Handbook of Cluster Analysis , pages 653–678. CRC Press, Boca Raton, FL. Garc´ ıa-Escudero, L. A., Hennig, C., Mayo-Iscar, A., Morelli, G., and Riani, M. (2025). Choice of trimming proportion and number of clusters in robust clustering based on trimming. Journal of Computational and Graphical Statistics , pages 1–13. Garc´ ıa-Escudero, L. A. and Mayo-Iscar, A. (2024). Robust clustering based on trimming: Recent developments. WIREs Data Mining and Knowledge Discovery , 14(1):e1658. Garc´ ıa-Escudero, L. A., Gordaliza, A., Mart´ ın, R. S., Aelst, S. V., and Zamar, R. (2009). Robust linear clustering. Journal of the Royal Statistical Society, Series B (Statistical Methodology) , 71(1):301–318. Garc´ ıa-Escudero, L. A., Gordaliza, A., and Mayo-Iscar, A. (2014). Robust estimation of mixtures of regressions with random covariates, via trimming and constraints. Statistics and Computing , 24(4):665–683. Hubert, M., Rousseeuw, P. J., and Vanden Branden, K. (2005). ROBPCA: a new approach to robust principal component analysis. Technometrics , 47(1):64–79. Maronna, R. A. (2005). Principal components and orthogonal regression based on robust scales. Technometrics , 47(3):264–273. 36 Neykov, N., Filzmoser, P., Dimova, R., and Neytchev, P. (2007). Robust fitting of mixtures using the trimmed likelihood estimator. Computational Statistics & Data Analysis ,52(1):299–308. Peel, D. and McLachlan, G. J. (2000). Robust mixture modelling using the t distribution. 
+
+Statistics and Computing , 10(4):339–348. Punzo, A. and McNicholas, P. D. (2016). Robust clustering via parsimonious mixtures of contaminated gaussian distributions. Advances in Data Analysis and Classification ,10(2):271–300. Riani, M., Cerioli, A., Perrotta, D., and Torti, F. (2012). Fsda: a matlab toolbox for robust analysis and interactive data exploration. Chemometrics and Intelligent Laboratory Systems , 116:17–32. Ritter, G. (2014). Robust Cluster Analysis and Variable Selection . Chapman & Hall/CRC Monographs on Statistics & Applied Probability. CRC Press, Boca Raton, FL. Rousseeuw, P. J. (1984). Least median of squares regression. Journal of the American Statistical Association , 79(388):871–880. Rousseeuw, P. J. (1985). Multivariate estimation with high breakdown point. In Mathe-matical Statistics and Applications , volume B, pages 283–297. Reidel. Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. Journal of Computational and Applied Mathematics , 20:53–65. Rousseeuw, P. J. and Van Driessen, K. (1999). A fast algorithm for the minimum covari-ance determinant estimator. Technometrics , 41(3):212–223. Ruwet, C., Garc´ ıa-Escudero, L. A., Gordaliza, A., and Matr´ an, C. (2012). Influence func-tion analysis of robust clustering methods based on trimming. Journal of Multivariate Analysis , 111:63–76. Ruwet, C., Garc´ ıa-Escudero, L. A., Gordaliza, A., and Matr´ an, C. (2013). Breakdown properties of robust clustering procedures based on trimming and constraints. Compu-tational Statistics & Data Analysis , 67:126–143. Van Aelst, S., Rousseeuw, P. J., Hubert, M., and Struyf, A. (2006). Robust clustering with trimmed likelihood. Computational Statistics & Data Analysis , 50:733–751. van der Vaart, A. W. and Wellner, J. A. (1996). Weak convergence. In Weak convergence and empirical processes: with applications to statistics , pages 16–28. Springer. You, K. and Shung, D. (2022). Rdimtools: An R package for dimension reduction and intrinsic dimension estimation. Software Impacts , 14:100414. 37

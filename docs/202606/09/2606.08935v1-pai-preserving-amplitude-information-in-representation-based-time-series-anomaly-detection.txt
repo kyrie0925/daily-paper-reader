@@ -1,0 +1,565 @@
+Title: PAI: Preserving Amplitude Information in Representation-Based Time-Series Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2606.08935v1
+
+Published Time: Tue, 09 Jun 2026 01:36:44 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# PAI: Preserving Amplitude Information in Representation-Based Time-Series Anomaly Detection 
+
+Kang Zhang 1 2 Wei Jian Lau 1 Shoushou Ren 1 Dong Lin 1
+
+Joon Son Chung 2 Chuanhao Sun 1∗
+
+> 1
+
+HUAWEI 2KAIST 
+
+zhangkang@kaist.ac.kr, sun.chuanhao@huawei.com 
+
+## Abstract 
+
+Representation-based time-series anomaly detection algorithms significantly out-perform other methods on diverse anomaly detection tasks. However, we notice that they suffer from a major limitation in our evaluation — their learned em-beddings are often amplitude-agnostic . Lossing amplitude information can degrade performance on amplitude related anomalies, and this failure is preva-lent across all existing representation-based methods. To address aforementioned issues, we propose a new anomaly scoring scheme named PAI. PAI consists of two complementary modules, a diagnostic module and a final score augmentation function. The diagnostic module compares cosine and Euclidean scoring on the same representation bank to test whether amplitude information is already cap-tured in the learned representation. Then in final score augmentation function, PAI computes a point-wise median/MAD deviation score and a local mean-shift score—which are fused with the representation score to produce the final anomaly score. On the TSB-AD-U-Eva and TAB UV datasets, PAI improves all four evaluated representation-based methods across every reported metric, achieving average VUS-PR gains of 98.4% and 36.8%, respectively. Among all evaluated combinations, PaAno + PAI achieves the best performance, outperforming the state-of-the-art method by 15%. Further evaluation on bootstrap confidence in-tervals, anomaly-type breakdowns, and a TS2Vec input-normalization ablation further support the proposed scheme. These results suggest that explicitly retaining amplitude information is important for representation-based time-series anomaly detection, which has been underemphasized in existing scoring schemes. Code is available at: https://github.com/pantheon5100/PAI 
+
+## 1 Introduction 
+
+Time-series anomaly detection (TSAD) is a critical machine learning (ML) task with broad applica-tions such as financial fraud detection, network diagnostics, rare disease detection, and social media analysis. Recent works have shown that representation-based methods [ 1, 2, 3, 4] outperform many existing approaches across a wide range of TSAD domains. These methods learn representative embeddings using contrastive encoders, patch-memory models, or pretrained time-series backbones, enabling them to capture temporal context around a patch beyond raw pointwise deviations. As a result, they are particular effective at identifying contextual and pattern anomalies, which are often difficult to detect using simple pointwise rules. Although representation-based TASD methods perform well in many settings, we identify a severe failure mode: amplitude information may be suppressed or ignored in the final anomaly score .The failure can arise at different stages of the algorithm. At the encoder stage, input normalization 
+
+> ∗Corresponding author. Preprint.
+> arXiv:2606.08935v1 [cs.LG] 8 Jun 2026
+
+may remove level or amplitude information before the representation is learned. At the scoring stage, cosine distance, normalized attention, or native-head may expose only part of the learned state, preventing amplitude information from contributing effectively to the final score. Consequently, the same amplitude-related anomaly can be ranked very differently depending on whether the detector preserves amplitude information in its scoring function. This limitation is significant because time-series anomalies can manifest as spikes, level shifts, intensity changes, variance changes, or other amplitude-dependent variations. Effective TSAD therefore requires the detector to preserve both raw-signal scale and learned temporal structure. In this work, we introduce PAI, a lightweight fusion scoring scheme designed to preserve amplitude information in representation-based TSAD. We first motivate amplitude-aware scoring through a diagnostic study on TSB-AD-U-Eva dataset, where we compare cosine- and Euclidean-based anomaly scores computed over the same normal representation bank. This test evaluates whether amplitude-related information is present in the learned representation. The gains from Euclidean scoring vary across detection methods, indicating that some representations preserve useful amplitude information while others remain largely amplitude-agnostic. Based on this observation, PAI replaces the original cosine-distance representation score with a Euclidean-distance score, and further augments it with two train-calibrated amplitude scores: a pointwise median/MAD deviation score, magG , and a local mean-shift score, T2 . PAI is designed as a score-level extension to existing representation-based methods and requires no changes to their architectures or training procedures. DCdetector TS2Vec TSPulse ZS TSPulse FT PaAno        
+
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> VUS-PR
+> 0.10
+> 0.19
+> 0.41
+> 0.52 0.51
+> 0.39
+> 0.47 0.48
+> 0.58 0.58
+> +302% +145% +18% +12% +15%
+> native
+> + ours
+
+Figure 1: PAI uniformly improves representation-based TSAD methods on TSB-AD-U-Eva [5]. 
+
+On TSB-AD-U-Eva [ 5], augmenting the scoring pipeline of existing representation-based detec-tors with PAI yields significant anomaly detection improvements. As shown in Figure 1, PAI im-proves DCdetector, TS2Vec, TSPulse zero-shot, and PaAno [ 1 ] across all reported metrics. In par-ticular, PaAno + PAI achieves the highest VUS-PR on the benchmark, while fine-tuned TSPulse equipped with the same amplitude scores obtains a nearly tied result. We further evaluate the robust-ness of these gains through fixed-score transfer to TAB UV, paired-bootstrap comparisons against classical baselines, anomaly-type breakdowns, a TS2Vec input-RevIN ablation, weight-robustness checks, and compute-cost measurements. Our contributions are: • We identify a critical limitation of existing univariate representation-based TSAD methods: they fail to preserve amplitude information, resulting in nearly amplitude-invariant detection behavior. • We introduce PAI, a lightweight, scoring scheme augmentation that combines a Euclidean representation score with pointwise and window-scale raw-amplitude scores. • A cosine-versus-Euclidean diagnostic to test whether learned representations already en-code amplitude information, providing a simple indicator of when explicit raw-amplitude correction is needed. • A thorough evaluation on representative TSAD benchmarks is conducted, showing that PAI consistently improves existing representation-based detectors and achieves a 15% relative VUS-PR gain, improving performance from 0.51 to 0.58 on the state-of-the-art method. 
+
+## 2 Related Work 
+
+Raw-signal and residual-based methods. Classical statistical methods [ 6, 7, 8 ], distance-based methods [ 9 , 10 , 11 ], and forecasting or reconstruction models [ 4] often score anomalies through deviations in the observed signal or its prediction residual. This makes them naturally sensitive to spikes, level shifts, variance changes, and other raw-amplitude events. Neural models such as Anomaly Transformer [ 12 ] and TranAD [ 13 ] extend this idea with higher-capacity temporal modeling and derive anomaly scores from reconstruction, prediction, or attention-discrepancy behavior. These 2Input 
+
+time series 
+
+𝑿 𝒕𝒓 
+
+> Raw window
+> 𝒑 (𝒕 )
+> Encoder
+> 𝑓 !
+> Representation
+> ℎ(𝑡 )
+
+Representation Branch 
+
+> Memory bank
+> ℋ𝒕𝒓
+
+Amplitude Branch 
+
+> Train calibrated
+> Raw amplitude
+
+Normalized Score Fusion 
+
+𝑆 !"# 𝑡 
+
+= 𝑤 $𝑧 $% 𝑡 
+
++ 𝜆 &𝑧 '(&) 𝑡 
+
++ 𝜆 *𝑧 +! 𝑡      
+
+> Point -wise MAD
+> deviation 𝑔 (𝑥 ")
+> Scoring
+> ℋ𝒕𝒓 ℎ(𝑡 )
+> 𝐷 !"# ℎ,𝑚
+> 𝐷 !"# ℎ,𝑚
+> Local mean shift
+> 𝑞 (𝑥 ")
+
+Figure 2: PAI workflow. PAI augments the scoring scheme of exsiting representation-based TSAD methods with two parallel branches. PAI replaces the cosine distance with Euclidean distance in the representation scoring function branch. Concurrently, it computes two more train calibrated raw amplitude scores which are then fused with the score from the representation branch to form the final anomaly score. Modules with colored background show new or modified components in the scoring scheme introduced by PAI, while the other modules are unchanged from the original TSAD method. methods are important because they show that raw-signal deviations can be central in TSAD. However, their representation learning and scoring rules are usually coupled inside the same detector, making it difficult to isolate whether a gain comes from better temporal representation, better raw-amplitude sensitivity, or the final score formulation. 
+
+Contrastive and metric representation-based TSAD. Another line of TSAD methods formulates anomaly detection as representation learning [ 14 , 15 , 16 , 17 ] followed by scoring in a learned embedding space. TS2Vec [ 2 ] learns timestamp-level and subseries-level representations through hierarchical contrastive objectives, and applies representation dissimilarity for downstream anomaly detection. DCdetector [ 3] learns contrastive representations with a dual-attention mechanism and detects anomalies based on discrepancies between learned representation views. PaAno [ 1 ] encodes time-series patches and scores each test patch by comparing its representation with a memory bank of normal patterns. Our work targets this class of representation-based methods. We show that, despite their strong detection performance, their learned embeddings are often amplitude-agnostic, causing amplitude-related anomalies to be under-scored after normalization and encoding. PAI addresses this shared limitation as a plug-in scoring scheme: it diagnoses amplitude preservation by comparing cosine and Euclidean scores on the same representation bank, and then augments the representation score with raw-signal median/MAD and local mean-shift deviations. 
+
+Pretrained and multi-head time-series models. Recent pretrained and multi-head time-series models expand the representation choices for TSAD. Foundation models such as MOMENT [ 18 ] and TimesFM [ 19 ] learn transferable temporal representations across tasks, while TSPulse learns compact disentangled representations for efficient time-series analysis [ 4]. We discuss these models separately from patch-memory and metric-based detectors because their anomaly scores are not necessarily based only on embedding comparisons. For multi-head models, amplitude information may enter the final score through prediction, reconstruction, or other task-specific errors, even if some internal representations are normalized. Thus, this family provides a broader test case for our diagnosis: PAI evaluates whether the final scoring pipeline preserves amplitude information, regardless of whether the detector uses memory-bank matching, pretrained representations, or native scoring heads. 
+
+## 3 Method 
+
+We propose PAI, an anomaly scoring augmentation scheme for representation-based anomaly detec-tion in univariate time series. PAI preserves the base representation-learning model and refines only its final anomaly scores. It uses contextual and shape cues encoded by the learned representation, 3while explicitly supplementing them with raw-amplitude evidence that may be attenuated during representation learning. Specifically, PAI augments the base anomaly score by replacing cosine distance scores with Euclidean distance scores, then two additional raw-signal scores calibrated only from normal training data. Figure 2 illustrates the proposed method. In this section, we first formulate the representation-based scoring setting, then introduce a cosine-Euclidean diagnostic for analyzing the significance of radial information in the embedding space, and finally define the fixed score-fusion rule used for anomaly detection. 
+
+3.1 Setting and base representation score Training data and patches. Let Xtr = ( xtr 1 , . . . , x tr  
+
+> n
+
+) be a normal training sequence and X =(x1, . . . , x T ) be a test sequence. The goal is to produce a score S(t) for each timestamp t, where higher scores indicate more anomalous observations. A representation-based method maps a local temporal patch p = ( xi, ..., x i+w−1), i.e . overlapping subsequences extracted from X with a window size w, to an embedding h = fθ (p) ∈ Rd with a trained representation encoder fθ . This representation embeddings server as anomaly detection unit for representation based method for TSAD. 
+
+Memory bank. Let Pt = {pt}N −w+1  
+
+> t=1
+
+denote the set of all the patches for a giving time series X.For bank-compatible encoders, we build a normal memory bank from training patches Ptr t extracted from data Xtr , Htr = {fθ (p) : p ∈ P tr }. Following the PaAno memory protocol [ 1], we cluster Htr 
+
+into K clusters and keep the K embeddings that closest to each cluster centroid, resulting a reduced memory bank ˆHtr = {m1, . . . , m K } ⊂ H tr . This memory bank serves as the oracle samples for anomaly detection. 
+
+Representation anomaly scoring. For a time series X, we first get the patches P with fixed size w and unit stride. Given a distance function D(h, m ), e.g . cosine distance Dcos (h, m ) = 1 − h⊤m 
+
+> (∥h∥2+ϵ)( ∥m∥2+ϵ)
+
+or Euclidean distance DEuc (h, m ) = ∥h − m∥, the patch-level bank score is 
+
+Sp(p) = 1
+
+k
+
+X 
+
+> m∈ˆHtr
+
+D(fθ (p), m ), (1) where ˆHtr is the reduced memory bank on the training data Xtr and p ∈ P . And the timestamp-level score is 
+
+S(t) = 1
+
+|P t|
+
+X
+
+> p∈P t
+
+Sp(p). (2) Rather than evaluating xt in isolation, representation scoring branch assigns an anomaly score by aggregating information from the patches surrounding timestamp t. A large value of S(t) indicates that this local temporal neighborhood differs markedly from the normal patterns observed in the training dataset Xtr , and therefore signals a potential anomaly. 
+
+3.2 Cosine-Euclidean diagnostic Representation Scoring  
+
+> Cosine/Direction Euclidean/Norm
+> Looks
+> close
+> Unit
+> circle
+> Amplitude
+> visible
+> Memory bank (normals)
+> Normals (in embedding)
+> Anomaly (in embedding)
+
+Figure 3: Cosine versus Euclidean scoring. Co-sine compares embedding direction, while Eu-clidean also captures norm, preserving amplitude information when encoded radially. Current representation-based TSAD methods, such as PaAno [ 1 ], typically compute the final anomaly score using the cosine distance between the current patch embedding and its nearest neigh-bors in a normal representation bank. Mathemat-ically, the cosine distance between an embedding 
+
+h and a bank element m as in Equation 3. Cosine scoring emphasizes angular mismatch and suppresses radial mismatch. In contrast, Euclidean distance retains both angular and radial compo-nents as in Equation 4. We use a cosine–Euclidean diagnostic to test whether representation-bank scoring benefits from radial information in the embedding space. The comparison keeps the encoder fθ , training bank Htr , nearest-neighbor count, patch-to-timestamp aggregation, and training-score normalization fixed, changing 4Table 1: Spearman rank correlation |ρ| between the base anomaly score and raw-amplitude scores on TSB-AD-U-Eva [ 5 ]. For each time-series instance i, we compute Spearman’s ρ between the aligned test-time score sequences {bi(t)}t∈T i and {ri(t)}t∈T i , where ri ∈ { gi, q i, z g,i + zq,i },and report the mean correlation across instances. Low |ρ| indicates that raw-scale information is largely complementary to the base score. VUS-PR and PAI improvement are reported for context.                                
+
+> Base method VUS-PR + PAI ∆ρ(·,magG )ρ(·,T2) ρ(·,magG + T2)
+> DCdetector [3] 0.097 +0 .293 −0.086 −0.032 −0.084
+> PaAno cosine [1] 0.509 +0 .075 +0 .044 +0 .063 +0 .054
+> TSPulse ZS [4] 0.411 +0 .054 +0 .135 +0 .163 +0 .185
+> TS2Vec [2] 0.193 +0 .280 +0.375 −0.007 +0 .256
+
+only the distance function used to compute the final anomaly score. As illustrated in Figure 3, two patches may have embeddings with similar directions but different amplitude. In this case, cosine distance can remain small because it is insensitive to embedding norm, whereas Euclidean distance can separate the patches by preserving radial differences. Thus, improvements from Euclidean scoring indicate that useful amplitude-related information is encoded in the representation norm but is suppressed by cosine-based scoring. 
+
+Dcos (h, m ) = 1 − h⊤m
+
+(∥h∥2 + ϵ)( ∥m∥2 + ϵ) . (3) 
+
+Deuc (h, m ) = ∥h − m∥22 = ∥h∥22 + ∥m∥22
+
+| {z }
+
+> radial terms
+
+−2 ∥h∥2∥m∥2 cos ∠(h, m )
+
+| {z }
+
+> angular–radial interaction
+
+. (4) Let c(t) and e(t) denote the representation-bank scores obtained with cosine and Euclidean distances, respectively. A large empirical gain from e(t) over c(t) indicates that information discarded by angular scoring is useful for anomaly ranking. Conversely, a small gain suggests that the representation score is effectively angular, or that embedding norm does not contain useful anomaly evidence. This diagnostic does not assume that embedding norm directly equals raw amplitude; it only tests whether radial information is useful for scoring. In Section 4.3, we show that replacing cosine distance with Euclidean distance in the representation-based anomaly scoring pipeline can improve the anomaly score curve even for encoders trained with cosine-based objectives. 
+
+3.3 Raw-amplitude fusion 
+
+Although representation-based scores can capture contextual and shape-level deviations, they may not fully preserve raw-amplitude information. To examine this, we compute the Spearman rank correlation [ 20 ] between the base anomaly score and two raw-amplitude scores on TSB-AD-U-Eva dataset [ 5]. As shown in Table 1, most correlations are close to zero, suggesting that representation-space scores and raw-amplitude scores capture complementary aspects of anomalous behavior. The positive correlation between TS2Vec [ 2 ] and magG further indicates that some encoders may already encode pointwise amplitude to a degree, but this behavior is not consistent across methods. PAI therefore augments the base anomaly score with two raw-signal scores calibrated only from the normal training sequence. Let 
+
+μx = median( Xtr ), σx = MAD( Xtr ) + ϵ, (5) where MAD denotes the median absolute deviation. The first raw-scale score, denoted by magG ,measures pointwise amplitude deviation: 
+
+g(t) = |xt − μx|
+
+σx
+
+. (6) This score targets spikes and isolated threshold-crossing deviations. The second raw-scale score, denoted by T2, captures local level shifts. Given an offline radius-W window 
+
+Wt = {τ : max(1 , t − W ) ≤ τ ≤ min( T, t + W )}, (7) 5we define 
+
+q(t) = |W t|−1 P  
+
+> τ∈W t
+
+xτ − μx
+
+σx
+
+. (8) We use W = 32 unless otherwise stated. The symmetric window is used for the offline benchmark setting; for causal deployment, it can be replaced with a trailing window. The representation based score St(t), amplitude based pointwise score magG g(t), and local scores q(t)
+
+have different numerical scales itself. PAI therefore standardizes each score using statistics computed on the same normal training sequence. Let Str  
+
+> t
+
+(u), gtr (u), and qtr (u) denote the corresponding scores evaluated at training timestamp u. We define 
+
+zeuc (t) = St(t) − μtr 
+
+> St
+
+σtr  
+
+> St
+
++ ϵ , zmagG (t) = g(t) − μtr 
+
+> g
+
+σtr  
+
+> g
+
++ ϵ , zT2 (t) = q(t) − μtr 
+
+> q
+
+σtr  
+
+> q
+
++ ϵ , (9) where 
+
+μtr  
+
+> St
+
+= mean u Str  
+
+> t
+
+(u), σtr  
+
+> b
+
+= std u Str  
+
+> t
+
+(u), (10) and μtr  
+
+> g
+
+, σ tr  
+
+> g
+
+, μ tr  
+
+> q
+
+, σ tr  
+
+> q
+
+are defined analogously. The final PAI score is a weighted sum: 
+
+SPAI (t) = wbzeuc (t) + λg zmagG (t) + λq zT2 (t). (11) The fixed configuration Λfixed = ( wb, λ g , λ q ) is selected on TSB-AD and then evaluated on TAB UV without TAB-specific tuning. Numeric values and robustness analyses are reported in Appendix D. Table 2: Main results on TSB-AD-U-Eva. We report univariate time-series anomaly detection performance across classical, neural, and representation-based methods. For each metric, the best and second-best values are shown in bold and underlined , respectively. All scores are averaged over five runs. Range-Wise Measure ↑ Point-Wise Measure ↑
+
+Method VUS-PR VUS-ROC Range-F1 AUC-PR AUC-ROC Point-F1 
+
+> Stat&ML
+
+(Sub)-PCA [6] 0.42 0.76 0.41 0.37 0.71 0.42 KShapeAD [7] 0.40 0.76 0.40 0.35 0.74 0.39 
+
+magG g(t) 0.34 0.76 0.61 0.34 0.70 0.38 T2 q(t) 0.36 0.71 0.44 0.33 0.66 0.36 
+
+magG +T2 0.38 0.78 0.56 0.36 0.72 0.40 
+
+> NN
+
+DeepAnT [21] 0.34 0.79 0.35 0.33 0.71 0.38 USAD [22] 0.36 0.71 0.40 0.32 0.66 0.37 TimesNet [23] 0.26 0.72 0.21 0.18 0.61 0.24 FITS [24] 0.26 0.73 0.20 0.17 0.61 0.23 DADA [25] 0.31 0.77 0.31 0.29 0.71 0.38 KAN-AD [26] 0.43 0.82 0.43 0.41 0.80 0.44 
+
+> Representation
+
+TS2Vec [AAAI’22] [2] 0.19 0.62 0.60 0.19 0.54 0.25 
+
++ PAI 0.47 0.87 0.67 0.45 0.83 0.48 DCdetector [KDD’23] [3] 0.10 0.55 0.13 0.06 0.48 0.11 
+
++ PAI 0.39 0.81 0.66 0.38 0.76 0.43 TSPulse (ZS) [ICLR’26] [4] 0.41 0.79 0.50 0.32 0.74 0.39 
+
++ PAI 0.48 0.85 0.61 0.43 0.81 0.48 TSPulse (FT) [ICLR’26] [4] 0.54 0.87 0.67 0.48 0.84 0.54 
+
++ PAI 0.58 0.90 0.71 0.52 0.87 0.58 
+
+PaAno [ICLR’26] [1] 0.52 0.89 0.48 0.46 0.86 0.51 
+
++ PAI 0.58 0.93 0.75 0.55 0.90 0.58 
+
+## 4 Experiments 
+
+4.1 Experimental setup Datasets. We use TSB-AD-U-Eva [ 5] as the primary benchmark for main comparisons, ablations, and diagnostics. This benchmark contains 350 univariate time-series instances from TSB-AD-U. To evaluate cross-corpus transfer, we further test on TAB UV [ 27 ], a larger univariate benchmark 6with 1,635 time-series instances. All PAI fusion parameters are selected under the TSB-AD-U-Eva protocol and reused on TAB UV without additional tuning. 
+
+Compared methods. We compare against three groups of baselines: classical statistical and machine-learning methods, neural time-series anomaly detection methods, and representation-based methods. The first group includes (Sub)-PCA [ 6], KShapeAD [ 7 ], and the raw-scale scores magG , T2, and 
+
+magG +T2. The neural baselines include DeepAnT [ 21 ], USAD [ 22 ], TimesNet [ 23 ], FITS [ 24 ], DADA [ 25 ], and KAN-AD [ 26 ]. For representation-based methods, we evaluate TS2Vec [ 2 ], DCde-tector [ 3], TSPulse [ 4], and PaAno [ 1 ], and report each base score together with its PAI-augmented variant. 
+
+PAI variants. For TS2Vec, DCdetector, and PaAno, the base score is the Euclidean representation-bank score defined in Equation 2. The corresponding “+ PAI” variant augments this score with the two training-calibrated raw-amplitude terms, magG and T2, using the fixed fusion rule in Equation 11. For TSPulse, we evaluate both zero-shot and fine-tuned settings. Since its native prediction/reconstruction head provides a stronger anomaly score than hidden-state bank distance, the TSPulse “+ PAI” variant keeps the native head score as the base score and applies the same raw-amplitude augmentation. The same fusion weights are used across all PAI variants. 
+
+Metrics. Following TSB-AD [ 5 ], we report VUS-PR, VUS-ROC, Range-F1, AUC-PR, AUC-ROC, and Point-F1. VUS-PR is the primary metric because anomalies are rare and range-level precision– recall behavior is central to this setting. Scores presented in the table are averaged over five runs. 
+
+4.2 Main Results on TSB-AD-U-Eva 
+
+Table 2 reports the main comparison on TSB-AD-U-Eva. The evaluated methods are grouped into classical statistical or machine-learning baselines ( Stat&ML ), neural anomaly detection baselines (NN ), and representation-based methods ( Representation ). PAI improves every reported metric for all five representation-based configurations in Table 2, giving 30/30 positive configuration-metric deltas. On the primary VUS-PR metric, TS2Vec improves from 0.19 to 0.47 , DCdetector from 0.10 
+
+to 0.39 , TSPulse ZS from 0.41 to 0.48 , TSPulse FT from 0.54 to 0.58 , and PaAno from 0.52 to 0.58 .PaAno + PAI obtains the best VUS-PR, VUS-ROC, Range-F1, AUC-PR, and AUC-ROC, while TSPulse FT + PAI obtains the best Point-F1. We report confidence intervals for each performance gain in Appendix A.1. The raw-amplitude scores are also informative by themselves: magG +T2 reaches 0.38 VUS-PR with-out any learned representation. However, raw amplitude alone does not explain the strongest results. TS2Vec + PAI, TSPulse FT + PAI, and PaAno + PAI all exceed the raw-only score, indicating that the best-performing variants combine learned temporal representations with explicit raw-amplitude evidence. For TS2Vec and DCdetector, the reported base rows use the unified representation-bank scoring protocol described in Section 3.1, rather than the original method-specific scoring rules. This choice allows us to evaluate bank-compatible encoders under a common scoring protocol and isolate the contribution of PAI. Results using the original scoring rules are reported in Appendix A.2. Parameter counts and run times are reported in Appendix D.2. 
+
+4.3 Score-Component and Normalization Ablation Study 
+
+Table 3: Score-component ablation on TSB-AD-U-Eva , reported as VUS-PR. Method Base Euclidean Raw + PAI score bank only DCdetector 0.10 0.24 0.38 0.39             
+
+> TS2Vec 0.19 0.47 0.38 0.47
+> TSPulse ZS 0.41 0.11 0.38 0.48
+> PaAno 0.51 0.52 0.38 0.58
+
+We analyze how each PAI component con-tributes to the overall gains. PAI improves representation-based scoring in two ways: it replaces cosine-based bank scoring with Eu-clidean bank scoring, and it adds explicit raw-amplitude scores. When the embedding norm already contains useful amplitude information, Euclidean scoring should provide most of the gain. When the representation score is largely scale-invariant, the raw-amplitude terms should contribute more by restoring information missing from the learned representation. Table 3 shows that different methods expose amplitude information differently. TS2Vec [ 2 ] is the clearest radial-information case: Euclidean bank scoring reaches 0.47 VUS-PR, nearly matching the 7full PAI score. This suggests that, under file-wise normalization, amplitude-related deviations are largely preserved in the TS2Vec embedding norm. DCdetector [ 3] shows a mixed pattern: Euclidean scoring improves VUS-PR from 0.10 to 0.24 , while full PAI further increases it to 0.39 , indicating that explicit raw-amplitude scores remain important. PaAno [ 1 ] is closer to amplitude-invariant behavior: Euclidean scoring provides only a small gain over cosine scoring, whereas adding raw-amplitude scores raises VUS-PR from 0.52 to 0.58 . A more detailed component ablation is provided in Appendix B and C. TSPulse [ 4] serves as a useful control. Its native zero-shot head achieves 0.41 VUS-PR, while Euclidean bank scoring over hidden states reaches only 0.11 . We therefore keep the native TSPulse score and augment it with the same magG and T2 terms, increasing zero-shot VUS-PR to 0.48 .
+
+4.4 PAI Gains Across Anomaly Types 0.0 
+
+> 0.2
+> 0.4
+> 0.6
+> VUS-PR
+> +0.449
+> +0.080
+> +0.253 +0.190
+> DCdetector: native
+> +0.423
+> +0.180
+> +0.266
+> +0.062
+> TS2Vec: native
+> Amplitude
+> Pattern
+> Hybrid
+> Undet.
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> VUS-PR
+> +0.084
+> +0.032
+> +0.010
+> -0.002
+> TSPulse ZS : native
+> Amplitude
+> Pattern
+> Hybrid
+> Undet.
+> +0.179
+> -0.048 +0.140
+> -0.034
+> PaAno: cosine
+
+Figure 4: VUS-PR by TSB-AD anomaly type. 
+
+If PAI preserves raw-amplitude information, its should ehance the performance of the base meth-ods on anomalies involving amplitude or level changes. Figure 4 reports VUS-PR by anomaly type on TSB-AD-U-Eva [5]. The results are consistent with the proposed mech-anism. All four methods improve on amplitude anomalies, with the largest gains for DCdetec-tor and TS2Vec. Hybrid anomalies also im-prove across all methods, suggesting that raw-amplitude information remains useful when am-plitude changes occur simultaneously with tem-poral or shape changes. The same breakdown also shows the limitation of PAI. For PaAno, PAI improves amplitude and hybrid anomalies but slightly decreases performance on pattern anoma-lies and undetermined cases. This tradeoff is ex-pected: explicit raw-amplitude terms help when amplitude or level is discriminative, but they can perturb the ranking when shape or temporal pattern is the dominant signal. 
+
+4.5 Cross-Corpus Transfer to TAB UV 
+
+Table 4: Cross-corpus transfer to TAB UV. 
+
+Method Variant VUS-PR AUC-PR TS2Vec cosine 0.21 0.17 + PAI 0.25 0.26 
+
+DCdetector cosine 0.12 0.09 + PAI 0.26 0.25 
+
+TSPulse ZS native 0.22 0.14 native + PAI 0.26 0.23 
+
+PaAno cosine 0.20 0.20 native + PAI 0.26 0.29 
+
+We then evaluate whether the same score-fusion recipe transfers to a different univariate bench-mark. Table 4 reports TAB UV results for the protocol-aligned methods: TS2Vec, DCdetector, TSPulse ZS , and PaAno. The PAI parameters are fixed from TSB-AD-U-Eva. Although absolute scores are lower on TAB UV, the improvement direction is preserved. PAI improves TS2Vec from 0.209 to 0.251 VUS-PR, DCdetector from 0.120 to 0.258 , and TSPulse ZS 
+
+from 0.223 to 0.262 . AUC-PR also improves for all methods. These results support PAI as a transferable score-augmentation strategy. Weight-grid sensitivity results are reported in Appendix D, showing that the fixed recipe is not an isolated TSB-specific optimum. 
+
+4.6 Robustness and Computational Cost 
+
+We test whether the gain of PAI depends on a narrow choice of fusion weights. Figure 5 shows the full weight grid for PaAno + PAI on TSB-AD-U-Eva. The performance surface forms a broad positive plateau, indicating that the selected fixed configuration is not a finely tuned optimum but lies within a stable region. The final weights we used in the experiments is wb = 1 , λg = 0 .6 and 
+
+λq = 0 .4 instead of the peak to trade off the performance gain on TAB dataset. The complete grid is 80 0.05 0.10 0.15 0.20 0.25 0.30 0.40                    
+
+> window-scale weight λqfor T2
+> W= 32
+> 0.3
+> 0.4
+> 0.5
+> 0.55
+> 0.6
+> 0.667
+> 0.75
+> 0.85
+> 1
+> point-scale weight  λg for magG  +0.010 +0.011 +0.011
+> +0.011 +0.011 +0.011 +0.012
+> +0.010 +0.010 +0.011 +0.010
+> -0.015 -0.014 -0.014 -0.014 -0.013 -0.014 -0.015 -0.017
+> fixed
+> peak
+> dashed contour: within 0.005 VUS-PR of the W=32 peak
+> PaAno+ours weight robustness on TSB-AD-U (VUS-PR)
+> −0.015
+> −0.010
+> −0.005
+> 0.000
+> 0.005
+> 0.010
+> Δ VUS-PR
+
+Figure 5: Weight robustness of PaAno + PAI on TSB-AD-U-Eva. The heat map shows the full weight grid for the fusion rule zeuc + λg zmag + λq zT2 at W = 32 , reported as the five-seed mean 
+
+∆ VUS-PR relative to the PaAno base score. The selected fixed configuration lies within a broad positive plateau rather than at an isolated optimum. reported in Appendix D.1. The additional raw-amplitude terms introduce negligible computational overhead. We report parameter counts and runtimes for the benchmark methods in Appendix D.2. The key result is that PAI adds negligible overhead: on a representative TSB-AD-U-Eva time series of length 4,031, computing magG +T2 takes only 0.003 seconds and requires no GPU memory, whereas training a TS2Vec encoder takes 18 .7 seconds and 121 MB. Thus, PAI improves raw-amplitude sensitivity at the scoring stage without increasing the training cost of the base representation method. 
+
+4.7 Limitations 
+
+PAI consistently improves magnitude and hybrid anomalies, but the anomaly-type breakdown in Section 4.4 shows that PaAno + PAI slightly decreases performance on pattern and undetermined anomalies. Thus, PAI is best viewed as a score-fusion method for incorporating complementary raw-amplitude evidence, rather than a universal replacement for representation-based scoring. When anomalies are defined mainly by temporal shape instead of amplitude or level, fixed raw-amplitude terms can perturb the ranking. In addition, our evaluation is limited to univariate time series. The raw-signal scores magG and T2 are computed per series and do not model cross-channel dependencies, so multivariate extension requires additional design. 
+
+## 5 Conclusion 
+
+This paper identifies a critical limitation of representation-based univariate TSAD methods: their final anomaly scores can be largely amplitude-agnostic, causing amplitude-related anomalies such as spikes, level shifts, and intensity changes to be under-scored. To address this issue, we introduced PAI, a lightweight score-level augmentation that requires no changes to the base encoder or training procedure. PAI first uses a cosine-versus-Euclidean diagnostic to assess whether amplitude infor-mation is preserved in the learned representation, and then combines a Euclidean representation score with two raw-amplitude scores, magG and T2 . Experiments on TSB-AD-U-Eva and TAB UV show that PAI consistently improves all four evaluated representation-based methods across every reported metric, achieving average VUS-PR gains of 98.4% and 36.8%, respectively. Among all evaluated combinations, PaAno + PAI achieves the best overall performance, outperforming the state-of-the-art method by 15%. The gains are especially clear on time series dominated by amplitude anomalies, where PAI substantially improves all evaluated representation-based methods. These results show that explicit amplitude-aware scoring is a simple and effective correction for more robust representation-based TSAD. 9References 
+
+[1] Jinju Park and Seokho Kang. Paano: Patch-based representation learning for time-series anomaly detection. In ICLR , 2026. [2] Zhihan Yue, Yujing Wang, Juanyong Duan, Tianmeng Yang, Congrui Huang, Yunhai Tong, and Bixiong Xu. Ts2vec: Towards universal representation of time series. AAAI , 36(8):8980–8987, Jun. 2022. [3] Yiyuan Yang, Chaoli Zhang, Tian Zhou, Qingsong Wen, and Liang Sun. Dcdetector: Dual attention contrastive representation learning for time series anomaly detection. In Proc. 29th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining (KDD 2023) , page 3033–3045, 2023. [4] Vijay Ekambaram, Subodh Kumar, Arindam Jati, Sumanta Mukherjee, Tomoya Sakai, Pankaj Dayama, Wesley M. Gifford, and Jayant Kalagnanam. TSPulse: Tiny pre-trained models with disentangled represen-tations for rapid time-series analysis. In ICLR , 2026. [5] Qinghua Liu and John Paparrizos. The elephant in the room: Towards a reliable time-series anomaly detection benchmark. In ICLR , 2024. [6] Charu C. Aggarwal. An Introduction to Outlier Analysis . Springer, Cham, Switzerland, 2nd edition, 2017. [7] John Paparrizos and Luis Gravano. Fast and accurate time-series clustering. ACM Transactions on Database Systems , 42(2):8, 2017. [8] Ailing Zeng, Muxi Chen, Lei Zhang, and Qiang Xu. Are transformers effective for time series forecasting? In AAAI , pages 11121–11128, 2023. [9] B. Iglewicz and D.C. Hoaglin. Volume 16: How to Detect and Handle Outliers . ASQ Quality Press, 1993. [10] Peter J. Rousseeuw and Christophe Croux. Alternatives to the median absolute deviation. Journal of the American Statistical Association , 88(424):1273–1283, 1993. [11] Samaneh Aminikhanghahi and Diane J. Cook. A survey of methods for time series change point detection. 
+
+Knowledge and Information Systems , 51(2):339–367, May 2017. [12] Jiehui Xu, Haixu Wu, Jianmin Wang, and Mingsheng Long. Anomaly transformer: Time series anomaly detection with association discrepancy. In ICLR , 2022. [13] Shreshth Tuli, Giuliano Casale, and Nicholas R. Jennings. Tranad: deep transformer networks for anomaly detection in multivariate time series data. Proc. VLDB Endow. , 15(6):1201–1214, February 2022. [14] Ting Chen, Simon Kornblith, Mohammad Norouzi, and Geoffrey Hinton. A simple framework for contrastive learning of visual representations. In International conference on machine learning , pages 1597–1607. PmLR, 2020. [15] Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick. Momentum contrast for unsupervised visual representation learning. In CVPR , June 2020. [16] Chaoning Zhang, Kang Zhang, Trung X Pham, Axi Niu, Zhinan Qiao, Chang D Yoo, and In So Kweon. Dual temperature helps contrastive learning without many negative samples: Towards understanding and simplifying moco. In CVPR , pages 14441–14450, 2022. [17] Mathilde Caron, Hugo Touvron, Ishan Misra, Hervé Jégou, Julien Mairal, Piotr Bojanowski, and Armand Joulin. Emerging properties in self-supervised vision transformers. In ICCV , 2021. [18] Mononito Goswami, Konrad Szafer, Arjun Choudhry, Yifu Cai, Shuo Li, and Artur Dubrawski. Moment: a family of open time-series foundation models. In Proc. ICML , ICML’24. JMLR.org, 2024. [19] Abhimanyu Das, Weihao Kong, Rajat Sen, and Yichen Zhou. A decoder-only foundation model for time-series forecasting. In Proc. ICML , ICML’24. JMLR.org, 2024. [20] C Spearman. The proof and measurement of association between two things. International Journal of Epidemiology , 39(5):1137–1150, 10 2010. [21] Mahmudul Hasan Munir, Shehroz A. Siddiqui, Andreas Dengel, and Sheraz Ahmed. DeepAnt: A deep learning approach for unsupervised anomaly detection in time series. IEEE Access , 7:1991–2005, 2018. [22] Julien Audibert, Pietro Michiardi, Fabien Guyard, Sébastien Marti, and Marc A. Zuluaga. USAD: Unsupervised anomaly detection on multivariate time series. In Proceedings of the ACM SIGKDD International Conference on Knowledge Discovery & Data Mining , pages 3395–3404, 2020. 
+
+10 [23] Haixu Wu, Tengge Hu, Yong Liu, Hang Zhou, Jianmin Wang, and Mingsheng Long. Timesnet: Temporal 2d-variation modeling for general time series analysis. In ICLR , 2023. [24] Zhijian Xu, Ailing Zeng, and Qiang Xu. FITS: Modeling time series with $10k$ parameters. In ICLR ,2024. [25] Qichao Shentu, Beibu Li, Kai Zhao, Yang Shu, Zhongwen Rao, Lujia Pan, Bin Yang, and Chenjuan Guo. Towards a general time series anomaly detector with adaptive bottlenecks and dual adversarial decoders. In ICLR , 2025. [26] Quan Zhou, Changhua Pei, Fei Sun, HanJing, Zhengwei Gao, Haiming Zhang, Gaogang Xie, Dan Pei, and Jianhui li. KAN-AD: Time series anomaly detection with kolmogorov–arnold networks. In Proc. ICML ,2025. [27] Xiangfei Qiu, Zhe Li, Wanghui Qiu, Shiyan Hu, Lekui Zhou, Xingjian Wu, Zhengyu Li, Chenjuan Guo, Aoying Zhou, Zhenli Sheng, Jilin Hu, Christian S. Jensen, and Bin Yang. Tab: Unified benchmarking of time series anomaly detection methods. Proc. VLDB Endow. , 18(9):2775–2789, May 2025. 
+
+## A Additional Experimental Details 
+
+A.1 Paired Uncertainty on TSB-AD-U-Eva 
+
+Table 5 reports paired bootstrap confidence intervals for the PAI gain over the corresponding base score on TSB-AD-U-Eva. The bootstrap resamples time-series instances and preserves the pairing between the base score and the PAI score. The intervals exclude zero for all four primary representation methods, supporting the main-text claim that the improvements are not driven by a small set of sampled instances. Table 5: Paired bootstrap 95% confidence intervals for ∆ (PAI score minus base score) on TSB-AD-U-Eva. We use nboot = 2000 resamples with seed 42 , paired over the common set of time-series instances. 
+
+Method ∆ VUS-PR [95% CI ] ∆ AUC-PR [95% CI ]
+
+DCdetector +0 .293 [+0 .259 , +0 .328] +0 .317 [+0 .282 , +0 .353] 
+
+TS2Vec +0 .279 [+0 .240 , +0 .316] +0 .259 [+0 .218 , +0 .297] 
+
+TSPulse ZS +0 .048 [+0 .031 , +0 .068] +0 .054 [+0 .038 , +0 .071] 
+
+PaAno +0 .075 [+0 .049 , +0 .103] +0 .092 [+0 .064 , +0 .122] 
+
+A.2 Reference Scores and Bank-Score Variants 
+
+The main table reports each representation method together with its PAI score. For bank-compatible methods, PAI uses Euclidean representation-bank scoring as the representation term; for TSPulse, PAI keeps the native prediction/reconstruction score because hidden-state bank scoring is not competitive. Table 6 separates these score pathways on TSB-AD-U-Eva. This distinction is important: a weak reference score does not imply that the encoder lacks useful information, since Euclidean bank scoring may expose amplitude-related information through the representation norm. Table 6: Reference scores and bank-score variants on TSB-AD-U-Eva, reported as VUS-PR. The reference score is the base row reported in the main comparison. Euclidean bank scoring is used as the representation term for bank-compatible PAI variants. For TSPulse, encoder-bank scoring is diagnostic only; the PAI score keeps the native head. 
+
+Method Reference score Cosine bank Euclidean bank PAI score DCdetector 0.097 0.165 0.236 0.390 
+
+TS2Vec 0.193 0.384 0.470 0.473 
+
+TSPulse ZS 0.411 – 0.107 0.484 
+
+PaAno 0.509 0.509 0.521 0.584 
+
+11 Table 7: Component ablation on TSB-AD-U-Eva. Rows isolate the Euclidean representation-bank term, the two raw-scale scores, and their pairwise/full fusions. The TSPulse rows use encoder-bank distance for the representation term; the native prediction/reconstruction head is not included in this table.                                                                                                          
+
+> Method Score term(s) VUS-PR VUS-ROC AUC-PR AUC-ROC TS2Vec Euclidean rep. only 0.470 0.869 0.436 0.823
+> magG only 0.342 0.760 0.337 0.697 T2 only 0.355 0.713 0.328 0.662 Euclidean + magG 0.469 0.869 0.440 0.826 Euclidean + T2 0.475 0.871 0.443 0.829
+> magG + T2 0.375 0.777 0.364 0.720 Euclidean + magG + T2 0.473 0.869 0.447 0.829
+> DCdetector Euclidean rep. only 0.236 0.715 0.207 0.661
+> magG only 0.342 0.760 0.337 0.697 T2 only 0.355 0.713 0.328 0.662 Euclidean + magG 0.318 0.784 0.302 0.734 Euclidean + T2 0.329 0.791 0.298 0.741
+> magG + T2 0.375 0.777 0.364 0.720 Euclidean + magG + T2 0.390 0.810 0.375 0.762
+> TSPulse ZS encoder Euclidean rep. only 0.107 0.586 0.068 0.519
+> magG only 0.342 0.760 0.337 0.697 T2 only 0.355 0.713 0.328 0.662 Euclidean + magG 0.161 0.683 0.124 0.615 Euclidean + T2 0.188 0.678 0.147 0.620
+> magG + T2 0.375 0.777 0.364 0.720
+> Euclidean + magG + T2 0.237 0.716 0.199 0.652
+
+Table 8: TS2Vec with and without input normalization on TSB-AD-U-Eva. Input normalization reduces the Euclidean-minus-cosine gap, but it also lowers the pure cosine representation score. The ablation therefore supports the normalization mechanism with this caveat. 
+
+Encoder Variant VUS-PR VUS-ROC AUC-PR AUC-ROC Vanilla TS2Vec native 0.193 0.620 0.189 0.539 cosine bank 0.384 0.847 0.329 0.791 Euclidean bank 0.470 0.869 0.436 0.823 cosine bank + raw-scale 0.450 0.866 0.403 0.824 Euclidean bank + raw-scale 0.473 0.869 0.447 0.829 
+
+TS2Vec + input normalization native 0.193 0.620 0.189 0.539 cosine bank 0.323 0.792 0.264 0.731 Euclidean bank 0.356 0.801 0.322 0.751 cosine bank + raw-scale 0.457 0.872 0.411 0.824 Euclidean bank + raw-scale 0.445 0.853 0.428 0.804 
+
+## B Full Score-Term Ablation 
+
+Table 7 expands the component ablation summarized in the main text. The table isolates Euclidean representation-bank scoring, the two raw-scale scores, and their combinations. TS2Vec already obtains most of its gain from Euclidean representation distance, indicating that its representation norm contains useful amplitude-related information under the current preprocessing. DCdetector improves when all terms are combined, indicating that explicit raw-scale scores remain complemen-tary. For TSPulse, encoder-bank distance is weak even after raw-scale fusion, which is why the main experiments keep the native head score for TSPulse + PAI. Table 8 reports the input-normalization ablation used to interpret the cosine–Euclidean diagnostic. Without input normalization, Euclidean scoring improves substantially over cosine scoring, and adding raw-scale terms on top of Euclidean scoring changes little. With input normalization, the Euclidean-over-cosine gap becomes smaller, while the raw-scale terms become more complementary. This supports the mechanism that normalization changes where amplitude information is available: either in the representation norm or in explicit raw-signal scores. 12 Table 9: Protocol-aligned cross-corpus results on TAB UV. PAI uses the fixed score-fusion parameters selected on TSB-AD-U-Eva. 
+
+Method Variant VUS-PR VUS-ROC Range-F1 AUC-PR AUC-ROC Point-F1 TS2Vec cosine bank 0.209 0.681 0.330 0.168 0.631 0.232 + PAI 0.251 0.715 0.415 0.263 0.687 0.316 
+
+DCdetector cosine bank 0.120 0.707 0.257 0.091 0.614 0.138 + PAI 0.258 0.774 0.439 0.251 0.741 0.311 
+
+TSPulse ZS native 0.223 0.641 0.230 0.137 0.613 0.196 native + PAI 0.262 0.699 0.337 0.229 0.668 0.292 
+
+Table 10: Full protocol-aligned representation-method comparison on TAB UV. The table separates cosine distance, Euclidean distance, raw-scale fusion, and TSPulse native-head fusion. Non-protocol-aligned PaAno-family TAB results are omitted.                                                                                            
+
+> Method Variant VUS-PR VUS-ROC Range-F1 AUC-PR AUC-ROC Point-F1 TS2Vec cosine bank 0.209 0.681 0.330 0.168 0.631 0.232 Euclidean bank 0.245 0.687 0.404 0.254 0.656 0.302 cosine bank + raw-scale 0.245 0.715 0.398 0.231 0.684 0.297 Euclidean bank + raw-scale 0.251 0.715 0.415 0.263 0.687 0.316
+> DCdetector cosine bank 0.120 0.707 0.257 0.091 0.614 0.138 Euclidean bank 0.216 0.737 0.377 0.177 0.694 0.238 cosine bank + raw-scale 0.214 0.754 0.387 0.220 0.710 0.270 Euclidean bank + raw-scale 0.258 0.774 0.439 0.251 0.741 0.311
+> TSPulse ZS
+> native 0.223 0.641 0.230 0.137 0.613 0.196 cosine bank 0.048 0.560 0.102 0.028 0.487 0.062 Euclidean bank 0.048 0.566 0.092 0.027 0.480 0.061 cosine bank + raw-scale 0.101 0.661 0.201 0.096 0.608 0.146 Euclidean bank + raw-scale 0.106 0.662 0.204 0.100 0.609 0.160 native + raw-scale 0.262 0.699 0.337 0.229 0.668 0.292
+
+## C Cross-Corpus Transfer to TAB UV 
+
+Table 9 reports the protocol-aligned TAB UV transfer results used in the main text. PAI uses the same score-fusion parameters selected on TSB-AD-U-Eva, with no TAB-specific tuning. We include only the methods evaluated under the same TAB-side protocol: TS2Vec, DCdetector, and TSPulse ZS .Table 10 separates cosine distance, Euclidean distance, raw-scale fusion, and TSPulse native-head fusion on TAB UV. These results are mechanism support for the transfer analysis rather than a separate leaderboard claim. 
+
+## D Weight Robustness and Computational Cost 
+
+D.1 Fusion-Weight Robustness 
+
+The weight checks are included to rule out the interpretation that PAI depends on a narrowly tuned set of raw-scale weights. The main comparison uses a fixed score-fusion recipe; the appendix shows that nearby weights produce the same qualitative behavior. Table 12 reports the full TSB-AD-U-Eva grid for TS2Vec, DCdetector, and the TSPulse encoder-bank diagnostic. TS2Vec and DCdetector have broad positive regions rather than isolated optima. The TSPulse encoder rows reinforce the native-head choice in the main text: when TSPulse is forced into encoder-bank scoring, raw-scale fusion does not recover native-head performance. 
+
+D.2 Parameter Counts and Run Time 
+
+Table 11 reports parameter counts and run times for the benchmark methods. The PAI score does not introduce learned parameters. Its raw-scale terms are computed directly from the input signal and add approximately 0.003 s on a representative TSB-AD-U-Eva time-series instance of length 4,031. 13 Table 11: Parameter counts and run times for the benchmark methods. PAI score-fusion rows inherit the learned parameters of the base method; the raw-scale terms have no learned parameters. A dash denotes nonparametric methods or unavailable counts in the source table. 
+
+Method # Params Run Time 
+
+Statistical and machine-learning methods 
+
+(Sub)-PCA – 1.5s KShapeAD – 8.0s DLinear < 0.1M 2.9s NLinear < 0.1M 5.8s 
+
+Neural methods 
+
+DeepAnT < 0.1M 2.0s USAD < 0.1M 1.7s TimesNet < 0.1M 11.2s FITS < 0.1M 3.1s DADA 1.84 M 0.8s KAN-AD < 0.1M 12.1s 
+
+Transformer methods 
+
+AnomalyTransformer 4.8M 48.9s DCdetector 0.9M 5.8s Lag-Llama 2.5M 1220.8s OFA 81 .9M 171.1s PatchTST 0.5M 26.3s iTransformer 0.6M 9.8s MOMENT (FT) 109 .6M 43.6s MOMENT (ZS) 109 .6M 42.9s TimesFM 203 .5M 83.8s 
+
+Representation-based methods and PAI terms 
+
+DCdetector 0.9M 5.8s PaAno 0.3M 6.9s 
+
+magG +T2 score terms 0 +0 .003 s
+
+14 Table 12: Weight-grid robustness on TSB-AD-U-Eva. Each row evaluates wez(e) + λg z(magG ) + 
+
+λq z(T2) on the common time-series instances. Bold marks the best value in each metric within a method block. 
+
+Method we λg λq n VUS-PR VUS-ROC AUC-PR AUC-ROC DCdetector 0.0 0.0 1.0 349 0.355 0.713 0.328 0.662 0.0 1.0 0.0 349 0.342 0.760 0.337 0.697 0.0 1.0 0.5 349 0.375 0.777 0.364 0.720 0.4 0.4 0.2 349 0.401 0.809 0.390 0.761 0.5 0.3 0.15 349 0.386 0.809 0.371 0.762 0.6 0.2 0.2 349 0.379 0.810 0.359 0.762 0.6 0.4 0.0 349 0.342 0.792 0.327 0.742 0.6 0.4 0.2 349 0.390 0.810 0.375 0.762 0.6 0.4 0.4 349 0.403 0.811 0.388 0.763 
+
+0.6 0.4 0.6 349 0.406 0.809 0.390 0.762 0.6 0.5 0.3 349 0.400 0.810 0.387 0.762 0.6 0.6 0.2 349 0.394 0.808 0.383 0.760 0.7 0.5 0.25 349 0.392 0.810 0.377 0.762 0.8 0.4 0.2 349 0.381 0.808 0.364 0.760 1.0 0.0 0.0 349 0.236 0.715 0.207 0.661 1.0 0.4 0.2 349 0.368 0.806 0.350 0.758 TS2Vec 0.0 0.0 1.0 349 0.355 0.713 0.328 0.662 0.0 1.0 0.0 349 0.342 0.760 0.337 0.697 0.0 1.0 0.5 349 0.375 0.777 0.364 0.720 0.4 0.4 0.2 349 0.470 0.866 0.448 0.827 0.5 0.3 0.15 349 0.473 0.870 0.447 0.830 0.6 0.2 0.2 349 0.475 0.871 0.447 0.830 0.6 0.4 0.0 349 0.468 0.868 0.441 0.826 0.6 0.4 0.2 349 0.473 0.869 0.447 0.829 0.6 0.4 0.4 349 0.474 0.867 0.448 0.827 0.6 0.4 0.6 349 0.473 0.863 0.447 0.822 0.6 0.5 0.3 349 0.472 0.867 0.448 0.827 0.6 0.6 0.2 349 0.472 0.868 0.449 0.828 0.7 0.5 0.25 349 0.473 0.869 0.448 0.829 0.8 0.4 0.2 349 0.475 0.871 0.448 0.830 1.0 0.0 0.0 349 0.470 0.869 0.436 0.823 1.0 0.4 0.2 349 0.475 0.871 0.447 0.831 
+
+TSPulse ZS encoder 0.0 0.0 1.0 349 0.355 0.713 0.328 0.662 0.0 1.0 0.0 349 0.342 0.760 0.337 0.697 0.0 1.0 0.5 349 0.375 0.777 0.364 0.720 
+
+0.4 0.4 0.2 349 0.256 0.722 0.218 0.658 0.5 0.3 0.15 349 0.232 0.715 0.194 0.650 0.6 0.2 0.2 349 0.225 0.709 0.186 0.645 0.6 0.4 0.0 349 0.179 0.692 0.143 0.624 0.6 0.4 0.2 349 0.237 0.716 0.199 0.652 0.6 0.4 0.4 349 0.256 0.718 0.218 0.655 0.6 0.4 0.6 349 0.268 0.719 0.231 0.656 0.6 0.5 0.3 349 0.253 0.720 0.215 0.656 0.6 0.6 0.2 349 0.246 0.721 0.209 0.656 0.7 0.5 0.25 349 0.240 0.717 0.202 0.653 0.8 0.4 0.2 349 0.224 0.712 0.185 0.647 1.0 0.0 0.0 349 0.107 0.586 0.068 0.519 1.0 0.4 0.2 349 0.213 0.709 0.174 0.644 
+
+15

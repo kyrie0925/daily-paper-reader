@@ -1,0 +1,1328 @@
+Title: Finding Needles in the Haystack: Transductive Active Labeling in Ecology
+
+URL Source: https://arxiv.org/pdf/2606.03821v1
+
+Published Time: Wed, 03 Jun 2026 01:36:03 GMT
+
+Number of Pages: 36
+
+Markdown Content:
+# Finding Needles in the Haystack: Transductive Active Labeling in Ecology 
+
+Rupa Kurinchi-Vendhan 1 and Sara Beery 1
+
+Massachusetts Institute of Technology, Cambridge MA 02139, USA Correspondence to: rupak272@mit.edu 
+
+Abstract. Active learning is now standard practice in labeling ecolog-ical data, enabling ecologists to quickly process large volumes of field data to understand and monitor natural environments. Current practices evaluate active learning inductively , estimating predictive performance on a held-out test set. We argue that this evaluation is misaligned with most ecological tasks, where the goal is to transductively label an entire pool of data as efficiently as possible. We demonstrate that ignoring the human-in-the-loop underestimates the importance of continuing to label, particularly for classes in the long tail which may be of disproportion-ate ecological importance (rare species, uncommon behaviors, etc.). Our analysis shows that, for this long tail, the transductive objective shifts importance from prediction to discovery : the true challenge becomes find-ing “needles in the haystack,” examples of rare classes that are embedded within dense regions of abundant classes in the latent geometry, which we quantify with a novel metric of sampling difficulty . Finally, to translate these insights to practical ecological workflows, we propose a conserva-tive hybrid stopping criterion inspired by ecological rarefaction curves, and show that combining predictive performance with discovery criteria reduces premature stopping on long-tailed pools, improving rare-class recovery when discovery—not classification—is the limiting factor. All data preprocessing and analysis scripts available here. 
+
+Keywords: Bioacoustics, Camera Traps, Active Learning, Induction vs. Transduction, Transductive Labeling, Representational Geometry, Stop-ping Criteria 
+
+1 Introduction 
+
+Ecologists and conservation scientists are now collecting environmental data at a scale that far exceeds what experts can manually annotate. A single passive acoustic recorder running continuously produces over 8,760 hours of audio per year, and monitoring campaigns often deploy dozens of such sensors across a study area [1]. Autonomous camera traps have given rise to programs such as Snapshot Safari, which spans 15 imaging projects across 1,824 camera locations [2]. Across modalities, the same core bottleneck persists: manual annotation by domain experts cannot keep pace with data collection.  
+
+> arXiv:2606.03821v1 [cs.LG] 2 Jun 2026 2Rupa Kurinchi-Vendhan and Sara Beery
+> Fig. 1. Framework for active labeling used in practice for ecological data.
+
+Today, AI-enabled ecological workflows often begin with a fixed deployment pool, embed each sample using a pretrained encoder, and train a lightweight task-specific model over these representations. Active labeling iteratively selects samples for expert annotation, updates the model, and propagates predictions across the remaining pool. This paradigm is common in bioacoustics [3–7] and is increasingly being extended to camera-trap imagery and remote sensing, where pretrained representations support large-scale ecological classification and mon-itoring [8–11]. Figure 1 illustrates the active-labeling framework studied here. In practice, ecologists are often not trying to train a classifier for future unseen data, but to label a fixed collection of observations gathered during a particular survey, season, or location. Researchers aim to identify which taxa are present, surface rare or previously unobserved events, and estimate ecological quantities of interest within the dataset itself [12–17]. We define this setting as 
+
+transductive active labeling , where the objective is to accurately label a fixed pool of data with minimal human input. Here, performance is calculated on the 
+
+entire pool , reflecting both classifier predictions on the remaining unlabeled data and the direct correction provided by human annotations as samples are labeled.     
+
+> Fig. 2. Held-out test performance does not capture the transductive ob-jective of labeling an entire pool using both human and model-generated labels. In this work, we show that accounting for human-provided labels substantially changes measured performance, especially for rare categories. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 3
+
+In contrast, most active learning benchmarks in ecology use an inductive evaluation framework, estimating performance using a held-out labeled test set. This distinction is illustrated in Figure 2. We argue that this evaluation is misaligned with the practical goal of transductive labeling, because it does not account for the iteratively growing set of human-in-the-loop labels over the fixed data pool. In this work, 1. we argue that inductive evaluation is misaligned with transductive objec-tives, and show empirically that the core challenge shifts from classification to discovery for the long tail; 2. we introduce a formal metric of discoverability that describes the difficulty of sampling data, and further formalize needles in haystacks as data that are highly difficult to sample; 3. we propose a novel stopping criterion for labeling based on both performance and discovery rates, inspired by ecological rarefaction curves, and show that it leads to better performance across rare categories than purely predictive performance-based criteria. 
+
+2 Related Works 
+
+Active Learning aims to reduce labeling cost by iteratively selecting the most informative examples for annotation. Early works introduce pool-based active learning, where a model queries labels from a fixed unlabeled pool and is re-trained after each acquisition step [18]. Research in this area primarily focuses on sampling strategies designed to maximize information gain [19–21]. Common approaches include uncertainty sampling, which selects examples for which the classifier is least confident; diversity-based sampling, which prioritizes examples that expand coverage of the feature space or reduce redundancy among labeled samples; and density-aware selection, which favors informative samples that also lie in high-density regions of the data distribution to avoid selecting outliers [20]. Recent work, particularly in bioacoustics, explores deep active learning meth-ods that operate on learned feature embeddings [7]. However, many foundation-model workflows rely on simple updates, such as linear probes or lightweight classifiers on frozen embeddings. In these settings, label efficiency depends pri-marily on which examples are selected, rather than on model retraining. We therefore focus on sampling behavior under realistic labeling workflows. 
+
+Benchmarking and Evaluation in Active Learning currently assumes an induc-tive objective, measuring predictive performance on a held-out, labeled test set [3, 4, 6, 22–24]. Evaluation in these settings is still largely summarized through predictive metrics on annotated test splits as a function of labeling budget [20, 25, 26]. While some ecological workflows are interested in a pretrained classifier that generalizes well, this is not always the case. In many monitor-ing deployments, practitioners are trying to label a fixed dataset, an inherently 
+
+transductive task. Most inductive benchmarks do not explicitly capture the true labeling progress from active learning, and may overlook the factors that deter-mine labeling efficiency in practice. 4 Rupa Kurinchi-Vendhan and Sara Beery 
+
+The Geometry of a latent space strongly shapes active learning because query strategies often depend on distances, densities, uncertainty neighborhoods, or coverage in representation space [20, 27, 28]. Prior work has used these prop-erties to evaluate embeddings through separability, local purity, and clustering quality [29–31]. Related work on instance hardness links local class overlap to classification difficulty, including through neighborhood-based measures such as 
+
+k-Disagreeing Neighbors [32]. However, these literatures primarily study diffi-culty for classification . In fine-grained ecological workflows, where the goal is to transductively label a fixed pool, we instead ask which points are geometrically difficult to sample early during active labeling. We call this property discoverabil-ity . Rather than proposing a new acquisition rule, we introduce an instance-level measure of sampling difficulty that combines local density and neighborhood pu-rity to identify points likely to remain hidden within dominant-class structure under common active sampling strategies. 
+
+Stopping Criteria determine when additional labeling is no longer worthwhile in an active learning workflow. Classic approaches monitor validation accuracy, model confidence, or stability of model predictions [20, 33–39]. However, such predictive signals alone may not reflect true progress on the deployment pool. In many ecological workflows, the pool itself is the dataset of interest, and its rele-vant structure may be rare, uneven, or poorly captured by a small validation set. Stable predictions may therefore indicate overconfidence or saturation of well-sampled regions rather than sufficient coverage, while held-out test performance may depend on a split that is not representative of the full pool. As a result, stopping criteria based only on held-out accuracy or prediction stability may provide limited guidance for determining when a dataset has been sufficiently explored. 
+
+3 Experimental Setup 
+
+Formal Definitions. Let D = {xi}Ni=1 denote a fixed pool of unlabeled data that an expert wishes to annotate. Active learning proceeds in cycles, with a fixed batch size of 10 samples per iteration (we include ablations over the batch size in Appendix Figure 18). The first batch is selected uniformly at random to initialize the labeled set. At iteration t, the labeled set is Lt ⊂ D and the remaining unlabeled pool is Ut = D \ L t. A query function q(·) selects a batch of samples from Ut for expert annotation, after which the newly labeled samples are added to Lt. This labeled set is used to retrain a multinomial logistic-regression probe from scratch at each active learning cycle. The probe operates on frozen 1536-dimensional Perch 2.0 embeddings and uses the resulting class probabili-ties for uncertainty-based query strategies; complete implementation details are provided in Appendix 6.2. 
+
+Inductive objective. Most active learning pipelines are evaluated in the inductive setting, where predictive performance is measured on a held-out test set, Dtest ⊂Finding Needles in the Haystack: Transductive Active Labeling in Ecology 5
+
+D. This test set is disjoint from both the labeled set Lt and the unlabeled pool 
+
+Ut, and is never accessed during sample selection or training. For each dataset, we reserve 20% of examples for inductive evaluation, while the remaining 80% constitutes the fixed pool used for transductive active labeling. We do not use a separate validation split. After each acquisition step, the classifier is trained on Lt
+
+and evaluated on Dtest . Under this protocol, labeling decisions affect performance only indirectly, through improvements in the classifier’s ability to generalize to unseen examples. We use the default splits provided by the BEANS benchmark, and apply a random 20% held-out split for the Snapshot Safari and ReefSet datasets. 
+
+Transductive objective. In contrast, we adopt a transductive perspective, where performance is considered over the full deployment pool D rather than on a separate held-out test set. At step t, examples in Lt are considered “correct” because they have been labeled by experts, while performance on examples in Ut
+
+depends on the predictions of the classifier ft trained on the labeled data. Overall performance therefore reflects both the examples already resolved by expert annotation and the classifier’s accuracy on the remaining unlabeled portion of the pool. This is not intended as a practical evaluation procedure, since measuring full-pool accuracy would require ground-truth labels for all examples. Instead, it provides a post-hoc diagnostic to reason about progress during active labeling. The distinction from inductive evaluation is important: under inductive evalua-tion, performance is measured on a disjoint test set, so labeling decisions matter only indirectly through improved generalization. Under the transductive labeling perspective, labeling decisions also improve realized system performance directly, because every newly annotated example is immediately resolved. Evaluating ac-curacy only on the unlabeled pool may be sufficient for acquisition, but it does not reflect the performance of the labeling system over the dataset as a whole. As we show below, this pool-level perspective can provide a more appropriate basis for deciding when additional expert labeling is no longer warranted. 
+
+Datasets. In this paper, we focus primarily on bioacoustic and other ecological audio datasets, with camera-trap imagery included as a complementary visual modality. We evaluate on the classification subset of the BEANS benchmark, to-gether with ReefSet and camera-trap datasets from the Snapshot Safari network, as summarized in Table 1. We focus on these datasets because they span multiple ecological monitoring modalities and provide a realistic testbed for active label-ing in biodiversity applications, where annotation is often costly, expert-driven, and deployed at scale. 
+
+Embedding Models. We evaluate several recent foundation models for rep-resentation extraction. For bioacoustic data, we consider Perch 2.0 [4], Perch 1.0 [3], SurfPerch [43], BirdNET [46], and BEATs [47]. All experiments below use Perch 2.0 embeddings for bioacoustic datasets, as they perform best across datasets [4]; a comparison to other embedding models is provided in the Ap-pendix 6.5. For image data, we use DINOv3 embeddings [48], which provide 6 Rupa Kurinchi-Vendhan and Sara Beery 
+
+Table 1. Datasets used in our analysis.                                        
+
+> Dataset # Samples # Classes Description
+> Watkins Marine Mammals [40] 1,695 32 whales, dolphins, seals, and wal-ruses (44.1 kHz) Cornell Birdcall Identification (CBI) [41] 21,375 264 birds (44.1 kHz) HumBugDB [42] 13,011 14 mosquito wingbeats (44.1 kHz) ReefSet [43] 57,074 37 reef biophony, anthrophony, and geophony (16 kHz) Egyptian Fruit Bats (EFB) [44] 10,000 10 individual bats (250 kHz) Dogs [45] 693 10 individual domestic dogs (44.1 kHz) Snapshot Kruger [2] 10,072 46 camera trap data from Kruger National Park Snapshot Camdeboo [2] 30,227 43 camera trap data from Camde-boo National Park Snapshot Kgalagadi [2] 10,222 31 camera trap data from the Kgalagadi Transfrontier Park
+
+strong general-purpose visual representations and have proven to have strong zero-shot representations of animal images [8]. 
+
+Sampling Strategies. We evaluate several commonly used active learning query strategies: random sampling; least confidence, which prioritizes examples with the lowest maximum predicted class probability; margin sampling, which uses the smallest gap between the top two predicted class probabilities; entropy sampling, which uses the highest predictive entropy; BADGE, a gradient-based strategy combining uncertainty and diversity [49]; and coreset sampling, which maximizes coverage of the embedding space using a k-center objective [28]. 
+
+Metrics. Unless otherwise noted, all reported accuracy values reflect class-averaged classification accuracies, to account for severe class imbalance in eco-logical datasets. 
+
+4 Results 
+
+Comparing estimated inductive performance to actualized transduc-tive performance. For each active learning strategy, we measure performance using a normalized class-averaged accuracy metric that subtracts the random-sampling baseline at each labeling budget. This normalization makes perfor-mance more comparable across datasets. We define 
+
+Anorm (b) = A(b) − Arand (b)
+
+Amax (b) − Arand (b) , (1) where A(b) denotes class-averaged accuracy after labeling b samples, Arand (b)is the corresponding class-averaged accuracy achieved by random sampling at the same budget, and Amax (b) is the empirical performance ceiling at budget b,defined as the maximum class-averaged accuracy achieved across all evaluated methods for that dataset. A value of Anorm (b) = 0 indicates performance equal Finding Needles in the Haystack: Transductive Active Labeling in Ecology 7
+
+to random sampling, while Anorm (b) = 1 indicates performance at the empirical ceiling. We report Anorm (b) across labeling budgets and average across datasets for aggregate comparisons.  
+
+> Fig. 3. Transductive performance scales with labeled data, while inductive evaluation is limited by test-set generalization. Normalized accuracy, averaged across datasets, shows that inductive evaluation systematically underestimates the util-ity of active learning for fixed-pool ecological labeling. Under a transductive objective, performance continues to improve as more samples in the pool are labeled. In contrast, inductive performance saturates once generalization to the held-out test set (20% of the data) becomes the limiting factor.
+
+Figure 3 shows that inductive evaluation systematically misrepresents the actualized performance of active learning for fixed-pool deployments. Actualized transductive labeling performance is intuitively higher than estimated perfor-mance via inductive evaluation: once a sample is labeled, it directly contributes to the number of correctly labeled examples in the pool. Inductive evaluation does not account for this direct impact of having a human-in-the-loop, and thus only captures the indirect impact of improved model predictions when training additional human labels. 
+
+Discovery, Not Classification Drives this Performance Gap. The gap in performance as estimated via inductive evaluation and actualized transductive labeling performance can be attributed to the impact of rare categories on an class-average accuracy. Figure 4 illustrates this effect on the Watkins Marine Mammal dataset as a representative example. Under inductive evaluation (mid-dle), rare classes have low and unstable held-out accuracy. With limited labeled examples, the model cannot reliably predict categories it has barely observed. In contrast, under the transductive setting (right), accuracy within the fixed deployment pool is substantially higher, particularly for rare classes, as it ac-counts for correct human labeling when examples of those classes are sampled. The same pattern holds across datasets and acquisition strategies, as shown in the Appendix Figures 13, and 14, 15. 8 Rupa Kurinchi-Vendhan and Sara Beery  
+
+> Fig. 4. Sampling and annotating, not classification, drives rare-category per-formance. On the Watkins Marine Mammal dataset, inductive evaluation underesti-mates long-tail performance. After labeling 25% of the dataset with margin sampling (left), predicted accuracy on the rarest 20% of classes remains low on a held-out test set (middle). Once these classes are discovered in the fixed pool, they are labeled with high accuracy (right). Thus, rare-class outcomes are primarily limited by sampling, not classification.
+
+This observation reframes how we interpret rare class performance in learned systems –prior work consistently documents poor performance for these cate-gories [20, 50]. In long-tailed ecological datasets, rare classes are often of dis-proportionate scientific interest (e.g. endangered species), but difficult to learn because they are infrequently observed during training. However, our results em-phasize that, in a transductive setting, performance is fundamentally sampling-limited , not classifier-limited. Thus, a system that predicts common classes well and surfaces rare classes for an expert to directly label would be both efficient and accurate. The primary bottleneck for rare-class performance in transduc-tive active labeling is therefore discovery : how efficiently these rare samples are surfaced. 
+
+What makes data systematically harder to discover? Because acquisition functions operate on embeddings z = fθ (x) without access to ground-truth labels at query time, selection decisions are governed by representation geometry. If long-tail performance is sampling-limited, what properties of the representation space determine which data are discovered earlier? 
+
+To study this phenomenon, we introduce a notion of sampling difficulty , which measures how likely a sample is to remain hidden during active labeling. Intu-itively, samples are harder to discover when they lie in dense regions of the embedding space but are surrounded by examples from other classes. For each sample i, we define its local neighborhood using clusters induced by k-means in the embedding space. Specifically, we run k-means over the full deployment pool D using the embeddings z = fθ (x), and let c(i) denote the cluster assignment of sample i. We then define the neighborhood of i as 
+
+C(i) = {j ∈ D : c(j) = c(i), j ̸ = i}. Here, k denotes the number of k-means clusters and determines the granularity at which local structure is measured. Unless otherwise noted, we set k to the number of ground-truth classes in the dataset. In Appendix 6.3, we ablate over clustering algorithm and cluster counts around the number of true classes and show that the identified needle sets are relatively stable across these choices. We use these cluster-based neighborhoods to characterize two aspects of discoverability: local density —how densely a sam-Finding Needles in the Haystack: Transductive Active Labeling in Ecology 9
+
+ple is embedded—and local isolation —how isolated it is with respect to its own class. 
+
+(1) Local density. We measure how dense a sample’s neighborhood is by first computing the average pairwise distance across the full deployment pool, 
+
+μpool = 2
+
+|D| (|D| − 1) 
+
+X
+
+> i<j
+
+∥zi − zj ∥2, (2) which provides a reference distance scale for the embedding space. For each sample i, we then compute the average distance from i to other samples in its assigned cluster, 
+
+μclust (i) = 1
+
+|C (i)|
+
+X
+
+> j∈C (i)
+
+∥zi − zj ∥2. (3) Local density is defined as ρi = μpool  
+
+> μclust (i)
+
+. Large values of ρi indicate that the sample lies in a locally dense region of the representation space. This is related in spirit to density-aware active learning, but here density is used to analyze discoverability rather than to define a query rule [20, 51]. In Appendix 6.3, we verify that the identified needle sets are stable across distance metric choice. 
+
+(2) Local isolation. We measure how well a sample is locally surrounded by others from the same class within its assigned cluster: 
+
+πi = 1
+
+|C (i)|
+
+X
+
+> j∈C (i)
+
+1[yj = yi]. (4) This quantity is the fraction of samples in the same cluster that share the label of sample i. High values of πi indicate that the sample is well isolated with respect to its own class, while low values indicate that it belongs to a cluster dominated by other classes. This is closely related to overlap-based hardness measures such as k-Disagreeing Neighbors [32], but uses cluster-induced neighborhoods rather than fixed-size nearest-neighbor sets. We combine these two quantities to define the sampling difficulty, 
+
+di = ρi
+
+πi
+
+. (5) Difficulty is therefore high when a point lies in a dense region but has low local isolation. Such points are geometrically hidden, like needles in a haystack .Unlike prior density or overlap measures, which are typically used to explain classification difficulty or guide representative sampling, our score is intended to quantify discoverability : whether a sample is likely to be surfaced early during fixed-pool active labeling. Since di is continuous and its scale may vary across datasets, we define needles 
+
+as the upper tail of the difficulty distribution within each dataset rather than through a fixed absolute threshold; unless otherwise noted, we use the top 25% 10 Rupa Kurinchi-Vendhan and Sara Beery 
+
+Fig. 5. Needles concentrate in the long tail, across datasets. Across datasets, needles are both skewed toward minority classes and systematically harder to sample due to dense, mixed local neighborhoods in embedding space. 
+
+most difficult samples for the analysis and visualizations below. Our conclusions do not depend on the exact percentile used; results are qualitatively stable across a range of high-percentile thresholds (see Appendix 6.3). Acquisition strategies operating on density or uncertainty are likely, simply due to local class imbalance, to select the more abundant class in a region, delay-ing discovery of these high-difficulty points. We show in Figure 5 that needles are concentrated in the long tail (additional datasets are shown in Appendix Figure 16). However, needles aren’t always rare categories. Under our definition, a class may be globally rare yet geometrically isolated and therefore easy to discover. Conversely, a sample may be difficult to sample because it lies within a dense region dominated by another class, even if its class is not extremely rare overall. Figure 6 illustrates this concept. In some cases, these can be   
+
+> rare classes that are confused for a more common class.
+> Needles are often “hidden” amongst more common classes, making them less likely to be classified correctly unless sampled.
+
+Fig. 6. Needles (highlighted) are minority-class samples embedded within or adjacent to dense clusters of dominant classes. Because acquisition strategies operate on embedding geometry rather than labels, such points are less likely to be sampled early despite being scientifically important, in some cases. 
+
+To contextualize this in the bioacoustic domain, a single species may produce acoustically distinct vocalizations depending on age, behavioral context, record-ing device, or environmental conditions. Adult and juvenile calls, for example, often form separate subclusters in embedding space due to differences in pitch and temporal structure. Similarly, alarm calls, mating calls, and contact calls can occupy distinct acoustic regions despite sharing the same taxonomic label. When dominant species exhibit such intra-class variability, some subclusters may overlap with other semantically similar classes. Rare taxa can therefore become embedded within dense regions associated with common species. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 11 
+
+Difficult Data Are Discovered Late. To understand the dynamics of rare class discovery in transductive active labeling, we analyze the relationship between discovery time—the active learning cycle at which a class is first observed— and needle difficulty.  
+
+> Fig. 7. Difficult data are discovered later, across datasets. We compare the dif-ficulty of each needle against the cycle at which it is sampled, averaged across sampling strategies.
+
+Figure 7 confirms a clear positive relationship between sample difficulty and discovery time on multiple datasets: data embedded within dense, mixed neigh-borhoods are systematically discovered later during active learning. This pattern holds across datasets (see Appendix Figure 17). Although data from rarer classes tend to exhibit higher difficulty, the relationship is not strictly monotonic. Some rare data are geometrically isolated and discovered early, while others are em-bedded within dominant class data and remain hidden until much later. 
+
+The Difficulty Landscape is Dynamic. Sampling difficulty changes during active labeling. Figure 8 shows that active labeling makes the discovery problem easier over time. Average difficulty over the full dataset and needle set at each cycle both decline, indicating that labeling removes hard examples and changes the geometry of the remaining pool. On the Watkins Marine Mammal dataset, the representation shifts most early in labeling, when class discovery also rises fastest. As discovery saturates, the representation stabilizes. Thus, many needles are not intrinsically hard. They are hard under the current geometry, and become easier once nearby informative examples are labeled and the representation is updated. Snapshot Kruger shows the same pattern in a more discovery-limited, long-tailed setting: stabilization occurs later, when class coverage begins converging. Needle difficulty is therefore representation-dependent rather than fixed. Rep-resentation quality is shaped by several factors, including the label ontology and the embedding model itself. Coarsening the label set by merging similar cate-gories can make the embedding space appear better separated, because the task no longer requires resolving fine-grained distinctions. Conversely, finer-grained ontologies expose boundaries that may be collapsed or poorly separated in the representation. The embedding model, on the other hand, directly determines 12 Rupa Kurinchi-Vendhan and Sara Beery  
+
+> Fig. 8. Sampling difficulty evolves as active labeling reshapes the geometry of the pool. Left: the average difficulty of both needles and the full pool decreases as labeling progresses, across datasets. Middle: on Watkins, representation change (as measured by a mutual kNN between cycles) stabilizes as class discovery saturates. Right: on the more long-tailed Snapshot Kruger dataset, the representation stabilizes later, and class coverage is slower.
+
+the geometry of the space. We examine the effects of label ontology and embed-ding model choice in Appendices 6.4 and 6.5. 
+
+When to Stop Labeling. In transductive active labeling, strong predictive performance on common classes is necessary but not sufficient; active labeling must also continue long enough to discover rare classes. In long-tailed datasets, this makes discovery a central stopping signal. This perspective is closely related to ecological rarefaction [52], which plots the cumulative number of unique species observed as a function of sampling effort. Sampling is considered effectively complete when the curve plateaus and additional sampling yields few or no newly discovered species. In practice, experts decide when to stop labeling using a fixed labeling budget [20], pseudo-label consistency across active-learning cycles [34, 53], or predictive performance on a held-out labeled validation set [7, 54]. 
+
+Prediction Stability measures by pseudo-label entropy on the remaining unlabeled pool 
+
+Ct = 1
+
+|Ut|
+
+X
+
+> x∈Ut
+
+1[ˆ yt(x)̸ = ˆ yt−1(x)] . (6) Low values of Ct indicate that the model is no longer substantially changing its predictions over the unlabeled pool [34, 53]. An Inductive Threshold stops labeling once predictive performance on a held-out labeled set exceeds a target value. Formally, if At denotes a held-out performance metric at active-learning cycle t, then inductive stopping declares convergence when At ≥ τind , where τind is a predefined performance target. To capture the importance of discovery in transductive labeling, we intro-duce a rarefaction-inspired Discovery Stability criterion, which asks whether successive annotation batches are still revealing new classes. Let dt denote the fraction of newly observed classes in batch t. We smooth this signal over the most recent w active-learning cycles ¯dt = 1
+
+> w
+
+Pti=t−w+1 di. Discovery is considered sat-urated when ¯dt < τ disc . In relatively simple datasets, discovery can saturate early Finding Needles in the Haystack: Transductive Active Labeling in Ecology 13 ReefSet  
+
+> EFB
+> Kruger
+> Kgalagadi
+> ReefSet
+> EFB
+> Kruger
+> Kgalagadi
+> Fig. 9. Our proposed hybrid stopping rule balances predictive performance, discovery, and label efficiency. Each point shows the fraction of the pool labeled and transductive performance at stopping, with error bars across strategies. On long-tailed datasets, discovery stability labels more data, but improves rare-class recovery.
+
+even though additional labels still improve classifier quality; rare discoveries can also be intermittent, so a brief period without new classes sampled does not necessarily imply that the remaining pool has been exhausted. We propose a Hybrid Stopping Rule that stops only after both predictive performance and discovery saturation conditions have been satisfied. Concretely, this rule stops at max( tind , t disc ). This criterion balances the two goals of trans-ductive active labeling: achieving strong predictive performance on the dominant structure while continuing long enough to recover rare, scientifically important classes. We use a randomized dataset-wise tuning split (CBI, Dogs, Watkins, Hum-BugDB, Camdeboo) to select stable parameters (see Appendix 6.7), and report final stopping performance on held-out datasets (EFB, ReefSet, Kruger, Kgala-gadi). In our experiments, we choose conservative values that lie in stable regions of the sensitivity analysis. We set δ = 0 .01 as a conservative prediction-stability threshold: smaller values delay stopping until pseudo-label entropy is very low, but yield only modest gains. We set w = 6 to smooth the discovery signal; smaller windows are highly sensitive to brief periods without new class sam-pled, while larger windows add little stability. We set τdisc = 0 .005 because it lies in a broad stable region. We set τind = 0 .95, following prior agile modeling work [7], because higher ROC-AUC thresholds mainly improve performance by requiring substantially more labels. Finally, we use a 20% held-out set because smaller validation sets make inductive stopping noisy, while larger sets add lim-ited stability and remove more labeled examples from training. These stopping parameters are tunable and should be adapted to the task. For example, when the test distribution is known to be representative and predictive performance is the primary objective, the inductive threshold can be increased. Figure 9 highlights a consistent tradeoff between label efficiency and recovery of the rare tail. For inductive stopping, we adjust the reported fraction labeled to include the validation set, since these examples also require expert annotation. We compare the four stopping rules described above: prediction stability, induc-14 Rupa Kurinchi-Vendhan and Sara Beery 
+
+tive threshold, discovery stability, and the hybrid criterion. Prediction stability consistently stops earliest, and is therefore the most label-efficient rule, but this efficiency comes at a clear cost in performance. In contrast, inductive threshold-ing is strongest on simpler, balanced datasets such as EFB, where all classes are sampled early on and additional labels mainly improve the classifier. Inductive accuracy remains a reliable proxy for predictive performance over the unlabeled pool. In our transductive setting, the labeled examples used to construct the validation set for inductive stopping are not wasted effort: they still contribute to the overall goal of labeling the fixed pool. On more long-tailed, discovery-limited datasets like ReefSet, Kruger, and Kgalagadi, discovery stability yields substantially better rare-class performance, with a slightly larger labeling budget. Inductive evaluation is a strong proxy for predictive performance, but it is not always the right target in a transductive set-ting. A model can achieve high predictive performance on the dominant structure in the pool while rare, but potentially scientifically important categories remain unsampled. The hybrid rule provides the most practical default: it remains effi-cient on simpler pools while avoiding premature stopping on long-tailed datasets where discovery is the dominant bottleneck. 
+
+5 Conclusion 
+
+Many ecological annotation workflows are inherently transductive , where the goal is to accurately label a collected pool of data. Yet most methods are evaluated 
+
+inductively , ignoring the human-in-the-loop and misrepresenting real annotation performance. We empirically demonstrate across diverse bioacoustic and image datasets that this gap is most exaggerated in the long tail of the data distribution. Because classifiers struggle with rare classes but experts label them easily once surfaced, performance becomes discovery-limited: the key challenge is sampling those examples to label. This is easy when the embeddings of rare categories are well-separated in the representational geometry of the dataset, but far more difficult when they are isolated within dense dominant-class regions. Our analysis formalizes this as the notion of “finding needles in haystacks,” and we show that such samples are discovered systematically later during labeling. Future work should benchmark methods as transductive active labeling problems rather than inductive active learning tasks, and continue building on discovery-centered sampling strategies designed to surface rare and informative examples. In practice, we cannot measure transductive performance on unlabeled data, making it unclear when to stop labeling. To address this, we introduce a stop-ping criterion inspired by ecological rarefaction that tracks the declining yield of samples. This criterion consistently improves performance on rare classes while maintaining strong labeling performance. Our proposed shift of focus towards transductive labeling better matches the needs of ecologists, and will hopefully lead to the development of methods better-targeted to the reliable and efficient annotation of large-scale environmental datasets. Bibliography 
+
+[1] Larissa Sayuri Moreira Sugai, Thiago Sanna Freire Silva, Jos´ e Wagner Ribeiro Jr, and Diego Llusia. Terrestrial passive acoustic monitoring: Re-view and perspectives. BioScience , 69(1):15–25, 2019. [2] Lain E Pardo, Sara Bombaci, Sarah E Huebner, Michael J Somers, Herve Fritz, Colleen Downs, Abby Guthmann, Robyn S Hetem, Mark Keith, Al-iza le Roux, et al. Snapshot Safari: A large-scale collaborative to monitor Africa’s remarkable biodiversity. South African Journal of Science , 117(1-2):1–4, 2021. [3] Burooj Ghani, Tom Denton, Stefan Kahl, and Holger Klinck. Global bird-song embeddings enable superior transfer learning for bioacoustic classifi-cation. Scientific Reports , 13(1):22876, 2023. [4] Bart van Merri¨ enboer, Vincent Dumoulin, Jenny Hamer, Lauren Harrell, Andrea Burns, and Tom Denton. Perch 2.0: The bittern lesson for bioa-coustics. arXiv preprint arXiv:2508.04665 , 2025. [5] Andrea Burns, Lauren Harrell, Bart van Merri¨ enboer, Vincent Dumoulin, Jenny Hamer, and Tom Denton. Perch 2.0 transfers ’whale’ to underwater tasks. arXiv preprint arXiv:2512.03219 , 2025. [6] Masato Hagiwara, Benjamin Hoffman, Jen-Yu Liu, Maddie Cusimano, Felix Effenberger, and Katie Zacarian. BEANS: The benchmark of animal sounds. In ICASSP 2023–2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE, 2023. [7] Vincent Dumoulin, Otilia Stretcu, Jenny Hamer, Lauren Harrell, Rob Laber, Hugo Larochelle, Bart van Merri¨ enboer, Amanda Navine, Patrick Hart, Ben Williams, et al. The search for squawk: Agile modeling in bioa-coustics. arXiv preprint arXiv:2505.03071 , 2025. [8] Hugo Markoff, Stefan Hein Bengtson, and Michael Ørsted. Vision trans-formers for zero-shot clustering of animal images: A comparative bench-marking study. arXiv preprint arXiv:2602.03894 , 2026. [9] Zalan Fabian, Zhongqi Miao, Chunyuan Li, Yuanhan Zhang, Ziwei Liu, Andr´ es Hern´ andez, Andr´ es Montes-Rojas, Rafael Escucha, Laura Siabatto, Andr´ es Link, et al. Multimodal foundation models for zero-shot animal species recognition in camera trap images. arXiv preprint arXiv:2311.01064 ,2023. [10] Gaspard Dussert, Vincent Miele, Colin Van Reeth, Anne Delestrade, St´ ephane Dray, and Simon Chamaill´ e-Jammes. Zero-shot animal behaviour classification with vision-language foundation models. Methods in Ecology and Evolution , 16(7):1460–1472, 2025. [11] Marvin Burges, Philipe Ambrozio Dias, Carson Woody, Sarah Walters, and Dalton Lunga. Active learning meets foundation models: Fast remote sens-ing data annotation for object detection. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 6058–6068, 2025. 16 Rupa Kurinchi-Vendhan and Sara Beery 
+
+[12] T Mitchell Aide, Carlos Corrada-Bravo, Marconi Campos-Cerqueira, Carlos Milan, Giovany Vega, and Rafael Alvarez. Real-time bioacoustics monitor-ing and automated species identification. PeerJ , 1:e103, 2013. [13] J´ erˆ ome Sueur, Sandrine Pavoine, Olivier Hamerlynck, and St´ ephanie Du-vail. Rapid acoustic survey for biodiversity appraisal. PLoS ONE ,3(12):e4065, 2008. [14] Rory Gibb, Ella Browning, Paul Glover-Kapfer, and Kate Jones. Emerging opportunities and challenges for passive acoustics in ecological assessment. 
+
+Methods in Ecology and Evolution , 10:169–185, 2019. [15] Mohammad Sadegh Norouzzadeh, Anh Nguyen, Margaret Kosmala, Alexandra Swanson, Meredith S Palmer, Craig Packer, and Jeff Clune. Au-tomatically identifying, counting, and describing wild animals in camera-trap images with deep learning. Proceedings of the National Academy of Sciences , 115(25):E5716–E5725, 2018. [16] Robin Steenweg, Mark Hebblewhite, Roland Kays, Jorge Ahumada, Jason T Fisher, Cole Burton, Susan E Townsend, Chris Carbone, J Marcus Rowcliffe, Jesse Whittington, et al. Scaling-up camera traps: Monitoring the planet’s biodiversity with networks of remote sensors. Frontiers in Ecology and the Environment , 15(1):26–34, 2017. [17] Alexandra Swanson, Margaret Kosmala, Chris Lintott, Robert Simpson, Arfon Smith, and Craig Packer. Snapshot Serengeti, high-frequency anno-tated camera trap images of 40 mammalian species in an African savanna. 
+
+Scientific Data , 2(1):1–14, 2015. [18] David D Lewis. A sequential algorithm for training text classifiers: Cor-rigendum and additional data. In ACM SIGIR Forum , volume 29, pages 13–19. ACM New York, NY, USA, 1995. [19] Berry Weinstein, Shai Fine, and Yacov Hel-Or. Selective sampling for accel-erating training of deep neural networks. arXiv preprint arXiv:1911.06996 ,2019. [20] Burr Settles. Active learning literature survey. 2009. [21] Yifan Fu, Xingquan Zhu, and Bin Li. A survey on instance selection for active learning. Knowledge and Information Systems , 35(2):249–283, 2013. [22] Marius Miron, David Robinson, Milad Alizadeh, Ellen Gilsenan-McMahon, Gagan Narula, Emmanuel Chemla, Maddie Cusimano, Felix Effenberger, Masato Hagiwara, Benjamin Hoffman, et al. Avex: What matters for ani-mal vocalization encoding. In The Fourteenth International Conference on Learning Representations , 2026. [23] Jenny Hamer, Eleni Triantafillou, Bart Van Merri¨ enboer, Stefan Kahl, Hol-ger Klinck, Tom Denton, and Vincent Dumoulin. BIRB: A generaliza-tion benchmark for information retrieval in bioacoustics. arXiv preprint arXiv:2312.07439 , 2023. [24] Lukas Rauch, Raphael Schwinger, Moritz Wirth, Ren´ e Heinrich, Denis Huseljic, Marek Herde, Jonas Lange, Stefan Kahl, Bernhard Sick, Sven Tom-forde, et al. BirdSet: A large-scale dataset for audio classification in avian bioacoustics. arXiv preprint arXiv:2403.10380 , 2024. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 17 
+
+[25] Xueying Zhan, Huan Liu, Qing Li, and Antoni B Chan. A comparative survey: Benchmarking for pool-based active learning. In IJCAI , pages 4679– 4686, 2021. [26] Venkata Vamsikrishna Meduri, Lucian Popa, Prithviraj Sen, and Mohamed Sarwat. A comprehensive benchmark framework for active learning methods in entity matching. In Proceedings of the 2020 ACM SIGMOD International Conference on Management of Data , pages 1133–1147, 2020. [27] Burr Settles and Mark Craven. An analysis of active learning strategies for sequence labeling tasks. In Proceedings of the 2008 Conference on Empirical Methods in Natural Language Processing , pages 1070–1079, 2008. [28] Ozan Sener and Silvio Savarese. Active learning for convolutional neural networks: A core-set approach. arXiv preprint arXiv:1708.00489 , 2017. [29] Peter J Rousseeuw. Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. Journal of Computational and Applied Math-ematics , 20:53–65, 1987. [30] David L Davies and Donald W Bouldin. A cluster separation measure. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence , (2):224– 227, 1979. [31] Tobias Schnabel, Igor Labutov, David Mimno, and Thorsten Joachims. Evaluation methods for unsupervised word embeddings. In Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing ,pages 298–307, 2015. [32] Michael R Smith, Tony Martinez, and Christophe Giraud-Carrier. An instance-level analysis of data complexity. Machine Learning , 95(2):225– 256, 2014. [33] Andreas Vlachos. A stopping criterion for active learning. Computer Speech & Language , 22(3):295–312, 2008. [34] Michael Bloodgood and K Vijay-Shanker. A method for stopping active learning based on stabilizing predictions and the need for user-adjustable stopping. In Proceedings of the Thirteenth Conference on Computational Natural Language Learning (CoNLL-2009) , pages 39–47, 2009. [35] Fredrik Olsson and Katrin Tomanek. An intrinsic stopping criterion for committee-based active learning. In Proceedings of the Thirteenth Confer-ence on Computational Natural Language Learning (CoNLL-2009) , pages 138–146, 2009. [36] Jingbo Zhu, Huizhen Wang, Eduard Hovy, and Matthew Ma. Confidence-based stopping criteria for active learning for data annotation. ACM Trans-actions on Speech and Language Processing (TSLP) , 6(3):1–24, 2010. [37] Hideaki Ishibashi and Hideitsu Hino. Stopping criterion for active learning based on error stability. arXiv preprint arXiv:2104.01836 , 2021. [38] Wenquan Wang, Wenbin Cai, and Ya Zhang. Stability-based stopping cri-terion for active learning. In 2014 IEEE International Conference on Data Mining , pages 1019–1024. IEEE, 2014. [39] Yexun Zhang, Wenbin Cai, Wenquan Wang, and Ya Zhang. Stopping cri-terion for active learning with model stability. ACM Transactions on Intel-ligent Systems and Technology (TIST) , 9(2):1–26, 2017. 18 Rupa Kurinchi-Vendhan and Sara Beery 
+
+[40] Laela Sayigh, Mary Ann Daher, Julie Allen, Helen Gordon, Katherine Joyce, Claire Stuhlmann, and Peter Tyack. The Watkins marine mammal sound database: An online, freely accessible resource. In Proceedings of Meetings on Acoustics , volume 27, page 040013. Acoustical Society of America, 2016. [41] Cornell Lab of Ornithology. Cornell Birdcall Identification. https://www. kaggle.com/competitions/birdsong-recognition , 2020. Kaggle compe-tition. [42] Ivan Kiskin, Marianne Sinka, Adam D Cobb, Waqas Rafique, Lawrence Wang, Davide Zilli, Benjamin Gutteridge, Rinita Dam, Theodoros Marinos, Yunpeng Li, et al. HumBugDB: A large-scale acoustic mosquito dataset. 
+
+arXiv preprint arXiv:2110.07607 , 2021. [43] Ben Williams, Bart Van Merri¨ enboer, Vincent Dumoulin, Jenny Hamer, Abram B Fleishman, Matthew McKown, Jill Munger, Aaron N Rice, Ash-lee Lillis, Clemency White, et al. Using tropical reef, bird and unrelated sounds for superior transfer learning in marine bioacoustics. Philosophical Transactions of the Royal Society B: Biological Sciences , 380(1928), 2025. [44] Yosef Prat, Mor Taub, Ester Pratt, and Yossi Yovel. An annotated dataset of Egyptian fruit bat vocalizations across varying contexts and during vocal ontogeny. Scientific Data , 4(1):170143, 2017. [45] Sophia Yin and Brenda McCowan. Barking in domestic dogs: Context specificity and individual identification. Animal Behaviour , 68(2):343–355, 2004. [46] Stefan Kahl, Connor M Wood, Maximilian Eibl, and Holger Klinck. Bird-NET: A deep learning solution for avian diversity monitoring. Ecological Informatics , 61:101236, 2021. [47] Sanyuan Chen, Yu Wu, Chengyi Wang, Shujie Liu, Daniel Tompkins, Zhuo Chen, and Furu Wei. BEATs: Audio pre-training with acoustic tokenizers. 
+
+arXiv preprint arXiv:2212.09058 , 2022. [48] Oriane Sim´ eoni, Huy V Vo, Maximilian Seitzer, Federico Baldassarre, Maxime Oquab, Cijo Jose, Vasil Khalidov, Marc Szafraniec, Seungeun Yi, Micha¨ el Ramamonjisoa, et al. DINOv3. arXiv preprint arXiv:2508.10104 ,2025. [49] Jordan T Ash, Chicheng Zhang, Akshay Krishnamurthy, John Langford, and Alekh Agarwal. Deep batch active learning by diverse, uncertain gra-dient lower bounds. arXiv preprint arXiv:1906.03671 , 2019. [50] Hannes Kath, Patricia P Serafini, Ivan B Campos, Thiago S Gouvˆ ea, and Daniel Sonntag. Leveraging transfer learning and active learning for data annotation in passive acoustic monitoring of wildlife. Ecological Informatics ,82:102710, 2024. [51] Jingbo Zhu, Huizhen Wang, Tianshun Yao, and Benjamin K Tsou. Ac-tive learning with sampling by uncertainty and density for word sense disambiguation and text classification. In Proceedings of the 22nd Inter-national Conference on Computational Linguistics (COLING 2008) , pages 1137–1144, 2008. [52] David M Raup. Taxonomic diversity estimation using rarefaction. Paleobi-ology , 1(4):333–342, 1975. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 19 
+
+[53] Masood Ghayoomi. Using variance as a stopping criterion for active learning of frame assignment. In Proceedings of the NAACL HLT 2010 Workshop on Active Learning for Natural Language Processing , pages 1–9, 2010. [54] Zac Pullar-Strecker, Katharina Dost, Eibe Frank, and J¨ org Wicker. Hitting the target: Stopping active learning at the cost-based optimum. Machine Learning , 113(4):1529–1547, 2024. 20 Rupa Kurinchi-Vendhan and Sara Beery 
+
+6 Supplementary Material 
+
+6.1 Audio Preprocessing 
+
+All bioacoustic datasets undergo standardized preprocessing to ensure consistent input for embedding extraction. Raw audio files are converted into fixed-length 5-second clips using the following protocol: (1) clips shorter than 5 seconds are zero-padded at the end to reach the target duration, (2) clips longer than 5 seconds are trimmed by extracting the highest-energy 5-second window using a sliding window energy calculation, and (3) clips of exactly 5 seconds are retained as-is. This preprocessing ensures uniform temporal dimensions while preserving the most informative acoustic content from longer recordings. The processed clips are stored with their corresponding class labels in CSV format for downstream embedding extraction and active learning experiments. 
+
+6.2 Classifier Implementation Details 
+
+For all main experiments, we train a lightweight classifier on top of frozen em-beddings. After each acquisition cycle, the classifier is retrained on the full set of labeled examples accumulated so far. Our default classifier is a multinomial logistic-regression probe implemented with LogisticRegression from scikit-learn. Given a d-dimensional input em-bedding z ∈ Rd, the classifier predicts class logits 
+
+ℓ = zW + b, 
+
+where W ∈ Rd×C and b ∈ RC for a dataset with C classes. This corresponds to a single linear layer with no hidden units. The model is trained with multinomial cross-entropy loss. We use scikit-learn’s default lbfgs solver with L2 regulariza-tion, C=1.0 , max iter=500 , and a fixed random state for reproducibility. At active learning cycle t, the classifier is fit on all labeled examples in Lt
+
+and then used to produce class probabilities over the unlabeled pool. These probabilities are used by uncertainty-based acquisition strategies such as least-confidence and margin sampling, and the resulting predictions are used for both inductive and transductive evaluation. We retrain the classifier from scratch after each cycle rather than warm-starting from the previous round. 
+
+MLP comparison. We also evaluate an MLP baseline to test whether our con-clusions depend on using a strictly linear classifier. This model is implemented with scikit-learn’s MLPClassifier and uses a single hidden layer with 64 units. It is trained with cross-entropy loss, max iter=500 , default L2 regularization (alpha=0.0001 ), and no early stopping. Unless otherwise noted, all other as-pects of the active learning pipeline remain unchanged. The goal of this work is to study the effect of sample selection and evalua-tion protocol in realistic fixed-pool labeling workflows, rather than to optimize classifier capacity on top of frozen embeddings. Our use of simple linear classi-fiers is consistent with standard practice in prior bioacoustic embedding-based Finding Needles in the Haystack: Transductive Active Labeling in Ecology 21 0 20 40 60 80 100                                         
+
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Accuracy
+> EFB
+> 020 40 60 80 100
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Dogs
+> 020 40 60 80 100
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> CBI
+> Linear probe
+> MLP
+> 020 40 60 80 100
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Accuracy
+> Watkins
+> 020 40 60 80 100
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Humbug
+> 020 40 60 80 100
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> ReefSet
+> 020 40 60 80 100
+> % of Data Labeled
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Accuracy
+> Snapshot Kruger
+> 020 40 60 80 100
+> % of Data Labeled
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Snapshot Camdeboo
+> 020 40 60 80 100
+> % of Data Labeled
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Snapshot Kgalagadi
+
+Fig. 10. Linear probe vs. MLP performance across datasets. For each dataset, we compare accuracy as a function of labeling budget for a linear probe and a multi-layer perceptron (MLP) trained on the same learned representation. Solid lines show the mean trajectory across active learning strategies, and shaded bands indicate the strategy-wise range. Across datasets, the MLP generally outperforms the linear probe, with especially large gains on the image datasets (Snapshot Kruger, Camdeboo, and Kgalagadi), suggesting that representation quality can determine classifier expressivity, especially when the initial embeddings are not linearly separable. 
+
+pipelines, where lightweight probes are often used. Moreover, for the foundation-model embeddings considered here, a simple classifier is already sufficient to sep-arate many classes reasonably well, allowing us to focus on the role of sample selection rather than classifier expressivity. 
+
+6.3 Robustness of Sampling Difficulty Definition 
+
+Our main analysis defines sampling difficulty using a geometric, label-relative criterion. Intuitively, a difficult sample is one whose embedding lies in a locally ambiguous or low-density region while also being poorly supported by nearby samples from the same class. This definition is intended to capture samples that are hard to discover through standard training dynamics: they are not merely rare in the dataset, but rare in the representation geometry in a way that limits local class evidence. Because this score depends on choices such as the 22 Rupa Kurinchi-Vendhan and Sara Beery 
+
+neighborhood construction, distance metric, and difficulty threshold, we evaluate whether our conclusions are robust to these design decisions. 
+
+Sensitivity to clustering resolution. We use k-means to define local neighbor-hoods for measuring density and label isolation, setting k to the true number of classes in each dataset. This choice provides a natural semantic scale: it partitions the embedding space at approximately the granularity of class-level structure, without introducing an additional tuned hyperparameter. Appendix Fig. 13 eval-uates sensitivity to this choice by varying the number of clusters K and measur-ing the resulting number of detected needles. As expected, needle counts depend on K, since finer partitions expose smaller low-density regions and coarser parti-tions merge distinct semantic neighborhoods. However, the curves vary smoothly and remain stable in a neighborhood around the true class cardinality. This sug-gests that our results are not driven by a brittle choice of clustering resolution, but by a persistent geometric signal near the relevant semantic scale. 
+
+Robustness to neighborhood construction and distance metric. Table 2 compares our default definition against several perturbations. We report three quanti-ties: rank correlation ρ between difficulty scores, Jaccard overlap between the top-25% most difficult samples and the default needles, and the correlation r
+
+between difficulty and sampling/discovery time. These metrics separate two no-tions of robustness. Rank correlation asks whether the overall ordering of sam-ples is preserved; Jaccard overlap asks whether the same high-difficulty subset is identified; and sampling-time correlation asks whether the resulting notion of difficulty preserves the behavioral phenomenon of interest. Agglomerative clustering behaves similarly to k-means, producing high rank correlations, substantial overlap among top-difficulty samples, and comparable correlations with delayed discovery. This indicates that the signal is not specific to the optimization or Voronoi geometry of k-means. Replacing Euclidean dis-tance with cosine distance also yields similar needle sets, suggesting that the em-bedding geometry is stable under standard choices of metric. In contrast, HDB-SCAN produces only moderate score agreement and substantially lower overlap with the default needles. More importantly, the HDBSCAN-derived needles are weakly correlated with later discovery, suggesting that its density-adaptive clus-ters capture a different notion of outlierness rather than the sampling difficulty signal we study. We therefore retain the simpler class-scale clustering construc-tion, which better aligns with delayed discovery. 
+
+Robustness to the difficulty threshold. Our main experiments define needles using the top 25% of the difficulty distribution. This threshold is not meant to imply a sharp phase transition between difficult and easy samples; rather, it provides a fixed operating point for comparing datasets. To verify that the qualitative con-clusions are not threshold-specific, we repeat the analysis for thresholds ranging from the top 5% to the top 75% of samples. Across this range, the same trends persist: high-difficulty samples are disproportionately concentrated in the long tail, and they are discovered later during sampling. The relationship between Finding Needles in the Haystack: Transductive Active Labeling in Ecology 23                       
+
+> Category Variation ρTop-25% Jac. r
+> Clustering Agglomerative .76–.91 .60–.74 .52–.76 HDBSCAN .45–.63 .28–.46 .08–.21 Distance Cosine vs. Euclid. .87–.95 .70–.77 .46–.69 Alt. difficulty LID .54–.68 .34–.49 .24–.41 Intrinsic Curvature .18–.32 .12–.24 .03–.17
+
+Table 2. Difficulty robustness across datasets. We compare the default sampling-difficulty score to perturbations of the neighborhood construction, distance metric, and geometric difficulty definition. We report score rank correlation ρ, Jaccard overlap with the default top-25% difficult samples, and correlation r between difficulty and discovery time. 
+
+difficulty and discovery time remains positive across thresholds, with correla-tions in the range r = .48– .71. Figure 12 shows that the effect is strongest for the most extreme samples, particularly in the top 5–10%, consistent with the interpretation that the highest-difficulty region contains the clearest “needle” examples. As the threshold is relaxed, the difficult set includes more borderline cases, so the magnitude of the effect decreases but does not disappear. 
+
+Comparison to alternative geometric difficulty scores. We also compare against two alternative geometry-only diagnostics: local intrinsic dimensionality (LID) and intrinsic curvature. LID partially recovers the delayed-discovery signal, yield-ing moderate rank correlations and nontrivial overlap with our default difficult set. This suggests that local expansion or sparsity in the embedding space is indeed one component of sampling difficulty. However, LID does not explicitly account for class support, so it cannot distinguish a geometrically sparse but class-consistent region from a sparse region that is label-isolated. Intrinsic cur-vature is substantially weaker across all metrics, with low overlap and weak correlation with sampling time. This indicates that curvature alone does not capture the class-relative scarcity that determines whether a sample is difficult to discover. These ablations support two conclusions. First, the empirical findings are robust to reasonable perturbations of clustering algorithm, distance metric, and difficulty threshold. Second, the strongest predictor of delayed discovery is not generic geometric atypicality alone, but a label-relative notion of geometric diffi-culty that combines local density with class isolation. This motivates our use of the proposed sampling-difficulty score in the main analysis and suggests that re-lated label-aware geometric diagnostics may be useful for future active-sampling and dataset-auditing methods. 
+
+6.4 Exploring the Effect of Task Granularity 
+
+In ecological monitoring, the same underlying dataset may be labeled at very different levels of specificity: a study may separate broad acoustic sources such as biophony versus anthropophony, or it may require fine-grained species-level 24 Rupa Kurinchi-Vendhan and Sara Beery 
+
+recognition. These choices define the label ontology, and therefore define which regions of embedding space remain ambiguous during active labeling. If discovery difficulty is driven by representation geometry, then changing the label space should change the difficulty distribution. Fine-grained ontologies fragment the data into many small, overlapping subclusters, which increases the number of rare and geometrically difficult examples. Coarser ontologies collapse semantically similar classes into larger groups, reduce local overlap, and shrink the set of examples that remain difficult to discover. Under this view, long-tail difficulty is not only a property of class frequency; it is also a property of task granularity. We test this effect on three datasets by replacing fine-grained labels with coarser grouped ontologies and then comparing the resulting needle counts and grouped class-averaged accuracy. The common pattern is that coarsening the ontology sharply reduces the number of geometrically difficult examples and improves recoverability of the long tail. For Watkins, we collapse fine-grained marine-mammal species into broader taxonomic groups: dolphins , whales , narwhals , seals , and walruses . Under this grouped ontology, the total number of needles drops from 47 to 6, an 87.2% reduction, while the grouped class-averaged accuracy increases from 0.762 to 0.956, a gain of 19.4%. The largest improvements occur for the rarest marine-mammal groups, where much of the original difficulty comes from within-group confusion among semantically similar species. For ReefSet, we collapse fine-grained reef-sound labels into the broader acous-tic categories biophony , anthrophony , ambient , and geophony . This coarser sound-source ontology reduces the total number of needles from 1,357 to 265, an 80.5% reduction, and increases grouped class-averaged accuracy from 0.936 to 0.994, a gain of 5.8%. Although the absolute accuracy improvement is smaller than in Watkins, the direction is identical: collapsing semantically nearby fine-grained labels removes local overlap and makes rare groups easier to surface. For Snapshot Kruger, we use the LILA taxonomy mapping to collapse fine-grained species labels to a coarser order-level ontology. Because a full grouped-label rerun is not yet available for Kruger, the total number of needles falls from 248 to 73, a 70.6% reduction, while the grouped class-averaged accuracy increases from 0.803 to 0.940, a gain of 13.8%. The largest fine-label needle concentrations occur within broad orders such as Artiodactyla and Carnivora , which is exactly where we would expect coarse grouping to remove within-group ambiguity. Across marine acoustics, reef soundscapes, and camera-trap imagery, coarser tasks reduce the number of ambiguous local distinctions the representation must preserve, which reduces the number of needles and improves long-tail recoverabil-ity. This has direct implications for human labeling efficiency. Rare classes are often straightforward for experts to annotate once surfaced; the main bottleneck is locating them in the pool. Fewer needles therefore means fewer ambiguous regions that must be explored before rare classes are discovered, reducing the amount of active labeling needed to recover the long tail. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 25 
+
+Table 3. Cluster alignment (NMI) across datasets and embedding models. 
+
+Higher is better. SurfPerch is excluded from ReefSet comparison because of overlap with the training dataset of this model.                                                             
+
+> Dataset Perch 2.0 Perch 1.0 SurfPerch BirdNET BEATS AudioMAE
+> Watkins 0.63 0.42 0.38 0.18 0.29 0.15 CBI 0.71 0.64 0.58 0.47 0.54 0.43 ReefSet 0.44 0.41 –0.28 0.32 0.24 EFB 0.57 0.50 0.45 0.35 0.40 0.29 HumBugDB 0.42 0.38 0.35 0.27 0.30 0.23 Dogs 0.79 0.71 0.64 0.51 0.56 0.45 Kruger 0.61 0.54 0.49 0.34 0.39 0.28 Camdeboo 0.58 0.52 0.47 0.33 0.37 0.27 Kgalagadi 0.63 0.56 0.50 0.36 0.41 0.30
+
+Table 4. Needle counts across datasets and embedding models. Lower is better.                                                             
+
+> Dataset Perch 2.0 Perch 1.0 SurfPerch BirdNET BEATS AudioMAE
+> Watkins 47 50 55 59 61 65 CBI 11 13 15 18 16 19 ReefSet 1357 1451 –1644 1604 1714 EFB 781 859 902 961 918 997 HumBugDB 457 497 526 565 546 592 Dogs 345657Kruger 248 281 306 364 337 397 Camdeboo 502 558 594 689 645 735 Kgalagadi 268 296 322 384 349 413
+
+6.5 Exploring the Effect of Embedding Model Choice 
+
+Changing the label ontology affects which distinctions must be resolved; chang-ing the embedding model affects how separable those distinctions are in the first place. Together, these factors determine the geometry over which transductive active labeling operates. If rare classes are geometrically isolated, most acquisi-tion rules can surface them efficiently; if they remain entangled with dominant structure, even strong heuristics struggle to recover them quickly. In this sense, embedding quality directly influences how much data must be labeled before the long tail becomes accessible. To quantify this effect, we compare embedding models across datasets under a fixed annotation budget using margin sampling. For each dataset-model pair, we report three complementary quantities: cluster alignment (NMI), the number of geometrically difficult samples (“needles”), and the fraction of rare samples surfaced during active labeling. Tables 3–5 show a consistent pattern: stronger encoders produce better cluster alignment, fewer needles, and earlier recovery of rare examples. The effect is especially pronounced on discovery-limited datasets such as ReefSet and the camera-trap datasets, where representation quality has a large influence on how quickly rare structure becomes separable. Across datasets, Perch 2.0 produces the strongest cluster alignment, the fewest needles, and the earliest rare-sample recovery, while weaker or less spe-cialized encoders leave more minority examples geometrically obscured. This pattern is mild on easier datasets such as Dogs and CBI, but becomes much more consequential on harder discovery-limited settings such as ReefSet and the camera-trap datasets. These tables therefore support the claim that improving 26 Rupa Kurinchi-Vendhan and Sara Beery 
+
+Table 5. Fraction of rare samples surfaced during active labeling. Higher is better. Values are reported after the same fixed annotation budget with margin sampling. 
+
+Dataset Perch 2.0 Perch 1.0 SurfPerch BirdNET BEATS AudioMAE 
+
+Watkins 0.62 0.54 0.46 0.37 0.41 0.31 CBI 0.81 0.72 0.66 0.55 0.60 0.49 ReefSet 0.40 0.36 – 0.25 0.28 0.21 EFB 0.69 0.60 0.54 0.41 0.47 0.36 HumBugDB 0.49 0.43 0.39 0.31 0.35 0.27 Dogs 0.91 0.84 0.76 0.63 0.70 0.58 Kruger 0.78 0.70 0.64 0.50 0.56 0.44 Camdeboo 0.73 0.66 0.60 0.47 0.53 0.41 Kgalagadi 0.76 0.68 0.61 0.48 0.55 0.42 
+
+representation geometry can matter more for transductive active labeling than switching between acquisition heuristics alone. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 27 
+
+Fig. 11. Sensitivity of needle detection to the number of clusters K used to compute sampling difficulty. We evaluate how the number of clusters used in 
+
+K-means affects the identification of rare-class samples (“needles”). For each dataset, we vary K and measure the number of needles detected under our geometric difficulty criterion. The dashed red line indicates the value of K equal to the true number of classes in the dataset, while the green band highlights the neighborhood around this value. As expected, the number of detected needles depends on K, since clustering resolution determines how finely the embedding space is partitioned. However, the curves change smoothly and remain stable near the true class count. We therefore use the true number of classes as the clustering resolution in our analysis, as it provides a natural and interpretable scale for approximating semantic structure in the embedding space while avoiding arbitrary hyperparameter choices. 28 Rupa Kurinchi-Vendhan and Sara Beery 5 10 25 50 75 
+
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> Correlation r
+
+EFB      
+
+> 510 25 50 75
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+Dogs      
+
+> 510 25 50 75
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+CBI     
+
+> 510 25 50 75
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> Correlation r
+
+Watkins      
+
+> 510 25 50 75
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+Humbug      
+
+> 510 25 50 75
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+ReefSet     
+
+> 510 25 50 75
+> Top % Hardest
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> Correlation r
+
+Snapshot Kruger      
+
+> 510 25 50 75
+> Top % Hardest
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+Snapshot Camdeboo      
+
+> 510 25 50 75
+> Top % Hardest
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+
+Snapshot Kgalagadi 
+
+Fig. 12. Harder needles are discovered later, across difficulty thresholds. 
+
+For each dataset, we vary the threshold used to define the “hard” subset from the top 5% to the top 75% of samples ranked by difficulty and measure the correlation 
+
+r between difficulty score and discovery time under active sampling. Across datasets, the relationship remains positive over a broad range of thresholds, indicating that harder samples are consistently discovered later. The effect is strongest for the most extreme difficult samples, especially around the top 5–10%, and weakens gradually as the threshold is relaxed to include more borderline cases, but it does not disappear. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 29 
+
+6.6 Additional Figures 
+
+Fig. 13. Rare classes are sampling-limited, across acquisition strategies. Re-sults are shown after labeling 25% of the dataset over the Watkins Marine Mammal Dataset, across random, entropy, and coreset strategies, across five seeds. 30 Rupa Kurinchi-Vendhan and Sara Beery 
+
+Fig. 14. Rare classes are sampling-limited, across bioacoustic datasets . Re-sults shown after labeling 25% per dataset, with margin sampling across five seeds. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 31 
+
+Fig. 15. Rare classes are sampling-limited, across image datasets . Results shown after labeling 25% per dataset, with margin sampling across five seeds. 32 Rupa Kurinchi-Vendhan and Sara Beery 
+
+Fig. 16. Needles concentrate in the long tail, across datasets. Across image and bioacoustic datasets, needles are both skewed toward minority classes and system-atically harder to sample due to dense, mixed local neighborhoods in embedding space. EFB is an exception, where the data is uniformly distributed across the classes. solation 
+
+> density
+
+Fig. 17. Across datasets, difficult classes are discovered later. We compare the average difficulty for all data in a class against the cycle at which the class is first discovered, with error bars reported across all baseline sampling strategies. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 33 
+
+Fig. 18. Effect of budget size under transductive labeling. Normalized accuracy under margin sampling (seed 42), averaged across all six datasets, as a function of the percentage of the pool labeled for different batch sizes (labels acquired per iteration). Batch size has minimal effect on transductive labeling performance because as the batch size increases and more data are labeled per iteration, there are more data points automatically considered “correct.” Smaller batch sizes may achieve slightly higher efficiency due to more frequent model updates. 34 Rupa Kurinchi-Vendhan and Sara Beery 
+
+6.7 Sensitivity to Stopping Criteria Parameters 
+
+For each of the following sensitivity analyses over the parameter-tuning datasets in our stopping criteria analysis, each panel varies one stopping parameter while holding the others fixed at their default values. Blue and red curves show common-class and rare-class transductive labeling performance, respectively, and the green dashed curve shows the percentage of data labeled. Shaded regions in-dicate variability across simulated repeats. The vertical dashed line marks the chosen default value, and the dotted line marks the best-performing value for this dataset under a balanced accuracy-versus-labeling-cost criterion. The stopping behavior is reasonably stable across a broad range of settings, with predictable trade-offs between performance and annotation budget. 0.02 0.04 0.06 0.08 0.10                   
+
+> Parameter value
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Transductive Labeling Performance
+> Prediction Threshold
+> 246810
+> Parameter value
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Transductive Labeling Performance
+> Discovery Window w
+> 0.00 0.05 0.10 0.15 0.20
+> Parameter value
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Transductive Labeling Performance
+> Discovery Threshold disc
+> 0.92 0.94 0.96 0.98
+> Parameter value
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Transductive Labeling Performance
+> ROC-AUC Threshold
+> 0.0 0.1 0.2 0.3 0.4 0.5
+> Parameter value
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Transductive Labeling Performance
+> Test Set Fraction
+> Common-class accuracy
+> Rare-class accuracy
+> Chosen default
+> Best for dataset
+> % labeled
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> % labeled
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> % labeled
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> % labeled
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> % labeled
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> % labeled
+
+CBI: Parameter Sensitivity 
+
+Fig. 19. Sensitivity to Stopping Criteria Parameters on the CBI Dataset. Finding Needles in the Haystack: Transductive Active Labeling in Ecology 35 0.02 0.04 0.06 0.08 0.10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Prediction Threshold 
+
+2 4 6 8 10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Window w
+
+0.00 0.05 0.10 0.15 0.20 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Threshold disc 
+
+0.92 0.94 0.96 0.98 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+ROC-AUC Threshold 
+
+0.0 0.1 0.2 0.3 0.4 0.5 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Test Set Fraction 
+
+Common-class accuracy 
+
+Rare-class accuracy 
+
+Chosen default 
+
+% labeled 
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+Dogs: Parameter Sensitivity 
+
+Fig. 20. Sensitivity to Stopping Criteria Parameters on the Dogs Dataset. 0.02 0.04 0.06 0.08 0.10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Prediction Threshold 
+
+2 4 6 8 10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Window w
+
+0.00 0.05 0.10 0.15 0.20 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Threshold disc 
+
+0.92 0.94 0.96 0.98 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+ROC-AUC Threshold 
+
+0.0 0.1 0.2 0.3 0.4 0.5 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Test Set Fraction 
+
+Common-class accuracy 
+
+Rare-class accuracy 
+
+Chosen default 
+
+% labeled 
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+HumBugDB: Parameter Sensitivity 
+
+Fig. 21. Sensitivity to Stopping Criteria Parameters on the HumBugDB Dataset. 36 Rupa Kurinchi-Vendhan and Sara Beery 0.02 0.04 0.06 0.08 0.10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Prediction Threshold 
+
+2 4 6 8 10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Window w
+
+0.00 0.05 0.10 0.15 0.20 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Threshold disc 
+
+0.92 0.94 0.96 0.98 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+ROC-AUC Threshold 
+
+0.0 0.1 0.2 0.3 0.4 0.5 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Test Set Fraction 
+
+Common-class accuracy 
+
+Rare-class accuracy 
+
+Chosen default 
+
+% labeled 
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+Watkins: Parameter Sensitivity 
+
+Fig. 22. Sensitivity to Stopping Criteria Parameters on the Watkins Dataset. 0.02 0.04 0.06 0.08 0.10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Prediction Threshold 
+
+2 4 6 8 10 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Window w
+
+0.00 0.05 0.10 0.15 0.20 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Discovery Threshold disc 
+
+0.92 0.94 0.96 0.98 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+ROC-AUC Threshold 
+
+0.0 0.1 0.2 0.3 0.4 0.5 
+
+Parameter value 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Transductive Labeling Performance
+
+Test Set Fraction 
+
+Common-class accuracy 
+
+Rare-class accuracy 
+
+Chosen default 
+
+% labeled 
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+0
+
+20 
+
+40 
+
+60 
+
+80 
+
+100 
+
+> % labeled
+
+Snapshot Camdeboo: Parameter Sensitivity 
+
+Fig. 23. Sensitivity to Stopping Criteria Parameters on the Snapshot Camdeboo Dataset.
