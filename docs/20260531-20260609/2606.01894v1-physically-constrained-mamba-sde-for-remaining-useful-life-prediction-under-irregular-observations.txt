@@ -1,0 +1,944 @@
+Title: Physically-Constrained Mamba-SDE for Remaining Useful Life Prediction under Irregular Observations
+
+URL Source: https://arxiv.org/pdf/2606.01894v1
+
+Published Time: Tue, 02 Jun 2026 03:19:27 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# Physically-Constrained Mamba-SDE for Remaining Useful Life Prediction under Irregular Observations 
+
+## Deyu Zhuang 
+
+Nanjing University of Aeronautics and Astronautics Nanjing, China deyu.zhuang@nuaa.edu.cn 
+
+## Peiliang Gong ∗
+
+Nanyang Technological University Singapore plgong@outlook.com 
+
+## Yang Shao 
+
+Nanjing University of Aeronautics and Astronautics Nanjing, China shaoyang@nuaa.edu.cn 
+
+## Liyuan Shu 
+
+Nanjing University of Aeronautics and Astronautics Nanjing, China lyshu1106@nuaa.edu.cn 
+
+## Qi Zhu 
+
+Nanjing University of Aeronautics and Astronautics Nanjing, China zhuqi@nuaa.edu.cn 
+
+## Xiaoli Li 
+
+Singapore University of Technology and Design Singapore xiaoli_li@sutd.edu.sg 
+
+## Daoqiang Zhang ∗
+
+Nanjing University of Aeronautics and Astronautics Nanjing, China dqzhang@nuaa.edu.cn 
+
+## Abstract 
+
+Accurate Remaining Useful Life prediction is critical for indus-trial predictive maintenance. However, real-world deployment is challenging due to the irregular nature of sensor observations, characterized by asynchronous sampling, burst missingness, and temporal jitter. Compounding this issue, purely data-driven mod-els often generate physically implausible degradation trajectories that violate the irreversible nature of damage accumulation. To address this, we propose PC-MambaSDE, a unified continuous-time framework for robust RUL prediction under irregular observations. Specifically, we design a Mask-Aware Continuous Mamba Encoder that explicitly leverages observation masks to extract context-rich control signals. Furthermore, we introduce a Physics-Guided La-tent SDE with parametrically rectified hybrid drift, superimposing a global physical bias to enforce monotonic degradation even amid severe observation gaps. Additionally, we formulate RUL prediction as a boundary value problem via a Terminal Degradation Penalty, which decouples a Health Index dimension and applies a penalty loss to guide trajectories toward the failure state. Theoretically, we prove that our variational objective is mathematically equiv-alent to minimizing the KL divergence via Girsanov’s theorem, and we guarantee the global asymptotic stability of the learned dy-namics through Lyapunov analysis. To enable rigorous evaluation, we develop a Hybrid Irregularity Generation Scheme that simu-lates realistic industrial imperfections. Extensive experiments on public benchmarks demonstrate that PC-MambaSDE significantly  
+
+> ∗Corresponding Author
+> This work is licensed under a Creative Commons Attribution 4.0 International License.
+> KDD ’26, Jeju Island, Republic of Korea
+> ©2026 Copyright held by the owner/author(s). ACM ISBN 979-8-4007-2259-2/2026/08 https://doi.org/10.1145/3770855.3817877
+
+outperforms state-of-the-art methods, particularly under extreme observation scarcity, validating the efficacy of embedding physical priors into continuous-time latent dynamics. Our code is available at https://github.com/KylinToeFish/PC-MambaSDE. 
+
+## CCS Concepts 
+
+• Applied computing → Engineering ; • Computing method-ologies → Neural networks .
+
+## Keywords 
+
+Remaining Useful Life Prediction, Sparse and Irregular Data, Sto-chastic Differential Equations, Mamba, Physical Constraints 
+
+ACM Reference Format: 
+
+Deyu Zhuang, Peiliang Gong, Yang Shao, Liyuan Shu, Qi Zhu, Xiaoli Li, and Daoqiang Zhang. 2026. Physically-Constrained Mamba-SDE for Re-maining Useful Life Prediction under Irregular Observations. In Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Min-ing V.2 (KDD ’26), August 09–13, 2026, Jeju Island, Republic of Korea. ACM, New York, NY, USA, 12 pages. https://doi.org/10.1145/3770855.3817877 
+
+## 1 Introduction 
+
+Predictive Maintenance (PdM) has emerged as a cornerstone of modern industrial reliability, enabling proactive management of high-value assets such as aircraft engines and manufacturing sys-tems [ 3 , 25 ]. Central to PdM is the estimation of Remaining Useful Life (RUL), a problem typically cast as a multivariate time series regression task where the objective is to map historical sensor trajec-tories to a time-to-failure target [ 13 , 15 ]. Driven by the availability of large-scale benchmarks like C-MAPSS, data-driven approaches have evolved rapidly. Early works utilized Convolutional Neural Networks (CNNs) to capture local temporal features [ 19 , 23 ], while Recurrent Neural Networks (RNNs), including LSTMs and GRUs,    
+
+> arXiv:2606.01894v1 [cs.AI] 1 Jun 2026 KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Zhuang et al. ＋=
+> Hybrid
+> Drift
+> Monotonic
+> Degradation
+> Constraint
+> Data -Driven
+> Adaptivity
+> SDE Evolution
+> Cone
+> Failure Threshold
+> (HI=0) Predicted
+> RUL
+> Constrained
+
+Figure 1: Generative Mechanism of PC-MambaSDE via Para-metrically Rectified Hybrid Drift. 
+
+became the standard for modeling long-term temporal dependen-cies [ 8 , 10 , 34 ]. More recently, attention-based mechanisms have been explored to further enhance interpretability and performance in dense data regimes [6, 22]. However, real-world industrial deployment is often hampered by sparse and irregular time series, resulting from sensor malfunc-tions, discrete sampling, or network latency [ 17 , 18 ]. Traditional sequential models, which assume fixed sampling intervals, exhibit substantial performance degradation under such conditions [ 4 ]. Conventional remedies employ imputation or interpolation tech-niques—such as cubic splines, Gaussian processes, or functional principal component analysis (FPCA)—to realign data onto regular temporal grids [ 2, 14 , 31 ]. However, as demonstrated by Wang et al. [ 28 ], such two-stage “impute-then-predict” pipelines often in-troduce significant bias and amplify uncertainty, particularly when degradation signals are highly scarce. Similarly, Cheng et al. [ 7] pro-posed a parameterized static regression framework that mitigates data scarcity through historical posterior rectification. While these methods effectively address certain impacts of sparsity, they remain discrete or static in nature, failing to capture the continuous-time evolution intrinsic to physical degradation processes. To overcome the inherent limitations of discrete-time architec-tures, the machine learning community has increasingly adopted Neural Differential Equations. By formulating latent state evolution as a continuous-time process, models such as Neural Controlled Differential Equations (Neural CDEs) [ 16 ] and Latent Stochastic Dif-ferential Equations (Latent SDEs) [ 20 , 27 ] naturally accommodate sporadic observations without ad-hoc interpolation. This paradigm has enabled sophisticated architectures including GRU-ODE-Bayes [9 ] and Neural Continuous-Discrete State Space Models (SSMs) [ 1 ], offering theoretically principled frameworks for irregular temporal dynamics. While continuous-time modeling has emerged as a dom-inant approach for general irregular data processing, its application to RUL prediction remains relatively unexplored and confronts domain-specific challenges. Standard Latent SDEs operate as “black-box” generative models lacking the physical constraints inherent to mechanical degrada-tion. Specifically, they fail to guarantee the monotonicity of the degradation process or ensure that the trajectory converges strictly to a failure state at end-of-life [ 32 ]. Furthermore, purely data-driven neural drift functions exhibit spurious oscillations or unphysical stagnation in data-sparse regions, violating the fundamental ir-reversibility of damage accumulation. Although Park et al. [ 21 ]recently proposed ACSSM to approximate posterior path measures via amortized control, ensuring stochastic trajectories rigorously adhere to physical endpoint constraints without computationally prohibitive approximations remains an open problem. Additionally, effective latent dynamics necessitate robust context encoding from irregular observations. While modern SSMs such as Mamba [ 11 ]and Structured State Space sequence model (S4) [ 12 ] excel at se-quence modeling, their standard implementations do not explicitly exploit the informative missingness patterns characteristic of PdM data [ 26 ], limiting their capacity to generate precise control signals for downstream differential equation solvers. To address these critical gaps, we propose Physically-Constrained 
+
+Mamba-SDE (PC-MambaSDE ), a unified continuous-time frame-work for robust RUL prediction under sparse and irregular condi-tions. Specifically, we design a Mask-Aware Continuous Mamba Encoder that explicitly fuses observation masks with sensor values within the selective state space mechanism, extracting continu-ous, context-rich control signals to precisely guide SDE evolution. As illustrated in Figure 1, we develop a Parametrically Rectified Hybrid Drift mechanism that superimposes a global, learnable phys-ical bias onto local neural vector fields, guaranteeing monotonic degradation even in observation-sparse regions. Furthermore, we introduce a Terminal Degradation Penalty that explicitly decouples a "Health Index" (HI) dimension within the latent space. By penaliz-ing terminal deviations, we guide stochastic processes to converge physically to failure states, bridging data-driven generation and physical degradation laws. We rigorously evaluate our method on widely-adopted bench-marks using a novel Hybrid Irregularity Generation Scheme (HIGS) that systematically simulates realistic industrial imperfections in-cluding asynchronous dropout, structural burst missingness, tempo-ral jitter, and state-dependent noise. Extensive experiments demon-strate that PC-MambaSDE significantly outperforms state-of-the-art baselines, particularly in highly scarce data scenarios, vali-dating the effectiveness of integrating physical constraints with continuous-time stochastic modeling. The main contributions of this paper can be summarized as follows: 
+
+• We propose PC-MambaSDE, a unified continuous-time frame-work designed for RUL prediction under sparse and irregular observations. By integrating state space models with stochas-tic differential equations, our approach effectively bridges the gap between discrete, data-driven representation learn-ing and continuous physical degradation laws. 
+
+• We design a Mask-Aware Continuous Mamba Encoder to extract continuous, context-rich control signals by explicitly fusing observation masks with time-series data. Furthermore, we propose a Physics-Guided Latent SDE with a Paramet-rically Rectified Hybrid Drift and a Terminal Degradation Penalty, which enforces monotonic degradation trends and strictly constrains trajectories toward the failure boundary. 
+
+• We formulate a multidimensional irregularity benchmark that simulates realistic industrial imperfections, such as asyn-chronous dropout and burst missingness. Extensive experi-ments on C-MAPSS and N-CMAPSS datasets demonstrate that our model achieves superior robustness and accuracy compared to state-of-the-art baselines, particularly in sce-narios with extreme data scarcity. 
+
+• We provide a rigorous theoretical analysis of the proposed framework. We prove that minimizing the control energy Physically-Constrained Mamba-SDE for Remaining Useful Life Prediction under Irregular Observations KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+is mathematically equivalent to maximizing the Evidence Lower Bound via Girsanov’s theorem, and we strictly estab-lish the global asymptotic stability of the basis-decomposed drift using Lyapunov theory. 
+
+## 2 Related Work 2.1 Data-Driven RUL Prediction 
+
+In the past decade, data-driven Prognostics and Health Management has shifted from traditional feature engineering to deep learning architectures. CNNs were among the first to effectively extract local temporal features from multivariate sensor data. Babu et al. [ 23 ]introduced a deep CNN for RUL estimation, and subsequent works like Li et al. [ 19 ] and Yang et al. [ 30 ] further improved performance by using time-windowed approaches and double-convolution struc-tures to capture multi-scale patterns. To address the sequential nature of degradation, RNN architectures, particularly LSTMs, be-came the dominant paradigm. Zheng et al. [ 34 ] and Heimes [ 15 ]demonstrated the superiority of LSTMs in capturing long-term de-pendencies in the C-MAPSS benchmark. More recently, attention mechanisms have been introduced to weight critical time steps. Chen et al. [ 6] proposed an attention-based deep learning frame-work, while Qin et al. [ 22 ] and Xu et al. [ 29 ] integrated feature-temporal attention to better focus on sensitive features. However, these methods typically assume that sensor data is dense and regu-larly sampled. When applied to sparse or irregular industrial data, they often require preprocessing steps like interpolation, which can introduce significant bias [ 28 ]. Unlike these discrete-time ap-proaches, our PC-MambaSDE operates in continuous time, inher-ently accommodating irregularity without reconstruction. 
+
+## 2.2 Modeling Irregular Time Series 
+
+Handling irregular sampling is a fundamental challenge in time series analysis. Classic approaches rely on imputation methods, such as spline interpolation [ 2] or FPCA [ 14 , 31 ]. However, Wang et al. [ 28 ] argued in their work on Sparse MFMLP that such two-stage “impute-then-learn” strategies are suboptimal for scarce data. Similarly, Cheng et al. [ 7] recently proposed a parameterized static regression framework to bypass interpolation by rectifying pre-dictions with historical estimates. While these methods mitigate sparsity, they remain static or discrete, failing to model the under-lying continuous dynamics of the system. A more rigorous solution lies in Neural Differential Equations. Neural ODEs [ 5 ] and Neural CDEs [ 16 ] treat the hidden state as a continuous function of time, naturally handling arbitrary time intervals. For stochastic systems, Latent SDEs [ 20 , 27 ] extend this by incorporating Brownian motion to model uncertainty. Advanced frameworks like GRU-ODE-Bayes [ 9] and Neural Continuous-Discrete SSMs [ 1] have shown great performance in medical and climate domains. Recently, Park et al. [ 21 ] introduced the ACSSM, employing amortized control and Doob’s ℎ-transform to approximate posterior path measures for irregular time series. While ACSSM excels in sequence modeling, it lacks the monotonic constraints essential for fatigue degrada-tion. We address this by integrating a physics-constrained terminal penalty into SDE dynamics. 
+
+## 2.3 State Space Models and Generative Models 
+
+State Space Models have seen a resurgence as efficient alterna-tives to Transformers for long sequence modeling. Gu et al. [ 12 ]introduced the S4, and subsequently Mamba [ 11 ], which utilizes a selective scanning mechanism to achieve linear complexity. These models are theoretically grounded in continuous systems, mak-ing them suitable encoders for differential equations. Nevertheless, standard Mamba implementations are designed for continuous data streams and lack explicit mechanisms to handle the informative missingness characteristic of PdM data [ 26 ]. In terms of genera-tion, while Generative Adversarial Networks have been explored for time-series regeneration [ 33 ], they often lack the mathemati-cal tractability of SDEs. By proposing a Mask-Aware Continuous Mamba Encoder, we combine the efficiency of modern SSMs with the irregularity-robustness of SDEs, creating a unified framework that is both computationally efficient and physically consistent. 
+
+## 3 Hybrid Irregularity Generation Scheme 
+
+To evaluate the robustness of RUL prediction models under realistic industrial conditions, we propose the Hybrid Irregularity Genera-tion Scheme. Real-world sensor networks rarely provide ideal data; they suffer from packet loss, clock desynchronization, and noise. HIGS simulates these complex stochasticities through a four-stage injection process, establishing a benchmark that reflects the true entropy of industrial environments. Let X ∈ R𝐿 ×𝐷 be the pristine sensor measurements and t ∈ R𝐿 
+
+be the normalized timestamps. The HIGS transform THIGS (X, t)
+
+applies the following perturbations: 
+
+1. Asynchronous Sensor Dropout ( 𝑝 𝑑𝑟𝑜𝑝 ): To simulate random packet loss in IoT transmission, we apply an independent Bernoulli mask to each sensor channel. Let 𝑚 𝑖,𝑗 ∼ Bernoulli (1 − 𝑝 drop ) be the availability mask for the 𝑗 -th sensor at step 𝑖 . The observed value becomes ˜𝑥 𝑖,𝑗 = 𝑥 𝑖,𝑗 ⊙ 𝑚 𝑖,𝑗 .
+
+2. Structural Burst Missingness ( 𝜆 𝑏𝑢𝑟𝑠𝑡 , 𝜇 𝑙𝑒𝑛 ): Systematic failures often cause continuous segments of data loss. We model this via a Poisson process where we sample the number of burst events 
+
+𝑘 ∼ Poisson (𝜆 burst ) and their durations 𝑙 ∼ N ( 𝜇 len , 𝜎 len ). For each event starting at random index 𝑡 start , we enforce m𝑡 start :𝑡 start +𝑙 = 0,creating structural voids in the timeline. 
+
+3. Temporal Jitter ( 𝜎 𝑗𝑖𝑡𝑡𝑒𝑟 ): Industrial loggers often suffer from clock synchronization errors. We perturb the timestamps using Gaussian noise: ˜𝑡 𝑖 = 𝑡 𝑖 + 𝜖 𝑖 , where 𝜖 𝑖 ∼ N ( 0, 𝜎 2
+
+> jitter
+
+). Crucially, to preserve physical causality, we enforce a monotonicity constraint 
+
+˜𝑡 𝑖 = max ( ˜𝑡 𝑖 , ˜𝑡 𝑖 −1 + 𝛿 min ).
+
+4. State-Dependent Noise Injection ( 𝛼 𝑛𝑜𝑖𝑠𝑒 ): Recognizing that sen-sor noise often correlates with system degradation, we introduce a state-dependent noise term. The noise variance scales dynamically with the current HI: 
+
+xfinal = ˜x + 𝜉, 𝜉 ∼ N  0, 𝜎 2 
+
+> base
+
+(1 + 𝛼 noise · ( 1 − HI 𝑡 ))  (1) where 𝛼 noise controls the sensitivity of noise to the degradation severity. This creates a challenging “signal-to-noise ratio decay” scenario typical of late-stage machinery failure. KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Zhuang et al. Observed Values 
+
+LayerNorm 
+
+(b) Mask -Aware Continuous Mamba Encoder 
+
+Fill 
+
+GRU 
+
+Linear 
+
+Bu Φ
+
+uΦ
+
+> αk
+
+AZ(t) 
+
+(a) Irregular Inputing 
+
+Asynchrony 
+
+Noise 
+
+Burst 
+
+Missing 
+
+Time Jitter  Time Jitter 
+
+Mask -Aware 
+
+Linear 
+
+Continuous Mamba Block 
+
+> Gap -Bridging Memory State
+
+Mamba Block 
+
+Linear 
+
+SSM 
+
+Conv 
+
+Linear  Linear 
+
+σ
+
+Mamba Block 
+
+Continuous Mamba Block 
+
+σ
+
+> MLP αk+1
+> αk-1
+> αk+2
+
+Abasis 
+
+A(t) 
+
+ZT
+
+Zi+ 1
+
+Internal Dynamics 
+
+(c) Physics -informed Latent SDE Evolution 
+
+B(t) 
+
+External Control 
+
+C
+
+Physical Bias 
+
+bphy 
+
+> f ( Zt , t)dt
+> dZ t = f ( Zt , t)dt + dW t
+> dW t
+
+Drift 
+
+Zi
+
+Zi-1
+
+Zt = Zt
+
+(h)
+
+Zt
+
+(d)
+
+Physics -Guided Health Index 
+
+Latent System Dynamics         
+
+> 𝒁 𝒕 +𝟏 =𝒆 𝑨 𝒕 ∆𝒕 𝒁 𝒕 +න
+> 𝒕 −𝟏
+> 𝒕 +𝟏
+> 𝒆 𝑨 𝒕 𝒕 +𝟏 −𝒔 (𝑩 u∅(𝒔 ))+𝒃 )𝒅𝒔
+
+SDESolver 
+
+(d) Hybrid Prediction 
+
+Regime -Dependent Degradation 
+
+Data -Driven Neural Control Gravitational Field                 
+
+> 𝒅𝒛 𝒕
+> (𝒉 )=𝒂 𝒉 𝒕 𝑻 𝒛 𝒕
+> 𝒅 +𝑩 u∅𝒕 𝟎 −𝝀 𝒃𝒂𝒔𝒆 𝒅𝒕
+> +𝝈 𝒅 𝑾 𝒕
+> (𝒉 )
+> MLP
+> ℒ𝑬𝑳𝑩𝑶 =
+> 𝔼 ℚ∅
+> ෍
+> 𝒊 =𝟏
+> 𝑵
+> 𝒍𝒐𝒈𝒑 𝒙 𝒊 𝒁 𝒊
+> −𝑲𝑳 (ℚ∅||ℙ)
+
+Uncertainty 
+
+Interval 
+
+Predicted RUL 
+
+Mean                             
+
+> ℒ𝑷𝒆𝒏𝒂𝒍𝒕𝒚 =||𝒁 t
+> (𝒉 )−𝒚 𝒏𝒐𝒓𝒎 ||𝟐
+> 𝟐
+> ℒ𝑴𝒐𝒏𝒐 =
+> 𝟏
+> 𝑵 ෍
+> 𝒊 =𝟎
+> 𝑵 −𝟏
+> 𝑹𝒆𝒍𝒖 (𝒛 𝒊 +𝟏
+> 𝒉 −𝒛 𝒊
+> 𝒉 )
+> ℒ𝑹𝒆𝒈 =||ෝ𝒚 𝒓𝒆𝒈 −𝒚 𝑹𝑼𝑳 ||𝟐
+> 𝟐
+> ℒ𝑻𝒐𝒕𝒂𝒍 =
+> −ℒ𝑬𝑳𝑩𝑶 +𝜸 1ℒ𝑷𝒆𝒏𝒂𝒍𝒕𝒚 +𝜸 2ℒ𝑴𝒐𝒏𝒐 +𝜸 3ℒ𝑹𝒆𝒈
+
+Concatenation  Element -wise Mul  σ Sigmoid  Element -wise Sum C
+
+Figure 2: The framework of PC-MambaSDE.(a) Irregular Input Processing: Handles industrial sensor data with asynchronous sampling, burst missingness, and temporal jitter.(b) Mask-Aware Continuous Mamba Encoder: Extracts continuous control signals 𝑢 𝜙 (𝑡 ) from sparse sequences by explicitly fusing validity masks.(c) Physics-Guided Latent SDE: Governs state evolution via a hybrid drift, superimposing a global physical bias 𝑏 𝑝ℎ𝑦 onto local neural vector fields.(d) Hybrid Prediction: Jointly optimizes RUL distributions using ELBO, a terminal penalty, and monotonicity regularization. 
+
+## 4 Methodology 4.1 Problem Formulation: Stochastic Degradation with Irregular Observations 
+
+Let the health state of a system be represented by a continuous-time stochastic process Z𝑡 ∈ R𝑑 defined over a finite horizon 𝑡 ∈ [ 0,𝑇 ].The dynamics are governed by a generic Itô SDE: 
+
+dZ𝑡 = f (Z𝑡 , 𝑡 )d𝑡 + 𝜎 dW𝑡 , Z0 ∼ 𝑝 (Z0) (2) where f : R𝑑 × R+ → R𝑑 is the drift function governing the degra-dation trend, and W𝑡 is a standard Wiener process representing intrinsic stochasticity. In industrial scenarios, we observe a sequence of discrete, ir-regularly sampled measurements D = {( 𝜏 𝑖 , x𝜏 𝑖 , m𝜏 𝑖 )} 𝑁 𝑖 =0, where 𝜏 𝑖 
+
+are timestamps, x𝜏 𝑖 are sensor readings, and m𝜏 𝑖 is the observation mask. The observations are emitted from the latent state via a linear map H subject to Gaussian noise: 
+
+x𝜏 𝑖 = HZ 𝜏 𝑖 + 𝝐 𝑖 , 𝝐 𝑖 ∼ N ( 0, Σobs ) (3) Physically-Constrained Mamba-SDE for Remaining Useful Life Prediction under Irregular Observations KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+Our goal is to infer the posterior path measure Q(Z[0,𝑇 ] |D) and predict RUL 𝑦 𝑅𝑈 𝐿 based on the terminal state Z𝑇 .
+
+## 4.2 Overview 
+
+We propose PC-MambaSDE, a unified continuous-time framework that bridges discrete, irregular observations with continuous phys-ical degradation processes. As shown in Figure 2, our architec-ture comprises three synergistic components. First, a Mask-Aware Continuous Mamba Encoder processes irregular inputs—sensor values, observation masks, and temporal intervals—to generate continuous-time control signals that explicitly exploit sparsity pat-terns. Second, a Physics-Guided Latent SDE governs state evolution via a Parametrically Rectified Hybrid Drift, superimposing a global physical degradation bias onto local neural vector fields to guar-antee monotonic degradation while adapting to system-specific dynamics. Third, a Terminal Degradation Penalty reformulates RUL prediction as a boundary value problem, decoupling a HI dimen-sion and enforcing endpoint constraints that compel trajectories to traverse from healthy states to failure boundaries. Together, these components integrate the expressive power of SSMs, the rigor of SDEs, and domain-informed physical constraints. Theoretically, our framework is rigorously grounded: we prove the equivalence of our objective to the ELBO via Girsanov’s theorem and guarantee global stability through Lyapunov analysis, with the detailed derivation provided in Appendix A . We detail each component below. 
+
+## 4.3 Mask-Aware Mamba Encoder Architecture 
+
+Standard Transformers treat time series as ordered sequences with fixed intervals, often struggling with the asynchronous and sparse nature of industrial sensor data. To address this, we design a hierar-chical encoder that seamlessly integrates the efficient long-sequence modeling of Mamba with a robust mechanism for handling data gaps. Unlike quadratic-complexity attention mechanisms, our Mask-Aware Mamba Encoder operates with linear complexity, which we empirically validate in Appendix B.1 . The architecture consists of three key stages: Mask-Aware Embedding, Mamba Encoding, and Recurrent Latent Filling. 
+
+4.3.1 Augmented Embedding. We explicitly couple the sensor read-ings x𝜏 𝑖 with their corresponding validity masks m𝜏 𝑖 to prevent the model from confusing “missing data” with “zero values.” These concatenated features are projected into a high-dimensional latent space X𝑒𝑚𝑏 ∈ R𝐵 ×𝐿 ×𝐷 𝑚𝑜𝑑𝑒𝑙 via a learnable linear projection: 
+
+X𝑒𝑚𝑏 = LayerNorm (Linear 𝑖𝑛 ([ x𝜏 𝑖 ⊕ m𝜏 𝑖 ])) (4) This embedding strategy ensures that the sparsity pattern serves as an explicit feature, initializing the sequence modeling with aware-ness of observation validity. 
+
+4.3.2 Mamba Sequence Modeling. We denote the stacked Mamba operation as ΦMamba , which processes the augmented embedding to yield the preliminary latent sequence H𝑠𝑒𝑞 :
+
+H𝑠𝑒𝑞 = ΦMamba (X𝑒𝑚𝑏 ) (5) 
+
+4.3.3 Latent Filling and Recurrent Smoothing. To strictly handle the irregularity and stabilize the control signal for the downstream SDE, we introduce a Latent Forward-Filling mechanism followed by a Recurrent Smoothing layer. 
+
+Latent Forward-Filling: Recognizing that the degradation state of a mechanical system cannot change abruptly during signal loss, we apply the sample-and-hold strategy. For any time step 𝑡 with missing data, we propagate the latent state from the last valid observation. Let 𝜏 (𝑡 ) = max {𝑘 ≤ 𝑡 | valid observation exists at 𝑘 }
+
+be the index of the most recent valid observation. The filled latent state H𝑓 𝑖𝑙𝑙 is defined as: 
+
+H𝑓 𝑖𝑙𝑙 [𝑡 ] = H𝑠𝑒𝑞 [𝜏 (𝑡 )] (6) 
+
+Recurrent Smoothing: Finally, to smooth out local discontinuities introduced by the filling operation and to refine the trajectory dynamics, we process the filled sequence through a Gated Recurrent Unit (GRU). This layer acts as a dynamic filter, generating the final continuous control signal u𝜙 (𝑡 ) required to guide the SDE drift: 
+
+u𝜙 (𝑡 ) = GRU (H𝑓 𝑖𝑙𝑙 ) (7) The resulting u𝜙 (𝑡 ) encodes a robust, continuous-time representa-tion of the system’s degradation state, effectively enabling the sub-sequent SDE solver to generate monotonic and physics-compliant trajectories even under extreme data sparsity. 
+
+## 4.4 Physics-Guided Latent SDE Dynamics 
+
+Purely data-driven Neural SDEs are often “black boxes” that pro-duce physically implausible trajectories. Furthermore, learning a high-dimensional drift matrix A is notoriously unstable. To miti-gate these issues, we introduce Latent Decoupling to enforce inter-pretability and Basis Decomposition to guarantee dynamic stability. 
+
+4.4.1 Decoupled State Space. Unlike standard approaches that en-tangle all latent dimensions, we impose a semantic structure on the state space. We partition the latent state Z𝑡 into a scalar HI 𝑧 (ℎ)
+
+> 𝑡
+
+and a hidden dynamic vector z(𝑑 ) 
+
+> 𝑡
+
+:
+
+Z𝑡 =
+
+"
+
+𝑧 (ℎ)
+
+> 𝑡
+
+z(𝑑 )
+
+> 𝑡
+
+#
+
+∈ R1+( 𝑑 −1) (8) The dimension 𝑧 (ℎ) 
+
+> 𝑡
+
+is explicitly designated to track the cumulative damage, serving as a virtual sensor for the unobservable degra-dation status. The remaining dimensions z(𝑑 ) 
+
+> 𝑡
+
+capture complex, non-monotonic system variations. 
+
+4.4.2 Basis-Decomposed Drift Construction. Directly learning the drift matrix A often leads to eigenvalues with positive real parts, causing the SDE integration to diverge over long time horizons. To ensure Lyapunov stability, we decompose the drift matrix into a weighted sum of pre-conditioned stable basis matrices. The encoder output u𝜙 dynamically predicts the mixing coefficients 𝜶 𝑘 :
+
+𝜶 = Softmax (Linear 𝑐𝑜𝑒 𝑓 𝑓 (u𝜙 )) ∈ R𝐾 ,
+
+> 𝐾
+
+∑︁ 
+
+> 𝑘 =1
+
+𝛼 𝑘 = 1 (9) The basis matrices A(𝑘 ) 
+
+> 𝑏𝑎𝑠𝑖𝑠
+
+are parameterized to be strictly negative-definite using an exponential constraint. This guarantees that the real parts of the eigenvalues remain negative, forcing the system to return to equilibrium in the absence of external forcing: 
+
+A(𝑘 ) 
+
+> 𝑏𝑎𝑠𝑖𝑠
+
+= −( exp (D(𝑘 ) 
+
+> 𝑏𝑎𝑠𝑖𝑠
+
+) + 𝜖 I), 𝜖 = 10 −6 (10) KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Zhuang et al. 
+
+The time-varying neural drift matrix A𝑛𝑒𝑢𝑟𝑎𝑙 (𝑡 ) is then synthesized as a convex combination of these bases, allowing the model to switch between different dynamic regimes smoothly: 
+
+A𝑛𝑒𝑢𝑟𝑎𝑙 (𝑡 ) =
+
+> 𝐾
+
+∑︁ 
+
+> 𝑘 =1
+
+𝛼 𝑘 (𝑡 ) · A(𝑘 ) 
+
+> 𝑏𝑎𝑠𝑖𝑠
+
+(11) To guarantee that this construction prevents the stochastic pro-cess from diverging in observation-sparse regions, we establish the following theorem: 
+
+Theorem 4.1 (Asymptotic Stability of Convex Combina-tions). If a set of matrices {𝐴 𝑘 }𝐾 𝑘 =1 share a common quadratic Lya-punov function and are Hurwitz (stable), then their convex combina-tion 𝐴 (𝑡 ) = Í𝐾 𝑘 =1 𝛼 𝑘 (𝑡 )𝐴 𝑘 is also Hurwitz. 
+
+Proof. We parameterize each basis matrix as 𝐴 𝑘 = −( exp (𝐷 𝑘 ) + 
+
+𝜖𝐼 ). Let 𝑣 be any non-zero vector. The quadratic form is: 
+
+𝑣 𝑇 𝐴 𝑘 𝑣 = −𝑣 𝑇 exp (𝐷 𝑘 )𝑣 − 𝜖𝑣 𝑇 𝑣 (12) Since exp (𝐷 𝑘 ) is positive semi-definite (matrix exponential of real parameters) and 𝜖 > 0, we have: 
+
+𝑣 𝑇 𝐴 𝑘 𝑣 ≤ − 𝜖 ∥𝑣 ∥2 < 0 (13) Thus, each basis matrix 𝐴 𝑘 is strictly negative definite. Now consider the time-varying system drift 𝐴 (𝑡 ) = Í 𝛼 𝑘 (𝑡 )𝐴 𝑘 , where 𝛼 𝑘 (𝑡 ) ≥ 0
+
+and Í 𝛼 𝑘 = 1 (Output of Softmax). The derivative of the Lyapunov candidate 𝑉 (𝑍 ) = 𝑍 𝑇 𝑍 along the trajectory is: 
+
+¤𝑉 (𝑍 ) = 𝑍 𝑇 (𝐴 (𝑡 )𝑇 + 𝐴 (𝑡 )) 𝑍 =
+
+> 𝐾
+
+∑︁ 
+
+> 𝑘 =1
+
+𝛼 𝑘 (𝑡 )𝑍 𝑇 (𝐴 𝑇 𝑘 + 𝐴 𝑘 )𝑍 (14) Since 𝑍 𝑇 𝐴 𝑘 𝑍 < 0 for all 𝑘 , the weighted sum is strictly negative: 
+
+¤𝑉 (𝑍 ) < 0, ∀𝑍 ≠ 0 (15) This implies global asymptotic stability for the homogeneous part of the SDE. The system will inherently revert to the equilibrium (or the path dictated by 𝑏 𝑝ℎ𝑦 ) in the absence of control 𝑢 𝜙 , preventing explosion in sparse data regions. □
+
+4.4.3 Parametric Drift Rectification. Standard Neural SDEs are ag-nostic to the “arrow of time” in degradation physics. To enforce the irreversibility of damage, we propose a Parametric Drift Rectifica-tion mechanism. We formulate the posterior drift function f𝜙 (Z𝑡 , 𝑡 )
+
+as the superposition of three distinct forces: the internal system dynamics, the external neural control, and a constant physical field: 
+
+dZ𝑡 =  A𝑛𝑒𝑢𝑟𝑎𝑙 (𝑡 )Z𝑡 + Bu 𝜙 (𝑡 ) + bphy 
+
+ d𝑡 + 𝜎 dW𝑡 (16) The term bphy serves as a static gravitational field in the latent space. We structurally enforce a negative bias on the HI dimension while leaving the dynamic dimensions unbiased. This is derived from the Arrhenius principle, where degradation naturally accumulates: 
+
+bphy = −| 𝜆 base |, 0⊤ ⊤ , 𝜆 base ∈ R+ (17) By expanding Equation (13) for the HI dimension 𝑧 (ℎ) 
+
+> 𝑡
+
+, we can explicitly observe the rectification effect: 
+
+d𝑧 (ℎ) 
+
+> 𝑡
+
+=
+
+
+
+aℎ (𝑡 )⊤z(𝑑 ) 
+
+> 𝑡
+
++ [ Bu 𝜙 (𝑡 )] 0 − | 𝜆 base |
+
+
+
+d𝑡 + 𝜎 d𝑊 (ℎ) 
+
+> 𝑡
+
+(18) Here, −| 𝜆 base | provides a persistent downward momentum, guaran-teeing monotonic degradation even in observation-sparse regions, with the detailed derivation provided in Appendix A.1 . The neural terms aℎ (𝑡 )⊤z(𝑑 ) 
+
+> 𝑡
+
+and [Bu 𝜙 (𝑡 )] 0 model local fluctuations and load-dependent variations, but the base degradation rate strictly prevents the model from learning “self-healing” behaviors commonly seen in unconstrained regression models. 
+
+## 4.5 Variational Objective via Girsanov Theorem 
+
+We adopt a training strategy based on the principle of minimal intervention. The model should rely on the known physical prior (bphy ) as much as possible, utilizing the neural control u𝜙 only when necessary to explain data anomalies. We train the model to maximize the ELBO. Let P be the measure of the uncontrolled prior process and Q𝜙 be the measure of the controlled posterior. 
+
+LELBO = EQ𝜙 
+
+" 𝑁 ∑︁ 
+
+> 𝑖 =1
+
+log 𝑝 (x𝜏 𝑖 |Z𝜏 𝑖 )
+
+#
+
+− KL (Q𝜙 || P) (19) The KL divergence is analytically derived using the Girsanov The-orem, which quantifies the energy required to steer the diffusion process. It manifests as the quadratic norm of the control signal difference between the posterior and the prior: KL (Q𝜙 || P) = EQ𝜙 
+
+∫ 𝑇 
+
+> 0
+
+12𝜎 2 || f𝜙 (Z𝑡 , 𝑡 ) − fprior (Z𝑡 )|| 22d𝑡 
+
+
+
+(20) Substituting our linear parameterization, minimizing the mag-nitude of the neural control u𝜙 is mathematically equivalent to minimizing the KL divergence between the posterior and the phys-ical prior, as explicitly derived via Girsanov’s Theorem. To ground this relationship with rigorous theoretical guarantees, we state and derive the following theorem: 
+
+Theorem 4.2 (Girsanov Theorem for Diffusion Processes). 
+
+Let 𝑊 𝑡 be a Brownian motion under measure P. Let 𝑢 (𝑡 ) be an adapted process satisfying Novikov’s condition. Define a new measure Q via the Radon-Nikodym derivative: 
+
+𝑑 Q
+
+𝑑 P = exp 
+
+∫ 𝑇 
+
+> 0
+
+𝑢 (𝑡 )𝑇 𝑑𝑊 𝑡 − 12
+
+∫ 𝑇 
+
+> 0
+
+∥𝑢 (𝑡 )∥ 2𝑑𝑡 
+
+
+
+(21) 
+
+Then, under Q, the process ˜𝑊 𝑡 = 𝑊 𝑡 − ∫ 𝑡  
+
+> 0
+
+𝑢 (𝑠 )𝑑𝑠 is a standard Brow-nian motion. Derivation of the Objective: Let the Prior SDE (Physical Prior P)be governed by the base degradation physics: 
+
+𝑑𝑍 𝑡 = (𝐴 (𝑡 )𝑍 𝑡 + 𝑏 𝑝ℎ𝑦 )𝑑𝑡 + 𝜎𝑑𝑊 𝑡 (22) Let the Posterior SDE (Neural Control Q𝜙 ) be governed by the encoded control: 
+
+𝑑𝑍 𝑡 = (𝐴 (𝑡 )𝑍 𝑡 + 𝑏 𝑝ℎ𝑦 + 𝐵𝑢 𝜙 (𝑡 )) 𝑑𝑡 + 𝜎𝑑𝑊 Q 
+
+> 𝑡
+
+(23) Comparing the drift terms, the excess drift introduced by the neural network is 𝑓 𝑑𝑖 𝑓 𝑓 (𝑡 ) = 𝐵𝑢 𝜙 (𝑡 ). Assuming constant diffusion 𝜎 = 𝐼 
+
+for simplicity (or scaling 𝑢 by 𝜎 −1), the difference in drift is exactly the control signal. Physically-Constrained Mamba-SDE for Remaining Useful Life Prediction under Irregular Observations KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+The Kullback-Leibler divergence between the path measures 
+
+Q𝜙 and P over [0,𝑇 ] is given by the expectation of the log Radon-Nikodym derivative: 
+
+KL (Q𝜙 || P) = EQ𝜙 
+
+
+
+log 𝑑 Q𝜙 
+
+𝑑 P
+
+
+
+= EQ𝜙 
+
+∫ 𝑇 
+
+> 0
+
+(𝐵𝑢 𝜙 (𝑡 )) 𝑇 𝑑𝑊 𝑡 + 12
+
+∫ 𝑇 
+
+> 0
+
+∥𝐵𝑢 𝜙 (𝑡 )∥ 2𝑑𝑡 
+
+
+
+(24) Since the stochastic integral term ∫ 𝑇  
+
+> 0
+
+𝜙 𝑡 𝑑𝑊 𝑡 is a martingale with zero expectation (assuming 𝜙 𝑡 satisfies the square-integrability condition), where 𝜙 𝑡 represents the integrand. The KL divergence simplifies to the “Control Energy”: 
+
+KL (Q𝜙 || P) = EQ𝜙 
+
+∫ 𝑇 
+
+> 0
+
+12 ∥𝐵𝑢 𝜙 (𝑡 )∥ 2𝑑𝑡 
+
+
+
+(25) This proves that minimizing the 𝐿 2-norm of the control signal 
+
+𝑢 𝜙 is mathematically equivalent to minimizing the KL divergence between the learned degradation process and the pure physical degradation model. This effectively regularizes the model to deviate from the physi-cal base degradation rate only when supported by observational evidence: 
+
+L𝐾𝐿 ≈ EQ𝜙 
+
+"𝑁 −1∑︁ 
+
+> 𝑖 =0
+
+Δ𝜏 𝑖 · 12 || u𝜙 (𝜏 𝑖 )|| 22
+
+#
+
+(26) 
+
+## 4.6 Hybrid Decoding with Terminal Penalty 
+
+Recognizing that RUL prediction conceptually involves guiding the degradation process toward a failure state, we employ Indirect Supervision to penalize terminal deviations. We define the RUL target 𝑦 norm ∈ [ 0, 1]. We guide the terminal state to converge toward this target via a Terminal Penalty: 
+
+LPenalty = || 𝑧 (ℎ) 
+
+> 𝑇
+
+− 𝑦 norm || 22 (27) We introduce a Monotonicity Regularizer on the trajectory: 
+
+LMono = 1
+
+𝑁  
+
+> 𝑁 −1
+
+∑︁ 
+
+> 𝑖 =0
+
+ReLU 
+
+
+
+𝑧 (ℎ) 
+
+> 𝜏 𝑖 +1
+
+− 𝑧 (ℎ)
+
+> 𝜏 𝑖
+
+
+
+(28) Finally, to capture complex non-linear mappings, we include an auxiliary regression head: 
+
+ˆ𝑦 reg = MLP 𝑑𝑒𝑐 (Z𝑇 ), LReg = || ˆ𝑦 reg − 𝑦 RUL || 22 (29) The total objective function unifies data likelihood, control energy, and physical constraints: 
+
+LTotal = −L ELBO + 𝛾 1 LPenalty + 𝛾 2 LMono + 𝛾 3 LReg (30) Substituting the terms, the final optimization problem becomes: 
+
+min 
+
+> 𝜙
+
+∫ 𝑇 
+
+> 0
+
+12 || u𝜙 || 2d𝑡 −
+
+> 𝑁
+
+∑︁ 
+
+> 𝑖 =1
+
+log N ( x𝑖 |HZ 𝑖 ) + L Phy 
+
+!
+
+(31) where LPhy encapsulates the boundary and monotonicity con-straints. This formulation unifies data-driven variational inference with physics-informed boundary value problems. 
+
+## 5 Experiments 5.1 Datasets and Experimental Setup 
+
+5.1.1 Datasets. We utilize the C-MAPSS [ 24 ] for standard RUL scenarios. We use N-CMAPSS [ 3], preprocessing high-frequency snapshots into cycle-aggregated trajectories via a mean-reduction strategy to retain degradation trends while reducing redundancy. Detailed preprocessing steps are provided in Appendix C .
+
+5.1.2 Baselines. We compare PC-MambaSDE against a comprehen-sive suite of baselines categorized into Discrete Sequence Models and Continuous Neural Differential Equations (Neural DEs). The discrete category includes standard LSTM variants (e.g., LSTM+GP, LSTM+MPACE) and specialized sparse modeling approaches such as Sparse MFMLP (S-MFMLP) [ 28 ] and the Parameterized Static Regression (PSR) [ 7 ], which are designed to handle data scarcity through imputation or regression rectification. The continuous category, representing the current state-of-the-art for irregular time series, comprises Latent-ODE [ 5 ], Latent-SDE [ 20 ], and the amortized control framework ACSSM [ 21 ], all of which naturally accommodate non-uniform sampling intervals by modeling the latent state evolution in continuous time. 
+
+5.1.3 Irregularity Injection. Unlike prior works assuming ideal sam-pling, to simulate the entropy of industrial IoT environments during inference, we strictly assess robustness under a realistic HIGS as detailed in Section 3 .
+
+5.1.4 Implementation Details. All experiments were conducted using PyTorch 2.4.1 (Python 3.8) on a single NVIDIA RTX 3060 GPU (CUDA 12.4). We utilized the Adam optimizer with a learning rate of 1 × 10 −3. The models were trained for up to 50 epochs. To ensure statistical reliability, all reported results represent the average and standard deviation of five independent trials following random initialization. 
+
+## 5.2 Comparative Experiments 
+
+Tables 1-2 detail the results across various cross-domain scenarios and datasets, categorized into discrete-time baselines, continuous-time Neural ODE/SDE methods, and PC-MambaSDE. For a consis-tent evaluation, all models are tested under varying levels of data scarcity and irregularity settings to establish robustness bounds. 
+
+5.2.1 Quantitative Results on C-MAPSS Dataset. To ensure a rigor-ous assessment of industrial robustness, all experiments are con-ducted under HIGS. Table 1 reports performance on the C-MAPSS benchmarks, where we simulate data scarcity by varying the asyn-chronous sensor dropout rate ( 𝑝 𝑑𝑟𝑜𝑝 ∈ { 0.5, 0.7, 0.9}) while main-taining a base level of structural irregularity ( 𝜇 𝑙𝑒𝑛 = 5) and tem-poral jitter ( 𝜎 𝑗𝑖𝑡𝑡𝑒𝑟 = 0.1). PC-MambaSDE consistently achieves state-of-the-art performance, particularly in the most challenging scenarios. For instance, on the FD004 subset with 90% missingness, our method reduces RMSE to 22.18, significantly outperforming the strongest continuous baseline, ACSSM (24.84), and discrete ap-proaches like Sparse MFMLP (32.39), which struggle to bridge large temporal gaps. Additionally, we provide a direct comparison using the specific experimental settings proposed by Cheng et al. [19] in 
+
+Appendix B.2 , where our model demonstrates superior accuracy even under their static regression evaluation protocols. KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Zhuang et al. 
+
+Table 1: RMSE Performance Comparison on C-MAPSS under Varying Data Scarcity Levels. Scarcity Method FD001 FD002 FD003 FD004 
+
+50% LSTM+GP 24.13 ± 0.35 25.09 ± 0.10 25.56 ± 0.29 27.18 ± 0.84 LSTM+MPACE 19.04 ± 0.10 21.56 ± 0.59 20.84 ± 0.30 23.64 ± 0.34 S-MFMLP 18.65 ± 0.40 20.08 ± 0.73 20.09 ± 1.30 22.22 ± 0.74 Latent-ODE 22.46 ± 1.85 19.90 ± 0.85 20.71 ± 0.91 21.64 ± 0.58 Latent-SDE 20.57 ± 1.01 20.28 ± 0.59 21.13 ± 0.86 21.55 ± 0.47 PSR 18.65 ± 1.52 19.24 ± 0.41 20.54 ± 0.56 22.50 ± 0.26 ACSSM 18.08 ± 1.06 19.58 ± 2.12 18.72 ± 1.57 20.02 ± 0.27 
+
+PC-MambaSDE (Ours) 16.68 ± 0.80 18.55 ± 0.37 17.90 ± 0.13 17.11 ± 0.34 
+
+70% LSTM+GP 31.92 ± 0.82 33.77 ± 0.10 31.79 ± 0.15 30.68 ± 0.75 LSTM+MPACE 25.31 ± 2.47 27.60 ± 0.44 25.64 ± 0.34 26.21 ± 0.52 S-MFMLP 22.27 ± 0.55 23.79 ± 0.25 22.82 ± 0.58 25.78 ± 0.33 Latent-ODE 22.85 ± 0.65 20.87 ± 1.03 22.82 ± 1.78 23.69 ± 0.35 Latent-SDE 21.37 ± 0.56 20.49 ± 0.23 23.21 ± 0.60 23.96 ± 0.36 PSR 21.24 ± 0.16 21.24 ± 0.19 21.48 ± 0.43 25.01 ± 0.17 ACSSM 20.15 ± 0.22 19.75 ± 0.15 19.69 ± 0.55 20.90 ± 0.54 
+
+PC-MambaSDE (Ours) 18.24 ± 1.01 18.87 ± 0.41 18.42 ± 1.43 19.22 ± 0.19 
+
+90% LSTM+GP 38.50 ± 2.94 38.78 ± 0.22 35.18 ± 0.83 42.08 ± 0.47 LSTM+MPACE 31.62 ± 1.99 31.34 ± 0.29 29.14 ± 0.67 33.50 ± 0.39 S-MFMLP 26.13 ± 4.52 30.27 ± 0.20 25.39 ± 0.76 32.39 ± 0.76 Latent-ODE 24.15 ± 0.39 24.38 ± 0.39 25.96 ± 1.16 25.42 ± 1.45 Latent-SDE 23.76 ± 2.40 23.79 ± 0.14 25.28 ± 0.44 25.59 ± 0.12 PSR 28.36 ± 2.03 21.40 ± 0.10 27.67 ± 0.69 32.34 ± 0.47 ACSSM 22.23 ± 0.20 22.75 ± 0.15 21.24 ± 1.86 24.84 ± 0.15 
+
+PC-MambaSDE (Ours) 19.43 ± 1.63 20.24 ± 0.22 20.01 ± 0.19 22.18 ± 0.63 Table 2: Performance comparison under different irregularity settings on N-CMAPSS dataset.                                                                                                                                                                                                                                         
+
+> Setting LSTM+GP LSTM+MPACE S-MFMLP Latent-ODE Latent-SDE PSR ACSSM Ours
+> Base 42.94 ±5.11 31.48 ±2.44 20.65 ±2.71 22.74 ±0.95 21.13 ±0.10 9.06 ±3.88 8.38 ±2.07 7.37 ±0.92
+> 𝜆 𝑏𝑢𝑟𝑠𝑡 =0.15 48.74 ±0.40 38.64 ±1.09 30.52 ±0.41 35.27 ±4.01 34.46 ±3.74 21.25 ±5.33 25.27 ±2.60 16.07 ±1.78
+> 𝜆 𝑏𝑢𝑟𝑠𝑡 =0.3 49.24 ±1.36 42.56 ±2.39 38.93 ±7.85 37.63 ±3.23 36.85 ±8.44 23.61 ±3.26 29.52 ±1.44 19.07 ±0.49
+> 𝜇 𝑙𝑒𝑛 =10 44.44 ±3.50 34.71 ±4.85 21.29 ±5.83 28.55 ±0.29 27.69 ±0.31 10.71 ±7.69 9.04 ±3.56 8.08 ±1.28
+> 𝜇 𝑙𝑒𝑛 =20 47.09 ±2.57 36.32 ±9.79 23.25 ±2.18 31.44 ±0.32 29.63 ±0.33 15.04 ±2.24 12.12 ±1.86 8.39 ±1.69
+> 𝜎 𝑗𝑖𝑡𝑡𝑒𝑟 =0.25 50.87 ±5.14 35.44 ±2.29 20.96 ±7.82 23.86 ±1.98 23.00 ±2.03 13.60 ±5.41 15.89 ±1.99 9.60 ±0.98
+> 𝜎 𝑗𝑖𝑡𝑡𝑒𝑟 =0.5 53.70 ±5.38 38.20 ±2.44 21.97 ±8.20 24.55 ±3.04 23.62 ±2.14 14.11 ±2.62 19.84 ±1.52 9.90 ±1.21
+> 𝛼 𝑛𝑜𝑖𝑠𝑒 =1.5 50.91 ±5.08 35.57 ±1.52 21.56 ±2.36 23.65 ±1.47 22.39 ±2.64 15.27 ±3.26 13.18 ±0.94 12.21 ±0.33
+> 𝛼 𝑛𝑜𝑖𝑠𝑒 =3 53.50 ±5.82 36.40 ±2.54 21.95 ±4.38 24.13 ±2.85 22.56 ±5.35 15.25 ±4.71 14.17 ±2.05 12.25 ±1.59
+
+5.2.2 Quantitative Results on N-CMAPSS Dataset. To assess scal-ability and resilience against specific irregularity types, Table 2 details performance on the N-CMAPSS dataset. Our framework achieves a state-of-the-art average RMSE of 11.44, surpassing both the static PSR (15.32) and purely data-driven differential equa-tions. Notably, under extreme structural burst settings ( 𝜇 𝑙𝑒𝑛 = 20 ), where continuous segments of data are lost, PC-MambaSDE re-mains stable ( 𝑅𝑀𝑆𝐸 = 8.39 ) while Latent-SDE degrades signifi-cantly ( 𝑅𝑀𝑆𝐸 = 29 .63 ). This validates that the Physics-Guided Drift effectively prevents the "hallucination" of invalid states dur-ing long observation gaps. Furthermore, the decoupling of the HI proves critical in high-noise environments ( 𝛼 = 3), filtering out non-monotonic perturbations that mislead standard SDEs. 
+
+## 5.3 Ablation Study 
+
+To understand the contribution of each architectural component in PC-MambaSDE, we conduct ablation experiments focusing on the Mask-Aware Mamba Encoder, the Parametric Physical Bias, and the Terminal Degradation Penalty. As shown in Figure 3, removing any single module leads to a noticeable decline in performance, indicating that the full combination is critical for robustness. Specif-ically, while the Mamba encoder proves indispensable for capturing extended temporal dependencies in long sequences, the physical constraints are equally vital for preventing unphysical "self-healing" hallucinations, particularly in sparse data regimes. These findings show that the data-driven encoder and the physics-informed con-straints capture complementary aspects of the problem, specifically Physically-Constrained Mamba-SDE for Remaining Useful Life Prediction under Irregular Observations KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Mask -Aware Mamba 
+
+> Physical Bias
+> Terminal Penalty
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+> ✓
+
+Figure 3: Ablation Study: Impact of Individual Components on RUL Prediction Performance. 
+
+temporal feature extraction and physical consistency, both of which are essential for precise RUL prediction under irregular observa-tions. 
+
+## 5.4 Model Analysis and Visualization 
+
+To rigorously validate that PC-MambaSDE captures intrinsic physi-cal dynamics rather than merely memorizing training patterns, we conduct both microscopic and macroscopic analyses of the learned latent representations, with further extensive experimental analy-ses provided in Appendix B.3 .
+
+5.4.1 Microscopic Analysis: SDE Dynamics under Data Sparsity. We first examine the microscopic interplay between stochastic diffusion and deterministic physical drift ( 𝑏 𝑝ℎ𝑦 ) under varying data avail-ability. As illustrated in Figure 4, the model effectively balances data adaptability with physical consistency. In regions with obser-vations, the neural drift adapts to local fluctuations; however, in observation-sparse intervals (indicated by grey regions), 𝑏 𝑝ℎ𝑦 acts as a gravitational constraint. This mechanism strictly suppresses un-physical “self-healing” hallucinations (upward trends) and enforces monotonic degradation consistent with the irreversibility of dam-age. Furthermore, the diffusion term naturally quantifies aleatoric uncertainty during these gaps, while the trajectory exhibits robust bidirectional recalibration upon signal restoration—pulling predic-tions toward the ground truth regardless of whether the physical extrapolation was overly aggressive or conservative. 
+
+5.4.2 Macroscopic Analysis: Manifold Structure and HI Evolution. 
+
+Complementing the temporal analysis, we investigate the macro-scopic quality of the learned representation through the HI and manifold topology. Figure 5(a) demonstrates that the explicitly de-coupled HI dimension maintains a stable, monotonic descent that correlates highly with the ground truth, confirming that the Ter-minal Degradation Penalty effectively filters out high-frequency sensor noise. This physical interpretability is further corroborated by the t-SNE visualization in Figure 5(b), where latent states spon-taneously organize into a distinct topological progression. Even without explicit class supervision, the manifold reveals clear sepa-rability between Healthy, Degradation, and Critical Failure stages. This structure indicates that PC-MambaSDE extracts discrimina-tive, stage-aware features that adhere to mechanical fatigue laws, validating its robustness for early fault detection. Physics -Guided Smooth Descent during Data Gaps  
+
+> Physical Correction
+> of Spurious Upward Trends
+> during Gaps
+> Upward Recalibration
+> from Aggressive Physical Decay
+> Downward Recalibration
+> from Conservative Physical Decay
+> Robust Prediction
+> in 'Cold Start' Scenarios
+
+Figure 4: Visualization of Physics-Guided SDE Evolution un-der Uncertainty. 
+
+(a) (b) 
+
+Figure 5: Visualization of latent dynamics. (a) Evolution of the Decoupled Health Index. (b) t-SNE visualization of latent space states. 
+
+## 6 Conclusion 
+
+In this paper, we propose PC-MambaSDE, a unified continuous-time framework for RUL prediction under realistic industrial conditions characterized by high sparsity and irregularity. PC-MambaSDE bridges the gap between data-driven representation learning and physical degradation laws through three coupled components: a Mask-Aware Continuous Mamba Encoder that extracts robust con-trol signals from sparse data, a Physics-Guided Latent SDE that su-perimposes a global physical bias to ensure monotonic degradation trends, and a Terminal Degradation Penalty that guides trajecto-ries toward the failure state. Extensive experiments on C-MAPSS and N-CMAPSS benchmarks, evaluated under a specialized Hybrid Irregularity Generation Scheme, demonstrate that PC-MambaSDE significantly outperforms state-of-the-art discrete and continuous baselines. Notably, our model maintains superior predictive accu-racy even in extreme scenarios with up to 90% data missingness, validating the efficacy of embedding physical priors into continuous-time latent dynamics. 
+
+## Acknowledgments 
+
+This work is supported by the National Natural Science Foun-dation of China under Grant 62136004, Grant 62276130, and Grant 62371234, in part by the National Key R&D Programof China under Grant 2023YFF1204803, in part by the KeyResearch and Develop-ment Plan of Jiangsu Province underGrant BE2022842, ans also by the Ministry of Education, Singapore, under its MOE Tier 1 (SKI 2021_08_03). KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Zhuang et al. 
+
+## References 
+
+[1] Abdul Fatir Ansari, Alvin Heng, Andre Lim, and Harold Soh. 2023. Neural continuous-discrete state space models for irregularly-sampled time series. In 
+
+International Conference on Machine Learning . PMLR, 926–951. [2] Hervé Cardot, Frédéric Ferraty, and Pascal Sarda. 2003. Spline estimators for the functional linear model. Statistica Sinica (2003), 571–591. [3] Manuel Aria Chao, Chetan Kulkarni, Kai Goebel, and Olga Fink. 2020. Aircraft engine run-to-failure data set under real flight conditions. (2020). [4] Zhengping Che, Sanjay Purushotham, Kyunghyun Cho, David Sontag, and Yan Liu. 2018. Recurrent neural networks for multivariate time series with missing values. Scientific reports 8, 1 (2018), 6085. [5] Ricky TQ Chen, Yulia Rubanova, Jesse Bettencourt, and David K Duvenaud. 2018. Neural ordinary differential equations. Advances in neural information processing systems 31 (2018). [6] Zhenghua Chen, Min Wu, Rui Zhao, Feri Guretno, Ruqiang Yan, and Xiaoli Li. 2020. Machine remaining useful life prediction via an attention-based deep learning approach. IEEE Transactions on Industrial Electronics 68, 3 (2020), 2521– 2531. [7] Jiaxiang Cheng, Yipeng Pang, and Guoqiang Hu. 2025. Rethinking remaining useful life prediction with scarce time series data: regression under indirect supervision. arXiv preprint arXiv:2504.09206 (2025). [8] Junyoung Chung, Caglar Gulcehre, KyungHyun Cho, and Yoshua Bengio. 2014. Empirical evaluation of gated recurrent neural networks on sequence modeling. 
+
+arXiv preprint arXiv:1412.3555 (2014). [9] Edward De Brouwer, Jaak Simm, Adam Arany, and Yves Moreau. 2019. GRU-ODE-Bayes: Continuous modeling of sporadically-observed time series. Advances in neural information processing systems 32 (2019). [10] Alex Graves. 2012. Long short-term memory. Supervised sequence labelling with recurrent neural networks (2012), 37–45. [11] Albert Gu and Tri Dao. 2023. Mamba: Linear-time sequence modeling with selective state spaces. arXiv preprint arXiv:2312.00752 (2023). [12] Albert Gu, Karan Goel, and Christopher Ré. 2021. Efficiently modeling long sequences with structured state spaces. arXiv preprint arXiv:2111.00396 (2021). [13] James D Hamilton. 2020. Time series analysis . Princeton university press. [14] Clara Happ and Sonja Greven. 2018. Multivariate functional principal component analysis for data observed on different (dimensional) domains. J. Amer. Statist. Assoc. 113, 522 (2018), 649–659. [15] Felix O Heimes. 2008. Recurrent neural networks for remaining useful life estimation. In 2008 international conference on prognostics and health management .IEEE, 1–6. [16] Patrick Kidger, James Morrill, James Foster, and Terry Lyons. 2020. Neural controlled differential equations for irregular time series. Advances in neural information processing systems 33 (2020), 6696–6707. [17] Jay Lee, Fangji Wu, Wenyu Zhao, Masoud Ghaffari, Linxia Liao, and David Siegel. 2014. Prognostics and health management design for rotary machinery systems—Reviews, methodology and applications. Mechanical systems and signal processing 42, 1-2 (2014), 314–334. [18] Yaguo Lei, Naipeng Li, Liang Guo, Ningbo Li, Tao Yan, and Jing Lin. 2018. Ma-chinery health prognostics: A systematic review from data acquisition to RUL prediction. Mechanical systems and signal processing 104 (2018), 799–834. [19] Xiang Li, Qian Ding, and Jian-Qiao Sun. 2018. Remaining useful life estimation in prognostics using deep convolution neural networks. Reliability Engineering & System Safety 172 (2018), 1–11. [20] Xuechen Li, Ting-Kam Leonard Wong, Ricky TQ Chen, and David Duvenaud. 2020. Scalable gradients for stochastic differential equations. In International conference on artificial intelligence and statistics . PMLR, 3870–3882. [21] Byoungwoo Park, Hyungi Lee, and Juho Lee. 2025. Amortized control of contin-uous state space feynman-kac model for irregular time series. In International Conference on Learning Representations , Vol. 2025. 36795–36829. [22] Linxiao Qin, Shuo Zhang, Tao Sun, and Xudong Zhao. 2023. An interpretable neuro-dynamic scheme with feature-temporal attention for remaining useful life estimation. IEEE Transactions on Industrial Informatics 20, 4 (2023), 5505–5516. [23] Giduthuri Sateesh Babu, Peilin Zhao, and Xiao-Li Li. 2016. Deep convolutional neural network based regression approach for estimation of remaining useful life. In International conference on database systems for advanced applications .Springer, 214–228. [24] Abhinav Saxena and Kai Goebel. 2008. Turbofan engine degradation simulation data set. NASA ames prognostics data repository 18 (2008), 878–887. [25] Abhinav Saxena, Kai Goebel, Don Simon, and Neil Eklund. 2008. Damage propaga-tion modeling for aircraft engine run-to-failure simulation. In 2008 international conference on prognostics and health management . IEEE, 1–9. [26] Satya Narayan Shukla and Benjamin M Marlin. 2021. Multi-time attention networks for irregularly sampled time series. arXiv preprint arXiv:2101.10318 
+
+(2021). [27] Belinda Tzen and Maxim Raginsky. 2019. Neural stochastic differential equations: Deep latent gaussian models in the diffusion limit. arXiv preprint arXiv:1905.09883 
+
+(2019). [28] Qiyao Wang, Ahmed Farahat, Chetan Gupta, and Shuai Zheng. 2021. Deep time series models for scarce data. Neurocomputing 456 (2021), 504–518. [29] Weiyang Xu, Quansheng Jiang, Yehu Shen, Qixin Zhu, and Fengyu Xu. 2023. New RUL prediction method for rotating machinery via data feature distribution and spatial attention residual network. IEEE Transactions on Instrumentation and Measurement 72 (2023), 1–9. [30] Boyuan Yang, Ruonan Liu, and Enrico Zio. 2019. Remaining useful life prediction based on a double-convolutional neural network architecture. IEEE Transactions on Industrial Electronics 66, 12 (2019), 9521–9530. [31] Fang Yao, Hans-Georg Müller, and Jane-Ling Wang. 2005. Functional data analysis for sparse longitudinal data. Journal of the American statistical association 100, 470 (2005), 577–590. [32] Sebastian Zeng, Florian Graf, and Roland Kwitt. 2023. Latent sdes on homo-geneous spaces. Advances in Neural Information Processing Systems 36 (2023), 76151–76180. [33] Xuewen Zhang, Yan Qin, Chau Yuen, Lahiru Jayasinghe, and Xiang Liu. 2020. Time-series regeneration with convolutional recurrent generative adversarial network for remaining useful life estimation. IEEE Transactions on Industrial Informatics 17, 10 (2020), 6820–6831. [34] Shuai Zheng, Kosta Ristovski, Ahmed Farahat, and Chetan Gupta. 2017. Long short-term memory network for remaining useful life estimation. In 2017 IEEE international conference on prognostics and health management (ICPHM) . IEEE, 88–95. 
+
+## A Theoretical Analysis and Proofs 
+
+In this section, we provide the detailed mathematical derivations for the PC-MambaSDE framework. We derive the analytical solution to the Physics-Guided Linear SDE, prove the variational bound using Girsanov’s Theorem, and demonstrate the stability properties of the Basis-Decomposed Drift. 
+
+## A.1 Terminal Degradation Penalty 
+
+Lemma A.1 (Monotonicity of Health Index). Given the recti-fied drift for the Health Index dimension 𝑧 (ℎ)
+
+𝑡 :
+
+𝑑𝑧 (ℎ)
+
+𝑡 =
+
+
+
+𝜇 res (𝑡, 𝑧 (ℎ)
+
+𝑡 ) − | 𝜆 𝑏𝑎𝑠𝑒 |
+
+
+
+𝑑𝑡 + 𝜎𝑑𝑊 𝑡 (32) 
+
+where 𝜇 res (𝑡, 𝑧 (ℎ)
+
+𝑡 ) denotes the residual drift terms (excluding the base degradation rate). The expectation of the degradation rate is strictly negative bounded if the neural perturbation is bounded. 
+
+Proof. Taking the expectation of the differential equation: 
+
+𝑑 𝑑𝑡 E[𝑧 (ℎ)
+
+𝑡 ] = E[𝑎 ℎ (𝑡 )𝑇 𝑧 (𝑑 )
+
+𝑡 ] + E[[ 𝐵𝑢 𝜙 ]0] − | 𝜆 𝑏𝑎𝑠𝑒 | (33) The regularization term L𝐾𝐿 ∝ ∥ 𝑢 𝜙 ∥2 pushes 𝑢 𝜙 → 0 in aleatoric regions (missing data). Consequently, as 𝑢 𝜙 → 0, the dominant term becomes −| 𝜆 𝑏𝑎𝑠𝑒 |.
+
+lim 
+
+𝑢 𝜙 →0
+
+𝑑 𝑑𝑡 E[𝑧 (ℎ)
+
+𝑡 ] = −| 𝜆 𝑏𝑎𝑠𝑒 | < 0 (34) This theoretically guarantees that in the absence of contradictory observational evidence (sparse regions), the model defaults to a monotonic degradation trend, satisfying the “irreversibility of dam-age” physical constraint. □
+
+## A.2 Analytical Solution of the Physics-Guided Linear SDE 
+
+Proposition A.2 (Explicit Solution to Latent Dynamics). 
+
+Given the proposed latent SDE defined as: 
+
+𝑑𝑍 𝑡 = (𝐴 (𝑡 )𝑍 𝑡 + 𝐵𝑢 𝜙 (𝑡 ) + 𝑏 𝑝ℎ𝑦 )𝑑𝑡 + 𝜎𝑑𝑊 𝑡 (35) Physically-Constrained Mamba-SDE for Remaining Useful Life Prediction under Irregular Observations KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+Figure 6: Visualization of Physics-Guided SDE Evolution. 
+
+Figure 7: Topological Analysis of the Latent Degradation Manifold. 
+
+The explicit solution for the state 𝑍 𝑡 given an initial state 𝑍 𝑡 0 is: 
+
+𝑍 𝑡 = Φ(𝑡, 𝑡 0)𝑍 𝑡 0 +
+
+∫ 𝑡 𝑡 0
+
+Φ(𝑡, 𝑠 )( 𝐵𝑢 𝜙 (𝑠 ) + 𝑏 𝑝ℎ𝑦 )𝑑𝑠 +
+
+∫ 𝑡 𝑡 0
+
+Φ(𝑡, 𝑠 )𝜎𝑑𝑊 𝑠 
+
+(36) 
+
+where Φ(𝑡, 𝑠 ) is the fundamental matrix solution to the homogeneous equation 𝑑𝑍 𝑡 = 𝐴 (𝑡 )𝑍 𝑡 𝑑𝑡 .
+
+Proof. Let the drift term be 𝑓 (𝑍 𝑡 , 𝑡 ) = 𝐴 (𝑡 )𝑍 𝑡 + 𝜇 (𝑡 ), where 
+
+𝜇 (𝑡 ) = 𝐵𝑢 𝜙 (𝑡 ) + 𝑏 𝑝ℎ𝑦 acts as the external forcing term (neural control + physical bias). We apply the method of integrating factors. Define the integrating factor 𝑀 𝑡 such that 𝑑 𝑑𝑡 𝑀 𝑡 = −𝑀 𝑡 𝐴 (𝑡 ) with 
+
+𝑀 𝑡 0 = 𝐼 . The solution is 𝑀 𝑡 = exp (− ∫ 𝑡 𝑡 0 𝐴 (𝜏 )𝑑𝜏 ).Applying Itô’s Product Rule to 𝑌 𝑡 = 𝑀 𝑡 𝑍 𝑡 :
+
+𝑑 (𝑀 𝑡 𝑍 𝑡 ) = (𝑑𝑀 𝑡 )𝑍 𝑡 + 𝑀 𝑡 (𝑑𝑍 𝑡 ) + ( 𝑑𝑀 𝑡 )( 𝑑𝑍 𝑡 ) (37) Since 𝑍 𝑡 has finite variation and 𝑊 𝑡 does not, the cross term (𝑑𝑀 𝑡 )( 𝑑𝑍 𝑡 )
+
+vanishes for the deterministic part of 𝑑𝑀 𝑡 . Substituting the dynam-ics: 
+
+𝑑 (𝑀 𝑡 𝑍 𝑡 ) = (− 𝑀 𝑡 𝐴 (𝑡 )𝑑𝑡 )𝑍 𝑡 + 𝑀 𝑡 [( 𝐴 (𝑡 )𝑍 𝑡 + 𝜇 (𝑡 )) 𝑑𝑡 + 𝜎𝑑𝑊 𝑡 ]
+
+= −𝑀 𝑡 𝐴 (𝑡 )𝑍 𝑡 𝑑𝑡 + 𝑀 𝑡 𝐴 (𝑡 )𝑍 𝑡 𝑑𝑡 + 𝑀 𝑡 𝜇 (𝑡 )𝑑𝑡 + 𝑀 𝑡 𝜎𝑑𝑊 𝑡 
+
+= 𝑀 𝑡 𝜇 (𝑡 )𝑑𝑡 + 𝑀 𝑡 𝜎𝑑𝑊 𝑡 (38) Integrating from 𝑡 0 to 𝑡 :
+
+𝑀 𝑡 𝑍 𝑡 − 𝑀 𝑡 0 𝑍 𝑡 0 =
+
+∫ 𝑡 𝑡 0
+
+𝑀 𝑠 𝜇 (𝑠 )𝑑𝑠 +
+
+∫ 𝑡 𝑡 0
+
+𝑀 𝑠 𝜎𝑑𝑊 𝑠 (39) Multiplying by 𝑀 −1 
+
+> 𝑡
+
+(which corresponds to the transition matrix 
+
+Φ(𝑡, 𝑡 0)) yields the proposition result. In our implementation, we discretize this integral using the matrix exponential for piecewise constant 𝐴 (𝑡 ) over intervals [𝑡 𝑖 , 𝑡 𝑖 +1), allowing for efficient compu-tation via parallel associative scans. □
+
+## B Additional Experimental Results B.1 Computational Efficiency 
+
+Table 3: Comparison of Training Time on C-MAPSS Datasets                 
+
+> Method LSTM+GP LSTM+MPACE Sparse MFMLP Latent-ODE Latent-SDE PSR ACSSM Ours time(s) 14557 7405 15832 19890 20344 3621 12058 9344
+
+Table 3 compares training times for convergence on the C-MAPSS dataset. PC-MambaSDE (9,344s) halves the computational cost of continuous-time baselines like Latent-SDE (20,344s) and achieves a 22.5% reduction versus ACSSM (12,058s). This validates the effi-ciency of our linear-complexity time-domain Mask-Aware Mamba encoder over quadratic attention mechanisms, confirming our frame-work offers a scalable solution for industrial monitoring without compromising accuracy. 
+
+## B.2 Comparison under PSR Settings 
+
+To ensure a fair comparison with the Parameterized Static Regres-sion (PSR) method [ 7 ], we evaluated PC-MambaSDE using the specific scarcity and irregularity settings defined in their work. As shown in Table 4, our method outperforms PSR and Sparse MFMLP across all scarcity levels (50%, 70%, 90%), achieving the lowest RMSE on every subset. This confirms that modeling continuous-time dy-namics yields superior results compared to static regression, even when evaluated under protocols originally designed for static mod-els. 
+
+## B.3 Microscopic Analysis of Latent Dynamics 
+
+Figure 6 illustrates how the model leverages the SDE diffusion term to capture uncertainty while employing the Physical Drift to guarantee adherence to physical laws. The grey background bars mark intervals of data missingness ( 𝑀𝑎𝑠𝑘 = 0) where the model relies exclusively on ODE/SDE evolution. A critical obser-vation is the model’s behavior when the data-driven prediction erroneously deviates upward from the ground truth—implying non-physical self-healing—just before entering a missing interval; the onset of data missingness triggers an immediate correction driven by the physical bias, causing the trajectory to terminate the upward trend and descend smoothly within the shaded region. The model also demonstrates robust behavior in “Cold Start” scenarios where data is missing from the beginning, as the physical bias effectively simulates the degradation trend, and a bidirectional recalibration mechanism is observed upon data restoration: if the physics-guided extrapolation is too aggressive, re-emerging data pulls the predic-tion upward toward the ground truth, whereas if the physical decay is too conservative, the data drives it further down. This mecha-nism proves effective even in scattered missing intervals, ensuring consistent performance. Complementing this, Figure 7 investigates KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Zhuang et al. 
+
+Table 4: Performance comparison on C-MAPSS datasets under different scarcity levels.                                                                                          
+
+> Scarcity Method FD001 FD002 FD003 FD004
+> 50% LSTM+GP 26.45 24.76 26.43 25.26 LSTM+MPACE 17.13 18.52 19.49 20.14 Sparse MFMLP 15.02 16.98 14.41 17.19 PSR 16.74 16.59 18.91 18.57
+> PC-MambaSDE (Ours) 12.29 ±0.43 11.74 ±0.87 13.71 ±0.67 15.51 ±0.14
+> 70% LSTM+GP 29.98 30.28 30.42 28.91 LSTM+MPACE 17.48 18.36 20.09 21.56 Sparse MFMLP 16.85 17.08 16.06 18.18 PSR 16.82 16.04 18.80 18.79
+> PC-MambaSDE (Ours) 12.99 ±0.51 15.15 ±0.58 13.43 ±0.34 16.12 ±0.78
+> 90% LSTM+GP 34.22 36.78 35.89 34.33 LSTM+MPACE 21.85 23.10 21.10 23.54 Sparse MFMLP 20.27 18.67 19.63 19.03
+> PSR 19.58 15.89 20.45 19.92
+> PC-MambaSDE (Ours) 16.05 ±0.93 18.18 ±0.29 17.18 ±0.05 19.78 ±1.2
+
+the sensitivity of the learned representation by visualizing the la-tent manifold under stricter “Healthy” stage definitions (RUL > 100 and RUL > 125). Even under these rigorous thresholds, the topological structure remains distinct, preserving clear separability between Healthy, Degradation, and Critical stages. This persistence of the manifold structure confirms that PC-MambaSDE captures the intrinsic, continuous nature of degradation physics rather than overfitting to specific labeling criteria, thereby validating its robust-ness for early fault detection tasks. 
+
+## C Dataset Description 
+
+To rigorously evaluate the proposed framework under realistic industrial conditions, we conduct experiments on two standard predictive maintenance benchmarks: C-MAPSS and N-CMAPSS. Furthermore, to address the challenge of irregular sampling, we sub-ject these datasets to a specialized Hybrid Irregularity Generation Scheme. 
+
+## C.1 C-MAPSS Benchmark 
+
+C-MAPSS Benchmark We utilize the canonical Commercial Modu-lar Aero-Propulsion System Simulation (C-MAPSS) benchmark [ 24 ], developed by NASA. This dataset simulates the thermodynamic degradation of a commercial turbofan engine under varying fault modes and operating conditions. It comprises four sub-datasets (FD001–FD004): FD001 & FD003. Simulate a single operating condition, with FD001 featuring one fault mode and FD003 featuring two. FD002 & FD004. Represent complex environments with six dis-tinct operating conditions. FD004 is the most challenging subset, combining multiple fault modes with complex operating conditions. All engines operate under normal conditions initially and de-grade continuously until failure; we strictly adhere to the standard train/test splits provided by the repository. 
+
+## C.2 N-CMAPSS Benchmark (Mean-Aggregated) 
+
+To evaluate scalability, we employ the New C-MAPSS (N-CMAPSS) benchmark [ 3] , which provides high-fidelity run-to-failure tra-jectories reflecting real flight conditions. Unlike the aggregated C-MAPSS, N-CMAPSS records high-frequency sensor snapshots. To handle this effectively, we adopt the preprocessing strategy pro-posed by Cheng et al. [ 7]. Specifically, we aggregate sensor readings within each flight cycle using a mean-reduction strategy to generate cycle-aggregated trajectories. This transformation preserves the degradation trend while aligning the data scale with standard RUL prediction tasks and significantly reducing computational overhead. The evaluation covers subsets DS01 through DS08c. 
+
+## C.3 Hybrid Irregularity Generation Scheme (HIGS) 
+
+We introduce HIGS to transform pristine datasets into irregular sequences via four stochastic perturbation mechanisms: 
+
+Asynchronous Sensor Dropout ( 𝑝 𝑑𝑟𝑜𝑝 ). Simulates random packet loss by applying an independent Bernoulli mask to each sensor channel. 
+
+Structural Burst Missingness ( 𝜆 𝑏𝑢𝑟𝑠𝑡 , 𝜇 𝑙𝑒𝑛 ). Models systematic fail-ures (e.g., network outages) using a Poisson process to generate continuous segments of data loss. 
+
+Temporal Jitter ( 𝜎 𝑗𝑖𝑡𝑡𝑒𝑟 ). Simulates clock desynchronization er-rors by perturbing timestamps with Gaussian noise while enforcing monotonicity. 
+
+State-Dependent Noise ( 𝛼 𝑛𝑜𝑖𝑠𝑒 ). Introduces noise variance that scales dynamically with the degradation level (Health Index), mim-icking signal-to-noise ratio decay. Unless otherwise stated, the “Base” setting utilizes 𝑝 𝑑𝑟𝑜𝑝 = 0.5,
+
+𝜆 𝑏𝑢𝑟𝑠𝑡 = 0.05 , 𝜇 𝑙𝑒𝑛 = 5, and 𝜎 𝑗𝑖𝑡𝑡𝑒𝑟 = 0.1.

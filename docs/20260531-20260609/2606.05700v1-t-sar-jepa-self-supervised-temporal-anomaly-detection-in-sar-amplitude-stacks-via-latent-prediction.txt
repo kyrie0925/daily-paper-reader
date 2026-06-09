@@ -1,0 +1,306 @@
+Title: T-SAR-JEPA: Self-Supervised Temporal Anomaly Detection in SAR Amplitude Stacks via Latent Prediction
+
+URL Source: https://arxiv.org/pdf/2606.05700v1
+
+Published Time: Fri, 05 Jun 2026 00:37:31 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# T-SAR-JEPA: Self-Supervised Temporal Anomaly Detection in SAR Amplitude Stacks via Latent Prediction 
+
+Kerod Woldesenbet *
+
+Independent Researcher 
+
+kerod5858@gmail.com 
+
+Abem Woldesenbet *
+
+Dakota State University 
+
+abem.woldesenbet@trojans.dsu.edu 
+
+© 2026 IEEE. Personal use of this material is permitted. Permission from IEEE must be obtained for all other uses, in any current or future media, including reprinting/republishing this material for advertising or promotional purposes, creating new collective works, for resale or redistribution to servers or lists, or reuse of any copyrighted component of this work in other works. 
+
+Abstract —We present T-SAR-JEPA, a self-supervised frame-work for temporal anomaly detection in SAR amplitude stacks via latent prediction. A ViT-Base/16 encoder from SAR-JEPA [1] is domain-adapted on 39,300 Capella patches using local masked reconstruction [2] with gradient feature prediction. A temporal transformer with sinusoidal time encoding forecasts future latent states from K=7 acquisitions, with progressive unfreezing sub-stantially reducing validation loss. The model operates on ampli-tude alone; InSAR coherence serves exclusively as independent pseudo-ground-truth. On the DFC 2026 dataset [3] (300 time-series, three AOIs), T-SAR-JEPA achieves ROC-AUC of 77.0% on the Hawaii eruption window, outperforming RX, PaDiM, Linear AR, and LSTM baselines ( ∼50 %). Spatial coherence of 99.9% (p < 0.001 , permutation test) confirms structured detections. Code: https://github.com/TerraLatent/t-sar-jepa. 
+
+Index Terms —SAR, self-supervised learning, JEPA, anomaly detection, temporal analysis, change detection 
+
+I. I NTRODUCTION 
+
+Synthetic aperture radar (SAR) enables all-weather, day-night surface monitoring [4]. Traditional temporal change detection relies on InSAR [5], [6], requiring co-registration, phase unwrapping, and atmospheric correction [7], limiting scalability to dense commercial stacks. Self-supervised learn-ing (SSL) has been applied to SAR despeckling [8], spatial anomaly detection [9], and bitemporal change detection [10], but these methods do not model multi-temporal dynamics from long acquisition stacks. Joint Embedding Predictive Archi-tectures (JEPA) [11], [12] predict representations rather than pixels, well-suited to SAR where speckle corrupts pixel-level targets. Li et al. [1] demonstrated SAR-JEPA for automatic target recognition, training a ViT encoder to predict multi-scale gradient features of masked patches from visible context via local masked reconstruction [2]. Most deep learning approaches to SAR change detection op-erate on amplitude alone [9], [10]. Recent multitemporal SSL methods reconstruct masked pixels across time [13], while JEPA-based retrieval [14] and modality-agnostic foundation models [15] provide complementary directions. We adopt the amplitude-only paradigm but use InSAR coherence as inde-pendent validation : our model discovers temporal anomalies from amplitude, and coherence independently confirms these correspond to physical surface change. 
+
+> *
+
+These authors contributed equally to this work. 
+
+We introduce T-SAR-JEPA (Fig. 1), which: (1) domain-adapts a pretrained SAR-JEPA encoder on 39K Capella patches; (2) trains a temporal transformer with sinusoidal time encodings on frozen latent sequences; (3) applies progressive unfreezing for end-to-end refinement; and (4) scores anomalies as L2 prediction errors validated against coherence-derived pseudo-GT across three AOIs from DFC 2026 [3]. 
+
+Contributions: (1) First JEPA-based temporal SAR anomaly detector on amplitude alone, with InSAR coher-ence as independent validation; (2) Sinusoidal time encoding outperforms learnable alternatives with ablation across three encoding types; (3) Progressive unfreezing yields substan-tial validation loss reduction over frozen-encoder training; (4) Evaluation against four baselines with ROC/PR metrics and permutation-tested spatial coherence; (5) Public code release. II. M ETHOD 
+
+T-SAR-JEPA operates in three stages: encoder domain adap-tation, temporal predictor training, and end-to-end fine-tuning. 
+
+A. Stage 1: Encoder Domain Adaptation 
+
+We build on SAR-JEPA [1], a ViT-Base/16 [16] pretrained with local masked reconstruction [2] to predict multi-scale gradient features (edge and texture descriptors) of masked regions from visible context on SAR ATR datasets. The encoder uses a single-channel projection Conv2d(1, 768, 16, 16) , accepting log-dB amplitude normalized via P2/P98 (2nd/98th percentile) clipping to [0 , 1] . We fine-tune on 39,300 Capella patches across all three AOIs using the same objec-tive, bridging the distribution gap between pretraining data (MSTAR/SAR-ACD) and the target Capella constellation. The output is a 768-dimensional representation per 224 ×224 patch. 
+
+B. Stage 2: Temporal Predictor 
+
+The adapted encoder is frozen and used to extract zi ∈ R768 
+
+per acquisition. A 4-layer transformer [17] (23.2M params, 768 hidden, 8 heads, 2048 MLP, dropout 0.1) forecasts ˆzi
+
+from the K=7 preceding representations. Capella acquisitions are irregularly spaced (typically 2–5 days apart), so integer positional indices discard the physical elapsed time between frames. We adopt fixed sinusoidal encodings as a continuous function of ∆t: a geometric progression of frequencies gives                  
+
+> arXiv:2606.05700v1 [cs.CV] 4 Jun 2026 SAR Patch
+> 224 × 224
+> amplitude only
+> N acquisitions ×N ViT-Base/16
+> SAR-JEPA pretrained 39K patch adaptation
+> frozen (S2) →progressively unfrozen (S3)
+> pool context window
+> zᵢ∈ℝ⁷⁶⁸
+> z₁z₂⋯zK
+> +++Sinusoidal TE( Δt)
+> K=7
+> Temporal Transformer
+> 4 layers · 8 heads
+> Smooth L1 loss
+> ẑt+1 predicted
+> zt+1 observed
+> encode x t+1
+> ǁ·ǁ2ai
+> anomaly score
+
+Fig. 1. T-SAR-JEPA inference dataflow. Single-channel SAR amplitude patches ( 1×224 ×224 ) from N acquisitions are independently encoded by a ViT-Base/16 (SAR-JEPA pretrained, domain-adapted on 39K Capella patches) into zi ∈ R768 . A context window of K=7 embeddings, augmented with sinusoidal time encodings TE (∆ t), feeds a 4-layer temporal transformer that predicts ˆzt+1 . The anomaly score ai = ∥ˆzi − zi∥2 measures prediction error against the observed embedding. The encoder is frozen during Stage 2 and progressively unfrozen in Stage 3. InSAR coherence serves as independent validation only — it is never seen by the model. 
+
+a multi-scale periodic basis across timescales without per-frequency calibration, remains well-conditioned in the low-data regime (300 sequences) where learnable encodings are under-determined, and extrapolates in closed form to unseen cadences at inference. We embed the elapsed time ∆t (in days) as TE (∆ t) = [sin( ωk∆t), cos( ωk∆t)] 384  
+
+> k=1
+
+(1) where ωk = 1/10000 2k/d for k = 1, . . . , 384 (d=768 ), following the standard geometric progression [17] that spans periods from ∼1 day to ∼10 4 days. At a typical 3-day cadence, K=7 corresponds to ∼3 weeks of lookback. We ablate against CTLPE [18] and linear learnable encodings (Sec. IV-A). Training minimizes Smooth L1 loss (robust to speckle-induced outliers): 
+
+Ltemporal = 1
+
+N −K
+
+> N
+
+X
+
+> i=K+1
+
+SmoothL1 (ˆ zi, z i), (2) where zi ∈ R768 is the encoder embedding of acquisition i, ˆzi
+
+is its prediction from the preceding K embeddings, and N is the sequence length. The sum starts at i=K+1 since the first 
+
+K acquisitions lack a full context window. 
+
+C. Stage 3: Progressive Unfreezing 
+
+After Stage 2 convergence, the encoder is progressively unfrozen with differential learning rates. Phase A unfreezes the last 4 encoder blocks (encoder lr = 10 −5, predictor lr = 10 −4, 30 epochs). Phase B unfreezes all layers with halved rates (20 epochs). This aligns encoder representations with the temporal prediction task while preserving pretrained low-level features [19]. 
+
+D. Anomaly Scoring 
+
+Anomaly scores are L2 distances between predicted and actual representations: 
+
+ai = ∥ˆzi − zi∥2 (3) We use L2 rather than the training loss (Smooth L1) because it preserves outlier magnitude, which is the detection signal. Stable surfaces produce low ai; surface changes break tem-poral predictability, elevating ai. Detections use a percentile threshold swept over P70–P90 of the per-AOI score distribu-tion. III. E XPERIMENTS 
+
+A. Dataset and Preprocessing 
+
+We use the DFC 2026 Capella Space dataset [3], [20] across three AOIs: Hawaii/Kilauea (186 collects, volcanic terrain with Dec 2024 eruption), Los Angeles (115 collects, semi-arid urban/forest), and Pilbara/W. Australia (92 collects, arid mining, mixed satellites C09/C10/C14). From each GEO image we extract a 10 ×10 grid of 224 ×224 patches from the center footprint, yielding 39,300 patches and 300 temporal sequences. Amplitude is converted to log dB, P2/P98 clipped, and normalized to [0 , 1] .
+
+Pseudo-GT. InSAR coherence maps from 19 SLC pairs around the Kilauea eruption window (Dec 2024–Jan 2025) serve as independent pseudo-ground-truth. Coherence drops below 0.2 define “change” events (99 positive out of 1,900 pairs, 5.2% prevalence). This coherence data is never seen by the model .
+
+B. Baselines 
+
+All baselines operate on the same frozen Stage 1 ViT encoder features. We note that baselines do not receive Stage 3 progressive unfreezing; the ablation in Table V shows frozen T-SAR-JEPA (val loss 2.0×10 −3) as a fairer temporal compar-ison, while unfreezing (val loss 0.04 × 10 −3) demonstrates the additional gain from encoder–predictor co-adaptation. Base-lines: RX [21] (Mahalanobis-distance anomaly detector, non-temporal), PaDiM [22], [23] (per-location Gaussian modeling, non-temporal), Linear AR (autoregressive order K=7 , tem-poral), and LSTM (2-layer, 512 hidden, temporal). RX and PaDiM serve as non-temporal reference points; Linear AR and LSTM are the direct temporal comparisons. TABLE I TRAINING CONFIGURATION FOR EACH STAGE .
+
+Stage 1 Stage 2 Stage 3 
+
+Optimizer AdamW, cosine decay Learning rate 10 −4 10 −4 10 −5/10 −4
+
+Weight decay 0.05 0.01 0.01 Batch size 256 64 64 Epochs 50 150 30+20 Encoder fine-tune frozen progressive RX       
+
+> PaDiM
+> Linear AR
+> LSTM
+> T-SAR-JEPA
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> ROC-AUC (%)
+> 50.6 51.2 49.0 46.4
+> 77.0
+> (a)
+> Chance (50%)
+> RX
+> PaDiM
+> Linear AR
+> LSTM
+> T-SAR-JEPA
+> 0
+> 5
+> 10
+> 15
+> 20
+> 25
+> PR-AUC (%)
+> 5.3 5.2 4.8 4.7
+> 12.8
+> (b)
+> Prevalence (5.2%)
+
+Fig. 2. (a) ROC-AUC and (b) PR-AUC on Hawaii eruption-window evalu-ation (1,900 pairs, 99 positives at coherence < 0.2). T-SAR-JEPA (77.0%) substantially outperforms all baselines ( ∼50 %). 
+
+C. Implementation Details 
+
+Table I summarizes training hyperparameters. Stage 2 uses an 80/20 spatial split (disjoint grid locations) to prevent temporal leakage; Stage 3 Phase A unfreezes the last 4 blocks, Phase B all layers with halved rates and gradient clipping at 1.0. All training on a single NVIDIA H200. Evaluation protocol: The eruption window (Dec 2024–Jan 2025) is fully held out from Stages 2/3 training, which uses only pre-eruption acquisitions. The 80/20 spatial split is maintained at evaluation: ROC/PR metrics are computed on the held-out 20% spatial cells over the eruption window. 
+
+D. Results 
+
+ROC/PR Performance. Table II reports anomaly detection against coherence-drop pseudo-GT on 1,900 pairs from the Hawaii eruption window. T-SAR-JEPA achieves ROC-AUC of 
+
+77.0% and PR-AUC of 12.8% , substantially outperforming all baselines near chance (Fig. 2). For each coherence pair 
+
+(ta, t b) with ta < t b, we assign the anomaly score atb of the later acquisition and label the pair as positive if mean grid-cell coherence falls below 0.2. This yields 1,900 scored pairs (99 positive, 5.2% prevalence). PR-AUC is modest due to severe class imbalance (5.2% prevalence) and label noise from coarse coherence pseudo-GT; ROC-AUC better reflects ranking quality. Hawaii is the only AOI with a known major event; LA and Pilbara are assessed via spatial coherence and geometry invariance below. 
+
+Spatial Coherence. Table III reports 4-connected neighbor agreement (fraction of cells matching all spatial neighbors’ binary labels) at P80: 99.9% for Hawaii and LA, 93.6% for Pilbara, all with p < 0.001 (1,000-shuffle permutation test), 
+
+TABLE II ANOMALY DETECTION VS . COHERENCE -DROP PSEUDO -GT (H AWAII ,1,900 PAIRS , 99 POSITIVES ). A LL METHODS USE THE SAME FROZEN VIT
+
+> FEATURES
+
+. B EST IN BOLD .
+
+Method ROC-AUC (%) PR-AUC (%) 
+
+RX [21] 50.6 5.3 PaDiM [22] 51.2 5.2 Linear AR 49.0 4.8 LSTM 46.4 4.7 
+
+T-SAR-JEPA (ours) 77.0 12.8 
+
+TABLE III SPATIAL COHERENCE : OBSERVED NEIGHBOR AGREEMENT VS . NULL DISTRIBUTION (1000 PERMUTATIONS ). A LL p < 0.001 .
+
+AOI Thresh. Observed Null Ratio p
+
+Hawaii P80 99.9% 54 .8 ± 1.0% 1.82 × <0.001 LA P80 99.9% 54 .8 ± 1.3% 1.82 × <0.001 Pilbara P80 93.6% 58 .1 ± 1.4% 1.61 × <0.001 
+
+exceeding null by 1.6−1.8×. High absolute values reflect the 
+
+10 ×10 grid where correlated events produce nearly uniform labels. 
+
+Geometry Invariance. Table IV reports Spearman cor-relations between anomaly scores and satellite identity (all 
+
+|ρ| < 0.11 ). IV. D ISCUSSION AND CONCLUSION 
+
+A. Ablation Studies 
+
+Table V summarizes ablations. Sinusoidal encoding achieves the lowest validation loss; with only 300 temporal sequences, learnable encodings lack sufficient data, while fixed sinusoidal frequencies provide multi-scale periodicity without calibration. Performance peaks at K=7 (∼3 weeks at typical cadence); K=9 overfits and K=3 provides insufficient context. 
+
+Threshold Sweep. Spatial coherence remains >91.7% across P70–P90 for all AOIs, indicating robustness to threshold choice. 
+
+B. Kilauea Eruption Case Study 
+
+Fig. 3 shows the model’s response to the December 2024 Kilauea eruption [24]: the L2 prediction error on this grid cell peaks at 3.41 at eruption onset — the only acquisition exceeding P80 — driven by the visible amplitude texture shift in panel A. InSAR coherence decorrelation at matching locations independently confirms the detection, despite the model never seeing coherence. 
+
+Latent State Transitions. Fig. 4 shows ten consecutive embeddings from the case-study grid cell spanning the erup-tion window, projected via t-SNE. Points are colored by relative acquisition day (viridis); each point trails an arrow from its predicted embedding ˆzi to the observed zi, with thickness proportional to L2 prediction error. Pre-eruption acquisitions produce thin arrows (predictor tracks reality); at and around the eruption peak the arrows lengthen dramatically, TABLE IV GEOMETRY INVARIANCE : S PEARMAN ρ BETWEEN ANOMALY SCORE AND SATELLITE ID. A LL |ρ| < 0.11 (NEGLIGIBLE EFFECT SIZE ); SMALL 
+
+p-VALUES REFLECT LARGE N , NOT MEANINGFUL ASSOCIATION .
+
+AOI ρ p-value Satellites 
+
+Hawaii 0.061 <0.001 C10, C13, C14 LA −0.102 <0.001 C07, C13, C14 Pilbara 0.044 <0.001 C09, C10, C14 Baseline       
+
+> 2024-06-28
+> Before
+> 2024-11-27
+> At spike
+> 2024-11-30
+> After
+> 2024-12-06
+> Nov '24 Jan '25 Mar '25 May '25 Jul '25 Sep '25 Nov '25
+> Acquisition date
+> 0
+> 1
+> 2
+> 3
+> Anomaly score (L2)
+> Peak: 3.41
+> P80
+> A
+> B
+
+Fig. 3. Kilauea case study. (A) SAR patches at four dates: baseline , before , at spike (red border), and after . (B) Anomaly score with P80 threshold (dotted) and peak (3.41) at eruption onset; flagged from amplitude alone. TABLE V ABLATION RESULTS (VALIDATION LOSS ×10 −3 ). TOP : TIME ENCODING .
+
+MIDDLE : CONTEXT WINDOW K. BOTTOM : FREEZING STRATEGY 
+
+(S TAGE 3 ADDS 50 EPOCHS ). 
+
+Time Encoding Val Loss ( ×10 −3)Sinusoidal (ours) 2.70 
+
+Linear learnable 4.65 CTLPE [18] 4.69 
+
+Context K Val Loss ( ×10 −3)
+
+K=3 3.42 
+
+K=5 2.47 
+
+K=7 2.00 
+
+K=9 2.23 
+
+Freezing Val Loss ( ×10 −3)
+
+Frozen encoder 2.00 
+
+Progressive (ours) 0.04 
+
+directly visualising how the temporal transformer’s inability to anticipate the surface change generates the anomaly signal. 
+
+Calibration and Leakage. Progressive unfreezing shifts score distributions (mean 0.453 vs. frozen 6.89); we use per-AOI P70–P90 thresholds for robustness. Stage 1 adapts on all AOIs using only the local masked reconstruction objective (no temporal labels or coherence), so information leakage is minimal; a leave-one-AOI-out protocol is planned. 60 40 20 0 20 40 
+
+t-SNE 1 
+
+5.0 
+
+2.5 
+
+0.0 
+
+2.5 
+
+5.0 
+
+7.5 
+
+10.0 
+
+> t-SNE 2
+
+25.6     
+
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> Days from start
+> Predicted ziziziPeak
+
+Fig. 4. Latent state transitions across the eruption window (t-SNE, 
+
+R768 →2D). Points: observed zi colored by relative day. Arrows: predicted 
+
+ˆzi→zi, thickness ∝ L2 error. Thin arrows = accurate prediction (stable surface); thick arrows = large prediction error (anomaly). Peak marked at 25.6. 
+
+Limitations and Future Work. Coherence pseudo-GT conflates physical change with temporal decorrelation, so ROC-AUC is a lower bound (threshold sweep over 0.15–0.35 planned). Event-level pseudo-GT exists only for Hawaii; LA and Pilbara rely on structural proxies. Our temporal baselines are simple; stronger architectures (TCNs, Transformers with matched unfreezing) are needed for fair ablation. Future work: bootstrap CIs for ROC/PR and formal annotations. 
+
+Conclusion. T-SAR-JEPA detects temporal anomalies in amplitude-only SAR via self-supervised latent prediction, without labels or interferometric processing. InSAR coherence validates ranking (ROC-AUC 77.0% vs. ∼50 %), spatial struc-ture ( >93.6% neighbor agreement, p< 0.001 ), and geometry invariance ( |ρ|<0.11 ) across three diverse AOIs. REFERENCES [1] W. Li, W. Yang, T. Liu, Y. Hou, Y. Li, Z. Liu, Y. Liu, and L. Liu, “Pre-dicting gradient is better: Exploring self-supervised learning for SAR ATR with a joint-embedding predictive architecture,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 218, pp. 326–338, 2024. [2] J. Chen, F. F. Khan, M. Hu, A. Sherif, Z. Ge, B. Li, and M. Elhoseiny, “Local masked reconstruction for efficient self-supervised learning on high-resolution images,” in Proceedings of the IEEE/CVF Winter Con-ference on Applications of Computer Vision (WACV) , 2025, pp. 8035– 8045. [3] IEEE GRSS Image Analysis and Data Fusion Technical Committee, “2026 IEEE GRSS data fusion contest: SAR temporal analysis with Capella space data,” IEEE GRSS Data Fusion Contest , 2026. [4] R. Bamler and P. Hartl, “Synthetic aperture radar interferometry,” Inverse Problems , vol. 14, no. 4, pp. R1–R54, 1998. [5] P. A. Rosen, S. Hensley, I. R. Joughin, F. K. Li, S. N. Madsen, E. Ro-driguez, and R. M. Goldstein, “Synthetic aperture radar interferometry,” 
+
+Proceedings of the IEEE , vol. 88, no. 3, pp. 333–382, 2000. [6] A. Ferretti, C. Prati, and F. Rocca, “Permanent scatterers in SAR interferometry,” IEEE Transactions on Geoscience and Remote Sensing ,vol. 39, no. 1, pp. 8–20, 2001. [7] P. Berardino, G. Fornaro, R. Lanari, and E. Sansosti, “A new algorithm for surface deformation monitoring based on small baseline differential SAR interferograms,” IEEE Transactions on Geoscience and Remote Sensing , vol. 40, no. 11, pp. 2375–2383, 2002. [8] E. Dalsasso, L. Denis, and F. Tupin, “SAR2SAR: A semi-supervised despeckling algorithm for sar images,” IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , vol. 14, pp. 4321– 4329, 2021. [9] L. Chauvin, S. Gupta, A. Ibarra, and J. Peeples, “Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms,” in Algorithms for Synthetic Aperture Radar Imagery XXXII ,vol. 13456. SPIE, 2025, p. 134560C. [10] P. Weinmann, F. Schenck, and M. ˇ Siklar, “SkyCap: Bitemporal VHR optical–SAR quartets for amplitude change detection and foundation-model evaluation,” in Workshop on Advances in Representation Learning for Earth Observation (REO), NeurIPS , 2025. [11] Y. LeCun, “A path towards autonomous machine intelligence,” OpenRe-view preprint , 2022. [12] M. Assran, Q. Duval, I. Misra, P. Bojanowski, P. Vincent, M. Rab-bat, Y. LeCun, and N. Ballas, “Self-supervised learning from images with a joint-embedding predictive architecture,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2023, pp. 15 619–15 629. [13] A. Labatie et al. , “MAESTRO: Masked autoencoders for multimodal, multitemporal, and multispectral earth observation data,” in Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV) , 2026. [14] S. Choudhury, Y. Salunkhe, S. Mehrotra, and B. Banerjee, “REJEPA: A novel joint-embedding predictive architecture for efficient remote sensing image retrieval,” in CVPR 2025 EarthVision Workshop , 2025. [15] Z. Xiong, Y. Wang, F. Zhang, and X. X. Zhu, “Neural plasticity-inspired foundation model for observing the earth crossing modalities,” arXiv preprint arXiv:2403.15356 , 2024. [16] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, J. Uszkoreit, and N. Houlsby, “An image is worth 16x16 words: Trans-formers for image recognition at scale,” in International Conference on Learning Representations , 2021. [17] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, “Attention is all you need,” Advances in Neural Information Processing Systems , vol. 30, 2017. [18] B. Kim and J.-G. Lee, “Continuous-time linear positional embedding for irregular time series forecasting,” 2024. [19] J. Howard and S. Ruder, “Universal language model fine-tuning for text classification,” in Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics , 2018, pp. 328–339. [20] G. Farquharson, D. Castelletti, S. De, C. Stringham, N. Yague, V. Caz-carra Bes, J. Ryu, and Y. Goncharenko, “The new Capella Space satellite generation: Acadia,” in IGARSS 2023 – 2023 IEEE International Geoscience and Remote Sensing Symposium , 2023, pp. 1513–1516. [21] I. S. Reed and X. Yu, “Adaptive multiple-band CFAR detection of an optical pattern with unknown spectral distribution,” IEEE Transactions on Acoustics, Speech, and Signal Processing , vol. 38, no. 10, pp. 1760– 1770, 1990. [22] T. Defard, A. Setkov, A. Loesch, and R. Audigier, “PaDiM: A patch dis-tribution modeling framework for anomaly detection and localization,” in International Conference on Pattern Recognition , 2021, pp. 475–489. [23] A. Ibarra and J. Peeples, “Patch distribution modeling framework adaptive cosine estimator (PaDiM-ACE) for anomaly detection and localization in synthetic aperture radar imagery,” in Algorithms for Synthetic Aperture Radar Imagery XXXII , vol. 13456. SPIE, 2025, p. 134560D. [24] U.S. Geological Survey Hawaiian Volcano Observatory, “Kilauea volcano activity updates: December 2024 and march 2025 eruption episodes,” U.S. Geological Survey, Tech. Rep., 2025. [Online]. Available: https://www.usgs.gov/volcanoes/kilauea/volcano-updates
