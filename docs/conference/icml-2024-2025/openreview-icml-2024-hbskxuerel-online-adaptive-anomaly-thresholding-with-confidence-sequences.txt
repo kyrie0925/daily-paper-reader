@@ -1,0 +1,2782 @@
+Title: Online Adaptive Anomaly Thresholding with Confidence Sequences
+
+URL Source: https://openreview.net/pdf?id=hbsKxUEreL
+
+Number of Pages: 28
+
+Markdown Content:
+# Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Sophia Sun 1 Abishek Sankararaman 2 Balakrishnan (Murali) Narayanaswamy 2
+
+## Abstract 
+
+Selecting appropriate thresholds for anomaly de-tection in online, unsupervised settings is a chal-lenging task, especially in the presence of data distribution shifts. Addressing these challenges is critical in many practical large scale systems, such as infrastructure monitoring and network intru-sion detection. This paper proposes an algorithm that connects online thresholding with construct-ing confidence sequences achieving (1) adaptive online threshold selection robust to distribution shifts, (2) statistical guarantees on false positive and false negative rates without any distributional assumptions, and (3) improved performance when given relevant offline data to warm-start the online algorithm, while having bounded degradation if the offline data is irrelevant. We complement our theoretical results with empirical evidence that our method outperforms commonly used base-lines across synthetic and real world datasets. 
+
+## 1. Introduction and Motivation 
+
+Online anomaly detection (OAD) is the task of identifying deviations from the normal behavior in a streaming fashion, where samples arrive sequentially, and decisions must be made before the next sample is received. This task plays a fundamental role in various practical applications within cyber and cyber-physical systems, including maintenance (Khan et al., 2020), monitoring (Hill and Minsker, 2010), and security (Mirsky et al., 2018; Lazarevic et al., 2003). In modern environments, the sheer volume and velocity of data make it often impractical to have comprehensive labels for all anomalous samples (Siffer et al., 2017; Schmidl et al., 2022; Ren et al., 2019; Audibert et al., 2020). In deployment, typical AD algorithms assign a real-valued anomaly score to each sample, where a higher score indi-cates a greater degree of anomaly (Chandola et al., 2009).      
+
+> 1University of California, San Diego. Work done when intern-ing with Amazon Web Services. 2Amazon Web Services, Santa Clara CA. Correspondence to: Sophia Sun <shs066@ucsd.edu >.
+> Proceedings of the 41 st International Conference on Machine Learning , Vienna, Austria. PMLR 235, 2024. Copyright 2024 by the author(s).
+
+The OAD algorithm first scores each sample and then cali-brates a threshold to make the binary decision of whether the given sample is anomalous or not. The choice of this threshold is critical due to its significant downstream im-pact. In security systems, for example, failing to detect a genuine anomaly or security event can have catastrophic consequences (Ho et al., 2017a). Conversely, false positives incur costs, as each detection necessitates investigation by a security operator, potentially leading to ‘alert fatigue’ (Chen, 2017; Lin et al., 2018; He et al., 2023). Given the risk of incorrect decisions, a common method-ology to set the threshold is by abstaining from decisions for an initial ‘cold-start’ number of samples on the stream (Huang and Kasiviswanathan, 2015; Katz and Raz, 2023). At the end of the cold-start period, a threshold is chosen for future decision making, either by algorithm or by an expert based on the online scores during the cold-start, as well as any offline data that is available (Ren et al., 2019; Bhatia et al., 2021; Huang et al., 2022; Li et al., 2021). This ap-proach has two drawbacks. Firstly, using a fixed cold-start duration across all streams independent of stream statistics is sub-optimal and can lead to much more abstains than nec-essary. Secondly, a static threshold is prone to performance loss when the data stream undergoes distribution shift - a common occurrence in many AD systems (Herley, 2022; Gama et al., 2014). Although adapting anomaly scoring to distribution drifts have been studied (Ma et al., 2018; Bhatia et al., 2022; Sankararaman et al., 2022), limited advances have occurred in adapting the threshold dynamically. We formulate adaptive threshold selection as online quantile estimation by defining anomalies as tail quantile of anomaly scores (Steinwart et al., 2005; Cadre et al., 2013; Gan and Bailis, 2017; Siffer et al., 2017). Formally, we model that each time t ∈ N, the anomaly score St ∈ R is independently sampled from distribution ft. This score St is an anomaly if it exceeds the pth quantile of the distribution ft. We assume the quantile level p ∈ (0 , 1) is known, while the distribution 
+
+ft as unknown to the algorithm. Knowledge of p arises either from a constraint on the rate of anomalies that can be investigated without succumbing to alert fatigue (Hassan et al., 2019; Ho et al., 2021), or from domain knowledge (Perini and Davis, 2023). Performance of threshold selection is measured by false positives (FP), benign samples marked as anomalous, false 1Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+negatives (FN), anomalous sample mark as benign, and number of samples abstained from making a decision on. Since AD outputs are typically used to make consequential decisions, e.g. engaging human operators to triage alerts, OAD systems must achieve low number of FPs and FNs, by possibly trading-off with abstains (Ho et al., 2017b). Further, these systems need to be adaptive to distribution shifts and be designed without requiring distributional assumptions (cf. 
+
+Research challenges 5-7 of (Sadik and Gruenwald, 2014)). 
+
+1.1. Desiderata of OAD threshold selection systems 
+
+In summary, the following set of statistical requirements is desired for online threshold selection. 
+
+(i) High accuracy: Constant number of mistakes 1 indepen-dent of the stream length on an i.i.d. data-stream. 
+
+(ii) Low abstention: Abstain on a vanishing fraction of samples on an i.i.d. stream, i.e. small cold-start period. 
+
+(iii) Adaptive to distribution changes: On a non-stationary stream, number of mistakes and abstains only increase com-pared to the stationary setting by a constant factor that is independent of the stream length, but only proportional to the number and magnitude of distribution changes. 
+
+(iv) Learn from offline dataset: When unlabeled offline datasets are available, abstain rate is a constant independent of stream length, as long as the online distribution matches one of the offline distribution. In the worst-case of arbitrary offline dataset distribution, performance degradation com-pared to no offline dataset must be bounded independent of stream length and size of the dataset. 
+
+(v) Distribution and parameter free: The algorithm does not require any knowledge of the distributions or assump-tions such as sub-gaussian tails or parameterized distribution family, and nevertheless must guarantee all of above. 
+
+1.2. Main result and technical contributions 
+
+Algorithm 5 is distribution and parameter free and is the 
+
+first algorithm to satisfy all the aforementioned desiderata. 
+
+Algorithm 5 does not require knowledge on the locations or number of distribution shifts nor on the online stream or the offline datasets’ distributions. Nevertheless, under mild technical assumptions, the guarantees in Theorem 6 show that the performance adapts to the problem complexity. Concretely, our contributions are as follows. 
+
+1. High accuracy requires abstention. We prove that any scheme that does not abstain, cannot achieve constant FPs and FNs, even for a stationary stream. The proof follows by constructing a hard instance and a reduction from decision making to hypothesis testing on that instance.  
+
+> 1Throughout, we denote the mistakes as sum of FP and FN.
+> (a) (b)
+
+Figure 1: Fig (a) is the heuristic of a fixed cold-start where all samples are abstained from and a static threshold for all future samples. Fig (b) is the decision boundary from Algorithm 6 using an adaptive cold-start. 
+
+2. Algorithm using confidence sequences (CS) to adapt threshold to distribution changes. A sample St is deemed as an anomaly by our algorithm (Algo. 5) if it exceeds the upper confidence of the pth quantile, is benign if it is smaller than the lower confidence, and is abstained from otherwise (Fig. 1). The crux of our algorithm is in choosing the relevant online and offline samples to construct the CS. Online distribution shifts are detected by constructing CS on different sub-sequences and testing if they have a non-empty intersection. Theorem 2 shows that on an i.i.d. stream of length T , no mistakes and at-most O(√T ) abstains occur with high probability. Theorem 4 shows that when there are distribution shifts, our algorithm incur total additional mis-takes independent of T , without requiring any knowledge of the data distributions or change-points. 
+
+3. Relevant offline dataset improves online performance, while irrelevant offline dataset has bounded degrada-tion. Theorem 6 proves that when offline data matching the distributions of the online stream are available, they improve abstain rate without loss of accuracy. In the worst-case when the offline dataset’s distributions are arbitrary, the performance degradation compared to the case when the algorithm ignores offline dataset is bounded independent of stream length or offline dataset size . Algorithm 5 does not a priori know if the offline dataset is useful or not, but yields improved guarantees whenever the offline dataset is useful. The technical novelty is to rely on an offline dataset only if a CS constructed on offline dataset intersects with the online CS. This is the first algorithm for online thresholding showing improved performance in the presence of useful offline data, while guaranteeing worst-case bounds if the offline data is arbitrary. 
+
+## 2. Notations and Problem Formulation 
+
+We formally state the problem and performance measures. 
+
+2.1. Online Data Stream 
+
+A data-stream of length T ∈ N is a collection of T , indepen-dent, scalar valued random variables (St)Tt=1 , indexed by 2Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+time t ∈ [T ] 2. In practice, St ∈ R at time t is the anomaly score of an input sample produced by an AD algorithm such that high scores corresponds to anomalies. For each time t ∈ [T ], ft is the probability distribution of St, i.e., 
+
+St ∼ ft. We assume ft is a continuous measure without discrete atoms. 3 Since the distribution ft is indexed by time 
+
+t, (St)Tt=1 is not necessarily identically distributed and thus non-stationary. We assume that the data-stream although is non-stationary, is piece-wise stationary. 
+
+Definition 2.1. (Piece-wise stationary) Let T be the time horizon and let HT ≤ T − 1 be the total number of change points. Define a set of strictly increasing time indices 1 < τ 1 < τ 2 · · · < τ HT as change points; let 
+
+τ0 = 0 and τHT +1 = T . A piece-wise stationary data-stream (St)Tt=1 ∼
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+is such that 
+
+∀k ∈ [1 , H T ]:• ∀t ∈ [τk, τ k+1 ), St ∼ f (k) are i.i.d. with the p-quantile of f (k) denoted as Q(k)(p) ∈ R.• f (k)̸ = f (k+1) 
+
+Figure 2: The piece-wise stationary process The special case of HT = 0 corresponds to a stationary i.i.d. data stream. We remark that our algorithm does not have any information on the change-points HT , (τt)HT
+
+> t=1
+
+, nor on distributions (f (c))HT
+
+> c=0
+
+.
+
+2.2. Anomaly Definition Definition 2.2 (Anomalies) . The sample St ∼ ft at time t is an anomaly if St > τ t, where τt = inf {τ ≥ 0 : PS∼ft [S ≤
+
+τ ] ≥ p} and p ∈ (0 , 1) . We denote by yt = 1(St > τ t) the indicator variable that the sample St is an anomaly. In words, a sample St is anomalous if it exceeds the thresh-old τt corresponding to the pth quantile. Thus, the threshold-ing algorithm needs to estimate τt and then use that estimate to make the binary decision of whether St is an anomaly. We assume the quantile value p ∈ (0 , 1) to be known. 
+
+2.3. Offline Datasets 
+
+We formalize the notion of offline datasets that can be used in addition to using historical samples on the data-stream. Offline datasets are typically available to train the anomaly scoring systems (Bhatia et al., 2022; Audibert et al., 2020) and have been used to address the cold-start problem in previous works (Gutflaish et al., 2019; Hofmann, 1999).                   
+
+> 2For any positive integer L, we denote [L] = {1,· · · , L }
+> 3Formally, ∀p∈(0 ,1) , the set {Q∈R:PX∼f[X≤Q] =
+> p}has exactly one element.
+
+Definition 2.3 (Offline Dataset) . We define an of-fline dataset as K sets of independent samples D := 
+
+{{ X(j) 
+
+> i
+
+}Nj
+
+> i=1
+
+}Kj=1 . Each j ∈ { 1, · · · , K } set {X(j) 
+
+> i
+
+}Nj
+
+> i=1
+
+are independent samples such that all of the Nj samples are drawn from distributions having the same pth quantile denoted by Q(j)(p). A special case is {X(j) 
+
+> i
+
+}Nj 
+
+> i=1
+
+are i.i.d., with all Nj samples having identical distributions and thus identical pth quantile. Observe that D = ∅ corresponds to the special case of no offline data availabe. We will assume that K, the number of partitions are known to the algorithm. Clustered offline datasets is a valid assumption, since typically, the offline data is pre-processed before deploying online algorithms. In practice, the clusters could correspond to different groups of signals, e.g. different sensor types, different environmental conditions or day of the week (Khan et al., 2020; Audibert et al., 2020; Sadik and Gruenwald, 2014). 
+
+2.4. Online Anomaly Thresholding Algorithm Definition 2.4. An online anomaly thresholding algo-rithm A outputs a ˆyt = A(St; ( S1, . . . , S t−1), D) ∈{0, 1, ∗(abstain )}, a decision for the score St depending on the history S1, · · · , S t−1 and offline datasets D if any. We emphasize the dependence on the offline dataset D in the algorithm since that can be used to make a decision at all times. However, as mentioned before, the algorithm has no information about the data-stream quadruple, nor any parametric information on the distribution from which either the scores (St)Tt=1 or the offline dataset D are sampled from. 
+
+2.5. Performance Measures 
+
+The three performance measures of an anomaly threshold-ing algorithm are (i) False Positives FP = PTt=1 1(ˆ y1 =1, y t = 0) , (ii) False Negatives FN = PTt=1 1(ˆ y0 =1, y t = 1) , and (iii) Abstains = PTt=1 1(ˆ yt = ∗). We de-note by Mistakes := FP + FN as the sum of false-positives and negatives. The desiderata of high-accuracy and low abstains translate to having a constant independent of T
+
+mistakes and a sub-linear in T abstains. 
+
+## 3. Lower Bound: Achieving high accuracy requires abstaining 
+
+Choosing thresholds for online anomaly detection is non-trivial. In the absence of abstaining, the expected sum of FPs and FNs is at-least order √T on an i.i.d. stream. We provide a sketch and defer details to the Appendix. Consider the standard reduction of estimation to hypothesis testing (Wainwright, 2019) where the stream is either coming from the standard gaussian or a unit variance gaussian with mean 3Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+located at 1√T . Denote by Q(0) (p) < Q (1) (p) to be the pth quantile of the two distributions respectively. Lower bounds from hypothesis testing gives that at any test that looks at all 
+
+T samples and identifies which of the two distributions the stream came from makes a mistake with probability at-least 
+
+1/8. Furthermore, Chernoff bound applied to the binary random variables 1Q(0) (p)<S t<Q (1) (p) gives that with prob-ability at-least 1 − e√T / 8, at-least Cp
+
+√T samples among 
+
+S1, · · · , S T lies in the range [Q(0) (p), Q (1) (p)] , where Cp
+
+is a constant depending on p. Thus, an union bound gives that in the absence of abstains, with probability at-least 
+
+1/8 − e√T / 8, the sum of FP and FN is at-least Cp
+
+√T . A formal statement and proof in Section H in the Appendix. 
+
+## 4. Special Case I: Stationary stream only 
+
+In order to build up the intuition and concepts, we consider three special cases in increasing order of complexity (i) sta-tionary stream without offline data (ii) piece-wise stationary stream without offline dataset, and (iii) stationary stream with offline dataset. The ideas from these special cases are developed in Section 7 to give the general algorithm. In this section, we consider the special case when the on-line algorithm knows that data-stream (St)t≥1 is an i.i.d. sequence and there is no offline dataset for warm-starting, i.e., D = ∅. For this special case, we show in Theorem 2 that results from (Howard and Ramdas, 2022) yields an algorithm that guarantees 0 mistakes and O(√T ) abstains. To formally state the results, we set notations. For any se-quence of numbers (yt)t≥1 and t1 < t 2, denote by yt1:t2 := (yt1 , · · · , y t2 ). For a positive integer t, sequence y1: t, and 
+
+p ∈ (0 , 1) , the pth empirical quantile of y1: t is given by 
+
+bQ(p; y1: t) := y(⌊pt ⌋)+y(⌈pt ⌉) 
+
+> 2
+
+, where y(1) ≤ · · · ≤ y(t) is the sorted order of y1: t.
+
+Definition 4.1 (Confidence Sequences (CS) of a quantile) .
+
+For α ∈ (0 , 1) , a level 1 − α CS of the p ∈ (0 , 1) quantile of an i.i.d. sequence (St)t≥1 with true pth quantile Q(p) ∈ R,is a collection of subsets {Ct : t ≥ 1} such that for all 
+
+t ≥ 1, (i) Ct ⊆ R, (ii) Ct is σ(S1, . . . , S t)-measurable w.r.t. the first t samples and (iii) P(Q(p) ∈ T 
+
+> t≥1
+
+Ct) ≥ 1 − α.
+
+Theorem 1 (Theorem 2 from (Howard and Ramdas, 2022)) .
+
+Let (St)t≥1 be an i.i.d. sequence of R valued random vari-ables. Given α ∈ (0 , 1) , for all p ∈ (0 , 1) , the sequence of sets (C(p, α, S 1: t)) t≥1 is a 1 − α level CS for the pth quantile, where for any sequence of numbers (y1: n),
+
+C(p, α, y 1: n) = 
+
+bQ(max( p − 2un(α), 0) , y 1: n),
+
+bQ(min( p + 2 un(α), 1) , y 1: n)
+
+
+
+, (1) where u(·)(·) : N × [0 , 1] → [0 , 1] given by the function 
+
+ut(α) = 0 .85 pt−1[log log( et ) + 0 .8 log(1612 /α )] , (2) and for all α ∈ [0 , 1] , u0(α) = 1 .A thresholding algorithm for this special case is obtained from the definition of CS as shown in Algorithm 1. 
+
+Algorithm 1 Decision making with confidence set 
+
+Input :Sample S ∈ R, Confidence set C ⊆ R
+
+Output : Anomaly label ˆy ∈ { 0, 1, ∗} 
+
+if S > max C then 
+
+ˆy ← 1 // Declare an anomaly 
+
+else if S ∈ C then 
+
+ˆy ← ∗ // Abstain from decision 
+
+else 
+
+ˆy ← 0 // Declare benign 
+
+end return ˆy
+
+Theorem 2. Suppose for an i.i.d., data-stream (St)t≥1, the decision at time t is given by the output of Algorithm 1 with inputs St and confidence C(p, α, S 1: t−1). Then, with probability at-least 1 − 2α, 0 mistakes and at-most 
+
+7
+
+r
+
+T ln 
+
+ 1612 ln( eT )
+
+> α2
+
+
+
+abstains are incurred. 
+
+Remark 2.1. Theorem 2 implies that points 1 and 2 from Section 1.1 are satisfied by Algorithm 6. 
+
+Remark 2.2. To bound the number of abstains, we need a different analysis compared to (Howard and Ramdas, 2022) to control the probability that a sample St lies within C(p, α, S 1: t−1). We do this by constructing a martingale from the sequence of binary random variables 
+
+1St∈C(p,α,S 1: t−1) and applying Azuma’s inequality. 
+
+## 5. Special Case II: Piece-wise stationary stream without offline data 
+
+Going beyond the i.i.d. case, we consider a piece-wise stationary stream without offline dataset. Our method in Algorithm 3 uses a change-point detection Algorithm 2 from (Shekhar and Ramdas, 2023) as a sub-routine. We need a definition to state the main result of this section. 
+
+5.1. Measure of distribution shift Definition 5.1 (quantile shift) . For two continuous distri-butions f, g on R with quantile functions Qf (·), Q g (·) : [0 , 1] → R respectively, the distance at quantile p ∈ (0 , 1) 
+
+denoted as Shift (f, g, p ) is defined as Shift (f, g, p ) := sup {∆ ≥ 0 : max[ Qf (p − ∆) −
+
+Qg (p + ∆) , Q g (p − ∆) − Qf (p + ∆)] ≥ 0}.
+
+4Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Observe that for any two continuous distributions f and g,Shift (f, g, p ) ∈ [0 , 1] and Shift (f, g, p ) = 0 if and only if f
+
+and g have identical pth quantile. The following proposition shows that the quantile shift is the non-stationary measure that governs the delay in detecting a change-point. 
+
+Algorithm 2 Change detection (Shekhar and Ramdas, 2023) 
+
+Input :p, α ∈ (0 , 1) , sequence S1: n
+
+Output : Binary variable if input has a change-point 
+
+eC ← T 
+
+> s≤n
+
+C(p, α, S 1: s) ∀t ∈ [n]
+
+bC ← T 
+
+> s≤n
+
+C(p, α, S s:n) ∀t ∈ [n]
+
+return 1( eC T bC = ∅) // 1 is a change-point 
+
+Algorithm 3 Thresholding without offline data 
+
+Input :Quantile p ∈ (0 , 1) , Confidence α ∈ (0 , 1) 
+
+Output : Anomaly labels ˆy1, ˆy2, . . . τ ← 0 ; // previous change point 
+
+for each time t ≥ 1 do 
+
+Receive tth input St
+
+if Algorithm- 2 (p, α, S τ +1: t−1) == 1 then 
+
+ˆyt ← ∗ // Change-point detected 
+
+τ ← t − 1
+
+else 
+
+ˆyt ← Algorithm-1 (St, C (p, α, S τ +1: t−1)) 
+
+end end Proposition 3 (Stream with a single change-point) . Let 
+
+(St)Tt=1 be a piece-wise stationary with one change-point (HT = 1 ) and quntile shift ∆ := Shift (f (0) , f (1) , p ) > 0,at time τ1 = τ ≥ 80 ∆2 ln   1612 
+
+> α∆2
+
+. Denote by τ ′ ∈ N as the first time when Algorithm 3 detects a change, i.e., the if 
+
+statement evaluates to True . Then, with probability at-least 
+
+1 − αT , τ ≤ τ ′ ≤ τ + 80 ∆2 ln   1612 
+
+> α∆2
+
+ .Thus, if there are sufficient pre-change samples, then the change is detected with delay scaling with ∆−2, which is minimax optimal (Maillard, 2019; Besson et al., 2022; Shekhar and Ramdas, 2023). As notation, we define detec-tion delay as D(·, ·) : [0 , 1] × [0 , 1] → R+ as 
+
+D(∆ , α ) := 80 ∆2 ln 
+
+ 1612 
+
+α∆2
+
+
+
+. (3) 
+
+5.2. Mistake and abstain bounds 
+
+To give bounds on performance, we make a simplifying assumption that change-points are sufficiently far apart. We refer the readers to Figure 7 in the appendix for an illustra-tion of the definitions of Assumption 5.1 and 6.1. 
+
+Assumption 5.1 (α-detectable) . For a given α ∈
+
+(0 , 1) , the piece-wise stationary data-stream (St)Tt=1 ∼
+
+T, H T , (τc)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+is said to be α-detectable if 
+
+τk − τk−1 ≥
+
+
+
+D(∆ 1, α ), k = 1 ,D(∆ k−1, α ) + D(∆ k, α ), 2 ≤ k ≤ HT
+
+D(∆ HT , α ), k = HT + 1 
+
+holds, where ∆k = Shift (f (k), f (k−1) , p ).This assumption is standard to give guarantees for online al-gorithms with multiple change points on the stream (Besson et al., 2022; Sankararaman and Narayanaswamy, 2023; Cao et al., 2019; Liu et al., 2018). Assumption 5.1 is made for mathematical tractability and is not assumed in experiments. Analysis without Assumption 5.1 is an open problem (Sec-tion 7 (Besson et al., 2022)). The main result in this section is Theorem 4. 
+
+Theorem 4 (main result for Algorithm 3 ). Let (St)Tt=1 ∼
+
+T, H T , (τc)HT
+
+> c=0
+
+, (fc)HT
+
+> c=0
+
+
+
+be a piece-wise stationary data-stream satisfying Assumption 5.1 for α ∈ (0 , 1) . Then, with probability at-least 1 − 2αT , Algorithm 3 satisfies both 
+
+• FP + FN ≤ PHT 
+
+> k=1
+
+D(∆ k, α )
+
+• abstains ≤         
+
+> PHT
+> k=1
+> h
+> 4
+> q
+> (τk−τk−1) ln  1612
+> α2ln(3( τk−τk−1)) +D(∆ k, α )
+> i
+
+where for all k ∈ [HT ], ∆k = Shift (f (k), f (k−1) , p ) is the quantile shift defined in Definition (5.1) and D(·, ·) is defined in Equation (3). 
+
+Remark 4.1. This result shows that FP + FN = HT ·O( 1(min k ∆k )2 )4, scales only with the number of changes 
+
+HT , and abstains at-most O(√HT T ) 5. Thus, desiderata 3
+
+from Section 1.1 is achieved. 
+
+Remark 4.2. The bound in Theorem 4 holds with prob-ability 1 − 2αT . If (St)Tt=1 is α/T -detectable according to Assumption 5.1, and with knowledge of T , then Algo-rithm 3 run with input α/T instead of α yields the same order-wise guarantees as Theorem 4 holding with probabil-ity 1−2α. Corollary 11.1 in the Appendix shows that assum-ing (St)Tt=1 being α/T detectable is only weaker by a loga-rithmic factor compared to the assumption of α-detectable. 
+
+Proof sketch of Theorem 4 The crux is an induction ar-gument, that under Assumption 5.1, there exists exactly one true change-point between any two successive detected change-points in Algorithm 2. This is formalized in Lemma 3 in the Appendix. Lemma 3 along with Proposition 3 applied recursively to all change-points allows us to decom-pose the mistakes and abstains over the stationary segments. 
+
+> 4
+
+O(·) ignores constants and poly-log terms in Tα .
+
+> 5
+
+Bound follows from Cauchy-Schwartz inequality that √x +
+
+√y ≤ p2( x + y), ∀x, y ≥ 0.
+
+5Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+## 6. Special Case III: Stationary stream with offline data 
+
+In this section, we return to (St)t≥1 being i.i.d., but give guarantees when the algorithm has access to offline datasets. Our results are based on an offline version of Assumption 5.1 that we state below. 
+
+Assumption 6.1 (Well separated offline dataset ). For 
+
+p, α ∈ (0 , 1) , the offline dataset D = {{ X(j) 
+
+> l
+
+}Nj
+
+> l=1
+
+}Kj=1 
+
+is (p, α )-separated with resepct to a piece-wise stationary stream 
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+if both: (i) for all i̸ =
+
+j ∈ [K], 3( uNi (α) + uNj (α)) < Shift (f(i), f (j), p ), and 
+
+(ii) for all j ∈ [K] and stationary-segments k ∈ [HT ], either 
+
+Q(k)(p) = Q(j)(p), or 3uNj (α) < Shift (f (k), f (j), p ).Roughly, a well-separated offline dataset are those that have a sufficient number of samples so as to be distinguishable. Schematic illustrations in Section D.1 in the Appendix. The main result of this section is how to make decision at time t which is summarized in Algorithm 4. In a nutshell, Algorithm 4 uses the offline dataset if and only if there exists 
+
+exactly one of the K offline dataset whose CS intersects the CS constructed from S1: t. The decision at time t is made by constructing a with the unique offline dataset (if it exists) and the online stream using Algorithm 1. 
+
+Algorithm 4 Decision making with offline data 
+
+Input : p, α ∈ (0 , 1) , Online data S1, . . . , S n, offline datasets D1, . . . , DK .
+
+Output : Anomaly label ˆy ∈ { 0, 1, ∗} 
+
+Jmatch ← { j : C(p, α, Dj ) ∩ C(p, α, S 1: n−1)̸ = ∅} 
+
+if |Jmatch | = 1 then 
+
+ˆy ← Algorithm-1 (Sn, C (p, α, DJmatch ∪ { S1: n−1))      
+
+> // use online and offline dataset
+
+else 
+
+ˆy ← Algorithm-1 (Sn, C (p, α, {S1: n−1)) // use online data only 
+
+end return ˆy
+
+We set some more notation to state the result. For all j ∈
+
+[K], bτj = inf {bτ : 3( ubτ (α) + uNj (α)) ≤ Shift (f, f (j), p )},
+
+where bτj = + ∞ if Shift (f, f (j), p ) = 0 . Assumption 6.1 guarantees that if Shift (f, f (j), p ) > 0, then bτj < ∞ is finite independent of T .
+
+bτ := max {⌈ bτj ⌉ : Shift (f, f (j), p ) > 0}. (4) 
+
+Theorem 5 (Main result for Algorithm 4 ). Let the on-line stream (St)t≥1 be i.i.d. from distribution f and the 
+
+j ∈ [K] offline dataset with Nj i.i.d. samples have dis-tribution f(j). Further, let the offline dataset be (p, α )
+
+well-separated for some α ∈ (0 , 1) (Def. 6.1). Let 
+
+∆ = min 1≤j≤K Shift (f, f (j), p ). Then,for all times T ∈ N,with probability at-least 1 − (K + T )α, if the decision ˆyt is made by Algorithm 4 with inputs p, α, S 1: t and D1: K , we have: • If ∆ = 0 , then FP + FN = 0 and Abstains ≤ B(N +
+
+T, α ) − B(N,α )28 + bτ ,• If ∆ > 0, then FP + FN ≤ bτ and Abstains ≤ bτ +
+
+B(T, α ),where N = min {Nj : Shift (f, f (j), p ) = 0 }, B(·, ·) : N ×
+
+[0 , 1] → R+ is given by B(Y, α ) = 7 
+
+r
+
+Y ln 
+
+ 1612 ln(3 Y )
+
+> α2
+
+
+
+and bτ is defined in Equation (4). We now read off several remarks from this result. 
+
+Improved performance if offline dataset is useful. The case of ∆ = 0 implies that the online stream’s pth quan-tile equals at-least one of the K offline dataset’s pth quan-tile, i.e., the offline dataset is useful. In this case, The-orem 5 guarantees 0 FP and FN, and abstains at-most 
+
+O(√N + T − √N ), which is much smaller compared to the O(√T ) bound from Algorithm 6 without offline data. 
+
+Bounded degradation if offline dataset is arbitrary. The case of ∆ > 0 implies that the online stream’s pth quantile does not match any of the K offline dataset’s pth quantile, i.e., the offline dataset is useless. In this case, Theorem 5, guarantees FP + FN ≤ bτ and abstains ≤ O (√T ) + bτ .Thus performance compared to Theorem 2 is worse only by an additive term independent of the stream length T ,thereby achieving desiderata 4 from Section 1.1. Equation (3) implies that bτ is a sample complexity upper bound to confidently reject the hypothesis that one of the K offline dataset’s pth quantile equals that of f .Thus, Algorithm 4 adapts to the complexity yielding much lower abstains in the case when the online distribution matches one of the offline dataset, while simultaneously having bounded degradation in the worst-case .
+
+Proof Sketch. The crux of the proof is that, if the online stream’s quantile matches that of one of the offline dataset, then (i) for all times, Jmatch ≥ 1 in Algorithm 4, and (ii) for all times t ≥ bτ , Jmatch = 1 . Similarly, if no offline dataset’s 
+
+pth quantile matches that of the online pth quantile, for all times t ≥ bτ , Jmatch = 0 and thus Algorithm 4 will only use the online stream’s samples for decision making. 
+
+## 7. The General Case 
+
+This setting generalizes all the special cases. For each offline dataset j ∈ [K] and stationary segment of the online stream 
+
+k ∈ [HT ], denote by ∆(j;k) = Shift (f(j), f (k), p ), where 
+
+f(j) is the distribution of offline dataset j and f (k) the distri-bution of the kth online segment (Def. 2.1). Identical to The-orem 4, for each k ∈ [HT ], ∆k = Shift (f (k), f (k−1) , p ) is 6Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+the shift between the kth and k−1th online segment. Similar to Theorem 5, for each k ∈ [HT ] and offline dataset j ∈ [K],
+
+bτ (k) 
+
+> j
+
+= inf {bτ : 3( ubτ (α) + uNj (α)) ≤ Shift (f (k), f (j), p )},where bτ (k) 
+
+> j
+
+= ∞ if Shift (f (k), f (j), p ) = 0 . Assumption 6.1 guarantees Shift (f (k), f (j), p ) > 0 =⇒ bτ (k) 
+
+> j
+
+< ∞.Similar to Eq. (4), bτ (k) = max {⌈ bτ (k) 
+
+> j
+
+⌉ : bτ (k) 
+
+> j
+
+< ∞} .
+
+eDk(α) = D(∆ k, α ) + bτ (k). (5) In words, eDk(α) is the worst-case delay after the kth change point has occurred on the data-stream for Algorithm 5 to both (i) detect that the online stream has undergone a shift, and (ii) identify if any of the offline datasets’ pth quantile matches the new pth quantile. 
+
+Algorithm 5 General thresholding algorithm 
+
+Input : p, α ∈ (0 , 1) , offline datasets D1, D2, . . . , DK .
+
+Output : Anomaly labels ˆy1, ˆy2, . . . τ ← 0 ; // previous change point 
+
+for each time t ≥ 1 do 
+
+Receive tth input St
+
+if Algorithm-2 (p, α, S τ +1: t−1) == 1 then 
+
+ˆyt ← ∗ // Change-point detected 
+
+τ ← t − 1
+
+else 
+
+ˆyt ← Algorithm-4(p, α, S τ +1: t−1, (D1: K )) 
+
+end end Theorem 6 (Main result of Algorithm 5 ). For a de-sired α ∈ (0 , 1) , suppose the piece-wise stationary on-line stream (St)Tt=1 ∼
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (fc)HT
+
+> c=0
+
+
+
+is α-detectable, i.e., satisfies Assumption 5.1, and the offline datasets D1, . . . , DK are (p, α )-separated according to Def-inition 6.1. Then, for all times T ∈ N, with probability at-least 1 − (K + 2 T )α, Algorithm 5 satisfies both ,• FP + FN ≤ PHT 
+
+> k=1
+
+D(∆ k, α ) + (1 −
+
+1Match k ) max j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+
+
+• Abstains ≤ PHT
+
+> k=1
+
+h
+
+(1 − 1Match k )O(√τk − τk−1)6+
+
+1Match k
+
+
+
+O(pN (k) + ( τk − τk−1) − √N (k))
+
+
+
++ eDk(α)
+
+i
+
+where 1Match k = 1Q(k)(p)∈{ Q(1) (p),··· ,Q (K)(p)}, and Q(k)(p)
+
+is the pth quantile of the kth segment of the online stream (Def. 2.1), Q(1) (p), · · · , Q (K)(p) are the pth quantiles of the offline datasets (Definition 2.3), N (k) = min {Nj :
+
+Q(j)(p) = Q(k)(p)} and eDk(α) is defined in Equation (5). Observe that Theorem 6 recovers Theorem 5 if (St)t≥1
+
+is i.i.d. Theorem 6 shows that even in the general case, FP + FN only scale with the number and complexity of change-points, and not with the stream length T .
+
+(a) (b) 
+
+Figure 3: Decision boundaries for the same synthetic data stream, without offline dataset (a) and with (b). Incorporat-ing datasets allows us to significantly reduce abstention. 
+
+Abstains reduced if offline data is useful. Sup-pose the online stream (St)Tt=1 and the offline datasets 
+
+D1, . . . , DK are such that for all segments k ∈
+
+[HT ], there exists an offline dataset j ∈ [K] s.t. 
+
+Q(k)(p) = Q(j)(p). Theorem 6 guarantees that abstains 
+
+≤ O 
+
+√HT N
+
+q 
+
+1 + TN − 1
+
+ 
+
++ PHT 
+
+> k=1
+
+eDk(α), where 
+
+N = min {Nj : ∃k ∈ [HT ] : Q(j)(p) = Q(k)(p)} is size of the smallest useful offline dataset. Thus, if the useful offline data is large ( N >> T ), the fraction of abstains is small even in the presence of non-stationarity (Fig. 3 ). 
+
+Bounded degradation if offline data is arbitrary. The-orem 6 proves that in the worst-case when the offline datasets are arbitrary, abstains are at-most O(√HT T ) + 
+
+PHT 
+
+> k=1
+
+eDk(α), which is comparable to Theorem 4, with an additional additive term of PHT 
+
+> k=1
+
+eDk(α). This extra term arises due to incurring delay in both identifying a change-point on the online stream, and deciding that either the new segment has the same pth quantile as one of the offline datasets or not. This penalty is incurred since Algorithm 5 does not know both the time of change-points and if the 
+
+pth quantile of any offline datasets equals that of the online. Thus, Theorem 6 is adaptive, yielding low mistakes and abstains in the event that the offline dataset is useful while simultaneously bounding worst-case performance indepen-dent of T and N when the offline dataset is arbitrary. 
+
+## 8. Experiments 
+
+8.1. Synthetic data experiments 
+
+We evaluated our algorithm using two synthetic datasets, reflecting all scenarios discussed in this paper. The metrics are abstention percentages (Abs. %) and mistake counts (FP + FN), averaged over 1000 streams each with 2000 samples drawn from Normal distributions with random parameters, with p = 1 − 10 −2 and α = 10 −3. Our comparisons against common thresholding baselines: τ 30% for static threshold-ing, DSpot for dynamic thresholding, and EQ for empirical quantiles using online gradient descent, are presented in Table 1. Implementation details and additional experiments on Pareto distributions are in Appendix G. These results 7Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Figure 4: Left: algorithm 1, Abstains grows at O(√T ).
+
+Right: algorithm 2, timestamp of mistakes in 10 random streams with aligned change points. Mistakes cluster right after change points, only as detection delay. confirm our algorithm’s high accuracy, adaptability to dis-tribution shifts, and effective learning from offline data, as outlined in Section 1’s desiderata. Figure 4 illustrates how our algorithm’s abstention rates and errors grow over time, corroborating our theoretical results. shift data Ours τ 30% DSpot EQ x x Abs. % 12 .1 ± 1.4 30 15 0                                                                        
+
+> FP+FN 0±05.3±3.7 9.1±3.6 3.9±2.1
+> ✓xAbs. % 32 .7±9.1 30 15 0
+> FP+FN 5.2±1.3 195 ±71 225 ±95 219 ±71
+> x✓Abs. % 9.3 ±1.2 30 15 0
+> FP+FN 0±05.3±3.7 9.1±3.6 3.9±2.1
+> ✓✓Abs. % 18 .9±4.1 30 15 0
+> FP+FN 2.0±1.5 155 ±69 173 ±64 160 ±64
+
+Table 1: Synthetic dataset results. We used Algorithm 1, 3, 4, 5 as “ours” for the four settings respectively. Compared to baselines, we achieve significant less mistakes (FP+FN) with low abstain rate, especially in settings with shift. 
+
+8.2. MNIST anomaly detection 
+
+We tested our algorithms on the MNIST dataset for one-class anomaly detection to demonstrate their real-world efficacy. We designated even digits as normal and odd digits as anomalous, and created data streams by sampling (e.g. Fig 5). To show synergy of our thresholding algorithm with standard anomaly detection algorithms, we obtain anomaly scores from two models: convolutional autoencoder neural networks (NN) and isolation forests (IF), both trained on the normal class. With parameters set at p = 0 .99 and 
+
+α = 0 .01 for streams of 1000 samples, Table 2 illustrates our algorithm’s improved performance over baselines. 
+
+8.3. Case study of real AD application 
+
+We also perform a case study on two real world datasets (DS1 and DS2 ) obtained from large scale cloud computing services. Each dataset is a stream of anomaly scores ob-tained by applying the same black box anomaly detection algorithm (Details in Table 4). The practically motivated target in these datasets is to report 0.001% anomalies, i.e., 
+
+p = 1 − 10 −6. Table 5 in the appendix reports the full result Static abstains FP+FN Shift abstains FP+FN                                                                    
+
+> τ30% 327 ±012.7 ±0.9 τ30% 670 ±091 ±8.0
+> DSpot 150 ±078.1 ±2.5 DSpot 150 ±0129.5 ±10.2
+> IF+A1 172 ±16 17.6 ±5.3 IF+A3 190 ±39 75.7 ±18.9
+> NN+A1 133 ±43.9 ±0.7 NN+A3 339 ±12 9.3 ±2.1
+> NN+A5 89 ±62.1 ±0.2 NN+A5 210 ±88.8 ±2.3
+
+Table 2: One class MNIST result. We applied our algorithms (A as shorthand) to anomaly scores generated by Isolation Forest (IF) and neural networks (NN) and achieve much lower mistakes with moderate number of abstains. 
+
+Figure 5: MNIST experiment setup and a sample stream of (NN+A5) result. We choose a different set of digits for normal and anomaly to create the distribution shift, which our algorithm detects with a small delay. and comparison to baselines. We found that (i) our method achieves desired anomaly volume, (ii) incorporating offline data reduces the number of abstains without changing the volume of anomalies raised, and (iii) the volume of anoma-lies detected by all other methods are an order of magnitude higher leading to alert-fatigue. 
+
+## 9. Related Work 
+
+Dynamic thresholding for AD. AD is an extensively re-searched topic, where a common paradigm is to first model data likelihood and then use a threshold to decide if a data point is normal or anomalous. This threshold is typically determined by an expert or offline through cross-validation (Luo et al., 2021; Schmidl et al., 2022). Dynamic and au-tomatic methods makes AD algorithms more practical in real-world deployment (Ali et al., 2013; Hundman et al., 2018), and are necessary where the data distribution can shift (Siffer et al., 2017). Our work is the first to provide ab-stain and mistake bounds on dynamic thresholding without assumptions on the underlying data distribution. Appendix F contains more related work. 
+
+Confidence Sequences (CS). We incorporate theoretical results of confidence sequences (Ramdas et al., 2022) in our analysis. (Maharaj et al., 2023; Howard and Ramdas, 2022) derived the CS algorithm for estimating quantiles online with any-time guarantees, and (Shekhar and Ramdas, 2023) leverages CS for detecting distribution shifts. 8Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+## 10. Discussion 
+
+Our paper is the first to systematically theoretically and empirically show that thresholding algorithm can improve the overall performance of any anomaly scoring model for online anomaly detection. Through a simple argument (The-orem 15), we demonstrate that abstaining is necessary for high accuracy. Our work introduces a new approach to online adaptive anomaly thresholding, leveraging CS to utilize offline data and dynamically adjust thresholds in real-time data streams. We give the first statistical guarantees on abstains and mis-takes in various settings with non-stationary data streams and offline datasets (Theorem 2 - 6), motivated by practical AD applications. Our results are corroborated with synthetic and real experiments. A limitation of our work is that the theoretical results rely on (1) samples are temporally independent and (2) change points are far apart and changes are detectable. These as-sumptions, although standard in theoretical literature, need not necessarily hold in all applications. Our algorithms also do not apply to cases when scores are temporal dependent, or if there are gradual drifts in the score distribution. De-signing algorithms that provably work for these cases likely requires new techniques and is thus left for future work. 
+
+## Impact Statement 
+
+This paper presents work whose goal is to advance analysis and performance of online anomaly detection, a popular use case of machine learning. There will be application-specific potential societal consequences of our work when applied, none which we feel must be specifically highlighted here. 
+
+## References 
+
+Ali, M. Q., Al-Shaer, E., Khan, H., and Khayam, S. A. (2013). Automated anomaly detector adaptation using adaptive threshold tuning. ACM Transactions on Infor-mation and System Security (TISSEC) , 15(4):1–30. Audibert, J., Michiardi, P., Guyard, F., Marti, S., and Zu-luaga, M. A. (2020). Usad: Unsupervised anomaly de-tection on multivariate time series. In Proceedings of the 26th ACM SIGKDD international conference on knowl-edge discovery & data mining , pages 3395–3404. Balcan, M.-F., Broder, A., and Zhang, T. (2007). Margin based active learning. In International Conference on Computational Learning Theory , pages 35–50. Springer. Besson, L., Kaufmann, E., Maillard, O.-A., and Seznec, J. (2022). Efficient change-point detection for tackling piecewise-stationary bandits. Journal of Machine Learn-ing Research , 23(77):1–40. Bhatia, S., Jain, A., Li, P., Kumar, R., and Hooi, B. (2021). Mstream: Fast anomaly detection in multi-aspect streams. In Proceedings of the Web Conference 2021 , pages 3371– 3382. Bhatia, S., Jain, A., Srivastava, S., Kawaguchi, K., and Hooi, B. (2022). Memstream: Memory-based streaming anomaly detection. In Proceedings of the ACM Web Conference 2022 , pages 610–621. Cadre, B., Pelletier, B., and Pudlo, P. (2013). Estimation of density level sets with a given probability content. 
+
+Journal of nonparametric statistics , 25(1):261–272. Cao, Y., Wen, Z., Kveton, B., and Xie, Y. (2019). Nearly optimal adaptive procedure with change detection for piecewise-stationary bandit. In The 22nd International Conference on Artificial Intelligence and Statistics , pages 418–427. PMLR. Chandola, V., Banerjee, A., and Kumar, V. (2009). Anomaly detection: A survey. ACM computing surveys (CSUR) ,41(3):1–58. Chen, Y. (2017). Draining the Flood—A combat against alert fatigue. USENIX Association. Gama, J., ˇZliobait ˙e, I., Bifet, A., Pechenizkiy, M., and Bouchachia, A. (2014). A survey on concept drift adapta-tion. ACM computing surveys (CSUR) , 46(4):1–37. Gan, E. and Bailis, P. (2017). Scalable kernel density classi-fication via threshold-based pruning. In Proceedings of the 2017 ACM International Conference on Management of Data , pages 945–959. Goyal, S., Raghunathan, A., Jain, M., Simhadri, H. V., and Jain, P. (2020). Drocc: Deep robust one-class classifica-tion. In International conference on machine learning ,pages 3711–3721. PMLR. Gutflaish, E., Kontorovich, A., Sabato, S., Biller, O., and Sofer, O. (2019). Temporal anomaly detection: calibrat-ing the surprise. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 33, pages 3755–3762. Hassan, W. U., Guo, S., Li, D., Chen, Z., Jee, K., Li, Z., and Bates, A. (2019). Nodoze: Combatting threat alert fatigue with automated provenance triage. In network and distributed systems security symposium .He, Z., Hu, G., and Lee, R. B. (2023). Cloudshield: Real-time anomaly detection in the cloud. In Proceedings of the Thirteenth ACM Conference on Data and Application Security and Privacy , pages 91–102. Herley, C. (2022). Automated detection of automated traffic. In 31st USENIX Security Symposium (USENIX Security 
+
+9Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+22) , pages 1615–1632, Boston, MA. USENIX Associa-tion. Hill, D. J. and Minsker, B. S. (2010). Anomaly detection in streaming environmental sensor data: A data-driven mod-eling approach. Environmental Modelling & Software ,25(9):1014–1022. Ho, G., Dhiman, M., Akhawe, D., Paxson, V., Savage, S., Voelker, G. M., and Wagner, D. (2021). Hopper: Mod-eling and detecting lateral movement. In 30th USENIX Security Symposium (USENIX Security 21) , pages 3093– 3110. Ho, G., Sharma, A., Javed, M., Paxson, V., and Wagner, D. (2017a). Detecting credential spearphishing in enterprise settings. In 26th USENIX Security Symposium (USENIX Security 17) , pages 469–485, Vancouver, BC. USENIX Association. Ho, G., Sharma, A., Javed, M., Paxson, V., and Wagner, D. (2017b). Detecting credential spearphishing in enterprise settings. In 26th USENIX Security Symposium (USENIX Security 17) , pages 469–485. Hofmann, T. (1999). Probabilistic latent semantic index-ing. In Proceedings of the 22nd annual international ACM SIGIR conference on Research and development in information retrieval , pages 50–57. Howard, S. R. and Ramdas, A. (2022). Sequential esti-mation of quantiles with applications to a/b testing and best-arm identification. Bernoulli , 28(3):1704–1728. Huang, H. and Kasiviswanathan, S. P. (2015). Streaming anomaly detection using randomized matrix sketching. 
+
+Proc. VLDB Endow. , 9(3):192–203. Huang, T., Chen, P., and Li, R. (2022). A semi-supervised vae based active anomaly detection framework in multi-variate time series for online systems. In Proceedings of the ACM Web Conference 2022 , pages 1797–1806. Hundman, K., Constantinou, V., Laporte, C., Colwell, I., and Soderstrom, T. (2018). Detecting spacecraft anoma-lies using lstms and nonparametric dynamic thresholding. In Proceedings of the 24th ACM SIGKDD international conference on knowledge discovery & data mining , pages 387–395. Katz, Y. and Raz, D. (2023). Cold start for cloud anomaly detection. In NOMS 2023-2023 IEEE/IFIP Network Op-erations and Management Symposium , pages 1–8. IEEE. Khan, W. Z., Rehman, M., Zangoti, H. M., Afzal, M. K., Armi, N., and Salah, K. (2020). Industrial internet of things: Recent advances, enabling technologies and open challenges. Computers & electrical engineering ,81:106522. Lazarevic, A., Ertoz, L., Kumar, V., Ozgur, A., and Srivas-tava, J. (2003). A comparative study of anomaly detection schemes in network intrusion detection. In Proceedings of the 2003 SIAM international conference on data mining ,pages 25–36. SIAM. Li, J., Di, S., Shen, Y., and Chen, L. (2021). Fluxev: a fast and effective unsupervised framework for time-series anomaly detection. In Proceedings of the 14th ACM In-ternational Conference on Web Search and Data Mining ,pages 824–832. Lin, Y., Chen, Z., Cao, C., Tang, L.-A., Zhang, K., Cheng, W., and Li, Z. (2018). Collaborative alert ranking for anomaly detection. In Proceedings of the 27th ACM International Conference on Information and Knowledge Management , pages 1987–1995. Liu, F., Lee, J., and Shroff, N. (2018). A change-detection based framework for piecewise-stationary multi-armed bandit problem. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 32. Luo, Y., Xiao, Y., Cheng, L., Peng, G., and Yao, D. (2021). Deep learning-based anomaly detection in cyber-physical systems: Progress and opportunities. ACM Computing Surveys (CSUR) , 54(5):1–36. Ma, M., Zhang, S., Pei, D., Huang, X., and Dai, H. (2018). Robust and rapid adaption for concept drift in software system anomaly detection. In 2018 IEEE 29th Interna-tional Symposium on Software Reliability Engineering (ISSRE) , pages 13–24. IEEE. Maharaj, A., Sinha, R., Arbour, D., Waudby-Smith, I., Liu, S. Z., Sinha, M., Addanki, R., Ramdas, A., Garg, M., and Swaminathan, V. (2023). Anytime-valid confidence sequences in an enterprise a/b testing platform. In Com-panion Proceedings of the ACM Web Conference 2023 ,pages 396–400. Maillard, O.-A. (2019). Sequential change-point detec-tion: Laplace concentration of scan statistics and non-asymptotic delay bounds. In Algorithmic Learning The-ory , pages 610–632. PMLR. Mirsky, Y., Doitshman, T., Elovici, Y., and Shabtai, A. (2018). Kitsune: an ensemble of autoencoders for online network intrusion detection. arXiv preprint arXiv:1802.09089 .Nardi, M., Valerio, L., and Passarella, A. (2022). Anomaly detection through unsupervised federated learning. In 
+
+2022 18th International Conference on Mobility, Sensing and Networking (MSN) , pages 495–501. IEEE. Pang, G., Shen, C., Cao, L., and Hengel, A. V. D. (2021). Deep learning for anomaly detection: A review. ACM computing surveys (CSUR) , 54(2):1–38. 10 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Perini, L. and Davis, J. (2023). Unsupervised anomaly de-tection with rejection. arXiv preprint arXiv:2305.13189 .Ramdas, A., Gr ¨unwald, P., Vovk, V., and Shafer, G. (2022). Game-theoretic statistics and safe anytime-valid infer-ence. arXiv preprint arXiv:2210.01948 .Ren, H., Xu, B., Wang, Y., Yi, C., Huang, C., Kou, X., Xing, T., Yang, M., Tong, J., and Zhang, Q. (2019). Time-series anomaly detection service at microsoft. In Proceedings of the 25th ACM SIGKDD international conference on knowledge discovery & data mining , pages 3009–3017. Ruff, L., Kauffmann, J. R., Vandermeulen, R. A., Montavon, G., Samek, W., Kloft, M., Dietterich, T. G., and M ¨uller, K.-R. (2021). A unifying review of deep and shallow anomaly detection. Proceedings of the IEEE , 109(5):756– 795. Sadik, S. and Gruenwald, L. (2014). Research issues in out-lier detection for data streams. Acm Sigkdd Explorations Newsletter , 15(1):33–40. Sankararaman, A. and Narayanaswamy, B. (2023). Online heavy-tailed change-point detection. In Uncertainty in Artificial Intelligence , pages 1815–1826. PMLR. Sankararaman, A., Narayanaswamy, B., Singh, V. Y., and Song, Z. (2022). Fitness:(fine tune on new and similar samples) to detect anomalies in streams with drift and out-liers. In International Conference on Machine Learning ,pages 19153–19177. PMLR. Schmidl, S., Wenig, P., and Papenbrock, T. (2022). Anomaly detection in time series: a comprehensive evaluation. Pro-ceedings of the VLDB Endowment , 15(9):1779–1797. Shekhar, S. and Ramdas, A. (2023). Sequential change detection via backward confidence sequences. arXiv preprint arXiv:2302.02544 .Siffer, A., Fouque, P.-A., Termier, A., and Largouet, C. (2017). Anomaly detection in streams with extreme value theory. In Proceedings of the 23rd ACM SIGKDD inter-national conference on knowledge discovery and data mining , pages 1067–1075. Steinwart, I., Hush, D., and Scovel, C. (2005). A classi-fication framework for anomaly detection. Journal of Machine Learning Research , 6(2). Vishwakarma, H., Lin, H., Sala, F., and Vinayak, R. K. (2023). Promises and pitfalls of threshold-based auto-labeling. In Thirty-seventh Conference on Neural Infor-mation Processing Systems .Wainwright, M. J. (2019). High-dimensional statistics: A non-asymptotic viewpoint , volume 48. Cambridge univer-sity press. Zhang, X., Yang, T., and Srinivasan, P. (2016). Online asymmetric active learning with imbalanced data. In 
+
+Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining ,pages 2055–2064. Zhu, J., Cai, S., Deng, F., Ooi, B. C., and Zhang, W. (2023). Meter: A dynamic concept adaptation framework for on-line anomaly detection. arXiv preprint arXiv:2312.16831 .11 Supplementary Materials 
+
+## A. Illustrations 
+
+We give schematic of the various settings and special cases studied in this paper. 
+
+(a) Special Case I: stationary stream (b) Special Case II: distribution shift 
+
+(c) Special Case III: offline dataset (d) The General Case 
+
+Figure 6: Illustration of the cases we study in this paper. 
+
+Figure 7: An illustration of Assumption 5.1 and 6.1 on a stream with 2 change-points ( HT = 2) and K = 4 offline datasets. Assumption 5.1 implies that the change-points on the stream are sufficiently far apart. Assumption 6.1 implies that the 4 CS do not intersect. Moreover, either the true quantile on the stream are outside the offline CS, i.e., Q(1) (p) and Q(2) (p) are not contained in any offline dataset’s CS. Or, it is the case that the online quantile matches one of the offline dataset, i.e., 
+
+Q(2) (p) = Q(3) (p) in this example. 12 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+## B. Proof of Theorem 2, stationary setting 
+
+Algorithm 6 OAD for stationary i.i.d. stream 
+
+Input :Quantile p, Confidence 1 − α
+
+Output : Anomaly labels ˆy1, ˆy2, . . . 
+
+for each time t ≥ 1 do 
+
+Receive tth input St
+
+Compute C(p, α, S 1: t) (Eq. 1) 
+
+ˆyt ← Algorithm 1(St, C (p, α, S 1: t)) 
+
+end Theorem 7 (Formal version of Theorem 2) . If the data-source S1, S 2, · · · are i.i.d., then with probability at-least 1 − 2α,for all times T ∈ N, Algorithm 6 satisfies 1. 0 False positives, 0 False negatives 2. Abstains is less than or equal to 7
+
+r
+
+T ln 
+
+ 1612 ln( eT )
+
+> α2
+
+
+
+,3. Abstains is at-least 14
+
+r
+
+T ln 
+
+ 1612 ln( eT )
+
+> α2
+
+
+
+Proof. In order to give the proof, we set some notations. 
+
+Definition B.1 (Good event E1).
+
+E1 := \
+
+> t∈N
+
+\
+
+> p∈(0 ,1)
+
+{ bQ(p − ut(α), S 1: t) ≤ Q(p) ≤ bQ(p + ut(α), S 1: t)}. (6) In words, the good event states that for all time t, the confidence sequence contains the true pth quantile. From Corollary 2
+
+of (Howard and Ramdas, 2022), we know that P[E] ≥ 1 − α. We remark that (Howard and Ramdas, 2022) show that even when (St)t≥1 are independent, but not necessarily identical, P[E] ≥ 1 − α holds as long as the pth quantile Qt(p) := Q(p)
+
+for all t ≥ 1. This extension relaxing the identical distribution will be crucial in the subsequent sections in the sequel. Further, observe from the definition in Algorithm 6 and Equation (1) that for all t ∈ N and p ∈ (0 , 1) ,
+
+{ bQ(p − ut(α), S 1: t) ≤ Q(p) ≤ bQ(p + ut(α), S 1: t)} ⊆ { Q(p) ∈ C(p, α, S 1: t}.
+
+The reason for this inclusion is that the definition of C(·) in Equation (1) has an extra factor of 2, i.e., 
+
+C(p, α, S 1: t) := 
+
+bQ(p − 2un(α), y 1: n), bQ(p + 2 un(α), y 1: n)
+
+
+
+.
+
+In the rest of this proof, we will assume that the good event E holds. It is immediately clear the following two claims hold, proving the first two statements of the theorem. 
+
+Claim 1. If event E holds, then Algorithm 1 will not make any False Positive or False negative detections. It now only remains to prove the third condition of the theorem. Define the sequence of indicator random variables indicating if time t is an abstain 
+
+Zt := 1(byt = ∗). (7) From Algorithm 6, this is equivalent to 
+
+Zt = 1(St ∈ ( bQt(p − 2ut−1(α), S 1: t−1), bQt(p + 2 ut−1(α), S 1: t−1)) .
+
+13 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+We denote by the filtration (Ft)Tt=1 to be generated by the observed sequence (St)Tt=1 , i.e., for all t ∈ { 1, · · · , T },
+
+Ft := σ(S1, · · · , S t).The proof of claim 1 follows from the following three lemmas. For clarity, proof for these lemmas can be found after this proof finishes. 
+
+Lemma 1 (Conditional expectation of abstains) . For every t ≥ 2,
+
+4ut−1(α) ≤ E[Zt1E |F t−1] ≤ 6ut−1(α),
+
+holds almost-surely. 
+
+Lemma 2 (Azuma-Hoefding bound) . Let (Zt)Tt=1 are bounded binomial variables and the sequence (Ft)Tt=1 is a probability filtration. Then for all ε > 0,
+
+P
+
+" TX
+
+> s=1
+
+Zs − E[Zs|F s−1] ≥ ε
+
+#
+
+≤ 2 exp 
+
+
+
+− ε2
+
+2T
+
+
+
+We now apply Lemma 2 to the sequence of binary random variables ( eZt)t≥1 := ( Zt1E )t≥1 by setting ε =
+
+q
+
+T ln   4
+
+> α2
+
+.Thus, with probability at least 1 − α , we have 
+
+P
+
+ 1E
+
+> T
+
+X
+
+> s=1
+
+Zs −
+
+> T
+
+X
+
+> s=1
+
+E[Zs1E |F s−1] ≤
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+| {z } 
+
+> Event G1
+
+ ≥ 1 − α
+
+From a simple union-bound argument, we see that P[E ∩ G 1] ≥ 1 − 2α. Furthermore by definition of event G1, the following inequality holds almost-surely. 
+
+1G 1E1
+
+> T
+
+X
+
+> s=1
+
+Zs ≤ 1G1
+
+> T
+
+X
+
+> s=1
+
+E[Zs1E |F s−1] + 
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+!
+
+, 
+
+> Lem 1
+
+≤ 1G1
+
+> T
+
+X
+
+> t=1
+
+6ut−1(α) + 
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+!
+
+,
+
+≤ 1G1 6
+
+s
+
+T ln 
+
+ 1612 ln( eT )
+
+α
+
+
+
++
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+!
+
+,
+
+≤ 1G1 7
+
+s
+
+T ln 
+
+ 1612 ln( eT )
+
+α2
+
+!
+
+.
+
+In other words, the preceding display reads that on the event E ∩ G 1 holds, we have 
+
+> T
+
+X
+
+> s=1
+
+Zs ≤ 7
+
+s
+
+T ln 
+
+ 1612 ln( eT )
+
+α2
+
+
+
+.
+
+Similarly, from the definition of G1, we also have 
+
+1G 1E1
+
+> T
+
+X
+
+> s=1
+
+Zs ≥ 1G1
+
+> T
+
+X
+
+> s=1
+
+E[Zs1E |F s−1] −
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+!
+
+, 
+
+> Lem 1
+
+≥ 1G1
+
+> T
+
+X
+
+> t=1
+
+2ut−1(α) −
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+!
+
+,
+
+14 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+≥ 1G1 2
+
+s
+
+T ln 
+
+ 1612 ln( eT )
+
+α
+
+
+
+−
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+!
+
+,
+
+≥ 1G1
+
+14
+
+s
+
+T ln 
+
+ 1612 ln( eT )
+
+α2
+
+!
+
+.
+
+The proof is complete since P[E ∩ G 1] ≥ 1 − 2α.Below we provide the proof of each lemma used in proof of Theorem 2. 
+
+Proof of Lemma 1. We can compute the conditional expectation as 
+
+E[Zt1E |F t−1] = P[St ∈ ( bQ(p − 2ut−1(α), S 1: t−1), bQ(p + 2 ut−1(α), S 1: t−1)) ∩ E|F t−1],
+
+> (a)
+
+≤ P[St ∈ (Q(p − 3ut−1(α)) , Q (p + 3 ut−1(α)) |F t−1]
+
+> (b)
+
+≤ P[St ∈ (Q(p − 3ut−1(α)) , Q (p + 3 ut−1(α))] 
+
+> (c)
+
+≤ 6ut−1(α).
+
+Step (a) follows from the fact that on event E, for all times t ∈ N and quantiles p ∈ (0 , 1) , we have Q(p) ≤ bQ(p+ut(α), S 1: t)
+
+and Q(p) ≥ bQ(p − ut(α), S 1: t−1) holds. Step (b) follows since (St)t≥1 is an i.i.d. sequence and thus St is independent of Ft−1. Step (c) follows from the standard fact the for any R valued continuous random variable, and for any quantiles 
+
+0 ≤ p1 ≤ p2 ≤ 1, P[X ∈ (Q(p1), Q (p2))] = p2 − p1. Similarly, we have 
+
+E[Zt1E |F t−1] = P[St ∈ ( bQ(p − 2ut−1(α), S 1: t−1), bQ(p + 2 ut−1(α), S 1: t−1)) ∩ E|F t−1],
+
+> (a)
+
+≥ P[St ∈ (Q(p − ut−1(α)) , Q (p + ut−1(α)) |F t−1]
+
+> (b)
+
+≤ P[St ∈ (Q(p − ut−1(α)) , Q (p + ut−1(α))] 
+
+> (c)
+
+≤ 2ut−1(α).
+
+follows from the fact that on event E, for all times t ∈ N and quantiles p ∈ (0 , 1) , we have Q(p) ≤ bQ(p + ut(α), S 1: t)
+
+and Q(p) ≥ bQ(p − ut(α), S 1: t−1) holds. Step (b) follows since (St)t≥1 is an i.i.d. sequence and thus St is independent of Ft−1. Step (c) follows from the standard fact the for any R valued continuous random variable, and for any quantiles 
+
+0 ≤ p1 ≤ p2 ≤ 1, P[X ∈ (Q(p1), Q (p2))] = p2 − p1.
+
+Proof of Lemma 2. Denote by the sequence of 0 mean random variables eZt := Zt − E[Zt|F t−1]. Denote by the running sum Yt := Pts=1 eZs. It is easy to verify that (Yt)Tt=1 is a martingale sequence. Further from definition, we have have that almost-surely, for all t ∈ { 1, · · · , T }, |Yt − Yt+1 | ≤ 2. Thus, from Azuma Hoeffding inequality for bounded martingales, we have that 
+
+P
+
+" TX
+
+> s=1
+
+eZs ≥
+
+s
+
+T ln 
+
+ 4
+
+α2
+
+#
+
+≤ 2 exp − 2T ln   4
+
+> α2
+
+
+
+4T
+
+!
+
+, (8) 
+
+≤ α
+
+2 . (9) 
+
+## C. Proofs from Section 5 
+
+The proofs in this section are dependent on the following good-event, under which we will perform the analysis. 15 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Definition C.1 (Good event 2) . Let (St)Tt=1 ∼
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+, with quantile functions of the HT +1 segments given by (Q(c)(·)) HT
+
+> c=0
+
+. Define E2 as 
+
+bE2 := 
+
+> HT
+
+\
+
+> k=1
+
+E(k)2 , (10) where for each k ∈ [HT ],
+
+E(k)2 = \
+
+> p∈[0 ,1]
+> τk+1
+
+\
+
+> t1=τk
+> τk+1
+
+\
+
+> t2=t1+1
+
+bQ(p − ut2−t1 (α), S t1:t2 ) ≤ Q(k)(p) ≤ bQ(p − ut2−t1 (α), S t1:t2 )
+
+
+
+,
+
+where bQ is the empirical quantile and u(·)(·) is defined in Equation (2). In words, E2 is the intersection over all the HT + 1 stationary segments, where for each segment the quantile estimate is close to the true quantile for all quantiles. Following Corollary 2 of (Howard and Ramdas, 2022) and an union bound, we get the following. 
+
+Proposition 8. 
+
+P[ bE2] ≥ 1 − T α. 
+
+Proof. We analyze the complement as follows. 
+
+P[ bE2
+
+> ∁
+
+]= P
+
+h
+
+∪HT 
+
+> k=0
+
+∪p∈[0 ,1] ∪τk+1  
+
+> t1=τk
+
+∪t2≥t1+1 { bQ(p − ut2−t1 (α), S t1:t2 ) > Q (k)(p)} ∪ { Q(k)(p) > bQ(p − ut2−t1 (α), S t1:t2 )}
+
+i
+
+,
+
+≤
+
+> HT
+
+X
+
+> k=0
+> τk+1
+
+X
+
+> t1=τk
+
+P
+
+h
+
+∪p∈[0 ,1] ∪t2≥t1+1 { bQ(p − ut2−t1 (α), S t1:t2 ) > Q (k)(p)} ∪ { Q(k)(p) > bQ(p − ut2−t1 (α), S t1:t2 )}
+
+i
+
+,
+
+> (a)
+
+≤
+
+> HT
+
+X
+
+> k=0
+> τk+1
+
+X
+
+> t1=τk
+
+α, 
+
+= T α. 
+
+Step (a) follows from Corollary 2 of (Howard and Ramdas, 2022). In addition, we also need a generalization of event G1 to the piece-wise stationary stream. 
+
+G2 := 
+
+> HT
+
+\
+
+> k=0
+> τk+1
+
+\ 
+
+> t1=τk+1
+
+ τk+1 
+
+X
+
+> t=t1
+
+Zt:t1 − E[Zt:t1 |F t−1] ≤
+
+s
+
+(τk+1 − τk) ln 
+
+ 4
+
+α2
+
+ 
+
+, (11) where 
+
+Zt:t1 := 1(St ∈ ( bQt(p − 2ut−t1 (α), S t1:t−1), bQt(p + 2 ut−t1 (α), S t1:t−1)) , (12) and Ft−1 := σ(S1: t−1) is the sigma-algebra generated by the first t − 1 samples. 
+
+Proposition 9. 
+
+P[G2] ≥ 1 − T α. 
+
+16 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+For a given k and t1, the proof follows from an application of Azuma-Hoeffding similar to the proof of Theorem 2. Applying an union bound over k and t1 yields the result. In the rest of this section, denote the good event E2 as 
+
+E2 = bE2
+
+\ G2, (13) where bE2 is defined in Equation (10) and G2 in Equation (11). 
+
+Proposition 10. 
+
+P[ bE2] ≥ 1 − T α. 
+
+The proof follows from an union bound using estimates in Proposition 8 and 9. 
+
+C.1. Proof of Proposition 3 
+
+Figure 8: Algorithm 3 output on a piece-wise stationary stream. In order to give the proof of Proposition 3, we need the following general lemma on change-detection. 
+
+Proposition 11 (Stream with a single change-point) . Let (St)Tt=1 be a piecewise stationary stream with a single change-point, i.e., HT = 1 with the change-point instant τ1 = τ ∈ [T ]. Denote by ∆ := Shift (f (0) , f (1) , p ) as the distribution shift magnitude. Denote by τ ′ ∈ N as the first time when the if statement in Algorithm 3 evaluates to True , i.e., a change is detected for the first time by Algorithm 3. Then, under the good event E2 (Definition C.1), 
+
+τ ≤ τ ′ ≤
+
+
+
+inf 
+
+> eτ
+
+
+
+uτ (α) + ueτ −τ (α) ≤ ∆6
+
+  
+
+,
+
+where ut(α) is given in Equation (2). We recall some notation to give the proof. The two distributions are denoted by f (0) and f (1) and their corresponding quantile functions are given by Q(0) (·) and Q(1) (·), where for i ∈ { 0, 1}, the function Q(i)(·) : [0 , 1] → R is such that for all p ∈ [0 , 1] , Q(i)(p) is the pth quantile of the distribution f (i). Since we assume all distributions are continuous, the existence and uniqueness of quantile functions are granted. 
+
+Proof that τ ≤ τ ′
+
+Observe that under the event E2, we have for all t1 < t 2 ∈ [τ ], Q(0) (p) ∈ C(p, α, S t1:t2 ). Thus, for all t ∈ [τ ],
+
+Q(0) (p) ∈ Tts=1 C(p, α, S s:t) Tts=1 C(p, α, S 1: s), and in particular, Tts=1 C(p, α, S s:t) Tts=1 C(p, α, S 1: s) is non-empty. Therefore, under event E2, for all t ∈ [τ ], Algorithm 2 will never return True for the input sequence S1: t.
+
+Proof on the upper bound of τ ′
+
+17 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Since ∆ > 0, we will assume here that Q(0) (p) < Q (1) (p) and this is without loss of generality since the proof for the other case follows identically. To prove the upper bound, it suffices to prove that if event E2 holds and no change is detected till time τ ′ = inf {eτ : uτ (α) + ueτ −τ (α)}, then at time ⌈τ ′⌉, a change point will be detected. In order to prove this, we need to establish that T⌈τ ′⌉ 
+
+> s=1
+
+C(p, α, S s:t) T⌈τ ′⌉ 
+
+> s=1
+
+C(p, α, S 1: s) = ∅. A sufficient condition for this is to prove that C(p, α, S τ +1: ⌈τ ′⌉) T C(p, α, S 1: τ ) = ∅, i.e., the following implication holds 
+
+C(p, α, S τ +1: ⌈τ ′⌉) \ C(p, α, S 1: τ ) = ∅ =⇒ 
+
+> ⌈τ′⌉
+
+\
+
+> s=1
+
+C(p, α, S s:t) 
+
+> ⌈τ′⌉
+
+\
+
+> s=1
+
+C(p, α, S 1: s) = ∅. (14) From Equation (1), we know that 
+
+C(p, α, S 1: τ ) = 
+
+bQ(p − 2uτ (α), S 1: τ ), bQ(p + 2 uτ (α), S 1: τ )
+
+
+
+.
+
+Since event E2 holds, it follows that 
+
+bQ(p + 2 uτ (α), S 1: τ ) ≤ Q(0) (p + 3 uτ (α)) (15) 
+
+bQ(p − 2u⌈τ ′⌉− τ (α)) ≥ Q(1) (p − 3u⌈τ ′⌉− τ (α)) . (16) Further, from the definition of ∆ in Definition 5.1 and the assumption that Q(0) (p) < Q (1) (p) we know that 
+
+Q(0) (p + ∆) ≤ Q(1) (p − ∆) (17) Now, from the definition of τ ′, we know that 
+
+3( uτ (α) + u⌈τ ′⌉− τ (α)) ≤ ∆ (18) Now, combining the inequalities in Equations (16, 17, 18), we get that 
+
+bQ(p + 2 uτ (α), S 1: τ ) 15 
+
+≤ Q(0) (p + 3 uτ (α)) (a)
+
+< Q (0) (p + 3 uτ (α) + 3 u⌈τ ′⌉− τ (α)) 18 
+
+≤ Q(0) (p + ∆) 17 
+
+≤
+
+Q(1) (p − ∆) 18 
+
+≤ Q(1) (p − 3u⌈τ ′⌉− τ (α)) 16 
+
+≤ bQ(p − 2uτ (α), S τ :⌈τ ′⌉). (19) Step (a) follows from the fact that since f (0) and f (1) are a continuous distribution, we have for all i ∈ { 0, 1} and a;; 0 <p1 < p 2 < 1, Q(i)(p1) < Q (i)(p2). Thus, Equation (19) gives that under the event E2, C(p, α, S τ +1: ⌈τ ′⌉) T C(p, α, S 1: τ ) = 
+
+∅, which from Equation (14) implies that if Algorithm 2 is queried with input S1: ⌈τ ′⌉, will return a 1, i.e., detect a change-point. 
+
+Concluding the proof of Proposition 3 as an application of Proposition 11 
+
+Proof. The proof rests on the following numerical claim. 
+
+Claim 2. If τ ≥ 80 ∆2 ln   1612 
+
+> α∆2
+
+, then uτ (α) ≤ ∆/6 holds. 
+
+Proof of Claim 2. Suppose τ ≥ 80 ∆2 ln   1612 
+
+> α∆2
+
+. Then 
+
+uτ (α) ≤
+
+s
+
+ln   1612  
+
+> α
+
+(1 + ln( τ )) 
+
+τ ,
+
+≤ ∆6
+
+q
+
+ln   1612  
+
+> α
+
+(1 + ln( τ )) q
+
+5 ln   1612 
+
+> α∆2
+
+ ,
+
+18 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+≤ ∆6
+
+q
+
+ln   1612 
+
+> α
+
+ 1 + ln   20 ∆2 ln   1612 
+
+> α∆2
+
+ q
+
+5 ln   1612 
+
+> α∆2
+
+ ,
+
+≤ ∆6 .
+
+Applying Claim 2 to both τ and τ ′ − τ allows use to satisfy the condition in Proposition 3. 
+
+τ ≥ 80 ∆2 ln 
+
+ 1612 
+
+α∆2
+
+
+
+, ⌈τ ′⌉ − τ ≥ 80 ∆2 ln 
+
+ 1612 
+
+α∆2
+
+
+
+=⇒ uτ (α) ≤ ∆/6, u ⌈τ ′⌉− τ (α) ≤ ∆/6,
+
+=⇒ 3( uτ (α) + u⌈τ ′⌉− τ (α)) ≤ ∆
+
+C.2. Proof of Theorem 4 Theorem ( 4) . Let (St)Tt=1 ∼
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (fc)HT
+
+> c=0
+
+
+
+be a piece-wise stationary data-stream satisfying Assumption 5.1 for α ∈ (0 , 1) . Then, with probability at-least 1 − 2T α , Algorithm 3 satisfies both 
+
+• FP + FN ≤ PHT 
+
+> k=1
+
+D(∆ k, α ) = HT · O ( 1(min k ∆k )2 ),• Number of abstains ≤ PHT
+
+> k=1
+
+h
+
+7
+
+q
+
+(τk − τk−1) ln   1612  
+
+> α2
+
+ln(3( τk − τk−1))  + D(∆ k, α )
+
+i
+
+,where for all k ∈ [HT ], ∆k = Shift (f (k), f (k−1) , p ) is the quantile shift defined in Definition (5.1) and D(·, ·) is defined in Equation (3). At a high-level, the proof idea is to show in Lemma 3 that if Assumption 5.1 holds, then under the good event in Equation (13) (i) there are no false positive detections, and (ii) all the true changes are detected with bounded delay. This will conclude the proof of Theorem 4 since a simple union bound over Corollary 2 of (Howard and Ramdas, 2022) implies that the good event in Equation (13) holds with probability at-least 1 − T α .In order to formalize the proof, we recall notations. As before, denote by τ1 < τ 2 · · · < τ k < τ k+1 be the set of times at which a true-change occurs. For each k ∈ { 1, · · · , H T }, denote by τ ′ 
+
+> k
+
+as the time at which Algorithm 3 detects a change for the kth time. The first observation is the lemma below which states that there are no false positives and the delay of all change detections are bounded. 
+
+Lemma 3 (No false detections and bounded delay) . Under the event E2, if Assumption 5.1 holds, then for all k ∈{1, · · · , H T },• τ ′ 
+
+> k
+
+≥ τk, and • τ ′ 
+
+> k
+
+− τk ≤ D(∆ k, α ).Before giving the proof of the lemma, we show how it concludes the Proof of Theorem 4. 
+
+Proof of Theorem 4. We can break down the analysis by change points, because we know that all changes are detected before the next change occurs. Moreover, Algorithm 3 restarts a fresh copy of Algorithm 6 after each change point is detected, and thus we can use the guarantees given in Theorem 2. 19 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Consider a subset of time points [Sτk , S τk+1 ] for some k ∈ [1 , H T ]. We will denote the time step of detecting change point 
+
+τk, as τ ′
+
+> k
+
+. The total number of mistakes (false positives and false negatives) is the sum of mistakes before and after τ ′
+
+> k
+
+.Therefore under the good event E2 we have: FP + FN =
+
+> HT
+
+X
+
+> k=0
+
+ 
+
+> τ′
+> k
+
+X
+
+> t=τk
+
+1(Time t is a mistake) +
+
+> τk+1
+
+X  
+
+> t=τ′
+> k+1
+
+1(Time t is a mistake) 
+
+
+
+≤
+
+> HT
+
+X
+
+> k=0
+
+(τ ′ 
+
+> k
+
+− τk) + 0 (Event E2 definition in Equation (13)) 
+
+≤
+
+> HT
+
+X
+
+> k=0
+
+D(∆ k, α ) + 0 (Lemma 3) The analysis is similar for number of abstains. Abstains =
+
+> HT
+
+X
+
+> k=0
+
+ 
+
+> τ′
+> k
+
+X
+
+> t=τk
+
+1(Time t is abstained) +
+
+> τk+1
+
+X  
+
+> t=τ′
+> k+1
+
+1(Time t is abstained) 
+
+
+
+≤
+
+> HT
+
+X
+
+> k=0
+
+(τ ′ 
+
+> k
+
+− τk) + 
+
+> τk+1
+
+X  
+
+> t=τ′
+> k+1
+
+1(Time t is abstained) 
+
+
+
+> Lemma 3
+
+≤
+
+> HT
+
+X
+
+> k=0
+
+h
+
+D(∆ k, α ) + 
+
+> τk+1
+
+X  
+
+> t=τ′
+> k+1
+
+1(Time t is abstained) 
+
+i
+
+,
+
+> (a)
+
+≤
+
+> HT
+
+X
+
+> k=0
+
+h
+
+D(∆ k, α ) + 
+
+> τk+1
+
+X  
+
+> t=τ′
+> k+1
+
+1(Zt:τ ′ 
+
+> k
+
+= 1) 
+
+i
+
+,
+
+> (b)
+
+≤
+
+> HT
+
+X
+
+> k=0
+
+h
+
+D(∆ k, α ) + 7 
+
+s
+
+(τk − τk−1) ln 
+
+ 1612 
+
+α2 ln(3( τk − τk−1)) 
+
+i
+
+.
+
+In step (a), we use the definition of Zt:t1 as used in Equation (11) and in step (b), we use the fact that event G2 holds and thus the calculations from Theorem 2 can be used. 
+
+C.3. Proofs of Lemma 3 
+
+We prove the result by induction on k ∈ { 1, · · · , H T }.
+
+Base case of k = 1 : Observe that under event E2, we have τ ′ 
+
+> 1
+
+≥ τ1. This is so since for all times t ∈ { 1, · · · , τ 1}, there will be no distribution-shift detected, since by definition under event E2, the forward and backward CS will contain at-least the true quantile and will thus be non-empty. Now, under Assumption 5.1, we know that τ1 ≥ 20 ∆21
+
+ln 
+
+ 1612 
+
+> α∆21
+
+
+
+. Thus, by Proposition 3, we know that τ ′ 
+
+> 1
+
+− τ1 ≤
+
+> 20 ∆21
+
+ln 
+
+ 1612 
+
+> α∆21
+
+
+
+:= D(∆ 1, α ), where the last equality is from definition in Equation (3). This proves the induction base case. 
+
+Induction hypothesis : Now, assume that for some k ∈ { 1, · · · , H t}, we have that τ ′ 
+
+> k
+
+− τk ≤ D(∆ k, α ). We will now show that the (k + 1) th detection time τ ′ 
+
+> k+1
+
+satisfies τ ′ 
+
+> k+1
+
+− τk+1 ≤ D(∆ k+1 , α ).Assumption 5.1 ensures that τk+1 −τk ≥ D(∆ k+1 , α )+ D(∆ k, α ). The induction hypothesis gives that τ ′ 
+
+> k
+
+−τk ≤ D(∆ k, α ).Thus, under Assumption 5.1 and the induction hypothesis, we have that τk+1 − τ ′ 
+
+> k
+
+≥ D(∆ k+1 , α ). From the working in Algorithm 3, we know that at time τ ′
+
+> k
+
+, a new instantiation of Algorithm 6 is started. Following the same arguments as for the 20 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+base-case, we know that under the good-event E2, τ ′ 
+
+> k+1
+
+≥ τk+1 , i.e., there are no false-positive detection. Moreover, since this re-started version of Algorithm 6 has seen at-least τk+1 − τ ′ 
+
+> k
+
+≥ D(∆ k+1 , α ) pre-change samples, Proposition 3 gives that τ ′ 
+
+> k+1
+
+− τk+1 ≤ D(∆ k+1 , α ). Thus, the induction hypothesis is proved. 
+
+C.4. Details on Assumption 5.1 
+
+The following corollary states that if a process (St)Tt=1 is α-detectable, then it is also α/T detectable with an additional log-factor, made precise in the following corollary. 
+
+Corollary 11.1. For a given α ∈ (0 , 1) , T ∈ N, HT ≤ T − 1 and distributions (f (c))HT
+
+> c=0
+
+, if 
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+is α-detectable according to Assumption 5.1 with T ≥ 9 and 1612 
+
+> α∆2
+> k
+
+≥ 9 for all k ∈ [HT ], then the process 
+
+
+
+T ⌈log( T )⌉, H T , (τc⌈log( T )⌉)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+is α/T -detectable. 
+
+Proof. We need to verify that for all k ∈ [HT ], the bound ⌈log( T )⌉(τk − τk−1) satisfies the conditions in Definition 5.1 by with α/T in place of α. Consider k = 1 . Since 
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+is α-detectable, we have 
+
+τ1 ≥ D(∆ 1, α ).
+
+Thus, multiplying both sides by ⌈log T ⌉, we get that 
+
+⌈log T ⌉τ1 ≥ ⌈ log T ⌉D(∆ 1, α ),
+
+= ⌈log T ⌉ 80 ∆21
+
+ln 
+
+ 1612 
+
+α∆21
+
+
+
+,
+
+> (a)
+
+≥ C1 ln( T ) ln 
+
+ C2
+
+α
+
+
+
+,
+
+> (b)
+
+≥ C1 ln 
+
+ C2Tα
+
+
+
+,
+
+= D
+
+
+
+∆1, αT
+
+
+
+In step (a), we let C1 = 80 ∆21
+
+and C2 = 1612 ∆21
+
+. Step (b) follows since T ≥ 9 and 1612 
+
+> α∆2
+> k
+
+≥ 9 for all k ∈ [HT ].
+
+## D. Algorithm and proof for Theorem 5, stationary stream with offline data 
+
+We outline the full algorithm for the offline data setting in algorithm 7, followed by the proof of Theorem 5. To set the ideas, we will need some definitions. 
+
+Definition D.1. For every j ∈ [K], we denote by Q(j)(p) ∈ R as the pth quantile of the jth dataset Dj := {X(j) 
+
+> l
+
+}Nj
+
+> l=1
+
+.
+
+Definition D.2 (Good event 3) . Define the event E3 as 
+
+E3 := G2
+
+\  \
+
+> p∈[0 ,1]
+> K
+
+\
+
+> j=1
+
+{Q(k)(p − uNj (α)) ≤ bQ(p, {X(j) 
+
+> l
+
+}Nj
+
+> l=1
+
+) ≤ Q(k)(p + uNj (α))) }
+
+\
+
+> t∈N
+
+{ bQ(p − ut(α), S 1: t) ≤ Q(p) ≤ bQ(p + ut(α), S 1: t)}
+
+
+
+, (20) where Q(p) is the pth quantile of the i.i.d. sequence (St)t≥1, and G2 is defined in Equation (11). 
+
+Proposition 12. 
+
+P[E3] ≥ 1 − (K + 2 T )α. 
+
+The proof of this follows using Corollary 2 of (Howard and Ramdas, 2022) and an union bound similar to the proof of Proposition 10. 21 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Algorithm 7 Stationary stream with offline datasets 
+
+Input :Quantile q, Confidence 1 − α, offline datasets D1, D2, . . . , DK .
+
+Output : Anomaly labels ˆy1, ˆy2, . . . 
+
+for each time t ≥ 1 do 
+
+Receive tth input St
+
+ˆyt ← Algorithm-4(p, α, S 1: t−1, (D1, · · · , DK )) 
+
+end Theorem (5) . Let the online stream (St)t≥1 be i.i.d. from distribution f and the j ∈ [K] offline dataset with Nj i.i.d. samples have distribution f(j). Further, let the offline dataset be (p, α ) well-separated, i.e., satisfy the condition in Definition 6.1. Let ∆ = min 1≤j≤K Shift (f, f (j), p ) and bτ is defined in Section 6. Then with probability at-least 1 − (K + 2 T )α, for all times T ∈ N, all of the following holds for Algorithm 7. • If ∆ = 0 , then, 
+
+– FP + FN = 0 and 
+
+– Abstains ≤ B(N + T, α ) − 128 B(N, α ) + bτ , 
+
+where N = min {Nj : Shift (f, f (j), p ) = 0} and B(·, ·) : N × [0 , 1] → R+ is given by B(Y, α ) =7
+
+r
+
+Y ln 
+
+ 1612 ln(3 Y )
+
+> α2
+
+
+
+.• On the other hand, if ∆ > 0, then 
+
+– FP + FN ≤ bτ and 
+
+– Abstains ≤ bτ + B(T, α ).
+
+Proof. The proofs are based on two structural lemmas in Lemma 4 and 5. 
+
+Lemma 4. Suppose there exists j ∈ [K] such that the pth quantile of the offline dataset Dj and the online stream (St) are identical, i.e., Shift (f, f (j), p ) = 0 . If the offline datasets D1, · · · , DK satisfy the conditions in Definition 6.1 and the good event E3 holds, then for all time t, j ∈ { j′ ∈ [K] : C(p, α, Dj′ ) ∩ C(p, α, S 1: t−1)̸ = ∅} .
+
+Proof. Under the hypothesis of the Lemma, Q(j)(p) = Q(p). Further, since event E3 holds, we know that for all t ∈ N,
+
+Q(p) ∈ C(p, α, S 1: t−1) and Q(p) ∈ C(p, α, Dj ). Thus, under event E3, for all t ∈ N, C(p, α, Dj ) ∩ C(p, α, S 1: t−1)̸ = ∅.This concludes the proof of the lemma. 
+
+Lemma 5. Suppose the online stream (St)Tt=1 and the offline datasets D1, · · · , DK satisfy the conditions of Theorem 5. Then, for all j′ ∈ [K] such that Q(j′)(p)̸ = Q(p), and all t ≥ bτj , C(p, α, Dj′ ) ∩ C(p, α, S 1: t) = ∅.
+
+Proof. From the condition in Definition 6.1, we know that if Q(j′)(p)̸ = Q(p), then Q(p)̸ ∈ C(p, α, Dj′ ). Suppose without loss of generality, assume Q(p) < Q (j′)(p). Consider a time t ≥ bτj . Since the good event E3 holds, we know that 
+
+max C(p, α, S 1: t) = bQ(p + 2 ut(α), S 1: t) (a)
+
+≤ Q(p + 3 ut(α)) (b)
+
+< Q (p + ∆ j′ ) (c)
+
+≤ Q(j′)(p − ∆j′ )
+
+> (b)
+
+< Q (j′)(p − 3uNj′ (α)) (a)
+
+≤ bQ(p − 2uNj′ (α), Dj′ ) = min C(p, α, Dj′ ).
+
+Step (a) follows from the good event E3 definition in Equation (20). Step (b) follows from the definition of t ≥ bτj′ where 
+
+ubτj′ ≤ ∆j′ and step (c) follows from the definition of quantile shift in Definition 5.1. 
+
+Proof of Theorem 5 in the case ∆ = 0 :
+
+Proof that FP + FN = 0 . Observe from the definition of Algorithm 4, one of two possibilities occur at each time t. Either only the online stream’s samples S1: t−1 are used to make a decision on St, or both the online and one offline dataset is used to make a decision. If only the online stream is used for decision making, then Theorem 2 gives that time t is neither a FP 22 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+nor a FN. On the other hand, Lemma 4 gives that if an offline dataset is used to make a decision, then the correct offline dataset is used, i.e., the one whose pth quantile matches that of the online stream. Thus, Theorem 2 can be applied since the union of the offline and online stream is a combination of independent samples with identical pth quantile. 
+
+Proof on the abstain bound. From Lemma 5, we know that for all times t ≥ max {⌈ cτj′ ⌉ : Q(j′)̸ = Q(p)}, the decision ˆyt is made by the union of the correct offline dataset Dj and the online stream S1: t−1. Thus, the maximum number of abstains is the sum of two terms - (i) is the max number of abstains till time max {⌈ cτj′ ⌉ : Q(j′)̸ = Q(p)} which is at-most one per time-step, and the second is the number of abstains in the last T samples of a N + T length stationary stream. Theorem 2 gives that under the event E3, we have that at-most B(N + T, α ) abstains occur over the entire T + N time horizon, and (ii) 
+
+at-least 128 B(N, α ) abstains occurs in the first N samples. Putting these together yields the result. 
+
+Proof of Theorem 5 in the case ∆ > 0:
+
+The case of ∆ > 0 implies that for all j ∈ [K], Q(j)(p)̸ = Q(p). Lemma 5 gives that for all times t ≥ ⌈ bτj ⌉, C(p, α, Dj ) ∩
+
+C(p, α, S 1: t) = ∅. Thus, for all times t ≥ max j∈[K]⌈ bτj ⌉, the decision ˆyt ← Algorithm-1(C(p, α, S 1: t)) . Theorem 2 gives that for all times t ≥ max j∈[K]⌈ bτj ⌉, the number of mistakes is 0 under the good event E3 and the number of abstains is at-most B(T, α ).
+
+D.1. Illustration of well separated offline datasets 
+
+In Figure 7, we give a schematic representation of the well-separated assumption described in Definition 6.1. This shows that the 4 offline datasets’ CS must be non-intersecting and must be such that (i) either the true quantile of an online segment must match one of the offline datasets, (ii) or the online quantile must not lie inside any of the offline dataset’s CS. 
+
+## E. Proof for Theorem 6, general case 
+
+To state performance guarantee of Algorithm 5, we need a definition of a good event, which occurs with high probability. 
+
+Definition E.1 (Good event 4) . Given a piece-wise stationary sequence (St)Tt=1 := 
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (f (c))HT
+
+> c=0
+
+
+
+, with the quantile functions of the HT + 1 different segments given by (Q(c)(·)) HT 
+
+> c=1
+
+and K offline datasets that are (p, α ) separated according to Definition 6.1, let 
+
+E4 = G2
+
+\ \
+
+> p∈[0 ,1]
+> K
+
+\
+
+> j=1
+
+{Q(k)(p − uNj (α)) ≤ bQ(p, {X(j) 
+
+> l
+
+}Nj
+
+> l=1
+
+) ≤ Q(k)(p + uNj (α))) }
+
+| {z }
+
+> Offline dataset’s CS contain true quantile
+> HT
+
+\
+
+> k=0
+> τk+1
+
+\
+
+> t1=τk
+> τk+1
+
+\
+
+> t2=t1+1
+
+bQ(p − ut2−t1 (α), S t1:t2 ) ≤ Q(k)(p) ≤ bQ(p − ut2−t1 (α), S t1:t2 )
+
+| {z }
+
+> Online stream’s CS contain true quantile
+
+,
+
+(21) where the pth quantile of the offline datasets Q(l)(p) are defined in Definition D.1 and G2 is defined in Equation (11). Event E4 is the union of E2 in Equation (13) for the online stream along with the event E3 in Equation (20) for the offline datasets. 
+
+Proposition 13. 
+
+P[E4] ≥ 1 − α(K + 2 T )
+
+The proof follows similar to that of Proposition 10. As before, denote by HT as the number of change points, and the time-instants of change occuring at 1 := τ0 < τ 1 <τ2 · · · < τ HT < τ HT +1 := T + 1 . We denote by the kth online stream as the stationary samples {Su : τk−1 ≤ u < τ k}.23 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+For an offline dataset j ∈ { 1, · · · , K } and the online stream k, ∆(j;k) ≥ 0 denotes the shift between the jth offline dataset and the kth online stream. As before, similar to Theorem 4, for all k ∈ [HT ], denote by ∆k = Shift (fk, f k+1 ) to be the shift between the kth and k − 1th online segment, and for k ∈ [HT ] and j ∈ [K], let ∆(j,k ) = Shift (f (k), f (j), p ) be the shift between the jth offline dataset and the kth online segment. 
+
+Theorem (6) . Let (St)Tt=1 ∼
+
+
+
+T, H T , (τc)HT
+
+> c=0
+
+, (fc)HT
+
+> c=0
+
+
+
+be a piece-wise stationary stream satisfying Assumption 5.1 and offline datasets D1, . . . , DL satisfying Assumption 6.1. Then, with probability at-least 1 − (K + 2 T )α, for all times T ∈ N,Algorithm 5 satisfies • FP + FN ≤ PHT
+
+> k=1
+
+
+
+D(∆ k, α ) + (1 − 1Match k ) max j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+ 
+
+• Number of abstains less than 
+
+> HT
+
+X
+
+> k=1
+
+h
+
+(1 − 1Match k )7 
+
+s
+
+(τk − τk−1) ln 
+
+ 1612 
+
+α2 ln( e(τk − τk−1)) 
+
+
+
++ 1Match k 7
+
+s
+
+(N + T ) ln 
+
+ 1612 ln( e(N + T )) 
+
+α2
+
+
+
+− 4
+
+s
+
+N ln 
+
+ 1612 ln( eN )
+
+α2
+
+!
+
++ D(∆ k, α ) + max 
+
+> j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+i 
+
+,
+
+where 1Match k = 1Q(k)(p)∈{ Q(1) (p),··· ,Q (K)(p)}, Q(k)(p) is the pth quantile of the kth segment of the online stream (Defn. 2.1) and Q(1) (p), · · · , Q (K)(p) are the pth quantiles of the K different offline datasets (Defn. 2.3). The proof structure follows a similar path as that of Theorem 4. Since Assumption 5.1 holds, we know that Lemma 3 holds. Thus, we have that (i) there are no false positive change detections, and (ii) all changes are detected with a short detection delay. From the description of Algorithm 5, we know that whenever a change is detected, a new instantiation of Algorithm 7 is started. Thus, the final result is obtained by summing the guarantees in Theorem 5 over the k online segments in addition to the delay taken to detect changes. The delay to detect changes are bounded by using Proposition 3 and Assumption 5.1, similar to that done in Theorem 4. 
+
+Proof of Theorem 6. Theorem 6 is the joint result of theorems 4 and 5. As in Theorem 4, Lemma 3 implies that at time 
+
+τ ′ 
+
+> k
+
+< τ k+1 , a new instantiation of Algorithm 7 is started. Theorem 5 states that in the time interval [τ ′
+
+> k
+
+, τ k+1 ], the kth online segment incurs a total number of mistakes bounded by the guarantee in Theorem 5 for a time horizon τk+1 − τ ′
+
+> k
+
+.Concretely, in the time-interval [τ ′
+
+> k
+
+, τ k+1 ], the sum of FP and FN is bounded above by 0 in the event 1Match k holds, and by max j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+
+
+in the case when 1Match k does not hold. Similarly, the number of abstains in the time-interval τk+1 − τ ′ 
+
+> k
+
+is given by the guarantee of Theorem 5. Now, summing over the HT different online segments yields the result. For any segment k ∈ [1 , . . . , H T ], we have • FP k + FN k ≤ D(∆ k, α ) + 1 − 1Match k ) max j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+
+
+where the first term is from detection delay in detecting the change (Proposition 3) and the second term from Theorem 5. • If Q(k)(p) matches one of the dataset {Q(1) (p), · · · , Q (K)(p)}, then under event G2, number of abstains is at-most 
+
+D(∆ k, α ) + max 
+
+> j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+
+
++ 7 
+
+s
+
+(N + τk − τk−1) ln 
+
+ 1612 ln( e(N + τk − τk−1)) 
+
+α2
+
+
+
+−7
+
+s
+
+N ln 
+
+ 1612 ln( eN )
+
+α2
+
+
+
+,
+
+by Theorem 6, case ∆ = 0 .24 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+• If Q(k)(p) matches none of the datasets: Abstains ≤ D(∆ k, α ) + max 
+
+> j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+
+
++ 7 
+
+s
+
+(τk − τk−1) ln 
+
+ 1612 ln( e(τk − τk−1))) 
+
+α2
+
+
+
+by theorem 6, case ∆ > 0.The term of D(∆ k, α ) always shows in all three equations above as that is the amount of time taken for the kth change-point to be detected and thus all decisions made during the times of change can potentially lead to mistakes and abstains. Combining the piece-wise results together, we have FP + FN ≤
+
+> HT
+
+X
+
+> k=1
+
+D(∆ k, α ) + (1 − 1Match k ) max 
+
+> j∈[K]
+
+
+
+⌈bτ (k) 
+
+> j
+
+⌉1Shift (f (k),f (j),p )>0
+
+
+
+Similarly, summing over the HT online segments gives the bound on the number of abstains. 
+
+## F. Additional Related Works 
+
+Online anomaly detection works There exist works that focuses on other aspects of online anomaly detection. (Zhu et al., 2023) models online concept drift via an ensemble of models. (Nardi et al., 2022) tackles modeling for online AD in a Federated setting. (Bhatia et al., 2022) studies the low-memory constraint of online AD, and (Goyal et al., 2020) focuses on efficiently modeling multi-dimensional data. A survey of methodologies of data modelling for AD can be found in the surveys of (Chandola et al., 2009; Ruff et al., 2021; Pang et al., 2021). Our work differs from these works in setting: we focus on dynamic thresholding of anomaly scores without having access or ability to retrain the underlying AD algorithm. 
+
+Threshold learning Using score thresholds to make binary decision of seeking labels from human experts are studied in active learning (Balcan et al., 2007; Zhang et al., 2016; Vishwakarma et al., 2023). However, active learning does not have a concept of mistakes and is thus have different desiderata compared to our study. 
+
+## G. Additional experiments and experiment details 
+
+G.1. Synthetic experiments 
+
+We conduct our synthetic experiments for 1000 trails on streams each of length 1000. The normal distribution online streams are synthesized with parameters sampled uniformly form [0 , 10] for mean and [0 .2, 2] for variance. The Pareto distributions’ parameters are sample uniformly from [1 , 3] for b, [0 , 10] for mean, and [0 .2, 2] for scale. To synthesize distribution shifts, we sample a duration for each stationary piece from a Poisson distribution with λ = 300 . To simulate datasets, we prepare 
+
+L = 5 offline datasets each of size N = 5000 ; the online stream can be generated from either one of the dataset distributions or a random one with uniform probability. The range of these parameters are chosen to simulate real world anomaly score data. The code to generate the synthetic dataset as well as implementations of our algorithms will be open sourced. Pareto shift data Abs. (%) Mis. (%) x x 17.8 ± 7.4 .03 ± .01 
+
+✓ x 51.9 ± 35.0 .51 ± .18 
+
+x ✓ 16.8 ± 4.7 .06 ± .04 
+
+✓ ✓ 24.3 ± 5.2 .33 ± .41 
+
+Table 3: Results of our algorithms on synthetic stream dataset generated from Pareto distribution. 
+
+G.2. Case study of real AD application 
+
+In this section we provide details on our real data experiments. We run Algorithms 3 and 5 on two large scale datasets 
+
+DS1 and DS2 obtained from monitoring two large cloud computing services. Each dataset is a stream of anomaly scores 25 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+obtained by applying a single anomaly detection algorithm. On these datasets, we run our two general algorithms, Algorithm 3 and 5 with p = 1 − 10 −6 and α = 10 −6. Algorithm 5 can use offline datasets. In order to create them, we sampled 50 streams randomly that had length at-least 20 , 000 in each of the two datasets. From this collection of 100 streams, we sub-selected 37 and 23 streams from datasets DS1 and DS2 respectively such that no two datasets in this collection of 60 
+
+streams overlapped. This is so that Assumption 6.1 is satisfied by the offline dataset. The description of the rest of the dataset on which we run the online algorithms is in Table 4. In addition, we also run 
+
+DSpot (Siffer et al., 2017) with p = 1 − 10 −6 and set num-init to 500 and depth to 100 on the online algorithm dataset. All other parameters of DSpot was set to the suggested values in (Siffer et al., 2017). In addition to these, we also compare against two static baselines of using the first 500 and 100 samples respectively and set the threshold as the max of the observed samples. This threshold is not changed since. The results of this experiment are reported in Table 5. From this table, we can see that incorporating offline data reduces the number of abstains for both datasets without changing the volume of anomalies raised. This shows that when there are offline datasets available to the algorithm, the online performance is improved. Num. of Streams Average stream length Total num samples DS1 8377 10925 .4 91521785 
+
+DS2 9657 10855 .6 104832532 
+
+Table 4: Summary of data properties for real world AD case study. Algo 3 Algo 5 DSpot τ (1) τ (2) 
+
+DS1 Abstains ↓ 13 .6% 11 .2% 1.2% 1.16% 0.05% 
+
+Anomaly ↓ .008 % .008 % 2.9% 0.02% 0.95% 
+
+DS2 Abstains ↓ 13 .3% 9.9% 1.3% 1.25% 1.08% 
+
+Anomaly ↓ .006% .005 % 3.9% 0.07% 0.06% 
+
+Table 5: Case study performance. All baseline algorithms report anomaly rates much higher than the targeted 10 −6,overwhelming the alarm system. By incorporating offline datasets, we are able to further decrease abstains and achieve a lower rate of reported anomaly. 
+
+G.3. 
+
+We include additional experiments as follows. With the same underlying AD scoring algorithm (isolation forest for ForestCover, and a 3-layer MLP for Mammography), our confidence sequence algorithm (Algorithm 1 in paper) can achieve a higher F1 score and fewer mistakes, with similar or less number of abstains, compared to a static threshold. This further demonstrates that our thresholding algorithm improves performance across datasets and base anomaly scoring algorithms. ForestCover (first 1500 as holdout) Mammography (first 300 as holdout) Ours Static Threshold Ours Static Threshold Abstain % 1.5% 1.5% 2.1% 5% FP + FN 645 1603 56 83 F1 0.39 0.33 0.51 0.43 Table 6: Performance comparison of algorithms on ForestCover and Mammography datasets 
+
+## H. Proof of Lower Bound 
+
+The proof is based on the classical hypothesis testing lower bounds due to Neyman and Pearson. Throughout this section, we will fix a T ∈ N sufficiently large and let P0 := N (0 , 1) be the standard normal distribution and P1 := N ( 1√T , 1) as an 26 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+unit variance normal distribution with mean 1/√T .
+
+Theorem 14 (Neyman-Pearson) . For any T ∈ N, given T i.i.d.. samples S1: T , we want to distinguish between the two hypothesis H0 : S1: T ∼ N(0 , 1) or H1 : S1: T ∼ N (1 /√T , 1) . Then, for any measurable function A : RT → { 0, 1},
+
+max( P0[A(S1: T = 1] , P0[A(S1: T = 1]) ≥ 14 exp( − 12 ),
+
+where Pi for i ∈ { 0, 1} is the proabability distribution under hypothesis Hi.
+
+Lemma 6. For every p ∈ (0 , 1) , there exists a constant Cp ∈ (0 , ∞) depending only on p, such that for S ∼ N (0 , 1) 
+
+P[S ∈ (Q(0) (p), Q (1) (p))] ≥ Cp
+
+√T ,
+
+where Q(0) (p) is the pth quantile of a N (0 , 1) distribution and Q(1) (p) is the quantile of a N ( 1√T , 1) distribution. Now, a standard Chernoff bound gives the following result. 
+
+Lemma 7 (Chernoff bound) . Let T ∈ N and suppose S1: T are i.i.d., N (0 , 1) random variables. Let p ∈ (0 , 1) . Then, 
+
+P
+
+" TX
+
+> t=1
+
+1St∈(Q(0 (p),Q (1) (p)) ≤ Cp
+
+√T
+
+2
+
+#
+
+≤ exp 
+
+√T
+
+8
+
+!
+
+, (22) where Cp is from Lemma 6. 
+
+Theorem 15 (Main lower bound) . Denote by two distributions P0 := N (0 , 1) and P1 := N ( 1√T , 1) as unit variance guassians with means 0 and 1√T respectively. For i ∈ { 0, 1}, denote by Q(i)(p) as the pth quantile of distribution Pi. For a threshold θ ∈ R and sample x ∈ R, denote by the indicator function bY (θ) 
+
+> t
+
+(x) := 1(x ≥ θ). Similarly, denote by the indicator function Y (i) 
+
+> t
+
+(x) = 1(x ≥ Q(i)) for i ∈ { 0, 1}. Let A : RT → { 0, 1} be any measurable hypothesis testing function. Then, there exists i ∈ { 0, 1} such that when S1: T are i.i.d. with distribution Pi, then with probability at-least  
+
+> 18
+
+− exp 
+
+ √T
+
+> 8
+
+
+
+,
+
+> T
+
+X
+
+> t=1
+
+1( bY (Q(A(S1: T )) (p))  
+
+> t
+
+(St)̸ = Y (i) 
+
+> t
+
+(St)) ≥ Cp
+
+√T , 
+
+where Cp is from Lemma 6. In words, the above theorem states that even when the true distribution is known to be one of two possibilities and the optimal threshold is chosen using any measurable function, O(√T ) mistakes is un-avoidable. 
+
+Proof. Pick A : RT → { 0, 1} by a measurable function that tests the hypothesis H0 : S1: T are i.i.d. with distribution P0
+
+and H1 : S1: T are i.i.d. with distribution P1. From Theorem 14, we know that for this given test A, there exists i ∈ { 0, 1}
+
+such that 
+
+Pi[A(S1: T )̸ = i] ≥ 18 . (23) Without loss of generality, lets suppose i = 0 , i.e., given a hypothesis test A, P0[A(S1: T )̸ = 0] ≥ 18 . We will show in the rest of the proof that for this A, if S1: T are i.i.d. with distribution P0, PTt=1 1( bY (Q(A(S1: T )) (p)) 
+
+> t
+
+̸ = Y (0)  
+
+> t
+
+) ≥ Cp
+
+√T holds with probability at-least 18 − exp 
+
+ √T
+
+> 8
+
+
+
+.To do so, let S1: T be i.i.d. P0. From Lemma 7, we know that 
+
+P0
+
+" TX
+
+> t=1
+
+1St∈(Q(0 (p),Q (1) (p)) ≤ Cp
+
+√T
+
+2
+
+#
+
+≤ exp 
+
+√T
+
+8
+
+!
+
+.
+
+27 Online Adaptive Anomaly Thresholding with Confidence Sequences 
+
+Thus, from an union bound, we know that for the given A,
+
+P0
+
+A(S1: T )̸ = 0 ,
+
+> T
+
+X
+
+> t=1
+
+1St∈(Q(0 (p),Q (1) (p)) ≥ Cp
+
+√T
+
+2
+
+| {z } 
+
+> Event H
+
+ ≥ 18 − exp 
+
+√T
+
+8
+
+!
+
+.
+
+Observe that under event H, for all x ∈ R, we have the equality 
+
+1( bY (A(S1: T ))  
+
+> t
+
+(x)̸ = Y (0)  
+
+> t
+
+(x)) = 1(x ∈ (Q(0) (p), Q (1) (p)) .
+
+Thus, under event H, we have 
+
+> T
+
+X
+
+> t=1
+
+1( bY (A(S1: T ))  
+
+> t
+
+(St)̸ = Y (0)  
+
+> t
+
+(St)) = 
+
+> T
+
+X
+
+> t=1
+
+1St∈(Q(0 (p),Q (1) (p)) ≥ Cp
+
+√T
+
+2 ,
+
+holding with probability at-least 18 − exp 
+
+ √T
+
+> 8
+
+
+
+.
+
+The theorem asserts that if an algorithm does not abstain, then even in a stationary stream, O(√T ) mistakes will occur with high probability. 28

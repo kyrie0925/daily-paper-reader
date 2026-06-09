@@ -1,0 +1,2120 @@
+Title: A Subquadratic Time Algorithm for Robust Sparse Mean Estimation
+
+URL Source: https://openreview.net/pdf?id=WSi4IiMaCx
+
+Number of Pages: 26
+
+Markdown Content:
+# A Subquadratic Time Algorithm for Robust Sparse Mean Estimation 
+
+Ankit Pensia 1
+
+# Abstract 
+
+We study the algorithmic problem of sparse mean estimation in the presence of adversarial outliers. Specifically, the algorithm observes a corrupted 
+
+set of samples from N (μ, Id), where the unknown mean μ ∈ Rd is constrained to be k-sparse. A series of prior works has developed efficient al-gorithms for robust sparse mean estimation with sample complexity poly( k, log d, 1/ϵ ) and run-time d2poly( k, log d, 1/ϵ ), where ϵ is the fraction of contamination. In particular, the fastest runtime of existing algorithms is quadratic in the dimen-sion, which can be prohibitive in high dimensions. This quadratic barrier in the runtime stems from the reliance of these algorithms on the sample covariance matrix, which is of size d2.Our main contribution is an algorithm for ro-bust sparse mean estimation which runs in sub-quadratic time using poly( k, log d, 1/ϵ ) samples, with similar results for robust sparse PCA. Our results build on algorithmic advances in detecting weak correlations, a generalized version of the light-bulb problem by Valiant (Valiant, 2015). 
+
+# 1. Introduction 
+
+Mean estimation, a fundamental unsupervised inference task studied in literature, may be described as follows: Given a family of distributions P over Rd, the algorithm observes a set of i.i.d. points from an unknown P ∈ P , with the goal of outputting bμ such that, with high probability, ∥bμ − μ∥2
+
+is small. Although this framework is well-studied in the lit-erature, the data observed in practice may deviate from the i.i.d. assumption and additionally may contain outliers. Cru-cially, these outliers can easily break standard off-the-shelf estimators, for example, sample mean, geometric median, and coordinate-wise median. To address this challenge, the field of robust statistics was initiated in the 1960s, aiming to         
+
+> 1IBM Research. Correspondence to: Ankit Pensia
+> <ankitp@ibm.com >.
+> Proceedings of the 41 st International Conference on Machine Learning , Vienna, Austria. PMLR 235, 2024. Copyright 2024 by the author(s).
+
+develop algorithms that are robust to outliers (Huber, 1964; Andrews et al., 1972; Huber & Ronchetti, 2009). Before proceeding further, we formally define the contamination model we study in this paper. 
+
+Definition 1.1 (Strong Contamination Model) . Given a cor-ruption parameter ϵ ∈ (0 , 1/2) and a distribution P on uncorrupted samples, an algorithm obtains samples from P
+
+with ϵ-contamination as follows: (i) The algorithm specifies the number n of samples it requires. (ii) A set S of n i.i.d. samples from P is drawn but not yet shown to the algorithm. (iii) An arbitrarily powerful adversary then inspects S, be-fore deciding to replace any subset of ⌈ϵn ⌉ samples with arbitrarily corrupted points (“outliers”) to obtain the con-taminated set T , which is then returned to the algorithm. We say T is an ϵ-corrupted version of S and a set of ϵ-corrupted samples from P .Our focus will be on high-dimensional distributions, i.e., when the distribution P is over Rd for large d. Dealing with outliers becomes harder in high dimensions because clas-sical outlier screening procedures (which otherwise work well in low dimensions) rely on the norm of the data points and are too coarse to distinguish outliers from inliers. Nev-ertheless, a long line of research, spurred by advances in Diakonikolas et al. (2016); Lai et al. (2016), has developed a systematic theory of handling outliers in high-dimensional robust statistics (Diakonikolas & Kane, 2023). Notwith-standing this progress, major gaps persist in our fine-grained 
+
+understanding of fast robust algorithms for data with addi-tional structure. Structured high-dimensional data distributions are ubiqui-tous in practice, e.g., natural images and sounds. Moreover, leveraging these underlying structures often dramatically improves algorithmic performance, e.g., in terms of error. A well-studied structure both in the theory and practice of high-dimensional statistics is sparsity , see, for example, the textbooks Eldar & Kutyniok (2012); Hastie et al. (2015); van de Geer (2016). Consequently, we concentrate our efforts on structured mean estimation, where we assume that the underlying mean is sparse, i.e., an overwhelming majority of its coordinates are zero. In light of the challenges posed by outliers above and the prevalence and importance of sparsity, we study the problem of robust sparse mean estimation. We say a vector x ∈ Rd is 1Subquadratic Robust Sparse Mean Estimation 
+
+k-sparse if x has at most k non-zero entries. Our focus is on the practically relevant regime where k is much smaller than 
+
+d, say, poly-logarithmic in d. We formally define robust sparse mean estimation below. 
+
+Problem 1.2 (Gaussian Robust Sparse Mean Estimation) .
+
+Let ϵ0 ∈ (0 , 1/2) be a sufficiently small constant. Given 
+
+ϵ ∈ (0 , ϵ 0), sparsity k ∈ N, and a set of ϵ-corrupted set of samples from N (μ, Id) with an unknown k-sparse mean 
+
+μ ∈ Rd, the goal is to output an estimate bμ ∈ Rd such that 
+
+∥bμ − μ∥2 is small with high probability. Robust sparse mean estimation algorithms, efficient both in runtime and samples, were first developed in Bal-akrishnan et al. (2017), with sample complexity n =poly( k, log d, 1/ϵ ), runtime poly( d, n, 1/ϵ ), and near-optimal error ∥bμ − μ∥2 = ˜O(ϵ).1 In particular, the sam-ple complexity is only poly-logarithmic in the ambient di-mension d, thereby permitting statistical inference with far fewer samples than the Ω( d) samples required by unstruc-tured mean estimation. Therefore, for our algorithm for Problem 1.2, we set as the first requirement this sample complexity of poly( k, log d, 1/ϵ ).The focus of this work is to develop fast robust sparse mean estimation with the aforementioned sample complexity. Al-though the runtime of Balakrishnan et al. (2017) is poly-nomial in dimension, their algorithm uses the ellipsoid al-gorithm (which in turn solves a semidefinite program) and hence is not practical in high dimensions. Diakonikolas et al. (2019) then developed a spectral algorithm with similar er-ror guarantees and sample complexity and an improved run-time of d2poly( k, log d, 1/ϵ ). Subsequent papers have pro-posed many algorithmic improvements and generalizations to a wider class of distributions (Zhu et al., 2022; Cheng et al., 2022; Diakonikolas et al., 2022a;c); see Section 1.3. Despite this algorithmic progress, the fastest currently known algorithm for Problem 1.2 is that of Diakonikolas et al. (2019) with runtime scaling as d2. This quadratic run-time of the algorithm can be prohibitive in high dimensions— the very setting that benefits most from sparsity (because of sample-efficiency). This quadratic dimension dependence is in stark contrast to the non-robust setting (i.e., the outlier-free regime), where there exists a simple (folklore) algo-rithm 2 with nearly-linear runtime, which is also minimax op-timal. This motivates the following fundamental question:   
+
+> 1In the presence of outliers, vanishing error is usually not pos-sible. In our setting, this is because it is impossible to distinguish two isotropic Gaussian distributions that are Ω( ϵ)-far apart in the presence of ϵ-fraction of contamination.
+> 2The algorithm computes the sample mean and thresholds en-tries to ensure sparsity, hence failing if there is even a single outlier. Moreover, natural attempts to make this algorithm robust, such as coordinate-wise median, incur an highly suboptimal error of
+> Ω( ϵ√k).
+
+Question 1.3. Are there any nearly-linear time algorithms for robust sparse mean estimation? 
+
+If we momentarily forgo sparsity (and the benefits that come along with it, e.g., the reduced sample complexity and interpretability) and focus on robust dense estimation, then positive answers are known to Question 1.3, see, e.g., Cheng et al. (2019a); Dong et al. (2019); Diakonikolas et al. (2022b;d). However, the sample complexities of the algorithms in these papers scale linearly with dimen-sion, 3 which considerably exceeds our allowed budget of 
+
+poly( k, log d, 1/ϵ ) samples. In fact, as alluded to earlier, existing attempts at answering Question 1.3 do not even break the quadratic runtime barrier. This is due to natural technical obstacles within current algo-rithms: to robustly estimate the mean, they crucially rely on the sample covariance matrix to detect outliers; but merely computing the sample covariance matrix costs Ω( d2) time! Sparsity also precludes common tricks such as the power iteration to bypass explicitly writing the covariance matrix. Indeed, in certain parameter regimes, even detecting atypical values of the covariance matrix from samples is conjectured to require Ω( d2) time (Dagan & Shamir, 2018). This begs the question whether this quadratic gap is inherent: 
+
+Question 1.4. Is there an algorithm for robust sparse mean estimation that runs in d2−Ω(1) time and uses 
+
+poly( k, log d, 1/ϵ ) samples? 
+
+The main result of our work is an affirmative answer to Ques-tion 1.4. We hope our answer paves the path for progress towards answering Question 1.3, which was highlighted as an important open problem in Diakonikolas (2019); Cheng (2021); Diakonikolas (2023). Our algorithm builds on advances in fast correlation detection algorithms by Valiant (Valiant, 2015). 
+
+1.1. Our Results 
+
+We establish the following result: 
+
+Theorem 1.5 (Robust Sparse Mean Estimation in Sub-quadratic Time) . Let the contamination rate be ϵ ∈ (0 , ϵ 0)
+
+for a small constant ϵ0 ∈ (0 , 1/2) and k ∈ N be the sparsity. Let T be an ϵ-corrupted set of n samples from N (μ, Id) for an unknown k-sparse μ ∈ Rd. Then there is a randomized algorithm A that takes as input the corrupted set T , con-tamination rate ϵ, sparsity k ∈ N, and a parameter q ∈ N,and produces an estimate bμ such that 
+
+ (Sample Complexity and Error) If n ≳
+
+(k2q log d)/ϵ 2q , then ∥bμ − μ∥2 ≲ ϵplog(1 /ϵ )
+
+with probability at least 0.9 over the randomness of 
+
+> 3In fact, the overall runtime of these algorithms scales as
+> ˜Θ( nd ) = ˜Θ( d2/ϵ 2), which is again quadratic in dimension.
+
+2Subquadratic Robust Sparse Mean Estimation 
+
+the samples and the algorithm. 4
+
+ (Runtime) The algorithm runs in time at most 
+
+d1.62+ 3 
+
+> q
+
+poly(log( d), k q , 1/ϵ q ) .
+
+Several remarks are in order. The error guarantee of The-orem 1.5, O(ϵplog(1 /ϵ )) , is nearly optimal even given infinite data and runtime. 5 The main contribution of Theo-rem 1.5 is the first algorithm for robust sparse mean estima-tion with runtime d2−Ω(1) poly( k/ϵ ) and sample complexity 
+
+poly( k, log d, 1/ϵ ) (by selecting q ∈ N to be a constant big-ger than 9), thereby affirmatively answering Question 1.4. As q increases, the dependence of the runtime on the di-mension approaches d1.62 .6 In particular, for a constant contamination rate ϵ, we may set q as large as γ
+
+ log d 
+
+> log k
+
+
+
+for a small γ ∈ (0 , 1) , and the algorithm retains sublinear (in d) sample complexity dO(γ) and subquadratic runtime 
+
+d1.62+ O(γ)kO(1 /γ ). Finally, the sample complexity of The-orem 1.5 is (polynomially) larger than existing works; see Section 4 for further remarks. We next focus on robust sparse principal component analy-sis (PCA), where given corrupted samples from N (0 , Id +
+
+ρvv ⊤) for a k-sparse unit vector v ∈ Rd, the goal is to estimate the unknown v.
+
+Theorem 1.6 (Robust Sparse PCA in Subquadratic Time) .
+
+Let T be an ϵ-corrupted set of samples from N (0 , Id +
+
+ηvv ⊤) for η ∈ (0 , 1) and a k-sparse unit vector. There is a randomized algorithm that takes as input the corrupted set T , contamination rate ϵ, sparsity k ∈ N, spike η, and a parameter q ∈ N, and produces an estimate bv such that 
+
+ (Sample Complexity and Error) If n ≳
+
+poly(( kq log d)/ϵ q ), then ∥bvbv⊤ − vv ⊤∥Fr ≲pϵ log(1 /ϵ )/η with probability at least 1 − 1poly( d)
+
+over the randomness of the samples and the algo-rithm. 
+
+ (Runtime) The algorithm runs in time at most 
+
+d1.62+ 3 
+
+> q
+
+poly( n).
+
+This result gives the first subquadratic time algorithm for dimension-independent error, improving on the Ω( d2) run-time of Balakrishnan et al. (2017); Diakonikolas et al. (2019); Cheng et al. (2022). We note that the error guaran-tee of Theorem 1.6 is sub-optimal by a polynomial factor           
+
+> 4The success probability can be boosted to 1−δwith a mul-tiplicative increase of log(1 /δ )in the sample complexity and the runtime by repeating the procedure.
+> 5The information-theoretic optimal error is Θ( ϵ). Moreover, it is computationally hard to beat Θ
+> 
+> ϵplog(1 /ϵ )
+> 
+> in the statistical query lower model (Diakonikolas et al., 2017) and the low-degree polynomial tests (Brennan et al., 2021) under Definition 1.1.
+> 6The constant 1.62 in the exponent comes from the subroutine for fast correlation detection (Valiant, 2015). See Section 1.3 for further details.
+
+of ϵ/η (like in Cheng et al. (2022)), since the information-theoretic optimal error is ϵ/η . Despite this (polynomially) larger error, Theorem 1.6 is the first subquadratic time algo-rithm for robust sparse PCA with any non-trivial error, say, less than 0.01 .Our main technical ingredient in proving Theorems 1.5 and 1.6 is a result on detecting correlated coordinates of a high-dimensional distribution by Valiant (2015). We give an overview of Theorems 1.5 and 1.6 in Section 1.2, with details in Section 3 and Appendix D, respectively. 
+
+1.2. Overview of Techniques 
+
+We begin by presenting a brief overview of the landscape of current robust sparse mean estimation algorithms, followed by challenges in using these approaches to obtain an o(d2)
+
+runtime, and then conclude by presenting our algorithm. 
+
+(Dense) Robust Mean Estimation Let μ′ and Σ′ be the sample mean and the sample covariance of the current (cor-rupted) dataset. The general guiding principle in robust 
+
+dense mean estimation is to use Σ′ to check if there are harmful outliers and iteratively remove them. Recall that inliers are sampled from an isotropic covariance distribution 
+
+N (μ, Id). Thus, if we take Θ( d/ϵ 2) samples, then the vari-ance of the inliers in any direction is (1 ± ˜O(ϵ)) . Moreover, the variance of any (1 − ϵ) fraction of inliers is (1 ± ˜O(ϵ)) .The following are the key insights in developing algorithms for robust dense mean estimation: (i) Outliers cannot change the sample mean μ′ of the data in any direction v without significantly increasing the covariance Σ′ in the direction 
+
+v, (ii) Given a direction of large variance v of the data (i.e., with variance larger than 1 + ˜Ω( ϵ)), one can reliably re-move outliers by projecting the data onto v and thresholding appropriately, and (iii) In the dense setting, the directions of large variance correspond to leading eigenvectors of the covariance matrix Σ′, and further they can be computed ef-ficiently (in nearly-linear time) using power iteration. Thus, one can iteratively remove outliers as follows: compute (ap-proximately) the leading eigenvalues and eigenvectors of the sample covariance matrix Σ′ and remove the samples that have large projections along the computed direction. 
+
+Adapting to Sparsity and Smaller Sample Complexity 
+
+For robust sparse mean estimation, one can adapt the above strategy by focusing only on the sparse directions v. In-deed, (i) and (ii) above are straight-forward and the result-ing sample complexity of the algorithm is k log( d)/ϵ 2 since we require concentration of the mean and the covariance only along k-sparse directions. However, the problem of computing the direction of the leading sparse eigenvalues of a matrix, max v:∥v∥2=1 ,k -sparse v⊤Σ′v, is computationally-hard in the worst case. Inspired by the literature on sparse 3Subquadratic Robust Sparse Mean Estimation 
+
+PCA (d’Aspremont et al., 2007), Balakrishnan et al. (2017) proposed the following convex relaxation 7:
+
+sup 
+
+> {A:A⪰0,tr( A)=1 ,∥A∥1≤k}
+
+⟨A, Σ′ − Id⟩ . (1) Given such a feasible A with value larger than ˜Ω( ϵ), one can remove outliers provided a larger sample complex-ity of (k2 log d)/ϵ 2.8 Although the resulting algorithm is polynomial-time and the desired sample complexity 
+
+poly( k, log d, 1/ϵ ), the algorithm requires solving semidefi-nite programs (SDPs), for which the current algorithms re-quire time superquadratic in dimension (Jiang et al., 2020). 
+
+Spectral Algorithm of Diakonikolas et al. (2019) To avoid solving the SDPs from the preceding paragraph, Di-akonikolas et al. (2019) considers a different (and, in a sense, weaker) relaxation of sparse eigenvalues by relying on the distributional properties of Gaussians. Let Bk2-sparse be the set of all (sparse) matrices B with Frobenius norm 1 and at most k2 non-zero entries. Importantly, Bk2-sparse contains all vv ⊤ for all k-sparse unit vectors v. Their starting point is the observation is that for any B ∈ B k2-sparse , we have 
+
+Var x∼N (0 ,Id)(x⊤Bx) = 2 ∥B∥2Fr = 2 . Thus, for a fixed 
+
+B ∈ B k2-sparse , the empirical mean of x⊤Bx over any 1 − ϵ
+
+fraction of inliers should be tr( B) ± ˜O(ϵ). Moreover, stan-dard uniform concentration arguments imply that this holds uniformly over B ∈ B k2-sparse given (k2 log d)/ϵ 2 samples. Their key observation is that the resulting (non-convex) op-timization problem 
+
+max 
+
+> B∈B k2-sparse
+
+⟨B, Σ′ − Id⟩ (2) can be solved via standard matrix operations (despite being non-convex) without resorting to SDPs (as opposed to (1)); indeed, the optimal B corresponds to the top-k2 values of 
+
+Σ′ − Id in magnitude, computable in ˜O(d2) time given Σ′.Given such a feasible B ∈ B k2-sparse that achieves ⟨B, Σ′ −
+
+Id⟩ ≥ ˜Ω( ϵ), Diakonikolas et al. (2019) also propose an efficient outlier-removal strategy. Overall, this yields an al-gorithm with runtime d2poly( k/ϵ ) and sample complexity 
+
+(k2 log d)/ϵ 2. While a significant improvement over Balakr-ishnan et al. (2017), this still unfortunately falls short of our target runtime of o(d2).The main challenge in extending Diakonikolas et al. (2019)’s algorithm to get an o(d2) runtime is that one needs to write down Σ′ explicitly, which itself takes Ω( d2) time. More-over, there is no known analog of power iteration for sparse            
+
+> 7For a matrix A∈Rd×d,∥A∥1denotes the ℓ1-norm of A
+> when flattened as a d2-dimensional vector
+> 8This larger sample complexity, k2versus k, is due to the stronger concentration required by the relaxation.
+
+settings with provable guarantees (recall that in the dense set-ting, the power iteration can be implemented in nearly-linear runtime (Sachdeva & Vishnoi, 2014)). Our main technical insight is to use advances in fast algorithms for correlation detection initiated by Valiant (2015); see Section 2.3 for precise statements. Next, we explain why Valiant (2015) is potentially useful in our setting, explain the challenges in a direction application of their result, and our proposed fix. 
+
+Fast Correlation Detection Algorithm To The Rescue 
+
+Denote the correlation detection algorithm in Valiant (2015) by Acorr . In our setting, this algorithm guarantees that given a ρ ∈ (0 , 1) and a large q ∈ N, it can find (off-diagonal) coordinate pairs (i, j ) such that |Σ′ 
+
+> i,j
+
+| ≥ ρ in subquadratic time as long as there are at most O(d) off-diagonal coor-dinate pairs (i, ′ , j ′) such that |Σ′ 
+
+> i′,j ′
+
+| ≥ ρq ; observe that 
+
+ρq ≪ ρ.We now illustrate why such a subroutine may be useful. Suppose that Acorr returns many correlated coordinate pairs. Then the optimal value in (2) must be large (if we optimize over Bk′-sparse for some k′ large enough 9), and we can use those coordinates pairs to construct a k′-sparse B that can be used to remove outliers as before (Diakonikolas et al., 2019). If, on the other hand, Acorr returns only a few coordinate pairs, then we know that only these small set of coordinates are (potentially) corrupted, and we have reduced our prob-lem to robust dense mean estimation on these coordinates; recall that in this setting, the sample mean is a good candi-date for the remaining coordinates. Thus, a fast correlation detection algorithm leads to a subquadratic time algorithm to filter outliers (or declare victory) provided that there are only O(d) coordinate pairs with correlation larger than ρq .
+
+Challenges in Applying Fast Correlation Detection and A Proposed Fix A priori, it is unclear why there must be only O(d) correlated coordinate pairs: indeed, the outliers are allowed to be dense (similar to inliers — recall that only the population mean is sparse), and, in the worst case, it is possible that they cause all coordinate pairs to be correlated (on the corrupted data). Thus, we need an alternative proce-dure to (i) detect if there are many ρq -correlated pairs and (ii) if so, find an alternative procedure to make progress. Fortunately, it turns out that if there are Ω( d) correlated pairs, then a random pair has Ω( d/d 2) = Ω(1 /d ) proba-bility to be correlated. Hence, we can sample a relatively large — but subquadratic, say Θ( d1.5) — number of ran-dom pairs to estimate the true count of correlated pairs. If random sampling does not find many such pairs, then the true count would anyway have been small with high proba-bility, and we may safely invoke Valiant (2015)’s algorithm,      
+
+> 9Recall that we can interpret the maximum in (2) as Euclidean norm of the largest k2entries,which would be at least ρ√k2=ρk .
+
+4Subquadratic Robust Sparse Mean Estimation 
+
+solving the detection problem (i) above. On the other hand, if we do observe many (i.e., scaling polynomially with d)
+
+ρq -correlated pairs, then we know that the Frobenius norm of the largest k′ = poly( k) entries of Σ′ − Id must be large enough, Ω( ρq √k′). In other words, we can find a relatively sparse B′ ∈ B k′-sparse such that ⟨Σ′ − Id, B′⟩ ≥ ˜Ω( ϵ). Thus, we can iteratively remove outliers (or declare victory when safe to do so) irrespective of the number of correlated pairs. Finally, the larger sample complexity of algorithm comes from invoking the filter on k′-sparse matrices B for k′ ≫ k.We give a more detailed overview in Section 3. 
+
+Robust Sparse PCA We now give a very brief description of Theorem 1.6. As a starting point, we remark that Theorem 1.6 does not follow directly from Theorem 1.5. In particular, a standard reduction from (robust sparse) PCA to (robust sparse) mean estimation relies on the fact that the mean of the random variable Y − Id is exactly ρvv ⊤ for Y = xx ⊤, where x ∼N (0 , I+ρvv ⊤), i.e., (robust) sparse PCA reduces to (robust) sparse mean estimation. However, Y is a d2-dimensional object and thus a naive application of Theorem 1.5 would yield a super-quadratic runtime, in fact, (d2)1.62 = Ω( d3).Moreover, the covariance of Y is not isotropic and thus it is unclear if samples from Y would satisfy the stability condition from Definition 2.3. We show in Appendix D that a more white-box analysis of the ideas presented above can yield a subquadratic runtime: these ideas allow us to identify a small set of coordinates 
+
+H (of size poly( k/ϵ )) such that the covariance matrix re-stricted to H is far from the identity matrix in Frobenius norm. Since the true covariance matrix of the inliers is 
+
+Id + ρvv ⊤ for a k-sparse vector v, the covariance matrix of the inliers restricted to H is far from identity if and only if 
+
+v is approximately supported on H: If v is supported on H,we can simply estimate the top eigenvector of the covariance matrix (restricted to H) and terminate the algorithm. On the other hand, if v is not supported on H (which can hap-pen only if the outliers contribute disproportionately to the covariance matrix along H), we show that an appropriate stability condition on inliers allows us to filter outliers. 
+
+1.3. Related Work 
+
+Our work is situated within the field of algorithmic robust statistics, and we refer the reader to Diakonikolas & Kane (2023) for an extensive exposition on the topic. 
+
+Robust Sparse Estimation Efficient algorithms for robust sparse mean estimation were first developed in Balakrishnan et al. (2017), giving an algorithm to compute bμ with sam-ple complexity poly( k, log d, 1/ϵ ), runtime poly( d, 1/ϵ ),and near-optimal error ∥bμ − μ∥2 = ˜O(ϵ). Their algorithm used the ellipsoid algorithm with a separation oracle that re-quires solving an SDP. Invoking the ellipsoid algorithm can be avoided by using Zhu et al. (2022) or through iterative filtering, but the resulting algorithm still requires solving multiple SDPs, which, as noted earlier, is inherently slow. Bypassing the use of SDPs, Diakonikolas et al. (2019) developed the first spectral algorithm for robust sparse esti-mation with runtime d2poly( k, log d, 1/ϵ ). Another novel take on this problem was seen in Cheng et al. (2022), which gave an optimization-based algorithm showing that first-order stationary points of a natural non-convex objective suffice. Although the resulting algorithm relies on simple matrix operations, the derived runtime is super-quadratic in dimension. In a different direction, Diakonikolas et al. (2022a) and Diakonikolas et al. (2022c) developed algo-rithms for robust sparse mean estimation for a wider class of distributions: heavy-tailed distributions and light-tailed distributions with unknown covariance, respectively. Robust sparse mean estimation is conjectured to have information-computation gaps (Diakonikolas et al., 2017; Brennan & Bresler, 2020; Diakonikolas et al., 2022a). Par-ticularly, while there exist inefficient ( dk-time) algorithms for robust sparse mean estimation using (k log( d)) /ϵ 2
+
+samples, all polynomial time algorithms are conjectured to require Ω  k2/ϵ 2 samples (Brennan & Bresler, 2020). 
+
+Fast Algorithms for Robust Estimation Looking beyond polynomial runtime as the criterion of computational effi-ciency, a recent line of work has investigated faster algo-rithms for a variety of robust estimation tasks: mean esti-mation (Cheng et al., 2019a; Dong et al., 2019; Depersin & Lecu ´e, 2022; Lei et al., 2020; Diakonikolas et al., 2022b;d; 2023a), covariance estimation (Cheng et al., 2019b), prin-cipal component analysis (Jambulapati et al., 2020; Di-akonikolas et al., 2023b), list-decoding (Cherapanamjeri et al., 2020b; Diakonikolas et al., 2022b), and linear re-gression (Cherapanamjeri et al., 2020a; Diakonikolas et al., 2023a). The overarching goal in this line of work is to de-velop robust algorithms that have runtimes matching the corresponding non-robust off-the-shelf algorithms, thus re-ducing the computational overhead of robustness. However, none of these algorithms is tailored to sparsity and hence have sample complexity scaling (at least) linearly with the di-mension. 10 Our main contribution is the first subquadratic runtime algorithm for robust sparse mean estimation with sample complexity poly( k log d, 1/ϵ ).
+
+Fast Correlation Detection Given n vectors in {± 1}d
+
+and two thresholds 1 ≥ ρ > τ > 0, the correlation de-tection problem asks to find all coordinate pairs that have correlation at least ρ given that not too many pairs have   
+
+> 10 As a result, the dependence on the runtime again becomes quadratic because nd = Ω( d2).
+
+5Subquadratic Robust Sparse Mean Estimation 
+
+correlation larger than τ . This problem is a generalization of the light bulb problem (Valiant, 1988). The first sub-quadratic algorithm for both these problems was given by Valiant (2015), with further improvements and simplifica-tions in Karppa et al. (2018; 2020); Alman (2019). Devel-oping faster algorithms for these problems is an active area of research (Alman & Zhang, 2023), and further algorith-mic improvements would likely also improve our runtime guarantees in Theorems 1.5 and 1.6. 
+
+# 2. Preliminaries 
+
+Notation For a random variable X, E[X] denotes its expec-tation. For a finite set S and a function g : S → Rd, we use 
+
+ES [g(X)] to denote (P 
+
+> x∈S
+
+g(X)) /|S|. We use poly( · · · )
+
+to denote an expression that is polynomial in its arguments. The notations ≲, ≳, ≍ hide absolute constants. For a vector x ∈ Rd, we use ∥x∥0 and ∥x∥2 to denote the number of non-zero entries of x and the ℓ2-norm of 
+
+x, respectively. For a vector x and k ∈ N, we define the 
+
+∥x∥2,k norm as the maximum correlation between x and a unit k-sparse vector, i.e., ∥x∥2,k := sup v:∥v∥0≤k⟨v, x ⟩ .Estimation in ∥ · ∥ 2,k immediately yields an estimate that is close in ℓ2 norm whenever μ is k-sparse: 
+
+Proposition 2.1 (Sparse estimation using ∥ · ∥2,k 
+
+norm (Cheng et al., 2022)) . Let x ∈ Rd, y ∈ Rd, where y is 
+
+k-sparse. Let J ⊂ [d] be the top-k coordinates of x in mag-nitude, breaking ties arbitrarily. Define x′ ∈ Rd to be x′ 
+
+> i
+
+=
+
+xi if i ∈ J and 0 otherwise. Then ∥x′ − y∥2 ≤ 6∥x − y∥2,k .
+
+Thus, in the sequel, we solve the harder problem of estimat-ing an arbitrary mean μ ∈ Rd in the ∥ · ∥ 2,k norm. We denote matrices by bold capital letters, e.g., A, Σ. We denote the d×d identity matrix by Id, omitting the subscript when clear. For a matrix A, we use ∥A∥0, and ∥A∥Fr , to de-note the number of non-zero entries and the Frobenius norm, respectively. For matrices A and B of the same dimensions, 
+
+⟨A, B⟩ to denotes the trace inner product tr( A⊤B).For a subset H ⊂ [d], and a vector x ∈ Rd, define (x)H to be |H|-dimensional vector that corresponds to the coordi-nates in H. Similarly, for a matrix A, we define (A)H to be the |H| × | H| matrix corresponding to coordinates in H.For a square matrix A, we use diag( A) and offdiag( A) to denote its diagonal and offdiagonal, respectively. For a finite set T ⊂ Rd, we define μT and ΣT to be the sample mean and the sample covariance of T , re-spectively. 11 When the set T is clear from context, for a coordinate pair (i, j ) ∈ [d] × [d] with i̸ = j, we de-note the correlation between these coordinates on T as 
+
+corr( i, j ) := Σ′ 
+
+> i,j
+
+/
+
+q
+
+Σ′
+
+> i,i
+
+Σ′ 
+
+> j,j
+
+for Σ′ = ΣT . For a      
+
+> 11 Not to be confused with (Σ)Hwhen H⊂[d].
+
+ρ ∈ (0 , 1) , we say coordinates (i, j ) are ρ-correlated if 
+
+corr( i, j ) ≥ ρ.Robust sparse estimation requires checking whether the current covariance matrix Σ′ has small quadratic forms, 
+
+v⊤(Σ′ − I)v, for sparse unit vectors. For a matrix A and 
+
+k ∈ N, we define the sparse operator norm, ∥A∥op ,k := sup v:∥v∥2=1 ,∥v∥0≤k |v⊤Av|. Since computing ∥ · ∥ op ,k is computationally hard, we look at the following relaxation from Diakonikolas et al. (2019): For a matrix A, define 
+
+∥A∥Fr ,k 2 := sup B:∥B∥Fr =1 ,∥B∥0≤k2 ⟨A, B⟩ . It can be seen that ∥A∥op ,k ≤ ∥ A∥Fr ,k 2 since B could be all ±vv ⊤ for k-sparse unit vectors v. Moreover, ∥A∥Fr ,k 2 is the Euclidean norm of the largest k2 entries (in magnitude) of A.Since we will routinely look at the projections of the points on a subset of coordinates, we formally define it below: 
+
+Definition 2.2 (Projection of Pairs of Coordinates) . Let 
+
+Hpair ⊂ [d] × [d] be a set of pair of coordinates such that 
+
+(i, i )̸ ∈ Hpair for any i ∈ [d]. For an even m ∈ [d2], we define the operator Proj m that takes any such Hpair and returns a set in [d] that has a cardinality at most m as follows: • If |Hpair |≤ m 
+
+> 2
+
+, return {i : ( i, j ) ∈ Hpair or (j, i ) ∈
+
+Hpair }.• Otherwise, let any m/ 2 distinct elements of Hpair be 
+
+(i1, i 2), . . . , (im−1, i m). Return {ij : j ∈ [m]}.When the subscript m is omitted, we take m to be d2.Informally, the operator returns a set H such that for any ma-trix A, for small m, ∥(A)H ∥2Fr ≥ P 
+
+> (i,j )∈Hpair
+
+A2 
+
+> i,j
+
+, while for larger m, ∥(A)H ∥2Fr ≥ m min (i,j )∈Hpair A2 
+
+> i,j
+
+.
+
+2.1. Deterministic Condition on Inliers 
+
+A recurring notion in developing robust algorithms is that of stability , which stipulates that the first and second mo-ment of the data not change much under removal of a small fraction of data points. 
+
+Definition 2.3 (Stability) . For an ϵ ∈ (0 , 1/2) , δ ≥ ϵ, and sparsity k ∈ N, we say a set S ⊂ Rd is (ϵ, δ, k )-stable with respect to μ ∈ Rd if the following holds for any subset 
+
+S′ ⊆ S with |S′| ≥ (1 − ϵ)|S|: (i) ∥ES′ [X − μ]∥2,k ≤ δ,and (ii) ES′ [( X − μ)( X − μ)⊤] − Id Fr ,k 2 ≤δ2/ϵ .The following result gives a nearly-tight bound on the sam-ple complexity required to ensure stability. 
+
+Lemma 2.4 (Stability Sample Complexity (Cheng et al., 2022, Lemma 3.3)) . Let S be a set of n i.i.d. samples from a subgaussian distribution P over Rd such that P has (i) mean μ ∈ Rd, (ii) identity covariance, and (iii) satisfies the Hanson-Wright inequality; In particular, N (μ, Id) satisfies all three properties. Then if n ≳ (k2(log d)/ϵ 2), then S is 
+
+6Subquadratic Robust Sparse Mean Estimation 
+
+(ϵ, δ, k )-stable with high probability with respect to μ for 
+
+δ = Cϵ plog(1 /ϵ ) where C is a large absolute constant. 
+
+We note that the deterministic condition in Definition 2.3 is slightly stronger than Cheng et al. (2022)—the condition for the covariance—but their proof continues to work with the same sample complexity for Definition 2.3. 
+
+2.2. Certificate Lemma and Frobenius Norm Filtering 
+
+The following standard certificate lemma guides the algorith-mic design: if the sample covariance matrix of the corrupted data is roughly isotropic, then the sample mean is a good estimate. 
+
+Lemma 2.5 (Sparse Certificate Lemma, see, e.g., Balakr-ishnan et al. (2017)) . Let T be an ϵ-corrupted version of 
+
+S, where S is (ϵ, δ, k )-stable with respect to μ (cf. Defini-tion 2.3). Then ∥μT − μ∥2,k ≲ δ + pϵ∥ΣT − Id∥op ,k .
+
+We now state the guarantee of filtering procedures, where the goal is to filter outliers from a corrupted set T . In dense mean estimation, the most common filters are based on the scores of the form (v⊤(x − μT )) 2 for a direction of large variance v; this filter is guaranteed to succeed as long as the covariance matrix ΣT is far from the identity in operator norm. In our setting, we will need a stronger filter guarantee that is guaranteed to succeed under the weaker condition that the covariance (submatrix) matrix is far from the (submatrix) identity in the Frobenius norm; Observe that the operator norm of (the corresponding submatrix of) ΣT − Id can be much smaller. The following lemma corresponds to the above situation and simplifies Diakonikolas et al. (2019, Steps 6-10 of Algorithm 1): 
+
+Lemma 2.6 (Sparse Filtering Lemma) . Let ϵ ∈ (0 , ϵ 0) for a small absolute constant ϵ0. Let T be an ϵ-corrupted version of S, where S is (ϵ, δ, k )-stable with respect to μ. Let H ⊂
+
+[d] be such ∥(ΣT − I)H ∥Fr = λ for λ ≳ δ2/ϵ and |H| ≤ 
+
+k. There exists an algorithm A that takes T , H, ϵ, and δ
+
+and returns scores f : T → R+ so that P 
+
+> x∈S∩T
+
+f (x) ≤P  
+
+> x∈T\S
+
+f (x), i.e., the sum of scores over inliers is less than that of outliers, and max x∈T f (x) > 0. Moreover, the algorithm runs in time d · poly( |H|| T |).
+
+These scores can be used to filter points from T such that on expectation over the algorithm’s randomness, more outliers are removed than inliers (Diakonikolas & Kane, 2023). We give a proof of Lemma 2.6 in Appendix A. Thus, if ΣT −Id has large (sparse) Frobenius norm, then we can make progress by removing outliers. The contribution to this norm from the diagonal entries can be calculated efficiently in O(dn ) time, and if large, then can also be used to remove outliers. Thus, we will assume that the corrupted set has already been pre-processed to satisfy the following: 
+
+Condition 2.7 (Preprocessing) . Let T be an ϵ-corrupted version of S, where S is (ϵ, δ, k )-stable. Suppose T satisfies 
+
+∥diag( ΣT − Id)∥Fr ,k 2 ≤ min  O(δ2/ϵ ), 0.5.For completeness, we give details in Appendix A.3. 
+
+2.3. Detecting Correlation in Subquadratic Time 
+
+We will use Valiant (2015, Theorem 1) that can detect ρ-correlated coordinates in subquadratic time if there are not too many τ -correlated coordinates for τ ≪ ρ, say ρ3. See Appendix A.4 for details: 
+
+Theorem 2.8 (Fast Correlation Detection (Valiant, 2015)) .
+
+Let ρ ∈ (0 , 1) be strong correlation threshold and τ ∈ (0 , 1) 
+
+be margin threshold with ρ > 12 τ . Let T be a set of n vec-tors in Rd such that there are at most s τ -correlated coor-dinate pairs. Then, there is an algorithm that takes ρ, τ, T 
+
+as input, and, with probability 1 − o(1) , will output all ρ-coordinate pairs. Additionally, the runtime of the algorithm is 
+
+
+
+sd 0.62 + d1.62+2 .4 log(4 /ρ )log(1 /3τ )
+
+
+
+poly( n, log d, 1/τ ).
+
+# 3. Sparse Certificates in Subquadratic Time 
+
+In this section, we explain our main technical contribution: a fast algorithm for robust sparse mean estimation under the stability condition. 
+
+Theorem 3.1 (Robust Sparse Mean Estimation in Sub-quadratic Time (informal)) . Let the corruption rate be 
+
+ϵ ∈ (0 , ϵ 0), where ϵ0 is a sufficiently small absolute constant. Let k ∈ N be the sparsity parameter and q ∈ N the correla-tion decay parameter with q ≥ 3. Let T be an ϵ-corrupted version of a set S, where S satisfies (ϵ, δ, k ′)-stability with respect to μ for k′ = Θ 
+
+ (k)q
+
+> (δ2/ϵ )q−1
+
+
+
+. Then there is a ran-domized algorithm that takes as inputs T , ϵ, δ, k, and q and produces an estimate bμ such that with high probability: 
+
+ (Error) ∥bμ − μ∥2,k ≲ δ.
+
+ (Runtime) The algorithm runs in time at most 
+
+d1.62+ 3 
+
+> q
+
+poly( |T |, log( d), k q , 1/ϵ q ).
+
+The result above implies Theorem 1.5 using the sample complexity of stability from Lemma 2.4 and Proposition 2.1. To establish Theorem 3.1, we start with the following blueprint for robust sparse mean estimation, with the aim of implementing it in o(d2) time. 
+
+Algorithm 1 Algorithmic Blueprint  
+
+> 1:
+
+Compute ∥ΣT − Id∥Fr ,k 2 approximately.  
+
+> 2:
+
+while ∥ΣT − Id∥Fr ,k 2 is large do  
+
+> 3:
+
+Let H be the corresponding coordinates with large Frobenius norm.  
+
+> 4:
+
+Filter T using H in Lemma 2.6.  
+
+> 5:
+
+end while  
+
+> 6:
+
+Output the sample mean μT .7Subquadratic Robust Sparse Mean Estimation 
+
+The problem in implementing this blueprint naively is that Steps 1 and 3 in Algorithm 1 take d2 time. However, these are the only two bottlenecks: Each filtering step takes only 
+
+dpoly( k, n ) = dpoly( k/ϵ ) time, and there are at most n =poly( k/ϵ ) iterations. As we describe below, our goal in this section is to use Theorem 2.8 to speed up the Steps 1 and 3. 
+
+Usefulness of Fast Correlation Detection We will run Theorem 2.8 to identify the off-diagonal indices (i, j ) ∈
+
+[d] × [d] that are correlated. Recall that Theorem 2.8 takes two arguments ρ—the threshold for strong correlation— and τ —the margin threshold. Suppose we fix ρ to be small, roughly δ2 
+
+> ϵpoly( k)
+
+. Then Theorem 2.8 reports back all ρ-correlated coordinate pairs (The time taken is subquadratic in d only if the number of τ -correlated pairs is small.) Let 
+
+Hpair ⊂ [d] × [d] be the set of coordinate pairs in the output, and define H to be the set of all coordinates that appear in 
+
+Hpair ; Proj( Hpair ) from Definition 2.2 to be more formal. Then, one of the following two cases must be true: • |H| is small ( poly( k/ϵ )): Since coordinates in H∁
+
+have correlations at most ρ, then we know that ∥(ΣT −
+
+I)H∁ ∥Fr ,k 2 ≤ kρ , which can be made less than δ2/ϵ for 
+
+ρ small enough ( ρ ≲ δ2/(kϵ )). Thus, the sample mean on H∁ is a good estimate in ℓ2,k norm (cf. Lemma 2.5). On H, we can use a dense mean estimation algorithm, which would be fast as |H| = poly( k/ϵ ).• |H| is large: Since there are many coordinate pairs with correlation at least ρ, we can filter and iterate as follows: If we take any H′ ⊂ H of size k′, then each row and column in (ΣT − I)H′ has an entry larger than ρ (in absolute value), and thus ∥(ΣT −
+
+I)H′ ∥Fr ≥ ρ√k′. By taking k′ large enough (larger than δ4/(ρ2ϵ2)), the resulting quantity will be bigger than δ2/ϵ , allowing us to filter if the inliers satisfy stability with parameter k′ (cf. Lemma 2.6). Thus, we can implement Steps 1 and 3 in Algorithm 1 fast using Theorem 2.8, so long as (i) inliers satisfy (ϵ, δ, k ′)
+
+stability, (ii) we choose ρ2 ≍ δ4 
+
+> ϵ2k2
+
+and k′ ≍ δ4 
+
+> ϵ2ρ2
+
+≍ k2, and (iii) there are not too many τ -correlated pairs. 
+
+Challenges in Using Fast Correlation Detection Suppose we set τ = ρq for some q ≥ 3.12 Looking at Theorem 2.8, we obtain a subquadratic time algorithm only if s, the num-ber of τ -correlated pairs for τ := ρq , is much smaller than 
+
+d1.38 ; In fact, we will impose s to be less than d so that it is not the dominant factor in the runtime. A priori, there is no reason for there to be at most d coordinate pairs (out of d2
+
+pairs) that are τ -correlated. Thus, we need a way to detect this situation and find an alternative way to make progress.    
+
+> 12 We choose this parameterization because the runtime of Theo-rem 2.8 depends on log(1 /ρ )/log(1 /τ ) = 1 /q .
+
+Proposed Solutions: Efficient Detection and Filtering We begin with the detection procedure. If there are Ω( d) many 
+
+τ -correlated pairs, then a pair sampled uniformly at random has a probability of Ω( d−1) of being τ -correlated. Thus, if we check many random coordinate pairs, superlinear but subquadratic, then we can accurately guess s.In particular, let U be the number of τ -correlated pairs that were observed out of m random pairs (sampled with replace-ment). Then, U is distributed roughly as Ber (m, s/d 2).Binomial concentration implies that s ≲ (d2U/m ) + (log d)( d2/m ) with probability at least (1 − 1/d 2). Tak-ing m to be d1.5, we see that s ≲ √dU + √d log d. Thus, we obtain a fast (randomized) check to see if s is less than 
+
+d than runs in mn = d1.5poly( k/ϵ ) time: simply check if U ≤ √d. Thus, it remains to ensure that we can make progress when U is large, in particular, Ω( √d).Let H′ 
+
+> pair
+
+be the τ -correlated coordinates that were observed in the above procedure; U = |H′
+
+> pair
+
+|. Crucially, we are in the regime when |H′
+
+> pair
+
+| ≥ √d. We want to use a small subset of the coordinates in H′ 
+
+> pair
+
+to filter outliers. Let H be k′′ -sized set of coordinates that appear in H′
+
+> pair
+
+; formally, H := Proj k′′ (H′
+
+> pair
+
+). Thus, each row and column in (ΣT − I)H
+
+has an entry larger than τ in absolute value, implying that 
+
+∥(ΣT − I)H ∥Fr ≥ τ √k′′ . Therefore, we can use this H
+
+to filter using Lemma 2.6 as long as the original set is also 
+
+(ϵ, δ, k ′′ )-stable and √k′′ τ ≫ δ2/ϵ , i.e., k′′ ≍ δ4  
+
+> ϵ2τ2
+
+≍ 
+
+> δ4
+> ϵ2ρ2q
+
+≍ δ4 
+
+> ϵ2(δ4/kϵ 2)q
+
+≍ k2q 
+
+> (δ4/ϵ 2)q−1
+
+.Observe that we require the inliers to satisfy (ϵ, δ, k ′′ )- sta-bility for k′′ = poly( kq /ϵ q ). By Lemma 2.4, a set of 
+
+(k′′ )2/ϵ 2 many i.i.d. points will satisfy this stability con-dition, giving us the sample complexity. 
+
+3.1. Fast Filters Using Correlation Detection 
+
+We now give formal guarantees of the key procedures out-lined above, with the proofs deferred to Appendix B. First, consider the procedure that randomly samples the coordi-nates to estimate the number of weakly-correlated coordi-nates. 
+
+Lemma 3.2. Let T ⊂ Rd be a multiset with covariance matrix Σ′. Let m ∈ N be the sampling parameter. Let 
+
+J∗ ⊂ [d] × [d] be the off-diagonal coordinate pairs such that |Σ′ 
+
+> i,j
+
+| ≥ τ . Then Algorithm 2 takes τ , m, and T as input and returns a set J ⊂ J∗ in time O(m|T |) such that with probability 1 − 1/d 2, |J| ≥ m|J∗| 
+
+> 4d2
+
+− 16 log d.
+
+Algorithm 2 RANDOMLY CHECK COORDINATES  
+
+> 1:
+
+Let Hpair ⊂ [d] × [d] of size m, with (i, j ) ∈ Hpair 
+
+sampled i.i.d. from off-diagonal elements.  
+
+> 2:
+
+Let J ← { (i, j ) ∈ Hpair : |Σ′ 
+
+> i,j
+
+| ≥ τ } for Σ′ = ΣT 
+
+> 3:
+
+return J.8Subquadratic Robust Sparse Mean Estimation 
+
+Combining Algorithm 2 with Theorem 2.8, Algorithm 3 either returns a small subset of coordinates with large Frobe-nius norm or indicates when all tiny subsets have small Frobenius norm. 
+
+Algorithm 3 Subroutine to Identify Corrupted Coordinates 
+
+Require: a finite set T ⊂ Rd such that diagonal entries of 
+
+ΣT lie in [1 /2, 2] , Frobenius threshold κ ∈ R+, correla-tion threshold ρ ∈ (0 , 1) , margin threshold τ , sampling parameter m ∈ N, and correlation count s ∈ N. We require the parameters to satisfy c1d2 
+
+> m
+
+( κ2  
+
+> τ2
+
++ log d) ≤ s. 
+
+> 1:
+
+Let H′ 
+
+> pair
+
+be the output of Algorithm 2 with τ, m , and T 
+
+> 2:
+
+if |H′
+
+> pair
+
+| ≥ κ2/τ 2 then  
+
+> 3:
+
+return Proj κ2/τ 2 (H′
+
+> pair
+
+) 
+
+> 4:
+
+end if  
+
+> 5:
+
+Let Hpair ⊆ [d] × [d] be the output of Theorem 2.8 with 
+
+τ, ρ, s on T 
+
+> 6:
+
+if |Hpair | > κ 2/ρ 2 then  
+
+> 7:
+
+return Proj κ2/ρ 2 (Hproj ). 
+
+> 8:
+
+end if  
+
+> 9:
+
+Let H2 ← Proj( Hpair ) 
+
+> 10:
+
+if ∥(offdiag( ΣS )) H2 ∥Fr ≥ κ then  
+
+> 11:
+
+return H2 
+
+> 12:
+
+end if  
+
+> 13:
+
+return “⊥”
+
+Proposition 3.3 (Subroutine to Identify Corrupted Coordi-nates Algorithm 3) . Let corrupted set T , Frobenius thresh-old κ ∈ R, correlation threshold ρ ∈ (0 , 1) , margin thresh-old τ ∈ (0 , ρ/ 12) , sampling parameter m ∈ N, and corre-lation count s ∈ N. Suppose that each diagonal entry of 
+
+ΣT lies in [1 /2, 3/2] and c1d2
+
+> m
+
+ κ2  
+
+> τ2
+
++ log d
+
+
+
+≤ s.Then Algorithm 3 takes as input T, κ, ρ, τ, m, s as input and satisfies the following with probability 1 − 1/poly( d):
+
+• It either outputs a set H ⊂ [d] with |H| ≤ κ2  
+
+> τ2
+
+and 
+
+∥ (offdiag( ΣT )) H ∥Fr ≥ κ/ 2.
+
+• Else, it outputs “ ⊥”. If it outputs “ ⊥”, then 
+
+∥offdiag( ΣT )∥Fr ,k 2 is at most 2κ + 2 ρk .Moreover, the algorithm runs in O
+
+
+
+m + sd 0.62 +
+
+d1.62+3 log(4 /ρ )log(1 /3τ )
+
+
+
+poly( n, log d, 1/τ ) time. 
+
+We briefly sketch the proof of Theorem 3.1 below. 
+
+Proof sketch of Theorem 3.1. We formalize the blueprint from Algorithm 1 with the filtering set H given by Proposi-tion 3.3. Combined with Lemma D.5, a standard martingale argument yields Theorem C.1; see Appendix C. 
+
+# 4. Discussion 
+
+In this article, we presented the first subquadratic time algo-rithm for robust sparse mean estimation. We now discuss some related open problems and avenues for improvement. First, the sample complexity of Theorem 1.5 is polynomi-ally larger than k2(log d)/ϵ 2—the sample complexity of existing (quadratic runtime) algorithms. 13 Bridging this gap is an important problem. Second, Theorem 1.5 is specific to isotropic structured distributions such as Gaussians (more broadly, isotropic distributions P with mean μ that satisfy 
+
+Var x∼P (( x − μ)⊤A(x − μ)) ≲ ∥A∥2Fr for symmetric ma-trices A). Indeed, both Diakonikolas et al. (2019); Cheng et al. (2022) rely on the isotropy and the aforementioned variance structure of quadratic polynomials to avoid solving SDPs that appear in Balakrishnan et al. (2017). Develop-ing a similarly fast algorithm for unstructured distributions (with sparse means) is still open to our knowledge. Third, because Theorem 1.5 relies on Valiant (2015), which in turn relies on fast matrix multiplication, the resulting algorithm may not offer practical benefits for moderate dimensions; see the discussion in Valiant (2015). We believe overcom-ing these limitations is an important practically-motivated question. Finally, Question 1.3 remains open. 
+
+# Acknowledgements 
+
+We are grateful to Sushrut Karmalkar, Jasper Lee, Thanasis Pittas, and Kevin Tian for discussions on robust sparse mean estimation. We also thank Ilias Diakonikolas and Daniel Kane for their many insights on robustness. 
+
+# Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+# References 
+
+Alman, J. An illuminating algorithm for the light bulb prob-lem. In Proc. 2nd Symposium on Simplicity in Algorithms (SOSA) , 2019. Alman, J. and Zhang, H. Generalizations of matrix multi-plication can solve the light bulb problem. In Proc. 64th IEEE Symposium on Foundations of Computer Science (FOCS) , 2023. Andrews, D. F., Bickel, P. J., Hampel, F. R., Huber, P. J., Rogers, W. H., and Tukey, J. W. Robust Estimates of   
+
+> 13 The sample complexity of ˜Θ( k2/ϵ 2)is also conjectured to be near-optimal among computationally-efficient algorithms (Bren-nan & Bresler, 2020).
+
+9Subquadratic Robust Sparse Mean Estimation 
+
+Location: Survey and Advances . Princeton University Press, Princeton, NJ, USA, 1972. Balakrishnan, S., Du, S. S., Li, J., and Singh, A. Com-putationally Efficient Robust Sparse Estimation in High Dimensions. In Proc. 30th Annual Conference on Learn-ing Theory (COLT) , 2017. Brennan, M. and Bresler, G. Reducibility and statistical-computational gaps from secret leakage. In Proc. 33rd Annual Conference on Learning Theory (COLT) , 2020. Brennan, M., Bresler, G., Hopkins, S. B., Li, J., and Schramm, T. Statistical query algorithms and low-degree tests are almost equivalent. In Proc. 34th Annual Confer-ence on Learning Theory (COLT) , 2021. Cheng, Y. High-dimensional robust statistics: Faster algo-rithms and optimization landscape. Robustness in High-dimensional Statistics and Machine Learning at IDEAL Institute, 2021. See timestamp 22:00 in the talk. Cheng, Y., Diakonikolas, I., and Ge, R. High-dimensional robust mean estimation in nearly-linear time. In Proc. 30th Annual Symposium on Discrete Algorithms (SODA) ,2019a. doi: 10.1137/1.9781611975482.171. Cheng, Y., Diakonikolas, I., Ge, R., and Woodruff, D. P. Faster algorithms for high-dimensional robust covariance estimation. In Proc. 32nd Annual Conference on Learning Theory (COLT) , 2019b. Cheng, Y., Diakonikolas, I., Kane, D. M., Ge, R., Gupta, S., and Soltanolkotabi, M. Outlier-robust sparse estimation via non-convex optimization. In Advances in Neural Information Processing Systems 35 (NeurIPS) , 2022. Cherapanamjeri, Y., Aras, E., Tripuraneni, N., Jordan, M. I., Flammarion, N., and Bartlett, P. L. Optimal Ro-bust Linear Regression in Nearly Linear Time. arXiv ,abs/2007.08137, 2020a. Cherapanamjeri, Y., Mohanty, S., and Yau, M. List decod-able mean estimation in nearly linear time. In Proc. 61st IEEE Symposium on Foundations of Computer Science (FOCS) , 2020b. Dagan, Y. and Shamir, O. Detecting correlations with lit-tle memory and communication. In Proc. 31st Annual Conference on Learning Theory (COLT) , 2018. d’Aspremont, A., Ghaoui, L. E., Jordan, M. I., and Lanck-riet, G. R. G. A direct formulation for sparse pca using semidefinite programming. SIAM Review , 49(3):434–448, 2007. Depersin, J. and Lecu ´e, G. Robust subgaussian estimation of a mean vector in nearly linear time. The Annals of Statistics , 50(1):511–536, 2022. Diakonikolas, I. Computational-Statistical Tradeoffs and Open Problems. STOC 2019 Tutorial: Recent Advances in High-Dimensional Robust Statistics, 2019. See page number 36 in http://www.iliasdiakonikolas.org/stoc19-tutorial/Tradeoffs-and-Open-Problems.pdf. Diakonikolas, I. Algorithmic Robust Statistics. Statistical thinking in the age of AI : robustness, fairness and privacy (Meeting in Mathematical Statistics), 2023. Available online at https://youtu.be/HKm0L2Cy69Y?t=3527. Diakonikolas, I. and Kane, D. M. Algorithmic High-Dimensional Robust Statistics . Cambridge University Press, 2023. Diakonikolas, I., Kamath, G., Kane, D. M., Li, J., Moitra, A., and Stewart, A. Robust Estimators in High Dimensions without the Computational Intractability. In Proc. 57th IEEE Symposium on Foundations of Computer Science (FOCS) , 2016. doi: 10.1109/FOCS.2016.85. Diakonikolas, I., Kane, D. M., and Stewart, A. Statisti-cal query lower bounds for robust estimation of high-dimensional gaussians and gaussian mixtures. In Proc. 58th IEEE Symposium on Foundations of Computer Sci-ence (FOCS) , 2017. doi: 10.1109/FOCS.2017.16. Diakonikolas, I., Kane, D. M., Karmalkar, S., Price, E., and Stewart, A. Outlier-robust high-dimensional sparse estimation via iterative filtering. In Advances in Neural Information Processing Systems 32 (NeurIPS) , 2019. Diakonikolas, I., Kane, D. M., Karmalkar, S., Pensia, A., and Pittas, T. Robust sparse mean estimation via sum of squares. In Proc. 35th Annual Conference on Learning Theory (COLT) , 2022a. Diakonikolas, I., Kane, D. M., Kongsgaard, D., Li, J., and Tian, K. Clustering mixture models in almost-linear time via list-decodable mean estimation. In Proc. 54th An-nual ACM Symposium on Theory of Computing (STOC) ,2022b. Diakonikolas, I., Kane, D. M., Lee, J. C. H., and Pensia, A. Outlier-Robust Sparse Mean Estimation for Heavy-Tailed Distributions. In Advances in Neural Information Processing Systems 35 (NeurIPS) , 2022c. Diakonikolas, I., Kane, D. M., Pensia, A., and Pittas, T. Streaming Algorithms for High-Dimensional Robust Statistics. In Proc. 39th International Conference on Ma-chine Learning (ICML) , 2022d. Diakonikolas, I., Kane, D. M., Pensia, A., and Pittas, T. Near-optimal algorithms for gaussians with huber con-tamination: Mean estimation and linear regression. In 
+
+Advances in Neural Information Processing Systems 36 (NeurIPS) , 2023a. 10 Subquadratic Robust Sparse Mean Estimation 
+
+Diakonikolas, I., Kane, D. M., Pensia, A., and Pittas, T. Nearly-linear time and streaming algorithms for outlier-robust PCA. In Proc. 40th International Conference on Machine Learning (ICML) , 2023b. Dong, Y., Hopkins, S. B., and Li, J. Quantum Entropy Scoring for Fast Robust Mean Estimation and Improved Outlier Detection. In Advances in Neural Information Processing Systems 32 (NeurIPS) , 2019. Eldar, Y. C. and Kutyniok, G. Compressed sensing: theory and applications . Cambridge University Press, 2012. Hastie, T., Tibshirani, R., and Wainwright, M. Statistical Learning with Sparsity: The Lasso and Generalizations .2015. Huber, P. J. Robust Estimation of a Location Parameter. The Annals of Mathematical Statistics , 35(1):73–101, March 1964. ISSN 0003-4851. doi: 10.1214/aoms/1177703732. Huber, P. J. and Ronchetti, E. M. Robust Statistics . John Wiley & Sons, 2009. Jambulapati, A., Li, J., and Tian, K. Robust sub-gaussian principal component analysis and width-independent schatten packing. In Advances in Neural Information Processing Systems 33 (NeurIPS) , 2020. Jiang, H., Kathuria, T., Lee, Y. T., Padmanabhan, S., and Song, Z. A faster interior point method for semidefinite programming. In Proc. 61st IEEE Symposium on Foun-dations of Computer Science (FOCS) , 2020. Karppa, M., Kaski, P., and Kohonen, J. A faster subquadratic algorithm for finding outlier correlations. ACM Trans. Algorithms , 14(3), 2018. Karppa, M., Kaski, P., Kohonen, J., and Cath ´ain, P. ´O. Ex-plicit correlation amplifiers for finding outlier correlations in deterministic subquadratic time. Algorithmica , 82(11), 2020. Lai, K. A., Rao, A. B., and Vempala, S. Agnostic Estimation of Mean and Covariance. In Proc. 57th IEEE Symposium on Foundations of Computer Science (FOCS) , pp. 665– 674, 2016. doi: 10.1109/FOCS.2016.76. Lei, Z., Luh, K., Venkat, P., and Zhang, F. A fast spectral algorithm for mean estimation with sub-gaussian rates. In Proc. 33rd Annual Conference on Learning Theory (COLT) , 2020. Polyanskiy, Y. and Wu, Y. Information Theory: From Cod-ing to Learning . Cambridge University Press, 2023. Sachdeva, S. and Vishnoi, N. K. Faster algorithms via ap-proximation theory. Foundations and Trends® in Theo-retical Computer Science , 9:125–210, 2014. Valiant, G. Finding correlations in subquadratic time, with applications to learning parities and the closest pair prob-lem. Journal of the ACM , 62(2), 2015. ISSN 0004-5411. doi: 10.1145/2728167. Valiant, L. G. Functionality in neural nets. In Proc. of the Seventh AAAI National Conference on Artificial Intelli-gence , pp. 629–634. AAAI Press, 1988. van de Geer, S. Estimation and Testing Under Sparsity .´Ecole d’ ´Et ´e de Probabilit ´es de Saint-Flour. Springer, 2016. ISBN 978-3-319-32774-7. Zhu, B., Jiao, J., and Steinhardt, J. Robust estimation via generalized quasi-gradients. Information and Inference: A Journal of the IMA , pp. 581–636, 2022. doi: 10.1093/ imaiai/iaab018. 11 Subquadratic Robust Sparse Mean Estimation 
+
+# A. Preliminaries 
+
+In this section, we include details that were omitted from Section 2. Appendix A.1 provides the proof of Lemma 2.6. Appendix A.2 contains details about the standard template of filtering based algorithms, and Appendix A.3 applies this template to ensure the preprocessing condition. Finally, Appendix A.4 gives further details about the correlation detection algorithm. 
+
+A.1. Defining Sparse Scores 
+
+In this section, we give the proof of Lemma 2.6. 
+
+Lemma 2.6 (Sparse Filtering Lemma) . Let ϵ ∈ (0 , ϵ 0) for a small absolute constant ϵ0. Let T be an ϵ-corrupted version of 
+
+S, where S is (ϵ, δ, k )-stable with respect to μ. Let H ⊂ [d] be such ∥(ΣT − I)H ∥Fr = λ for λ ≳ δ2/ϵ and |H| ≤ k. There exists an algorithm A that takes T , H, ϵ, and δ and returns scores f : T → R+ so that P 
+
+> x∈S∩T
+
+f (x) ≤ P  
+
+> x∈T\S
+
+f (x),i.e., the sum of scores over inliers is less than that of outliers, and max x∈T f (x) > 0. Moreover, the algorithm runs in time 
+
+d · poly( |H|| T |).Proof. As a first step, we simply project the data points along the coordinates in H, and by abusing the notation, call the projected set T . In the remainder of this proof, I refers to I|H|. Computing this projected set takes at most d|T || H| time. Let λ = ∥ΣT − I∥Fr . Define A = ( ΣT − I)/∥ΣT1 − I∥Fr so that A maximizes the trace inner product with ΣT − I over unit Frobenius norm matrices. Define the function g(x) := ( x − μT )⊤A(x − μT ) − tr( A). We first compute the average of g(x) over the T below: 
+
+ET [g(x)] = ET
+
+ (x − μT )( x − μT )⊤ − I, A  = ⟨ΣT − I, A⟩ = λ . 
+
+By abusing notation again, we use S to denote the projection of the inliers S along the coordinates in H; Note that the projected set also inherits (ϵ, δ, k )-stability and the ∥ · ∥ Fr ,k 2 reduces to the standard Frobenius norm. Thus, for any large subset of S′ ⊂ S with |S′| ≥ (1 − ϵ)|S|, we use Lemma 2.5 to obtain the following: 
+
+|ES′ [g(x)] | = ES′
+
+ (x − μT )( x − μT )⊤ − I, A 
+
+= ⟨ΣS′ − I, A⟩ + 2( μ − μT )⊤A(μ − μS′ ) + ( μ − μT )⊤A(μ − μT )
+
+≤ ∥ ΣS′ − I∥Fr + 2 ∥μ − μT ∥2∥A∥Fr ∥μ − μS′ ∥2 + ∥μ − μT ∥22∥A∥2Fr 
+
+≲ δ2/ϵ + 2( δ + √ϵλ )δ + ( δ + √ϵλ )2 (using stability and Lemma 2.5) 
+
+≲ δ2/ϵ + 3 δ2 + 4 δ√ϵλ + ϵλ 
+
+≲ δ2/ϵ + 7 δ2 + 2 ϵλ (using 2ab ≤ a2 + b2)
+
+≲ δ2/ϵ + ϵλ, (3) where we used that ϵ ≤ 1. The following helper result, which is a slight generalization of Diakonikolas & Kane (2023, Proposition 2.19) from non-negative g’s to real-valued g’s will be useful. 
+
+Claim A.1. Let h : S → R be a real-valued function on a finite set S. Further suppose that |ES′ [h(X)] | ≤ τ for all sets 
+
+S′ ⊂ S with |S′| ≥ (1 − ϵ)|S|. Then for f ′(x) = h(x)1h(x)≥3τ /ϵ , we have that ES [f ′(x)] ≤ 3τ .Proof. We shall do it in two steps. First, we show the following: for all subsets S′′ ⊂ S with |S′′ | ≤ ϵ|S|.
+
+ES′′ [max( h(X), 0)] ≤ τ + 2 τ /ϵ . (4) To that end, for all sets S′′ with |S′′ | = ϵ|S|, the triangle inequality implies 
+
+|ES′′ [h(X)] | = ES [h(X)] − (1 − ϵ)ES\S′′ [h(X)] 
+
+ϵ ≤ 2τ /ϵ. (5) Let S∗ be the top ϵ|S| entries of S in the increasing order of h(·), not just in the absolute value. Then establishing (4) is equivalent to establish an upper upper bound on 1
+
+> |S∗|
+
+P 
+
+> x∈S∗
+
+max( h(X), 0) . Thus, if all the entries of S∗ are bigger than 12 Subquadratic Robust Sparse Mean Estimation 
+
+0, then (4) follows by (5). We shall show that h(x) on S∗ is lower bounded by −τ . Under this condition, we see that the desired result follows similarly by (5): 1
+
+> |S∗|
+
+P 
+
+> x∈S∗
+
+max( h(X), 0) ≤ 1
+
+> |S∗|
+
+P 
+
+> x∈S∗
+
+(h(X) + τ ) ≤ τ + 2 τ /ϵ . We now establish that min x∈S∗ h(x) ≥ − τ . If there exists an x ∈ S∗ with h(X) ≤ − τ , then the average of S \ S∗ must be less than 
+
+−τ , contradicting the assumption that |ES\S∗ [h(X)] | ≤ τ . Thus, we have established (4). Given (4), we see that the fraction of points with h(x) ≥ 3τ /ϵ must be less than ϵ|S|. Otherwise, the conditional average over those points would be at least than 3τ /ϵ ≥ 2τ /ϵ + τ , contradicting (4). Therefore, the function f is non-zero only on at most ϵ-fraction of S. Therefore, the non-negativity of f implies that 
+
+1
+
+|S|
+
+X
+
+> x∈S
+
+f (X) ≤ 1
+
+|S| max 
+
+> S′′ ⊂S:|S′′ |≤ ϵ|S|
+
+X
+
+> x∈S′′
+
+f (X) ≤ 1
+
+|S| max 
+
+> S′′ ⊂S:|S′′ |≤ ϵ|S|
+
+X
+
+> x∈S′′
+
+max( h(X), 0) ≤ ϵ(τ + 2 τ /ϵ ), (6) where we use non-negativity of f and (4). Let R := C′(δ2/ϵ + ϵλ ) for a large enough constant C′ be the bound from (3). Combining this with the claim above, we see that defining f (x) to be g(x)1x≥3R/ϵ , the sum of scores over inliers is small: 
+
+X
+
+> x∈S∩T
+
+f (x) ≤ X
+
+> x∈S
+
+f (x) ≤ 3R|S| = 3 C′(δ2/ϵ + ϵλ )|S| ≤ 0.25 λ|S| , (7) where we use that 3C′ϵ ≤ 1/8 and 3C′δ2/ϵ ≤ λ/ 8.On the other hand, Ex∈T \S [f (x)] must be large argued as argued below. We observe that f (x) ≥ g(x) − 3R/ϵ , and thus applying (3) to T ∩ S, which is of size at least (1 − ϵ)|T | = (1 − ϵ)|S|, we obtain 
+
+X 
+
+> x∈T\S
+
+f (x) ≥ X 
+
+> x∈T\S
+
+(g(x) − 3R/ϵ ) = X
+
+> x∈T
+
+g(x)
+
+!
+
+− X 
+
+> x∈T∩S
+
+g(x)
+
+!! 
+
+− (|T \ S|3R/ϵ )
+
+≥ (λ|T |) − (( |T ∩ S|)R) − ϵ|T | (3 R/ϵ )
+
+≥ λ|T | − 4|T |R ≥ λ|T |/2 , (8) where the last inequality follows if we show that R ≤ λ/ 8. Indeed, this follows if C′δ2/ϵ ≤ λ/ 16 and C′ϵ ≤ 1/16 .Combining (7) and (8), we get the desired result; the claim on max x∈T f (x) follows from (8). The complete algorithm is given below: 
+
+Algorithm 4 Quadratic Scores 
+
+1: T ← { (x)H : x ∈ T } ▷ Projection onto H
+
+2: Let A be the matrix (ΣT − I)/∥ΣT − I∥Fr ▷ The matrix such that ⟨A, ΣT − I⟩ = ∥ΣT − I∥Fr 
+
+3: Define g(x) := ( x − μT )⊤A(x − μT ) − tr( A)
+
+4: Define f (x) to be g(x) if g(x) ≥ 3C′
+
+ δ2 
+
+> ϵ2
+
++ λ
+
+
+
+otherwise 0
+
+5: Return f
+
+A.2. Randomized Filtering 
+
+We will use the following template of filtering algorithm from Diakonikolas & Kane (2023, Section 2.4.2), after a slight change in parameters. 13 Subquadratic Robust Sparse Mean Estimation 
+
+Algorithm 5 Randomized Filtering  
+
+> 1:
+
+Let T1 ← T 
+
+> 2:
+
+i ← 1 
+
+> 3:
+
+while Ti̸ = ∅ and Ti does not satisfy the stopping condition S do  
+
+> 4:
+
+Get the scores f : Ti → R+ satisfying P 
+
+> x∈Ti∩S
+
+f (x) ≤ P 
+
+> x∈Ti\S
+
+f (x) and max x∈Ti f (x) > 0 
+
+> 5:
+
+Ti+1 ← Ti 
+
+> 6:
+
+for each x ∈ Ti do  
+
+> 7:
+
+Remove the point x from Ti+1 with probability f (x)max x∈Ti f (x) 
+
+> 8:
+
+end for  
+
+> 9:
+
+i ← i + 1  
+
+> 10:
+
+end while  
+
+> 11:
+
+return Ti
+
+These filtering algorithms have become a standard template in algorithmic robust statistics. Here, the stopping condition 
+
+S can be a generic condition that can be evaluated in Tstopping time using some algorithm As—it can be a randomized algorithm (using independent randomness from Line 6) that succeeds with probability 1 − τ . We also require that whenever the stopping condition is not satisfied and the set Ti is an 10 ϵ-corruption of S, then the scores f : Ti → R+ satisfying the guarantees of Line 4 can be computed in time Tscore .
+
+Theorem A.2 (Guarantee of Algorithm 5; Diakonikolas & Kane (2023, Theorem 2.17)) . If the above stopping conditions and filter conditions are met, then Algorithm 5 returns a set T ′ ⊆ T such that, with probability at least 8/9 − τ |T |,1. Algorithm 5 runs in time O(|T |(Tstopping + Tscore + |T |)) .2. Each set Ti ⊆ T observed throughout the run of the algorithm (which includes T ′) is an 10 ϵ-corruption of S.3. T ′ satisfies the stopping condition S.
+
+A.3. Preprocessing 
+
+In this section, we outline how to ensure Condition 2.7 quickly using Algorithm 5 and Lemma 2.6. 
+
+Condition 2.7 (Preprocessing) . Let T be an ϵ-corrupted version of S, where S is (ϵ, δ, k )-stable. Suppose T satisfies 
+
+∥diag( ΣT − Id)∥Fr ,k 2 ≤ min  O(δ2/ϵ ), 0.5.Given the sparse filtering lemma (Lemma 2.6), we can simply filter along the diagonals to ensure Condition 2.7 as shown below. 
+
+Claim A.3. Let ϵ ∈ (0 , ϵ 0) for a small absolute constant ϵ0. Let c be a small enough absolute constant and C be a large enough constant. Let T be an ϵ-corrupted version of S, where S is (ϵ, δ, k 2)-stable with respect to μ such that δ2/ϵ ≤ c.Then there is a randomized algorithm A that takes as inputs ϵ, δ, and k such that it outputs a set T ′ ⊆ T such that with probability at least 8/9: (i) T ′ is at most 10 ϵ-corruption of S and (ii) ∥diag ( ΣT ′ − Id) ∥Fr ,k 2 ≤ Cδ 2/ϵ ≤ 0.1, and (iii) the algorithm runs in time ˜O(|T |dk 2 + |T |2d).Proof. We can simply invoke Algorithm 5 with the stopping condition on the set Ti set to ∥diag ( ΣTi − Id) ∥Fr ,k ≤ Cδ 2/ϵ 
+
+for a constant C large enough. To evaluate this stopping condition, we can simply compute the matrix diag ( ΣT ′ − Id) in 
+
+O(d|T |) time. The associated ∥ · ∥ Fr ,k 2 can be easily calculated by computing the Euclidean norm of its largest k2 entries, again computable in ˜O(dk 2) time. If the stopping condition is not satisfied, Lemma 2.6 returns the required scores. Thus, we get the desired guarantees on the set T from Theorem A.2. The next result shows that any further small modifications of the preprocessed sets retains small sparse operator norm. 
+
+Lemma A.4. Let C be a large enough constant C > 0. Let T ′′ ⊂ T ′ be two O(ϵ)-contamination of S such that S is an 
+
+(Cϵ, δ, k )-stable with respect to μ. Suppose that ∥diag( ΣT ′ − Id)∥op ,k ≲ δ2/ϵ . Then ∥diag( ΣT ′ − Id)∥op ,k ≲ δ2/ϵ 
+
+14 Subquadratic Robust Sparse Mean Estimation 
+
+Proof. First we note that the lower bound on the sparse eigenvalues follow rather directly as shown below. We make use of the equality ΣT ′′ := 1 
+
+> |T′′ |2
+
+P  
+
+> x,y ∈T′′
+
+(x − y)( x − y)⊤. For any sparse unit vector v, we use the stability condition applied to S ∩ T ′′ to obtain the following: 
+
+v⊤ΣT ′′ v = 1
+
+|T ′′ |2
+
+X 
+
+> x,y ∈T′′
+
+(v⊤(x − y)) 2 ≥ 1
+
+|T ′′ |2
+
+X 
+
+> x,y ∈S∩T′′
+
+(v⊤(x − y)) 2 (using non-negativity) 
+
+= |S ∩ T ′′ |2
+
+|T ′′ |2 v⊤ΣS∩T ′′ v ≥ (1 − O(ϵ)) v⊤ΣS∩T ′′ v
+
+= (1 − O(ϵ)) 
+
+
+
+v⊤  ES∩T ′′ 
+
+(X − μ)( X − μ)⊤ v −  v⊤(μ − μS∩T ′′ )2
+
+≥ (1 − O(ϵ))  1 − O(δ2/ϵ ) − O(δ2) (using stability) 
+
+≥ 1 − O(δ2/ϵ ), (9) where the last inequality uses ϵ ≤ δ. For the upper bound, we observe that for any matrix A, ∥diag( A)∥op ,k is attained by 
+
+1-sparse unit vectors v, i.e., ∥A∥op ,1 = ∥diag( A)∥op ,k . Thus, for any T ′′ ⊂ T ′ and that |T ′| ≤ | T ′′ |(1 + O(ϵ)) : for any 
+
+1-sparse unit vector v,
+
+v⊤ΣT ′′ v = 1
+
+|T ′′ |2
+
+X 
+
+> x,y ∈T′′
+
+(v⊤(x − y)) 2 ≤ |T ′|22
+
+|T ′′ |2
+
+1
+
+|T ′|2
+
+X 
+
+> x,y ∈T′
+
+(v⊤(x − y)) 2 (using nonnegativity) 
+
+= |T ′|22
+
+|T ′′ |2 v⊤ΣT ′ v ≤ (1 + O(ϵ)) v⊤ΣT ′ v ≤ (1 + O(ϵ))(1 + O(δ2/ϵ )) = 1 + O(δ2/ϵ ) , (10) where we use that for 1-sparse unit vectors v, v⊤ΣT ′ v = v⊤diag ( ΣT ′ ) v. Combining Equations (9) and (10) for all 
+
+1-sparse unit vectors v, we obtain that ∥diag ( ΣT ′′ − I) ∥op ,k = O(δ2/ϵ ).
+
+A.4. Fast Correlation Detection 
+
+In this section, we show how to obtain Theorem 2.8 from Valiant (2015, Theorem 1). 
+
+Theorem A.5 (Robust Correlation Detection For Boolean Vectors in Subquadratic Time Valiant (2015, Theorem 1)) .
+
+Consider a set of n′ vectors in {− 1, 1}d′
+
+and constants ρ, τ ∈ [0 , 1] with ρ > τ such that for all but at most s pairs u, v of distinct vectors, |u⊤v|/∥u∥2∥v∥2 ≤ τ . There is an algorithm that, with probability 1 − o(1) , will output all pairs of vectors whose normalized inner product is least ρ. Additionally, the runtime of the algorithm is 
+
+
+
+sd ′n′0.62 + n′1.62+2 .4 log(1 /ρ )log(1 /τ )
+
+
+
+poly (log n, 1/τ ) .
+
+An improved algorithm with better runtime was then provided in Karppa et al. (2018, Corollary 1.8), but we choose the version above for its simplicity. We provide the proof of Theorem 2.8, the version we used in this work, from Theorem A.5 using standard arguments below: 
+
+Proof of Theorem 2.8 from Valiant (2015, Theorem 1). Let X ∈ Rd×n denote the matrix with the columns of X denoting the centered vectors of T . That is, if T = {z1, . . . , z n}, then the i-th column of X is equal to zi − μT . Let Xi denote the 
+
+i-th row of the matrix X. For i, j ∈ [d] × [d], the correlation between i-th and j-th coordinate on T , corr( i, j ), is equal to    
+
+> X⊤
+> iXj
+> ∥Xi∥2∥Xj∥2
+
+. Thus, we would like to apply Theorem A.5 with the rows of X (thus n′ = d and d′ = n). However, X′ is not a binary matrix. A standard reduction allows us to compute a binary matrix that preserves the correlation between the rows of X. Let 
+
+G ∈ Rn×m be a matrix with independent M(0 , 1) entries. Let Y = XG be in Rd×m and let Y ′ = sgn (Y ) ∈ Rd×m, where sgn is applied elementwise. Thus, Y ′ is a boolean matrix as required in Theorem A.5. The following arguments show that the correlation between the rows of Y is preserved for m large enough. Let Yi, Y ′ 
+
+> i
+
+denote the i-th row of the matrices Y, Y ′.15 Subquadratic Robust Sparse Mean Estimation 
+
+Lemma A.6 (Valiant (2015, Lemma 21)) . If m ≥ 10 log( n)/γ 2, then with probability 1 − o(1) , we have that for all 
+
+i̸ = j ∈ [n], we have that 
+
+⟨Y ′ 
+
+> i
+
+, Y ′ 
+
+> j
+
+⟩∥Y ′ 
+
+> i
+
+∥2∥Y ′ 
+
+> j
+
+∥2
+
+− 2
+
+π arcsin 
+
+ ⟨Xi, X j ⟩∥Xi∥2∥Xj ∥2
+
+
+
+≤ γ. 
+
+In particular, if the original correlation is less than τ in the absolute value, then the corresponding correlation in Y ′ in the absolute value is at most (2 /π ) arcsin( τ ) + γ ≤ (4 /π )τ + γ ≤ 2τ + γ, where we use | arcsin( x)| ≤ | 2x|. Similarly, if the original correlation is at least ρ in absolute value, then the new correlation is at least (2 /π ) arcsin( ρ) − γ ≥
+
+(2 /π )ρ − γ ≥ ρ/ 2 − γ. Choosing γ = τ , the new matrix Y ′ satisfies the guarantees of Theorem A.5 with n′ = d, d ′ =
+
+m = 10 log( n)/τ 2, τ ′ = 3 τ, ρ ′ = ρ/ 4 (using τ ≤ ρ/ 4). The time taken to compute Y and Y ′ is at most ndm . Thus, the total runtime is at most 
+
+nd log nγ2 + s log nτ 2 d0.62 + d1.62+2 .4 log(4 /ρ )log(1 /3τ ) poly (log n, 1/τ )
+
+
+
+≤
+
+
+
+sd 0.62 + d1.62+2 .4 log(4 /ρ )log(1 /3τ )
+
+
+
+· poly  n(log d)/γ 2 .
+
+The probability of success can be boosted using repetition, if needed. 
+
+# B. Key Subroutines and Their Proofs 
+
+In this section, we provide the details omitted from Section 3. Appendix B.1 and Appendix B.2 provide the proofs of Lemma 3.2 and Proposition 3.3, respectively. 
+
+B.1. Proof of Lemma 3.2 Lemma 3.2. Let T ⊂ Rd be a multiset with covariance matrix Σ′. Let m ∈ N be the sampling parameter. Let J∗ ⊂ [d] × [d]
+
+be the off-diagonal coordinate pairs such that |Σ′ 
+
+> i,j
+
+| ≥ τ . Then Algorithm 2 takes τ , m, and T as input and returns a set 
+
+J ⊂ J∗ in time O(m|T |) such that with probability 1 − 1/d 2, |J| ≥ m|J∗| 
+
+> 4d2
+
+− 16 log d.Proof. We repeat the algorithm below: 
+
+Algorithm 3.1 RANDOMLY CHECK COORDINATES 
+
+1: Let Hpair ⊂ [d] × [d] of size m, with (i, j ) ∈ Hpair sampled i.i.d. from off-diagonal elements. 
+
+2: Let J ← { (i, j ) ∈ Hpair : |Σ′ 
+
+> i,j
+
+| ≥ τ } for Σ′ = ΣT
+
+3: return J.To show correctness, we shall use the following concentration inequality for Binomials: If X ∼ Ber( n, p ), then with probability 1 − δ, |√X − √np | ≤ 2plog(1 /δ ). See, for example, Polyanskiy & Wu (2023, Equations (15.21) and (15.22)). In particular, with probability 1 − 1/d 4, √X ≥ √np − 4√log d, which implies X ≥ 0.25 np − 16 log d.14 
+
+The probability that a single pair in Hpair has correlation of magnitude at least τ is exactly (|J∗|/d (d − 1)) , and thus 
+
+|J| ∼ Ber( m, |J∗|/(d(d − 1))) . Therefore, applying the Binomial concentration, with probability 1 − 1/d 2, it holds that 
+
+|J| ≥ m|J∗| 
+
+> 4d2
+
+− 16 log d. The claim about the runtime is immediate. 
+
+B.2. Proof of Proposition 3.3 Proposition 3.3 (Subroutine to Identify Corrupted Coordinates Algorithm 3) . Let corrupted set T , Frobenius threshold 
+
+κ ∈ R, correlation threshold ρ ∈ (0 , 1) , margin threshold τ ∈ (0 , ρ/ 12) , sampling parameter m ∈ N, and correlation 
+
+> 14
+
+We use that if a, b, c ∈ R+ then a ≥ b − c implies that a2 ≥ b2/4 − c2. The proof is as follows: if b ≥ 2c then a ≥ b/ 2 and thus 
+
+a ≥ b2/4 ≥ b2/4 − c2; otherwise b2/4 ≤ c2 and thus a2 ≥ 0 ≥ b2/4 − c2 holds trivially. 
+
+16 Subquadratic Robust Sparse Mean Estimation 
+
+count s ∈ N. Suppose that each diagonal entry of ΣT lies in [1 /2, 3/2] and c1d2
+
+> m
+
+ κ2  
+
+> τ2
+
++ log d
+
+
+
+≤ s.Then Algorithm 3 takes as input T, κ, ρ, τ, m, s as input and satisfies the following with probability 1 − 1/poly( d):
+
+• It either outputs a set H ⊂ [d] with |H| ≤ κ2  
+
+> τ2
+
+and ∥ (offdiag( ΣT )) H ∥Fr ≥ κ/ 2.
+
+• Else, it outputs “ ⊥”. If it outputs “ ⊥”, then ∥offdiag( ΣT )∥Fr ,k 2 is at most 2κ + 2 ρk .Moreover, the algorithm runs in O
+
+
+
+m + sd 0.62 + d1.62+3 log(4 /ρ )log(1 /3τ )
+
+
+
+poly( n, log d, 1/τ ) time. 
+
+We restate the algorithm with extended notation in Algorithm 6. 
+
+Algorithm 6 Main Subroutine (Expanded version of Algorithm 3) 
+
+Require: Frobenius threshold κ ∈ R+, a finite set T ⊂ Rd such that diagonal entries of ΣT lie in [1 /2, 2] , correlation threshold ρ ∈ (0 , 1) , weak correlation threshold τ , sampling parameter m ∈ N. We require the parameters to satisfy 
+
+c1d2
+
+m
+
+ κ2
+
+τ 2 + log d
+
+
+
+≤ s. (11) 
+
+Ensure: With high probability, output either (i) a set H ⊂ [d] with |H| ≤ k′′ and ∥(offdiag( ΣT )H ∥Fr ≥ 0.5κ or (ii) “ ⊥”; If it outputs “ ⊥”, then ∥(offdiag( ΣT )H ∥Fr ≤ 2κ + 2 kρ .
+
+1: Let H′ 
+
+> pair
+
+be the output of Random Subsampling Algorithm (Algorithm 2) with m and τ
+
+2: if |H′
+
+> pair
+
+| ≥ κ2/τ 2 then 
+
+3: Set H1 ← Proj κ2/τ 2 (Hproj )
+
+4: return H1
+
+5: else 
+
+6: Let Hpair ⊆ [d] × [d] be the output of Theorem 2.8 with τ, ρ, s on T
+
+7: if |Hpair | > κ 2/ρ 2 then 
+
+8: H3 ← Proj κ2/ρ 2 (Hproj )
+
+9: return H3
+
+10: else 
+
+11: Let H2 ← Proj( Hpair )
+
+12: if ∥(offdiag( ΣS )) H2 ∥Fr ≥ κ then 
+
+13: return H2
+
+14: else 
+
+15: return “⊥”
+
+16: end if 
+
+17: end if 
+
+18: end if 
+
+Proof. Let A be the matrix with diagonal entries zero and off-diagonal entry (i, j ) equal to Σ′
+
+> i,j
+
+√Σ′
+
+> i,i Σ′
+> j,j
+
+. Since diagonal entries of ΣT lie in [0 .5, 1.5] , the entries of A and offdiag( ΣT ) = offdiag( ΣT − Id) have the same signs and have the magnitude up to a factor of 2.Thus, at the cost of constant factor, we will upper bound ∥A∥Fr ,k 2 and lower bound ∥(A)H ∥Fr instead of dealing with 
+
+offdiag( ΣT − Id).We will use the notation from Algorithm 3. Let s∗ be the number of off-diagonal coordinates of A∗ that have absolute value larger than τ . Our algorithm will be correct on the event when both Theorem 2.8 and Lemma 3.2 succeed, which happens with high probability. For the rest of this proof, we condition on both of these algorithms succeeding. We first consider the case when s∗ > s . Then, the lower bound on s in the statement (cf. (11)), coupled with Lemma 3.2, implies that 
+
+|H′
+
+> pair
+
+| > ms ∗
+
+4d2 − 16 log d > ms 
+
+4d2 − 16 log d
+
+17 Subquadratic Robust Sparse Mean Estimation 
+
+> m
+
+4d2
+
+ c1d2
+
+m
+
+ κ2
+
+τ 2 + log d
+
+ 
+
+− 16 log d > c1κ2
+
+2τ 2 ,
+
+where we use c1 is large enough, say c1 ≥ 100 . By definition of H1 = Proj κ2/τ 2 (Hproj ), there are at least |κ2/τ 2| entries in (A)H1 with absolute value at least τ , and thus (A)H1 has Frobenius norm at least pκ2/τ 2τ = κ.Consider the alternate case when s∗ < s . If |H′
+
+> pair
+
+| happens to be large, then the same argument as above implies the correctness and the runtime. Thus, in the rest of this proof, we consider the case when we enter Line 5. Since s∗ ≤ s,Theorem 2.8 runs in the desired time and finds all off-diagonal coordinate pairs of A, collected in Hpair , with entries bigger than ρ in the promised time. If Hpair has more than κ2/ρ 2 entries, then by definition of H3 = Proj κ2/ρ 2 (Hpair ), the same argument as above implies that the Frobenius norm of (A)H3 is at least κ.If |Hpair | < κ 2/ρ 2, then H2 is defined to contain all coordinates that appear in Hpair . If Line 12 succeeds, then the algorithm returns a subset of coordinates satisfying the desired conditions (small size and Frobenius norm larger than κ). Suppose the if condition is not satisfied (and we return “ ⊥”). We argue that ∥A∥Fr ,k 2 is small enough. Write A = B + B′,where Bi,j is non-zero only when i ∈ H2, j ∈ H2 with values equal to Ai,j and zero otherwise ( B′ is then defined to be A − B). By definition of H2, we know each entry of B′ is at most ρ in absolute value. By triangle inequality, 
+
+∥A∥Fr ,k 2 ≤ ∥ B∥Fr ,k 2 + ∥B′∥Fr ,k 2 = ∥(A)H2 ∥Fr ,k 2 + ∥B′∥Fr ,k 2 ≤ ∥ (A)H2 ∥Fr + kρ ≤ κ + kρ . The accuracy guarantee follows by noting that the entries of A and Σ − I are within a factor of 2. Finally, the runtime guarantees are immediate by Theorem 2.8 and Lemma 3.2. 
+
+# C. Complete Algorithm and Proof of Correctness 
+
+We now present the main technical result of our paper, the formal version of Theorem 3.1, below. 
+
+Theorem C.1 (Robust Sparse Mean Estimation in Subquadratic Time; Formal version of Theorem 3.1) . Let c be a small enough absolute constant and C be a large enough absolute constant. Consider the corruption rate ϵ ∈ (0 , ϵ 0), where ϵ0 is a small enough absolute constant. Let k ∈ N be the sparsity parameter and q ∈ N the correlation decay parameter with q ≥ 3.Let T be an ϵ-corrupted version of a set S, where S satisfies (Cϵ, δ, k ′)-stability with respect to μ for k′ := (Ck )q 
+
+> (δ2/ϵ )q−1
+
+and 
+
+δ2/ϵ ≤ c. Then there is a randomized algorithm (Algorithm 7) that takes as inputs T , ϵ, δ, k, and q and produces an estimate 
+
+bμ such that, with a probability at least 1 − 1/d 2 over the randomness of the algorithm, we have the following guarantees: 
+
+• (Error) ∥bμ − μ∥2,k ≲ δ.
+
+• (Runtime) The algorithm runs in time at most d1.62+ 3 
+
+> q
+
+poly ( |T |, log d, k q , 1/ϵ q ).
+
+We present the proof in Appendix C.1 below. We then show how Theorem C.1 implies Theorem 1.5 in Appendix C.2. 
+
+C.1. Proof of Theorem C.1 
+
+The complete algorithm is given below: We now present the proof of its correctness: 
+
+Proof of Theorem C.1. The first step of Algorithm 7 is the fast preprocessing step from Claim A.3, which takes at most 
+
+˜O(dk 2|T |2) time and removes not too many inliers with high probability In particular, the returned set T ′ has diagonal values in [1 /2, 2] . In fact, Lemma A.4 implies that the subsequent sets Ti’s will satisfy this property, at least until we remove more than Ω( ϵ) fraction of points, which is the regime of interest anyway (cf. Theorem A.2). Thus, Proposition 3.3 will be applicable. We will follow the standard proof template of randomized filtering algorithm from Theorem A.2, with the stopping condition provided by Proposition 3.3. The choice of parameters in Line 4 are such that whenever Proposition 3.3 does not return “ ⊥”(and Ti is 10 ϵ-corruption of S), it returns a set H satisfying the guarantees of Lemma 2.6. To see this, observe that whenever Algorithm 3 outputs a subset H ⊂ [d], then |H| ≤ κ2/τ 2 and ∥(ΣTi − Id)H ∥Fr > ∥(offdiag( ΣTi )) H ∥Fr > κ/ 4 ≳ δ2/ϵ .Moreover, whenever Proposition 3.3 returns “ ⊥”, then ∥(ΣTi − Id)H ∥Fr ,k 2 ≲ κ + kρ ≲ δ2/ϵ since κ ≍ δ2/ϵ and ρ ≍ δ2/ϵ .The choice of sparsity parameter in the stability of inliers is k′, which is larger than κ2/τ 2, because the choice of κ above and τ = ( ρ/ 12) q imply that κ2/τ 2 is of the order (δ2/ϵ )/(c′ρq ) ≍ (δ2/ϵ )/((( c′δ2/ϵ )/k )q ) ≍ kq  
+
+> Cq(δ2/ϵ )q−1
+
+. Thus, the scores generated by H using Lemma 2.6 give more weights to outliers than inliers. Theorem A.2 now implies that the final set T ′′ ,18 Subquadratic Robust Sparse Mean Estimation 
+
+Algorithm 7 Main Algorithm 
+
+Require: corruption rate ϵ ∈ (0 , 1) , stability parameter δ ∈ (0 , 1) , corrupted set T ⊂ Rd, correlation-threshold ρ ∈ (0 , 1) ,correlation-decay q ∈ N, sparsity k ∈ N, sampling parameter m ∈ N. We require T to be an ϵ-corrupted version of an 
+
+(Cϵ, δ, k ′) stable set with respect to μ for k′ := (Ck )q 
+
+> (δ2/ϵ )q−1
+
+and δ2/ϵ ≤ c for a small absolute constant c > 0.
+
+Ensure: bμ ∈ Rd such that, with high probability, ∥bμ − μ∥2,k ≲ δ.
+
+1: T ′ ← Filter T using Claim A.3 
+
+▷ Preprocessing along the diagonals to ensure Condition 2.7 
+
+2: i ← 1
+
+3: Ti ← T ′.
+
+4: H ← output of Proposition 3.3 with inputs: corrupted set Ti, Frobenius threshold κ = C′δ2/ϵ for a large constant C′,correlation threshold ρ = ( δ2/ϵ )/k , margin threshold τ = ( ρ/ 12) q , sampling parameter m ≍ d(κ2/τ 2 + log d), and correlation count s = d▷ Algorithm 3 
+
+5: while Ti̸ = ∅ and H̸ = “⊥” do 
+
+6: Get the scores f : Ti → R+ from Lemma 2.6 with inputs Ti, H, ϵ, and δ
+
+7: Ti+1 ← Filter Ti using the scores f similar to Algorithm 5 
+
+8: i ← i + 1 
+
+9: Update H as above 
+
+10: end while 
+
+11: return the sample mean of Ti
+
+with probability at least 0.6, satisfies (i) T ′′ is an O(ϵ)-contamination of S, (ii) T ′′ is an O(ϵ) contamination of T ′, where 
+
+T ′ satisfies Condition 2.7, and (iii) ∥offdiag( ΣT ′′ − Id)H ∥Fr ,k 2 ≲ δ2/ϵ .We now argue that ∥ΣT ′′ − Id∥op ,k ≲ δ2/ϵ , and not just the off-diagonal terms. We follow the following inequalities using triangle inequality: 
+
+∥ΣT ′′ − Id∥op ,k ≤ ∥ diag ( ΣT ′′ − Id)∥op ,k + ∥offdiag ( ΣT ′′ − Id)∥op ,k 
+
+≲ δ2/ϵ + ∥offdiag ( ΣT ′′ − Id)∥Fr ,k 2 (using Lemma A.4 and T ′ satisfies Condition 2.7) 
+
+≲ δ2/ϵ + δ2/ϵ ≲ δ2/ϵ . 
+
+Applying Lemma 2.5, the final output of the algorithm, sample mean of T ′′ will be O(δ) close to the true mean μ, implying the correctness of the procedure. It remains to show the choice of the parameters m, s, and q lead to fast runtimes. We take τ = ( ρ/ 12) q and s = d. Finally, we take m ≍ (d2/s ) · (κ2/τ 2 + log d) ≤ (d log d)( κ2/τ 2), which satisfies the parameter constraints in Proposition 3.3 (cf. (11)). Letting n = |T |, the resulting runtime of a single application of Proposition 3.3 is thus at most 
+
+A =
+
+
+
+m + sd 0.62 + d1.62+3 log(4 /ρ )log(1 /3τ )
+
+
+
+poly( n, log d, 1/τ )
+
+≤
+
+
+
+d1.62+3 log(4 /ρ )log(( ρ/ 4) q )
+
+
+
+poly( n, log d, 1/ρ q )
+
+≤
+
+
+
+d1.62+ 3
+
+> q
+
+
+
+poly( n, log d, k q , 1/ϵ q ) .
+
+Since there are at most n iterations, the claim on the total runtime follows. 
+
+C.2. Proof of Theorem 1.5 
+
+We now explain how Theorem C.1 implies Theorem 1.5. 
+
+Proof of Theorem 1.5. First, observe that by applying Proposition 2.1, the estimation guarantee of Theorem C.1 can be translated from ∥ · ∥ 2,k norm into ∥ · ∥ 2 norm by hard-thresholding the estimator. We now turn our attention to the sample complexity. Let S be a set of n i.i.d. samples from N (μ, I ). If n ≥ (( k′)2 log d)/ϵ 2, then Lemma 2.4 implies that S is 
+
+(ϵ, δ, k ′) stable with respect to μ for δ ≲ ϵplog(1 /ϵ ). Plugging in the value of δ and k′ ≤ (O(k)) q 
+
+> ϵq−1
+
+in Theorem C.1 yields a 19 Subquadratic Robust Sparse Mean Estimation 
+
+sample complexity of at most n ≲ (k′)2 log dϵ2 ≲ (O(k/ϵ )) 2q log d. The claim on the runtime in Theorem 1.5 follows from Theorem C.1 along with the bound on the sample complexity. 
+
+# D. Robust Sparse PCA 
+
+In this section, we show that the ideas from fast correlation detection can also be useful for robust sparse PCA. Our main result in this section is the result below: 
+
+Theorem 1.6 (Robust Sparse PCA in Subquadratic Time) . Let T be an ϵ-corrupted set of samples from N (0 , Id + ηvv ⊤) for 
+
+η ∈ (0 , 1) and a k-sparse unit vector. There is a randomized algorithm that takes as input the corrupted set T , contamination rate ϵ, sparsity k ∈ N, spike η, and a parameter q ∈ N, and produces an estimate bv such that 
+
+ (Sample Complexity and Error) If n ≳ poly(( kq log d)/ϵ q ), then ∥bvbv⊤ − vv ⊤∥Fr ≲ pϵ log(1 /ϵ )/η with probability at least 1 − 1poly( d) over the randomness of the samples and the algorithm. 
+
+ (Runtime) The algorithm runs in time at most d1.62+ 3 
+
+> q
+
+poly( n).
+
+The result above provides the first subquadratic time algorithm for robust sparse PCA that has error independent of d
+
+and k. Similar to the literature on robust sparse mean estimation, existing algorithms for robust sparse PCA with similar dimension-independent error took Ω( d2) time. However, the error guarantee of Theorem 1.6 is not optimal: the error guarantee above is (ϵ log(1 /ϵ )) /η , same as Cheng et al. (2022), as opposed to the near-optimal error of (ϵ2polylog(1 /ϵ )) /η 
+
+in Balakrishnan et al. (2017); Diakonikolas et al. (2019). We remark that Theorem 1.6 does not follow directly from Theorem 1.5. In particular, a standard reduction relies on the fact that the mean of the random variable Y − Id is exactly ρvv ⊤ for Y = xx ⊤, where x ∼ N (0 , I + ρvv ⊤), i.e., (robust) sparse PCA reduces to (robust) sparse mean estimation. However, Y is a d2-dimensional object and thus a naive application of Theorem 1.5 would yield a super-quadratic runtime, in fact, (d2)1.62 = Ω( d3). Moreover, the covariance of Y is not isotropic and thus it is unclear if samples from Y would satisfy the stability condition from Definition 2.3. We show below that a more whitebox analysis of the main ideas from Theorem 1.5, in particular, Proposition 3.3 can yield a subquadratic runtime. 
+
+Organization This section is organized as follows: We list the deterministic conditions for robust PCA in Appendix D.1. Appendix D.2 contains the results pertaining to the certificate lemma, filtering, and dense estimation algorithm for sparse PCA. Finally, the algorithm and its proof is given in Appendix D.3. 
+
+D.1. Deterministic Conditions 
+
+For a set T , we use the notation ΣT to denote the second moment matrix ET [xx ⊤]—not to be confused with the covariance matrix ΣT .
+
+Definition D.1 (Stability Condition for PCA) . For the contamination rate ϵ ∈ (0 , 1/2) , error parameter γ ≥ ϵ, spike strength 
+
+η ∈ R+, and sparsity k ∈ N, we say a set S ⊂ Rd is (ϵ, γ, k, η )-pca-stable with respect to a k-sparse unit vector v ∈ Rd
+
+and spike strength η if 1. For any subset S′ ⊆ S with |S′| ≥ (1 − ϵ)|S|: ΣS′ − (Id + ηvv ⊤) Fr ,k 2 ≤γ
+
+2. For all subsets H ⊂ [d] with |H| ≤ k, the set {(x)H : x ∈ S} is (ϵ, γ )-covariance stable in the sense of Diakonikolas & Kane (2023, Definition 4.5) (with respected to an appropriate flattening of I|H|).The second stability condition allows us to perform covariance estimation in Frobenius norm (and hence stronger than principal component analysis) but only when the support is known. The following result lists the sample complexity of Definition D.1. 
+
+Lemma D.2. Let S be a set of n i.i.d. samples from N (0 , I + ηvv ⊤) for η ∈ (0 , 1) and a k-sparse unit vector v. Then if 
+
+n ≳ poly( k, log( d/δ ), 1/ϵ ), then S is (ϵ, γ, k, η )-pca-stable with respect to v and η for γ = O(ϵ log(1 /ϵ )) .Proof. We sketch the argument here. The first condition is identical to Cheng et al. (2022, Definition 2.2) and Cheng et al. (2022, Lemma 4.2) shows establishes a sample complexity of k2 log( d/δ ) 
+
+> ϵ2
+
+.20 Subquadratic Robust Sparse Mean Estimation 
+
+For the second condition, we do an admittedly loose analysis. Fixing a subset H, it amounts to showing a stability condition for a |H|-dimensional Gaussian distribution, for which Diakonikolas & Kane (2023, Proposition 4.2) establishes a sample complexity of poly( k log(1 /δ )/ϵ ) for the set to be (ϵ, γ )-covariance stable for γ = O(ϵ log(1 /ϵ )) with probability 1 − δ.15 
+
+Since there are at most dk possible choices of H, a union bound shows that the second condition in Definition D.1 holds with probability 1 − δ with sample complexity poly( k log( dk/δ )/ϵ ) = poly( k log( d/δ )/ϵ ).
+
+D.2. Filters, Certificates, and Dense Estimation 
+
+Appendix D.2.1 records the guarantee of the dense estimation algorithm. Appendix D.2.2 includes the certificate lemma for sparse PCA and Appendix D.2.3 includes the filter lemma. Finally, Appendix D.2.4 contains the preprocessing condition on the covariance matrix. D.2.1. D ENSE ESTIMATION ALGORITHM 
+
+We shall use the following algorithm to estimate the spike when we have identified the support of the spike. 
+
+Lemma D.3 (Dense Covariance Estimation Algorithm; Implication of Diakonikolas & Kane (2023, Theorem 4.6)) . Let 
+
+ϵ ∈ (0 , ϵ 0) for a small absolute constant ϵ0. Let T be an ϵ-corrupted version of S, where S is (ϵ, γ, k, η )-pca-stable with respect to v (cf. Definition D.1) and η ∈ (0 , 1) . Let H be a k-sparse subset of [d].There exists an algorithm A that takes as inputs corrupted set T , contamination rate ϵ, error parameter γ, spike η, and the sparse support set H and outputs a k-sparse vector u, supported on H, such that  Id + ηuu ⊤ 
+
+> H
+
+−  Id + ηvv ⊤ 
+
+> H
+
+≲ γ.Moreover, the algorithm runs in time dpoly( k, |T |/ϵ ).Proof. Let T ′ ⊂ Rk and S′ ⊂ Rk denote the projections of T and S, respectively, on H. Let Σ′ = ( Id + ηvv ⊤)H =
+
+I|H| + η′v′v′⊤ for v′ = ( v)H /∥(v)H ∥2 and η′ = η∥(v)H ∥22.Diakonikolas & Kane (2023, Theorem 4.6) gives an estimate bΣ such that ∥ bΣ − Σ′∥Fr ≲ γ∥Σ′∥op ≲ γ, which can be calculated in time dpoly( k|T |/ϵ ); here ∥ · ∥ op denotes the operator norm of a matrix. That is, ∥( bΣ − I) − η′v′v′⊤ ∥Fr ≲ γ.Letting A be the best one-rank approximation of ( bΣ − I) in the Frobenius norm, we see that 
+
+∥A − η′v′v′⊤ ∥Fr ≤ ∥ A − ( bΣ − I)∥Fr + ∥( bΣ − I) − η′v′v′⊤ ∥Fr ≤ 2∥( bΣ − I) − η′v′v′⊤ ∥Fr ≲ γ, 
+
+where the second inequality follows from the fact that A is the best rank-one approximation. Moreover, the symmetry of A
+
+implies that A must be of the form λ′u′u′⊤ for a unit vector u′ and λ′ ∈ R. We thus obtain 
+
+∥λ′u′u′⊤ − η′v′v′⊤ ∥Fr ≲ γ . 
+
+Consequently, |λ′ − η′| ≲ γ by Weyl’s inequality. If λ′ ≤ 0, we set u = 0 . Otherwise, we set u = pλ′/ηu ′. We now calcu-late the approximation error. If λ′ ≥ 0, then the resulting error in our estimate is  Id + ηuu ⊤ 
+
+> H
+
+−  Id + ηvv ⊤  
+
+> HFr
+
+=
+
+λ′uu ⊤ − η′v′v′⊤ 
+
+> Fr
+
+≲ γ by the approximation guarantee. If λ′ < 0, then η′ must also be O(γ) because η′ ≤
+
+λ′ + |λ′ − η′| ≲ γ. In this case, the approximation error is η′, which is also O(γ) as required. D.2.2. C ERTIFICATE LEMMA FOR SPARSE PCA The following result shows that if the covariance matrix looks roughly isotropic on a subset of coordinates H∁, then the spike vector v places most of its mass on the complement, H. The benefit of this stopping condition is that it does not depend on the unknown spike vector v.
+
+Lemma D.4 (Sparse Certificate Lemma for PCA) . Let T be an ϵ-corrupted version of S, where S is (ϵ, γ, k, η )-pca-stable with respect to a k-sparse unit vector v ∈ Rd and spike strength η ∈ (0 , 1) . Let H ⊂ [d] be such that ∥(ΣT − I)H∁ ∥op ,k =
+
+O(γ), then ∥vv ⊤ − (v)H (v)⊤ 
+
+> H
+
+∥2Fr = O  (γ/η ) + ( γ/η )2.Proof. Let z be the unit vector along (v)H∁ , which is at most k-sparse. Since z is supported on H∁, we obtain 
+
+z⊤  ΣT − I z ≲ γ,  
+
+> 15 Although the proof of Diakonikolas & Kane (2023, Proposition 4.2) does not explicitly write the dependence on δ, but it is immediate from the proof.
+
+21 Subquadratic Robust Sparse Mean Estimation 
+
+implying that z⊤ΣT z = 1 ± O(γ). Using the stability of S, we see z⊤ΣT z ≥ (1 − ϵ)z⊤ΣS∩T z ≥ (1 −
+
+ϵ)  z⊤  I + ηvv ⊤ z − γ. Defining η′ := η(v⊤z)2 = η∥vH∁ ∥22, we have that z⊤ΣT z ≥ (1 − ϵ)(1 + η′ − γ). Com-bining this with the aforementioned upper bounds on z⊤ΣT z, we obtain that (1 − ϵ)(1 + η′ − γ) ≤ 1 + O(γ). Thus, 
+
+η′ = O(γ + ϵ) = O(γ) by using ϵ ≤ γ. Therefore, ∥(v)H∁ ∥22 = η′/η ≲ γ/η . Finally, the triangle inequality implies that 
+
+∥vv ⊤ − (v)H (v)H ∥Fr ≤ ∥ (v)H∁ ∥22 + 2 ∥(v)H∁ ∥2 ≲ max 
+
+p (γ/ρ ), (γ/ρ )
+
+
+
+.
+
+D.2.3. F ILTER FOR SPARSE PCA 
+
+Lemma D.5 (Sparse PCA Filter) . Let ϵ ∈ (0 , ϵ 0) for a small absolute constant ϵ0 and let C be a large enough absolute constant. Let T be an ϵ-corrupted version of S, where S is (ϵ, γ, k, η )-stable with respect to v (cf. Definition D.1) and 
+
+η ∈ (0 , 1) . Let H ⊂ [d] be such (ΣT − I − ηvv ⊤)H Fr = λ for λ ≥ 8Cγ and |H| ≤ k.Then there exists an algorithm A that takes T , H, ϵ, γ, and η and returns a score mapping f : T → R+ such that the sum of inliers’ scores is less than outliers’: P 
+
+> x∈S∩T
+
+f (x) ≤ P  
+
+> x∈T\S
+
+f (x) and max x∈T f (x) > 0. Moreover, the algorithm runs in time dpoly( k, |T |).Proof. We use the same ideas from the proof of Lemma 2.6 and similarly assume that T and S already correspond to the projected coordinates. The challenge in applying the idea as is lie in the uncertainty about v. We thus use Lemma D.3 to first estimate v using the returned vector u which satisfies that ∥ηuu ⊤ − ηvv ⊤∥Fr ≲ γ.16 We give the algorithm below. 
+
+Algorithm 8 PCA Filter 
+
+1: T ← { (x)H : x ∈ T } ▷ Projection onto H
+
+2: u ← be output of dense covariance estimation algorithm Lemma D.3 
+
+3: Let A be the matrix (ΣT − I − ηuu ⊤)/∥ΣT1 − I − ηuu ⊤∥Fr 
+
+4: Define g(x) := ( x − μT )⊤A(x − μT ) − tr( A)
+
+5: Define f (x) to be g(x) if g(x) ≥ Ω( γ/ϵ ) otherwise 0
+
+6: Return f
+
+Let λ = (ΣT − I − ηvv ⊤)H Fr and define A = ( ΣT − I − ηuu ⊤)/∥ΣT1 − I − ηuu ⊤∥Fr . Define the function 
+
+g(x) := x⊤Ax − ⟨ I + ηuu ⊤, A⟩. Computing the average of g(x) over the T , we obtain 
+
+ET [g(x)] = ET
+
+ xx ⊤ − I − ηuu ⊤, A  = ⟨ΣT − I − ηuu ⊤, A⟩ = ∥ΣT − I − ηuu ⊤∥Fr 
+
+≥ ∥ ΣT − I − ηvv ⊤∥Fr − ∥ ηuu ⊤ − ηvv ⊤∥Fr = λ − O(γ) ≥ 3λ/ 4, (12) where we use that λ ≳ γ. Using the stability of S (observe that on the projected set, the ∥ · ∥ Fr ,k 2 norm becomes the usual Frobenius norm), for any large subset of S′ ⊂ S with |S′| ≥ (1 − ϵ)|S|, the closeness between u and v implies the following: 
+
+|ES′ [g(x)] | = ES′
+
+ xx ⊤ − I − ηuu ⊤, A  = ΣS′ − I − ηuu ⊤, A
+
+= ΣS′ − I − ηvv ⊤, A + ηvv ⊤ − ηuu ⊤, A ≤ ΣS′ − I − ηvv ⊤ 
+
+> Fr
+
++ η vv ⊤ − uu ⊤
+
+> Fr
+
+≤ γ + O(γ) ≤ Cγ (13) for a large enough absolute constant C. Now define f (x) := g(x)1g(x)≥3Cγ/ϵ , i.e., f (x) is equal to g(x) if g(x) ≥ 3Cγ/ϵ 
+
+and 0 otherwise. By Claim A.1, 
+
+X
+
+> x∈S∩T
+
+f (x) ≤ X
+
+> x∈S
+
+f (x) ≤ 3Cγ |S| ≤ | T |λ/ 4 , (14) where we use that λ ≳ Cγ .
+
+> 16
+
+Observe that v here corresponds to (v)H because of the projection to H. Hence v is no longer a unit vector. 
+
+22 Subquadratic Robust Sparse Mean Estimation 
+
+On the other hand, Ex∈T \S [f (x)] must be large argued as argued below. Applying (13) to T ∩ S, which is of size at least 
+
+(1 − ϵ)|T | = (1 − ϵ)|S|, we obtain 
+
+X 
+
+> x∈T\S
+
+f (x) ≥ X 
+
+> x∈T\S
+
+(g(x) − 3Cγ/ϵ ) = X
+
+> x∈T
+
+g(x)
+
+!
+
+− X 
+
+> x∈T∩S
+
+g(x)
+
+!! 
+
+− (|T \ S|3Cγ/ϵ )
+
+≥ (3 λ|T |/4) − (( |T ∩ S|)( Cγ )) − ϵ|T | (3 Cγ/ϵ )
+
+≥ (3 λ|T |/4) − (4 |T |Cγ )
+
+≥ λ|T |/2 , (15) where we use (12) and λ ≳ γ. The desired conclusions follow from (14) and (15). D.2.4. P REPROCESSING CONDITION FOR SPARSE PCA Similar to robust sparse mean estimation, our algorithm tracks the contribution to the diagonal terms and off-diagonal terms separately. The following conditions mirrors Condition 2.7. 
+
+Condition D.6 (Idealistic Condition for PCA) . Let T be an ϵ-corrupted version of S, where S is (ϵ, γ, k, η )-stable with respect to a k-sparse unit vector v and spike strength η (cf. Definition D.1). We have an H1 ⊂ [d] and |H1| ≲ k2 such that 
+
+T satisfies ∥diag( ΣT − Id)H∁
+
+> 1
+
+∥Fr ,k 2 ≲ γ.The next result gives an efficient algorithm to ensure the above condition: 
+
+Claim D.7. Let ϵ ∈ (0 , ϵ 0) and γ ∈ (0 , γ 0) for small constants ϵ0 ∈ (0 , 1/2) , γ0 ∈ (0 , 1) . Let sparsity k ∈ N. Let C be a large enough constant and T be an ϵ-corrupted set S where S is (Cϵ, γ, k ′, η )-pca-stable with respect to an unknown 
+
+k-sparse unit vector v ∈ Rd, η ∈ (0 , 1) , γ ≥ ϵ, and k′ = C′k2 for a large enough constant C′ > 0. There is a randomized algorithm A that takes as input the corrupted set T , contamination rate ϵ, sparsity k ∈ N, and a parameter q ∈ N, and returns a set T ′ ⊂ T and H1 ⊂ [d] in time O(dpoly( k, |T |)) such that with probability 0.9
+
+1. T ′ is an O(ϵ)-contamination of S.2. Each diagonal entry of ΣT ′ ∈ [1 /2, 4] .3. T ′ and H1 satisfy Condition D.6, i.e., |H1| ≲ k2 and ∥diag( ΣT ′ − Id)H∁
+
+> 1
+
+∥Fr ,k 2 ≲ γ.Proof. We will filter the set using Lemma D.5 following the template of Algorithm 5 until the second and the third conditions are met. Starting with the second condition, the lower bound on the diagonal entries follows by the fact that T contains an ϵ-fraction of S ∩ T and diagonal entries of ΣS∩T are at least 1 − γ. Since ϵ and γ are small enough, (1 − ϵ)(1 − γ) ≥ 1/2. We now focus on establishing the upper bound, for each coordinate i ∈ [d], the true variance is at most (1 + η∥v∥2
+
+> ∞
+
+) ≤ 2, where 
+
+∥ · ∥ ∞ denotes the ℓ∞ norm. Thus, if for any coordinate i ∈ [d], the empirical variance of T is larger than 3, which is bigger than 1 + η + λ, H := {i} satisfies the condition of Lemma D.5. Thus, we can filter points until all the empirical variances are less than 3 following the template of Theorem A.2. We now turn our attention to the third condition. For a vector x ∈ Rd, let the function g : Rd → Rd be the coordinate-wise square of its input. Thus, for X ∼ N (0 , I + ρvv ⊤), we have that μ := E[g(X)] = u + ηg (v), where u ∈ Rd
+
+denotes the all ones vector. Therefore, the required condition in Condition D.6 can also be written equivalently as 
+
+∥  μf (T ) − u
+
+> H∁
+> 1
+
+∥2,k 2 = O(γ). Let f (T ) and f (S) denote the sets transformed by f , i.e., f (T ) := {f (x) : x ∈ T } and 
+
+f (S) := {f (x) : x ∈ S}. We first compute μf (T ) − u, which takes O(d|T |) time. Let J ⊂ [d] denote the coordinates i for which the i-th coordinate of μf (T ) − u is bigger than γ/k in absolute value. Let J∗ denote the support of the sparse spike vector v.Consider the case when J is a large enough set: |J| > k ′. Then let H ⊂ J be any subset of size k′. Then |H \ J∗| >
+
+|H| − | J∗| = k′ − k ≥ k′/2, And thus we have that 
+
+∥(ΣT − Id − ηvv ⊤)H ∥Fr ,k ′2 ≥ ∥ (ΣT − Id − ηvv ⊤)H\J∗ ∥Fr ,k ′2 ≥≥ ∥ (ΣT − Id)H\J∗ ∥Fr ,k ′2
+
+23 Subquadratic Robust Sparse Mean Estimation 
+
+≥ ∥ diag  (ΣT − Id)H\J∗
+
+ ∥Fr ,k ′2
+
+≥ (γ/k )p(k′/2) ≳ γ , 
+
+since k′ ≳ k2. Thus, we have obtained a set H that satisfies the guarantees of Lemma D.5, which allows us to filter using the template of Algorithm 5. If on the other hand, J happens to be small, then we return H1 = J and since μf (T ) is (γ/k )-close to u (that is, 1) on H∁ 
+
+> 1
+
+,we obtain 
+
+∥diag( ΣT − Id)H∁
+
+> 1
+
+∥Fr ,k 2 = ∥  μf (T ) − u
+
+> H∁
+> 1
+
+∥2,k 2 ≤ kγ/k ≤ γ. 
+
+Similar to Lemma A.4, the next result shows that all large subsets of a set satisfying Claim D.7 are close to identity in the sparse operator norm. 
+
+Lemma D.8. Let C be a large enough constant C > 0 and k, k ′ ∈ N. Let T ′′ ⊂ T ′ be two O(ϵ)-contamination of S such that S is an (Cϵ, γ, k ′, η )-pca-stable with respect to v and ρ ∈ (0 , 1) . Let H ⊂ [d] be a small subset |H| ≤ k such that 
+
+∥diag( ΣT ′ − Id)H∁
+
+> 1
+
+∥Fr ,k 2 ≲ γ. Then ∥diag( ΣT ′′ − Id)H∁
+
+> 1
+
+∥op ,k ≲ γ.Proof. Our proof strategy will be similar to that of Lemma A.4, and we refer the reader to the proof of Lemma A.4 for more details. Starting with the lower bound on the sparse eigenvalues of ΣT ′′ , we note that for any k′-sparse unit vector u, the stability condition applied to S ∩ T ′′ applies 
+
+u⊤ΣT ′′ u ≥ |S ∩ T ′′ ||T ′′ | u⊤ΣS∩T ′′ u ≥ (1 − O(ϵ))( u⊤(I + ρvv ⊤)u − γ) ≥ (1 − O(ϵ))(1 − O(γ)) ≥ 1 − O(γ)
+
+since ϵ ≤ γ. Applying this inequality for 1-sparse unit vectors u, we obtain that for any unit vector z: −z⊤diag( ΣT − I)z ≤
+
+Cγ for a large constant C > 0.Turning towards upper bound, we proceed as follows: for any 1-sparse unit vector u supported on H∁ 
+
+> 1
+
+,
+
+u⊤diag ( ΣT ′′ ) u = u⊤ΣT ′′ u = 1
+
+|T ′′ |
+
+X 
+
+> x∈T′′
+
+(u⊤x)2 ≤ (1 + O(ϵ)) u⊤ΣT ′ u ≤ (1 + O(ϵ))(1 + O(γ)) = 1 + O(γ) .
+
+Overall, we obtain the desired guarantee of diag 
+
+
+
+(ΣT ′′ − I)H∁
+
+> 1
+
+
+
+> op ,k
+
+= O(γ).
+
+D.3. Subquadratic Time Algorithm For Sparse PCA 
+
+We now establish the main technical result of this section: 
+
+Theorem D.9 (Subquadratic Time Algorithm for Robust Sparse PCA under Stability) . Let ϵ ∈ (0 , ϵ 0) and γ ∈ (0 , γ 0) for small constants ϵ0 ∈ (0 , 1/2) , γ0 ∈ (0 , 1) . Let C be a large enough constant and k ∈ N be the sparsity parameter and 
+
+q ∈ N the correlation decay parameter with q ≥ 3. Let T be an ϵ-corrupted set S where S is (Cϵ, γ, Ck ′, η )-pca-stable with respect to an unknown k-sparse unit vector v ∈ Rd, η ∈ (0 , 1) , and γ ≥ ϵ for k′ =
+
+ Cq k2q
+
+> γ2q−2
+
+
+
+.There is a randomized algorithm A that takes as input the corrupted set T , contamination rate ϵ, stability parameter γ,sparsity k ∈ N, and a parameter q ∈ N, and produces an estimate bv such that 
+
+• (Error) Then ∥bvbv⊤ − vv ⊤∥Fr ≲
+
+q γη with high probability over the randomness of the samples and the algorithm. 
+
+• (Runtime) The algorithm runs in time at most d1.62+ 3 
+
+> q
+
+poly ( |T | log d, (k/ϵ )q ) .
+
+The complete algorithm is given below: We now present the proof of its correctness: 24 Subquadratic Robust Sparse Mean Estimation 
+
+Algorithm 9 Robust Sparse PCA Algorithm 
+
+Require: corruption rate ϵ ∈ (0 , 1) , stability parameter γ ∈ (0 , 1) , corrupted set T ⊂ Rd, correlation-threshold ρ ∈ (0 , 1) ,correlation decay q ∈ N, sparsity k ∈ N, spike strength η ∈ (0 , 1) , sampling parameter m ∈ N. We require T to be an 
+
+ϵ-corrupted version of an (Cϵ, δ, Ck ′, η ) stable set with respect to μ for k′ := 
+
+ Cq k2q
+
+> γ2q−2
+
+
+
+and γ ≪ 1.
+
+Ensure: bv ∈ Rd such that, with high probability, ∥bvbv − vv ⊤∥Fr ≲ γ. 
+
+> 1:
+
+H1, T ′ ← be the outputs of Claim D.7 on T▷ T ′ is an O(ϵ)-contamination of S, 0.5Id ⪯ diag( Σ) ⪯ 2Id, |H1| ≲ k2 and ∥diag( ΣT − Id)H∁
+
+> 1
+
+∥Fr ,k 2 ≲ pγ/η  
+
+> 2:
+
+i ← 1 
+
+> 3:
+
+Ti ← T ′. 
+
+> 4:
+
+H ← output of Proposition 3.3 with inputs: corrupted set Ti, Frobenius threshold κ = Θ( γ), correlation threshold 
+
+ρ = γ/k , margin threshold τ = ( ρ/ 12) q , sampling parameter m ≍ d(κ2/τ 2 + log d), and correlation count s = d▷ Algorithm 3  
+
+> 5:
+
+while Ti̸ = ∅ and H̸ = “⊥” and |H| ≤ κ2/ρ 2 do  
+
+> 6:
+
+Get the scores f : Ti → R+ from Lemma D.5 with inputs Ti, H, ϵ, and δ 
+
+> 7:
+
+Ti+1 ← Filter Ti using the scores f . 
+
+> 8:
+
+i ← i + 1  
+
+> 9:
+
+Update H as above  
+
+> 10:
+
+end while  
+
+> 11:
+
+Let Hend ← H ∪ H1 
+
+> 12:
+
+u ← output of Lemma D.3 with inputs Ti, ϵ, γ, η, and Hend 
+
+Proof of Theorem D.9. We can assume that γ ≤ η, otherwise we can simply output any unit vector, whose error will be at most O(1) = O(pγ/η ).We will use the same template of filtering-based algorithms from Theorem A.2, with the filtering subroutines provided by Lemma D.5. The first step of Algorithm 9 is the preprocessing step from Claim D.7, which takes at most ˜O(dpoly( k, |T |)) time and removes not too many inliers with high probability. In particular, the diagonal entries of ΣT ′ lie in [1 /2, 4] ; Moreover, all the subsequent sets Ti’s will continue to satisfy this property by Lemma D.8 as long as we have removed at most O(ϵ)
+
+fraction of points (since γ is small enough). We shall use the output H1 generated by Claim D.7 in the end. We will use a fine-grained result from Proposition 3.3. Observe that Proposition 3.3 can be used not just for the covariance ΣT
+
+but also for ΣT , i.e., without centering, which is what we will use in this proof. We shall invoke Proposition 3.3 to identify all the coordinate pairs with correlation larger than ρ = γ/k . We then set τ = ( ρ/ 12) q and use the Frobenius threshold κ = C′γ
+
+for a constant C > 100 . Defining k′ := κ2/τ 2 and k′′ := κ2/ρ 2, we note that k′ ≥ k′′ = C′γ2/(γ/k )2 = C′k2 ≥ 2k2.We will show that the set H allows us to filter points using Lemma D.3. The proof of Proposition 3.3 reveals that it returns 
+
+H such that either (Case I) |H| = k′ = κ2/τ 2 and for each coordinate in i ∈ H, there exists a j ∈ H such that (i, j ) is τ -correlated Let T ′′ be the current iterate of the corrupted data set. Since ρvv ⊤ is a k2-sparse matrix and offdiag  ΣT − Id
+
+
+
+has at least k′ entries with magnitude at least Θ( τ )17 , their difference must have at least k′−k2 ≥ k′/2 = κ2/τ 2
+
+entries with magnitude Θ( τ ). Thus, the sparse Frobenius norm of their difference must be large, i.e., 
+
+ ΣT ′′ − Id − ρvv ⊤  
+
+> HFr
+
+≳ κ ≳ γ . 
+
+Given such an H, we filter outliers using Lemma D.3. (Case II) |H| ≥ κ2/ρ 2 and for each coordinate in i ∈ H, there exists a j ∈ H such that (i, j ) is ρ-correlated By the same argument as above, the matrix ΣT ′′ − Id − ρvv ⊤ has at least k′′ − k2 ≥ k′′ /2 = κ2/(2 ρ2)
+
+entries with magnitude Θ( ρ). Thus,  ΣT ′′ − Id − ρvv ⊤  
+
+> HFr
+
+≳ κ ≳ γ. Again, we filter outliers using Lemma D.3.             
+
+> 17 Recall that each diagonal entry of ΣT′′ is Θ(1) and thus τ-correlation implies that the corresponding entry in ΣT′′ is also Θ( τ).
+
+25 Subquadratic Robust Sparse Mean Estimation 
+
+(Case III) |H| ≤ κ2/ρ 2 and no coordinate pair in H∁ is ρ-correlated. Let T ′′ be the current iterate of the corrupted data set. Since H ⊂ Hend and the coordinates in H∁ are at most 
+
+ρ-correlated, it follows that the coordinates in H∁ 
+
+> end
+
+are also at most ρ-correlated. 
+
+offdiag 
+
+ ΣT ′′ − Id
+
+
+
+> H∁
+> end
+
+ 
+
+> Fr ,k 2
+
+≤ offdiag    ΣT ′′ − Id
+
+
+
+> H∁
+
+ 
+
+> Fr ,k 2
+
+≲ ρk ≲ γ . (16) We now want to combine the above guarantee on the closeness along the offdiagonals with the guarantee on the closeness along the diagonals from H1. In particular, Hend satisfies that 
+
+diag 
+
+ ΣT ′′ − Id
+
+
+
+> H∁
+> end
+
+
+
+> op ,k
+
+≤ diag 
+
+ ΣT ′′ − Id
+
+
+
+> H∁
+> 1
+
+
+
+> op ,k
+
+≲ γ , (17) where T ′′ has small sparse operator norm because it close to the preprocessed set T ′ and thus Lemma D.8 is applicable. Combining (16) and (17), we obtain 
+
+(ΣT ′′ − Id)H∁ 
+
+> end op ,k
+
+≤ diag 
+
+ ΣT ′′ − Id
+
+
+
+> H∁
+> end
+
+
+
+> op ,k
+
++ offdiag 
+
+ ΣT ′′ − Id
+
+
+
+> H∁
+> end
+
+
+
+> op ,k
+
+≲ γ . (18) The size of Hend is at most O(k2) + k′ ≤ 2k′. Since S satisfies stability with 2k′, Lemma D.4 then implies that the spike v is mostly contained in Hend . By invoking the dense PCA algorithm on Hend , Lemma D.3 estimates the spike (v)Hend (v)⊤ 
+
+> Hend
+
+with uu ⊤, with u supported on Hend . Combining, we obtain: 
+
+vv ⊤ − uu ⊤ 
+
+> Fr
+
+≤ vv ⊤ − (v)Hend (v)⊤  
+
+> Hend Fr
+
++ uu ⊤ − (v)Hend (v)⊤ 
+
+> Hend Fr
+
+≲ pγ/η + γ/η ≲ pγ/η, 
+
+where the first term is bounded using Lemma D.4 with (18) and the second term is bounded using Lemma D.3. (Case IV) H = “⊥”. The same argument as the previous case holds. Thus, the output of the algorithm is O(pγ/η ) close as required. It remains to show the choice of the parameters m, s,and q lead to the claimed runtime. We take τ = ( ρ/ 12) q and s = d. Finally, we take m ≍ (d2/s ) · (κ2/τ 2 + log d) ≤
+
+(d log d)( κ2/τ 2), which satisfies the parameter constraints in Proposition 3.3 (cf. (11)). Letting n = |T |, the resulting runtime of a single application of Proposition 3.3 is thus at most 
+
+A =
+
+
+
+m + sd 0.62 + d1.62+3 log(4 /ρ )log(1 /3τ )
+
+
+
+poly( n, log d, 1/τ )
+
+≤
+
+
+
+d1.62+3 log(4 /ρ )log(( ρ/ 4) q )
+
+
+
+poly( n, log d, 1/ρ q )
+
+≤
+
+
+
+d1.62+ 3
+
+> q
+
+
+
+poly( n, log d, k q , 1/ϵ q ) .
+
+As the iteration count is bounded by n, the total runtime is at most nA .26

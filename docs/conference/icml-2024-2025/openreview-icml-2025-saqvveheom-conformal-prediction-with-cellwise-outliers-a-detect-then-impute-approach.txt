@@ -1,0 +1,2758 @@
+Title: Conformal Prediction with Cellwise Outliers: A Detect-then-Impute Approach
+
+URL Source: https://openreview.net/pdf?id=saqVVehEOM
+
+Number of Pages: 24
+
+Markdown Content:
+# Conformal Prediction with Cellwise Outliers: A Detect-then-Impute Approach 
+
+Qian Peng 1 Yajie Bao 1 Haojie Ren 2 Zhaojun Wang 1 Changliang Zou 1
+
+## Abstract 
+
+Conformal prediction is a powerful tool for con-structing prediction intervals for black-box mod-els, providing a finite sample coverage guarantee for exchangeable data. However, this exchange-ability is compromised when some entries of the test feature are contaminated, such as in the case of cellwise outliers. To address this issue, this paper introduces a novel framework called detect-then-impute conformal prediction . This frame-work first employs an outlier detection procedure on the test feature and then utilizes an imputation method to fill in those cells identified as outliers. To quantify the uncertainty in the processed test feature, we adaptively apply the detection and im-putation procedures to the calibration set, thereby constructing exchangeable features for the con-formal prediction interval of the test label. We develop two practical algorithms, PDI-CP and 
+
+JDI-CP , and provide a distribution-free coverage analysis under some commonly used detection and imputation procedures. Notably, JDI-CP 
+
+achieves a finite sample 1 − 2α coverage guar-antee. Numerical experiments on both synthetic and real datasets demonstrate that our proposed algorithms exhibit robust coverage properties and comparable efficiency to the oracle baseline. 
+
+## 1. Introduction 
+
+As the volume and complexity of data expand, machine learning models and algorithms have become essential tools for enhancing decision-making processes across var-ious domains, including autonomous driving (Min et al., 2024), wing design (Zhang et al., 2024), and disease di-agnosis (Shang et al., 2024). Ensuring the reliability of       
+
+> 1School of Statistics and Data Sciences, LPMC, KLMDASR and LEBPS, Nankai University, Tianjin, China 2School of Mathe-matical Sciences, Shanghai Jiao Tong University, Shanghai, China. Correspondence to: Yajie Bao <yajiebao@nankai.edu.cn >, Hao-jie Ren <haojieren@sjtu.edu.cn >.
+> Proceedings of the 42 nd International Conference on Machine Learning , Vancouver, Canada. PMLR 267, 2025. Copyright 2025 by the author(s).
+
+prediction models in risk-sensitive applications hinges on valid uncertainty quantification. Conformal prediction (CP, Vovk et al. (2005)) offers a flexible and robust frame-work for uncertainty quantification of arbitrary machine learning models by constructing prediction interval (PI). To be specific, suppose we have collected an i.i.d. la-beled dataset Dl = {(Xi, Y i)}ni=1 ⊂ Rd × R where 
+
+(Xi, Y i) ∼ P = PX × PY |X . Given the test data Xn+1 ,CP issues a PI bCCP (Xn+1 ) satisfying the marginal cover-age P{Yn+1 ∈ bCCP (Xn+1 )} ≥ 1 − α if the test data and labeled data are exchangeable. However, the distribution of some variables in test data may deviate from that of the training data due to measurement error, natural variation, or feature contamination. This issue, referred to as cell-wise outliers (Alqallaf et al., 2009), can result in inaccurate predictions and flawed decisions. For example, consider a hospital that seeks to use the patient’s biomarkers to pre-dict incidence rate based on a model trained on data from recovered patients. For a newly admitted patient, some of whose biomarkers may differ from those in the training set. Conducting robust uncertainty quantification for machine learning models in the presence of cellwise outliers remains an underexplored area. In this case, we observe a contaminated test feature ˜Xn+1 
+
+with entries 
+
+˜Xn+1 ,j =
+
+(
+
+Xn+1 ,j , j ∈ [d] \ O ∗
+
+Zn+1 ,j , j ∈ O ∗ , (1) where O∗ ⊆ [d] denotes coordinates of cellwise outliers in 
+
+˜Xn+1 , and Zn+1 ∼ PZ is an arbitrarily distributed outliers and independent of {(Xi, Y i)}n+1  
+
+> i=1
+
+. Our goal is to build a PI for test label Yn+1 with a target coverage level 1 − α
+
+when only ˜Xn+1 is observed. However, the classical CP method is incapable of providing a valid PI as test data 
+
+( ˜Xn+1 , Y n+1 ) is not exchangeable with the labeled data Dl.Furthermore, the distribution shift from the labeled data to the test data is unknown and difficult to estimate without ad-ditional distribution or structure assumptions, which makes the weighted conformal prediction (WCP) method (Tibshi-rani et al., 2019) that requires consistent likelihood ratio estimation unsuitable in this context as well. Therefore, a more principled CP approach is needed to address cellwise outliers in test data. 1Conformal Prediction with Cellwise Outliers 
+
+To deal with cellwise outliers, our framework starts from the common approach, detect then impute (Raymaekers & Rousseeuw, 2021; 2024b). We implement a detection method to identify the locations of outliers in ˜Xn+1 and mask those entries, followed by using an imputation method to impute the masked entries. After this procedure, we obtain the processed feature ˇXDI  
+
+> n+1
+
+(see Section 3.1 for de-tails). The next step is to construct the PI using the labeled data Dl and ˇXDI 
+
+> n+1
+
+. However, ˇXDI  
+
+> n+1
+
+and Xi for i ∈ [n]
+
+remain nonexchangeable because the detection and imputa-tion procedures cannot exactly recover the uncontaminated feature Xn+1 . To tackle this challenge, our key strategy involves adaptively applying detection and imputation pro-cedures to the labeled features Xi for i ∈ [n], aiming to produce exchangeable copies of the processed test feature 
+
+ˇXDI 
+
+> n+1
+
+. Subsequently, we utilize the split conformal predic-tion (SCP) method (Papadopoulos et al., 2002; Vovk et al., 2005) to construct the PI based on the residuals computed from the processed labeled data. Building on this concept, we first propose an oracle detection-imputation conformal prediction ( ODI-CP ) method and prove that it can achieve a finite sample coverage property. Following this, we develop a proxy detection-imputation CP ( PDI-CP ) method based on the data-driven approximation to ODI-CP . To further have a finite sample coverage guarantee, we propose an-other algorithm joint detection-imputation CP ( JDI-CP ) to construct Jackknife+ type PI (Barber et al., 2021). Our contributions have three folds: (1) we propose a novel CP framework to efficiently address the issue of cellwise outliers in test data, which can be wrapped around any well-known detection and imputation procedure; (2) for arbitrarily cellwise outliers, we establish coverage error bounds for PDI-CP and a finite sample 1 − 2α coverage property for JDI-CP , and all results are distribution-free; (3) experiments on synthetic data and real data show that the proposed method has a robust coverage control and a comparable performance with oracle approaches. 
+
+## 2. Related work 
+
+Cellwise outliers. In the context of handling extensive datasets, it is increasingly common for only a few individual entries (cells) to show anomalies, called cellwise outliers, first published by Alqallaf et al. (2009). Building upon this concept, Van Aelst et al. (2011) proposed the earliest cell-wise detection method and Rousseeuw & Bossche (2018) pi-oneered the Detect Deviating Cells (DDC) algorithm, which predicts the value for each cell and identifies outliers by the significant deviations of predicted values from the original values. Thereafter, Raymaekers & Rousseeuw (2021) pro-posed the cellHandler method, which integrates all relations in variables to identify complex adversarial cellwise outliers. Along this line, Zaccaria et al. (2024) proposed the cell-GMM method to detect cellwise outliers in heterogeneous populations. Inspired by these detection methods, Liu et al. (2022) proposed the BiRD algorithm to control the false discovery rate in detection. Besides detection, there are various cellwise robust methods available for cases includ-ing discriminant analysis (Aerts & Wilms, 2017), principal component analysis (Hubert et al., 2019), regression models ( ¨Ollerer et al., 2016; Filzmoser et al., 2020), cluster analy-sis (Garc ´ıa-Escudero et al., 2021), location and covariance estimators (Raymaekers & Rousseeuw, 2024a) and so on. To the best of our knowledge, this paper is the first work considering the predictive inference problem with cellwise outliers. 
+
+Conformal prediction without exchangeability. Our paper is related to the line of work on the CP approaches catered to nonexchangeable data. Chernozhukov et al. (2018) ex-tended CP to time series data based on block-permutation. Tibshirani et al. (2019) proposed the weighted conformal prediction (WCP) framework to deal with the covariate shift between labeled data and test data. Further, Yang et al. (2024) developed a doubly robust approach to construct PIs satisfying approximate marginal coverage under covariate shift. Podkopaev & Ramdas (2021) studied the conformal PI under the label shift case. For arbitrary distribution shift issues, Barber et al. (2023) developed a robust weighted CP method with deterministic weights that could provide ap-proximately marginal coverage under gradual changes in the data distribution. Cauchois et al. (2024) studied construct-ing distributional robust PI for the test data sampled from a distribution in an f -divergence ball around the population of labeled data. This paper focuses on discussing another special case of nonexchangeability caused by cellwise out-liers, which cannot be addressed by the methods proposed so far. 
+
+Predictive inference with missing data. Another topic closely related to our paper is the construction of PI in the presence of missing values in features. The entries identified as cellwise outliers by the detection procedure are masked, transforming the primary problem into predictive inference with missing data. Zaffran et al. (2023; 2024) examined a setting where missing values may occur in both labeled and test features, proposing to perform SCP after imputing the missing entries in both sets. This approach could achieve finite-sample marginal coverage if the random missing patterns in the labeled and test sets are exchangeable. However, this assumption does not hold in our context, as the masked entries identified by the detection procedure lack exchangeability due to cellwise outliers in the test feature. In addition, Lee et al. (2024) proposed the propensity score discretized conformal prediction (pro-CP) to construct PIs with missing values in outcomes. This is different from the scenario considered in this paper. 2Conformal Prediction with Cellwise Outliers 
+
+Conformal inference for outlier detection. In recent years, conformal inference has emerged as an important tool in the field of outlier detection at the intersection of statistics and machine learning. Due to the space limit, we list some relevant works (Guan & Tibshirani, 2022; Zhang et al., 2022; Bates et al., 2023b; Marandon et al., 2024; Bashari et al., 2024; Liang et al., 2024). However, the above works aim to apply conformal inference to test the presence of outliers, while this paper focuses on the uncertainty quantification of prediction and the construction of PI when some entries of the observed test feature are contaminated. 
+
+## 3. Problem setup and oracle approach 
+
+In this section, we present problem formulation and moti-vation of our method from an oracle perspective. Before that, we list some useful notations. We split the labeled data 
+
+Dl into the training set Dt = {(Xi, Y i)}n0−1 
+
+> i=1
+
+and the cali-bration set Dc = {(Xi, Y i)}ni=n0 , where 1 < n 0 < n . The prediction model ˆμ(·) : Rd → R is fitted on the training set. Given real numbers {ri}ni=1 and α ∈ (0 , 1) , we de-note ˆq− 
+
+> α
+
+({ri}ni=1 ) and ˆq+ 
+
+> α
+
+({ri}ni=1 ) as the ⌈α(n + 1) ⌉th and 
+
+⌈(1 − α)( n + 1) ⌉th smallest value in {ri}ni=1 , respectively. Given x ∈ Rd, we write the ℓ-th coordinate of x as xℓ.
+
+3.1. Detection and imputation procedures 
+
+This subsection introduces the detection (D) and imputation (I) procedures to clean the test feature for constructing PI. A generic detection procedure ( D) includes two ingredi-ents: cellwise score function ˆsj (·) : R → R and threshold 
+
+τj ∈ R for j ∈ [d], which are both fitted on the training set Dt. Given any x ∈ Rd, we write the output of detec-tion procedure as D(x) = {j ∈ [d] : ˆ sj (xj ) > τ j }. For example, Z-score (Curtis et al., 2016) is a detection method based on standardization, which has score zj := ˆ sj (xj ) = (xj − μj )/σ j , where μj and σj are the mean and standard deviation of the j-th coordinate. Typically, the entry xj is considered as an outlier when |zj | > 3. Other more so-phisticated detection methods include DDC (Rousseeuw & Bossche, 2018), one-class SVM classifier (Bates et al., 2023a), etc. We define the imputation procedure ( I) as a function of feature x ∈ Rd and entry subset O ⊆ [d], then the imputed value for coordinate j ∈ O is given by 
+
+[I(x, O)] j =
+
+(
+
+xj , j / ∈ O 
+
+ϕj ({xl}l / ∈O ), j ∈ O ,
+
+where ϕj (·) : Rdobs → R with dobs = d − |O| is imputation function for the j-th coordinate, and is also fitted on the training set Dt. The output of most popular imputation methods can be formalized in the above form, such as Mean Imputation, k-Nearest Neighbour (kNN, Troyanskaya et al. (2001)) and Multivariate Imputation by Chained Equations (MICE, Van Buuren et al. (1999)). Hereafter, we abbreviate the detection and imputation pro-cedure as DI , and denote the processed test feature as 
+
+ˇXDI  
+
+> n+1
+
+= I( ˜Xn+1 , ˜On+1 ), ˜On+1 = D( ˜Xn+1 ). (2) 
+
+3.2. Oracle detection-imputation 
+
+Because DI cannot exactly recover the ground truth feature 
+
+Xn+1 , i.e., ˇXDI 
+
+> n+1
+
+̸ = Xn+1 . Therefore, we must consider the recovery uncertainty from DI when constructing the PI. We begin with an oracle procedure by assuming O∗ is known and D satisfies the following sure detection assump-tion. Later we will discuss the necessity of this assumption for informative coverage in Section 3.3. 
+
+Assumption 3.1 (Sure detection) . We call the detection pro-cedure D has the sure detection property, if all the cellwise outliers are detected, namely O∗ ⊆ ˜On+1 = D( ˜Xn+1 ) for test point ˜Xn+1 .
+
+Assumption 3.2 (Isolated detection) . Given the score func-tion ˆsj and threshold τj , the detection indicator 1{ˆsj (xj ) ≤
+
+τj } depends only on xj for j ∈ [d].Denote ˆOn+1 = D(Xn+1 ) as the detection subset by apply-ing D to the uncontaminated feature Xn+1 , which cannot be obtained in practice. Assumption 3.2 says that the de-tection indicator of each coordinate is independent of each other, which is used to build the connection between ˜On+1 
+
+and ˆOn+1 , and we will also provide coverage results when this assumption does not hold in Section 5. Next lemma shows that the randomness of ˜On+1 completely originates from ˆOn+1 .
+
+Lemma 3.3. Under Assumptions 3.1 and 3.2, it holds that 
+
+˜On+1 = ˆOn+1 ∪ O ∗ and 
+
+ˇXDI  
+
+> n+1
+
+= I(Xn+1 , ˆOn+1 ∪ O ∗). (3) Denote ˆOi = D(Xi) for i = n0, . . . , n as outputs by ap-plying D in calibration features. Since ˆsj (·) and τj are independent of calibration set Dc and (Xn+1 , Y n+1 ), we know that { ˆOi ∪ O ∗}n+1  
+
+> i=n0
+
+are exchangeable. Define the 
+
+oracle detection-imputation (ODI ) features 
+
+ˇX∗ 
+
+> i
+
+= I(Xi, ˆOi ∪ O ∗), i = n0, . . . , n + 1 . (4) By comparing (3) and (4) , we have ˇX∗ 
+
+> n+1
+
+= ˇXDI 
+
+> n+1
+
+. Let 
+
+R∗ 
+
+> i
+
+= |Yi − ˆμ( ˇX∗ 
+
+> i
+
+)| be residuals computed by ODI features. We introduce the PI defined as 
+
+ˆCODI ( ˜Xn+1 ) = ˆ μ( ˇXDI 
+
+> n+1
+
+) ± ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ), (5) and call this oracle method as ODI-CP . For simplicity, we use the absolute residual score to construct PI here, but 3Conformal Prediction with Cellwise Outliers 
+
+our method supports various non-conformity scores as well, such as normalized residual (Lei et al., 2018), conformalized quantile regression (CQR) (Romano et al., 2019), et al. The following proposition provides finite sample coverage for 
+
+ODI-CP .
+
+Proposition 3.4. Suppose the detection procedure D satis-fies Assumptions 3.1 and 3.2, then 
+
+P
+
+n
+
+Yn+1 ∈ ˆCODI ( ˜Xn+1 )
+
+o
+
+≥ 1 − α. (6) The role of data-driven mask ˆOi in ODI features (4) is to keep the exchangeability with the processed test feature (3) masked by ˆOn+1 . This idea is similar to the operations on the calibration set in selective conformal prediction litera-ture (Bao et al., 2024b;a; Jin & Ren, 2025), where they aim to construct PI for selected test data and consider perform-ing a similar selection procedure on the calibration set to satisfy the post-selection exchangeable condition. 
+
+3.3. Necessity of sure detection property 
+
+The next theorem gives a negative result for the case when the sure detection property of D does not hold. 
+
+Theorem 3.5. If ˇXDI  
+
+> n+1
+
+contains cellwise outliers, given any PI taking the form ˆC( ˇXDI 
+
+> n+1
+
+) = ˆ μ( ˇXDI 
+
+> n+1
+
+) ± ˆqn and satisfying marginal coverage P{Yn+1 ∈ ˆC( ˇXDI 
+
+> n+1
+
+)} ≥ 1 −
+
+α. For arbitrary M > 0, there exists a prediction model ˆμ,distributions P and PZ such that for (Xn+1 , Y n+1 ) ∼ P
+
+and Zn+1 ∼ PZ , P(ˆ qn ≥ M ) ≥ 1 − α. In other words, 
+
+lim M →∞ E
+
+h
+
+| ˆC( ˇXDI 
+
+> n+1
+
+)|
+
+i
+
+= ∞.
+
+This theorem indicates that if outliers persist within the pro-cessed feature ˇXDI 
+
+> n+1
+
+, the further PI will fail to provide a meaningful coverage guarantee in a distribution-free and model-free fashion. Therefore, the sure detection property introduced in Assumption 3.1 is reasonable and necessary for predictive inference tasks with the existence of cellwise outliers. The proof of Theorem 3.5 and a similar negative re-sult under CQR score are deferred to Appendix C.2. In fact, Assumption 3.1 can be satisfied in practice if we choose relatively smaller detection thresholds {τj }dj=1 in D proce-dure. In fact, a similar sure detection condition also appears in Wasserman & Roeder (2009); Meinshausen et al. (2009); Liu et al. (2022). 
+
+## 4. Detect-then-impute conformal prediction 
+
+In this section, we develop two practical algorithms named 
+
+PDI-CP and JDI-CP to construct the PI, and the corre-sponding coverage property is analyzed. The PDI-CP is based on a proxy of the ODI features in the previous sec-tion, and the JDI-CP is a Jackknife+ type construction to guarantee finite sample coverage. 
+
+4.1. Proxy detection-imputation 
+
+Since O∗ is impossible to know in practice, the best proxy we have access to is the output ˜On+1 of detection procedure 
+
+D. By replacing O∗ with ˜On+1 in (4) , we have the proxy detection-imputation (PDI ) features 
+
+ˇXi = I(Xi, ˆOi ∪ ˜On+1 ), i = n0, . . . , n. (7) Denote the residuals in calibration set as { ˇRi := |Yi −
+
+ˆμ( ˇXi)|} ni=n0 , and we construct the PI for Yn+1 as: 
+
+ˆCPDI ( ˜Xn+1 ) = ˆ μ( ˇXDI 
+
+> n+1
+
+) ± ˆq+ 
+
+> α
+
+({ ˇRi}ni=n0 ). (8) 
+
+Algorithm 1 PDI-CP 
+
+Input: Calibration set {(Xi, Y i)}ni=n0 , test feature ˜Xn+1 ,prediction model ˆμ, detection procedure D, imputation procedure I, miscoverage level α. 
+
+> 1:
+
+˜On+1 ← D( ˜Xn+1 ) 
+
+> 2:
+
+ˇXDI  
+
+> n+1
+
+← I( ˜Xn+1 , ˜On+1 ) 
+
+> 3:
+
+for i = n0, . . . , n do  
+
+> 4:
+
+ˆOi ← D(Xi) 
+
+> 5:
+
+ˇXi ← I(Xi, ˆOi ∪ ˜On+1 ) 
+
+> 6:
+
+ˇRi ← | Yi − ˆμ( ˇXi)| 
+
+> 7:
+
+end for  
+
+> 8:
+
+ˆCPDI ( ˜Xn+1 ) ← ˆμ( ˇXDI 
+
+> n+1
+
+) ± ˆq+ 
+
+> α
+
+({ ˇRi}ni=n0 )
+
+Output: ˆCPDI ( ˜Xn+1 )
+
+We call the construction stated in (8) as PDI-CP , and sum-marize its implementation in Algorithm 1. Next, we analyze the coverage property of PDI-CP .
+
+Definition 4.1 (ℓ1-sensitivity) . The ℓ1-sensitivity of predic-tion model ˆμ is sup ∥x−x′∥1≤1 |ˆμ(x) − ˆμ(x′)| ≤ Sˆμ.The ℓ1-sensitivity measures the stability of a prediction model to its input, which is similar to that in differential pri-vacy literature (Dwork et al., 2014). For example, for a lin-ear regression model ˆμ(x) = β⊤x + b, whose ℓ1-sensitivity is given by Sˆμ = ∥β∥1.
+
+Definition 4.2 (Mean Imputation) . The imputation function is ϕj (·) = ¯ xj = 1
+
+> n0−1
+
+Pn0−1 
+
+> i=1
+
+Xij for j ∈ [d], i.e., the cellwise sample mean obtained from the training set. The following theorem provides the coverage property of 
+
+PDI-CP under the Mean Imputation rule. 
+
+Theorem 4.3. Suppose the detection procedure D satisfies Assumptions 3.1 and 3.2, and ˆμ has the ℓ1-sensitivity Sˆμ
+
+in Definition 4.1. Let Ei := max j∈[d] |Xij − ¯xj |, i =
+
+n0, . . . , n, n + 1 be error of Mean Imputation in Definition 4.2. We have 
+
+P
+
+n
+
+Yn+1 ∈ ˆCPDI ( ˜Xn+1 )
+
+o
+
+≥ 1 − α
+
+−
+
+h
+
+FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
++ Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+ 
+
+−FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
+− Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+i 
+
+,
+
+4Conformal Prediction with Cellwise Outliers 
+
+where FR∗ is the distribution function of ODI-CP residuals 
+
+{R∗ 
+
+> i
+
+}n+1  
+
+> i=n0
+
+.
+
+According to the representation, the coverage gap of 
+
+PDI-CP depends on the error of Mean Imputation and the number of false discoveries | ˜On+1 \ O ∗|, which repre-sents the number of inliers incorrectly identified as outliers by the detection procedure D. In an ideal scenario where 
+
+˜On+1 = O∗, PDI-CP can achieve the finite sample cover-age as ODI-CP . The proof for Theorem 4.3 is deferred to Appendix C.3. 
+
+4.2. Joint detection-imputation 
+
+The coverage gaps of PDI-CP are caused by the nonex-changeability between PDI feature ˇXi and processed test feature ˇXDI 
+
+> n+1
+
+. This subsection proposes a robust approach to constructing exchangeable features by applying a mod-ified DI procedure on test feature ˜Xn+1 , which achieves 
+
+1 − 2α finite sample coverage in the worst case. We begin with a careful inspection of pairwise exchange-ability in test feature and calibration feature after DI . Un-der Lemma 3.3, we can rewrite PDI feature (7) as ˇXi =
+
+I(Xi, ˆOi ∪ ˆOn+1 ∪ O ∗). Since ˆOi and ˆOn+1 are ex-changeable, it is easy to verify that I(Xi, ˆOi ∪ ˆOn+1 ∪ O ∗)
+
+and I(Xn+1 , ˆOi ∪ ˆOn+1 ∪ O ∗) are also exchangeable. Using Lemma 3.3 again, the latter one is identical to 
+
+I( ˜Xn+1 , ˆOi ∪ ˜On+1 ). In light of this observation, we have the following pairwise joint detection-imputation (JDI ) fea-tures: for i = n0, . . . , n ,
+
+ˇXin+1 = I( ˜Xn+1 , ˆOi ∪ ˜On+1 ),
+
+ˇXn+1  
+
+> i
+
+= I(Xi, ˆOi ∪ ˜On+1 ).
+
+Notice that, ˇXn+1  
+
+> i
+
+is the same as the PDI feature (7) , and we use a new notation here to emphasize the pairwise relation. With the pairwise JDI features, we leverage the Jackknife+ technique proposed by Barber et al. (2021) to construct the PI for Yn+1 :
+
+ˆCJDI ( ˜Xn+1 ) = ˆq− 
+
+> α
+
+({ˆμ( ˇXin+1 ) − ˇRi}ni=n0 ),
+
+ˆq+ 
+
+> α
+
+({ˆμ( ˇXin+1 ) + ˇRi}ni=n0 ) , (9) where ˇRi = |Yi − ˆμ( ˇXn+1  
+
+> i
+
+)| = |Yi − ˆμ( ˇXi)| is the same as the residuals in (8) . The method presented above is called JDI-CP , and we summarize the implementation in Algorithm 2. 
+
+Theorem 4.4. Suppose the detection procedure D satisfies Assumptions 3.1 and 3.2, then 
+
+P
+
+n
+
+Yn+1 ∈ ˆCJDI ( ˜Xn+1 )
+
+o
+
+≥ 1 − 2α. 
+
+The proof of Theorem 4.4 is given in Appendix C.4. Even though JDI-CP cannot achieve the target level 1 − α due 
+
+Algorithm 2 JDI-CP 
+
+Input: Same as Algorithm 1.  
+
+> 1:
+
+˜On+1 ← D( ˜Xn+1 ) 
+
+> 2:
+
+for i = n0, . . . , n do  
+
+> 3:
+
+ˆOi ← D(Xi) 
+
+> 4:
+
+ˇXn+1  
+
+> i
+
+← I(Xi, ˆOi ∪ ˜On+1 ) 
+
+> 5:
+
+ˇXin+1 ← I( ˜Xn+1 , ˆOi ∪ ˜On+1 ) 
+
+> 6:
+
+ˇRi ← | Yi − ˆμ( ˇXn+1  
+
+> i
+
+)| 
+
+> 7:
+
+end for  
+
+> 8:
+
+ˆQ− 
+
+> α
+
+← ˆq− 
+
+> α
+
+({ˆμ( ˇXin+1 ) − ˇRi}ni=n0 ) 
+
+> 9:
+
+ˆQ+ 
+
+> α
+
+← ˆq+ 
+
+> α
+
+({ˆμ( ˇXin+1 ) + ˇRi}ni=n0 ) 
+
+> 10:
+
+ˆCJDI ( ˜Xn+1 ) ← [ ˆQ− 
+
+> α
+
+, ˆQ+ 
+
+> α
+
+]
+
+Output: ˆCJDI ( ˜Xn+1 )
+
+to the intrinsic limit of Jackknife+ type method (Barber et al., 2021), the finite sample result in Theorem 4.4 is still important in practical tasks for two reasons: (1) ˜On+1 
+
+may contain many false discoveries which leads to a large coverage gap for PDI-CP ; (2) the coverage property of 
+
+JDI-CP holds for arbitrary imputation rules. In Appendix B.2, we provide an alternative version of JDI-CP , which achieves a finite sample 1 − α coverage guarantee under the same conditions in Theorem 4.4. However, it is quite conservative compared with the original version because it uses ∪ni=n0
+
+ˆOi ∪ ˜On+1 to mask calibration features and test feature. In our experiments, JDI-CP has a robust coverage control without adjusting the quantile level in (9). We notice that Jackknife+ technique is also used in CP-MDA-Nested algorithm in Zaffran et al. (2023; 2024) to build PI with missing values in features, and a similar 1−2α
+
+coverage property is proved. However, the algorithmic de-signs of CP-MDA-Nested and JDI-CP are very different. The former uses the observed and exchangeable missing pat-terns to perform nested masking for each pair of calibration and test features, while JDI-CP uses outputs of D (i.e., ˆOi
+
+and ˜On+1 ), which are not exchangeable. To end this section, we use Figure 1 to illustrate the connec-tion and difference of the proposed methods. 
+
+## 5. Coverage analysis beyond isolated detection 
+
+The coverage results in the previous section are based on the isolated detection in Assumption 3.2, now we discuss the theoretical properties of our method when the detection score relies on other coordinates, e.g., DDC detection pro-cedure (Rousseeuw & Bossche, 2018). Now we rewrite the detection score ˆsj (xj ) = ˆ sj (xj ; x−j ), where x−j is the subvector of x by dropping xj . Denote 
+
+˜Tn+1 = {j ∈ [d] \ O ∗ : ˆ sj (Xn+1 ,j ; ˜Xn+1 ,−j ) > τ j },
+
+ˆTn+1 = {j ∈ [d] \ O ∗ : ˆ sj (Xn+1 ,j ; Xn+1 ,−j ) > τ j }.
+
+5Conformal Prediction with Cellwise Outliers ODI -CP 
+
+PDI -CP 
+
+JDI -CP 
+
+> Proxy mask
+> in calibration features
+> Joint mask
+> in test feature
+
+Calibration feature 
+
+𝑿 "𝒊  
+
+> ∗
+
+= 𝐈 (𝑋 #, 𝒪 *#∪ 𝒪 ∗)
+
+𝑿 "𝒊 = 𝐈 (𝑋 #, 𝒪 *# ∪ 𝒪 -$%&)
+
+Test feature 
+
+𝑿 "𝒏 %𝟏  
+
+> 𝒊
+
+= 𝐈 (𝑋 -$%&, 𝒪 *# ∪ 𝒪 -$%&)
+
+𝑿 .𝒏 %𝟏  
+
+> )*
+
+= 𝐈 (𝑋 -$%&, 𝒪 -$%&)
+
+PI type 
+
+SCP 
+
+SCP 
+
+Jackknife+ 
+
+Coverage rate 
+
+1 − 𝛼 
+
+1 − 2𝛼 
+
+1 − 𝛼 − 𝛿 
+
+𝑿 "𝒊  
+
+> 𝒏 %𝟏
+
+= 𝐈 (𝑋 #, 𝒪 *# ∪ 𝒪 -$%&)
+
+𝑿 .𝒏 %𝟏  
+
+> )*
+
+= 𝐈 (𝑋 -$%&, 𝒪 -$%&)
+
+Figure 1. An illustration of the relationship of ODI-CP , PDI-CP and JDI-CP . ˆOi = D(Xi) and ˜On+1 = D( ˜Xn+1 ).
+
+The two sets above represent the false discoveries of D
+
+applied on contaminated feature ˜Xn+1 and clean feature 
+
+Xn+1 except for j ∈ O ∗, respectively. Without Assumption 3.2, the ODI features { ˇX∗ 
+
+> i
+
+}ni=n0 and ˇXDI  
+
+> n+1
+
+are no longer exchangeable, and the coverage guarantee of ODI-CP and 
+
+JDI-CP will be broken. The next theorem characterizes the coverage gaps of our algorithms through ˜Tn+1 and ˆTn+1 .
+
+Theorem 5.1. Suppose the detection procedure D satisfies Assumptions 3.1, and ˆμ has the ℓ1-sensitivity Sˆμ in Defini-tion 4.1. Under the Mean Imputation in Definition 4.2, (1) PDI-CP satisfies that 
+
+P
+
+n
+
+Yn+1 ∈ ˆCPDI ( ˜Xn+1 )
+
+o
+
+≥ 1 − α
+
+− FR∗
+
+ ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ) + ∆ n+1 
+
+ − FR∗ (ˆ q+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 )) 
+
+−
+
+h
+
+FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
++ Sˆμ · Ei · | ˜Tn+1 |} ni=n0
+
+ 
+
+−FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
+− Sˆμ · Ei · | ˜Tn+1 |} ni=n0
+
+i 
+
+, (10) 
+
+where ∆n+1 = Sˆμ · | ˜Tn+1 △ ˆTn+1 | · En+1 and △ denotes the symmetric difference. (2) JDI-CP satisfies that 
+
+P
+
+n
+
+Yn+1 ∈ ˆCJDI ( ˜Xn+1 )
+
+o
+
+≥ 1 − 2α
+
+−
+
+h
+
+FY ( ˆQ+ 
+
+> α
+
++ 2∆ n+1 ) − FY ( ˆQ+ 
+
+> α
+
+)
+
+i
+
+−
+
+h
+
+FY ( ˆQ− 
+
+> α
+
+) − FY ( ˆQ− 
+
+> α
+
+− 2∆ n+1 )
+
+i
+
+,
+
+where FY is the distribution function of Y , ˆQ− 
+
+> α
+
+and ˆQ+ 
+
+> α
+
+are defined in Algorithm 2 where ˇXn+1  
+
+> i
+
+and ˇXin+1 are replaced by I(Xi, ˆOi ∪ O ∗ ∪ ˆTn+1 ) and I(Xn+1 , ˆOi ∪ O ∗ ∪ ˆTn+1 )
+
+respectively. 
+
+The proof of Theorem 5.1 is given in Appendix C.5. If the sets ˜Tn+1 and ˆTn+1 are infinitely close, then the error 
+
+∆n+1 → 0 and ˆCJDI ( ˜Xn+1 ) still has 1 − 2α coverage guarantee. Further, if | ˜Tn+1 | = | ˆTn+1 | → 0, it means the detection method can accurately find the cellwise out-liers without false discoveries, then ˆCPDI ( ˜Xn+1 ) can also achieve the target 1 − α coverage. We use the DDC method as an example to demonstrate the relation between ˜Tn+1 and ˆTn+1 (see Appendix D for details of DDC method). A commonly used similarity metric of two sets is Jaccard similarity (Murphy, 1996): 
+
+Jaccard( ˜Tn+1 , ˆTn+1 ) = | ˜Tn+1 ∩ ˆTn+1 || ˜Tn+1 ∪ ˆTn+1 | ∈ [0 , 1] 
+
+with a value closer to 1 indicating ˜Tn+1 and ˆTn+1 are more similar. Figure 2 visualizes Jaccard( ˜Tn+1 , ˆTn+1 ) and the number of occurrences of ˜Tn+1 = ˆTn+1 = ∅ during 500 trials, each with 100 test points. It can be seen that ˜Tn+1 and 
+
+ˆTn+1 are almost the same except in a few trials. In addition, the frequency of ˜Tn+1 = ˆTn+1 = ∅ reaches above 0.6.
+
+Figure 2. An illustration of the similarity of ˜Tn+1 and ˆTn+1 (left axis, red cross marks) and the number of occurrences of empty and nonempty sets (right axis, blue and gray dots). 
+
+## 6. Simulation 
+
+We write N (μ, σ 2) for the normal distribution with mean 
+
+μ and variance σ2, SN (μ, σ 2, α ) for the skewed normal with skewness parameter α, t(k) for the t-distribution with 
+
+k degrees of freedom, and Bern (p) for the Bernoulli distri-bution with success probability p. Given any x ∈ Rd, define 
+
+f (x) = E(Yi|Xi = x) and ηi = Yi − f (Xi). We consider three data generation settings in Lei et al. (2018): 6Conformal Prediction with Cellwise Outliers 
+
+• Setting A (linear, homoscedastic, light-tailed): f (x) = 
+
+β⊤x; {Xij }dj=1 
+
+> i.i.d.
+
+∼ N (0 , 1) ; ηi ∼ N (0 , 1) ;ηi ⊥ Xi.• Setting B (nonlinear, homoscedastic, heavy-tailed): 
+
+f (x) is an additive function of B-splines of x1, . . . , x d;
+
+{Xij }dj=1 
+
+> i.i.d.
+
+∼ N (0 , 1) ; ηi ∼ t(2) ; ηi ⊥ Xi.• Setting C (linear, correlated features, heteroskedas-tic, heavy-tailed): f (x) = β⊤x; {Xij }dj=1 
+
+> i.i.d.
+
+∼ 
+
+> 13
+
+N (0 , 1) + 13 SN (0 , 1, 5) + 13 Bern (0 .5) , and then given autocorrelation by redefining sequen-tially each Xij to be a convex combination of 
+
+Xij , X i,j −1, . . . , X i, (j−3) ∧1; ηi ∼ t(2) , with variable standard deviation 1 + 2 |f (Xi)|3 /E  |f (X)|3.Let ϵ be the probability that a cell in the test feature is contaminated. Then we obtain the test feature with entries 
+
+˜Xn+1 ,j =
+
+(
+
+Xn+1 ,j , with probability 1 − ϵZn+1 ,j , with probability ϵ , (11) where the noise Zn+1 ,j i.i.d. 
+
+∼ N (μ, σ ) and μ, σ are randomly sampled from U (0 , 10) . All simulation results in the fol-lowing are averages over 200 trials with 200 labeled data and 100 test data. The nominal coverage level is set to be 
+
+1 − α = 90% and d = 15 . For comparison, we also conduct following methods (see Appendix E.1 for specific forms): 1. Baseline : mask the entries of {Xi}ni=n0 ∪ ˜Xn+1 
+
+by O∗, then compute residuals on the calibration set and construct SCP interval, which can be seen as an optimal oracle approach to construct split conformal PI in the cellwise outlier case; 2. SCP : directly compute residuals on the calibration set and contaminated test feature, then construct SCP in-terval without performing DI ;3. WCP : first estimate the likelihood ratio between labeled data and test data using random forests approach, then construct WCP interval. Figure 3 presents the empirical coverage and length of six methods. As expected, SCP and WCP fail to reach the target coverage level. Notably, when the contamination probability is high, e.g. ϵ = 0 .2, WCP even outputs a PI with infinite width. Meanwhile, our proposed method can achieve 1 − α
+
+target coverage and return PIs with almost the same lengths as Baseline method. Since SCP and WCP cannot pro-vide valid coverage control, we regard Baseline as the benchmark for the subsequent experiments. 
+
+6.1. Combinations with other detection methods 
+
+This experiment is to verify the validity of our methods under other plausible cellwise detection methods besides               
+
+> Figure 3. Simulation results of six methods. Dis DDC, Iis Mean Imputation, ϵ= 0 .1and τj=
+> q
+> χ21,0.95 . The red line is the target coverage level 1−α= 90% .
+
+DDC. Here we consider two procedures: the one-class SVM classifier method (Bates et al., 2023a) with τj = 0 .2 and the cellMCD estimate method (Raymaekers & Rousseeuw, 2024a) with τj =
+
+q
+
+χ21,0.99 , where τj is determined to control the FDR (false discovery rate). The former satisfies Assumption 3.2 while the latter does not. According to Figure 4, our method still has the coverage guarantee when employing other detection procedures. The empirical TPR (true positive rate) and FDR of detection methods are given in Appendix E.2. 
+
+6.2. Combinations with other imputation methods 
+
+Besides Mean Imputation, we also conduct experiments under the other two imputation methods: k-Nearest Neigh-bour (kNN, Troyanskaya et al. (2001)) and Multivariate Imputation by Chained Equations (MICE, Van Buuren et al. (1999)). Figure 5 shows that if we replace Mean Imputation with kNN or MICE in DI , then our method is still able to achieve target 1 − α coverage. 
+
+6.3. Performance under different contaminated ratios 
+
+From (11) , we can see the probability that at least one cell of 
+
+Xn+1 is contaminated by Zn+1 is 1−(1 −ϵ)d, which grows very quickly as ϵ and d increase. For example, in our setting 
+
+d = 15 , ϵ = 0 .05 suffices to have over 46% of contaminated test data on average, while ϵ = 0 .2 can achieve over 97% 
+
+of contaminated test data. Here we explore the effect of 7Conformal Prediction with Cellwise Outliers          
+
+> (a) One-class SVM
+> (b) cellMCD
+> Figure 4. Simulation results of Baseline and our methods with different Dprocedures. Iis Mean Imputation and ϵ= 0 .1.
+
+contamination levels ϵ on our method. We set D as DDC, and the parameter p in detection threshold τj =
+
+q
+
+χ21,p as 
+
+{0.95 , 0.93 , 0.9} corresponding to ϵ ∈ { 0.1, 0.15 , 0.2} to control FDR. According to Figure 6, our method can achieve a very tight coverage control under each contamination level. Other supplementary simulation results refer to Appendix E.3. 
+
+6.4. Performance under different detection thresholds 
+
+We conduct this experiment by varying the DDC detection threshold 
+
+q
+
+χ21,p (adjusting p). As the threshold decreases, the number of discoveries increases, leading to a higher FDR and a higher TPR. Table 1 shows that our method has a ro-bust coverage performance when the threshold changes and can achieve approximate control of coverage when TPR <1.    
+
+> Table 1. Empirical TPR and FDR of DDC with different thresholds under Setting A when ϵ= 0 .1.
+
+p 0.99 0.9 0.7 0.5 TPR 0.987 0.992 0.995 1FDR 0.035 0.340 0.669 0.793 PDI coverage 0.902 0.901 0.907 0.909 JDI coverage 0.895 0.899 0.904 0.904 
+
+6.5. Performance with CQR score 
+
+To demonstrate that our method can be combined with other non-conformity scores, we conduct an experiment using                       
+
+> (a) kNN
+> (b) MICE
+> Figure 5. Simulation results of Baseline and our methods with different Iprocedures. Dis DDC, ϵ= 0 .1and τj=
+> q
+> χ21,0.95 .
+> Figure 6. Simulation results of Baseline and our methods when
+> ϵ∈ { 0.1,0.15 ,0.2}.Dis DDC and Iis Mean Imputation.
+
+CQR to construct PIs. We compare the Baseline with our method under Setting A with different contaminated ratios. Figure 7 shows that the PIs constructed by our method with CQR score can still approximately achieve the target coverage rate.        
+
+> Figure 7. Simulation results of Baseline and our methods when PI is constructed by CQR. Dis DDC and Iis Mean Imputation.
+
+8Conformal Prediction with Cellwise Outliers 
+
+## 7. Application on real data 
+
+7.1. Airfoil data 
+
+We apply the proposed method to the airfoil dataset from the UCI Machine Learning Repository (Dua & Graff, 2019), where the response Y and covariates X (with 5 dimensions) are described in Appendix E.4. We select 1000 labeled data and 500 test data in 100 trials. Since it is unknown which cells are outliers in reality, we artificially introduce outliers with ϵ = 0 .02 to construct test features with both genuine and artificial cellwise outliers. The details of the experiment are presented in Appendix E.4. Figure 8 shows that our method can achieve 1 − α coverage while SCP and WCP fail to reach the target coverage.     
+
+> Figure 8. Experimental results on airfoil dataset. Dis DDC and I
+> is Mean Imputation.
+
+7.2. Wind direction data 
+
+Another example involves the hourly wind direction data from a meteorological station in the Central-West region of Brazil (https://tempo.inmet.gov.br/TabelaEstacoes/A001). In 100 trials, we randomly select 1000 labeled data and 500 test data, and add artificial outliers with ϵ = 0 .02 to test features. The variable list and data processing steps are presented in Appendix E.5. From Figure 9, we conclude that our method outperforms SCP and WCP in actual cases where cellwise outliers are present in the test feature.      
+
+> Figure 9. Experimental results on wind direction dataset. Dis DDC and Iis Mean Imputation.
+
+7.3. Riboflavin data 
+
+To further demonstrate robustness, we test our method on the gene expression dataset for riboflavin production provided by DSM (Kaiseraugst, Switzerland), which was offered by B ¨uhlmann & Mandozzi (2014) and confirmed to have cellwise outliers by Liu et al. (2022). The details can be      
+
+> Figure 10. Experimental results on riboflavin dataset. Dis DDC and Iis Mean Imputation.
+
+found in Appendix E.6. Figure 10 shows that our methods maintain coverage above the target 1−α = 90% while WCP fails to provide meaningful PIs, that is, the PIs constructed by WCP may have infinite length. 
+
+## 8. Conclusion 
+
+This paper proposes a new detect-then-impute conformal prediction framework to address the cellwise outliers in the test feature. We develop two efficient algorithms PDI-CP 
+
+and JDI-CP to construct prediction intervals, which can be wrapped around arbitrary mainstream detection and impu-tation procedures. In particular, JDI-CP achieves a finite sample 1 − 2α coverage guarantee under the sure detection property of the detection procedure. We conduct extensive experiments to illustrate the robustness and efficiency of our algorithms in both synthetic data and real applications. 
+
+## Acknowledgements 
+
+We would like to thank the anonymous reviewers and area chair for their helpful comments. Changliang Zou was supported by the National Key R&D Program of China (Grant Nos. 2022YFA1003800, 2022YFA1003703), and the National Natural Science Foundation of China (Grant No. 12231011). Haojie Ren was supported by the National Key R&D Program of China (Grant No. 2024YFA1012200), and the National Natural Science Foundation of China (Grant No. 12471262), Young Elite Scientists Sponsorship Pro-gram by CAST and Shanghai Jiao Tong University 2030 Initiative. Yajie Bao was supported by the Postdoctoral Fel-lowship Program of CPSF (Grant No. GZC20251996), and the fellowship from CPSF (Grant No. 2025M773046). 
+
+## Impact Statement 
+
+This paper presents the work to advance the field of confor-mal prediction, which promotes the reliability of machine learning. The tools introduced in this study can be utilized across a wide range of machine learning applications, includ-ing those with societal implications, but they do not directly implicate any specific ethical or impact-related concerns, so there is nothing we feel must be specifically highlighted. 9Conformal Prediction with Cellwise Outliers 
+
+## References 
+
+Aerts, S. and Wilms, I. Cellwise robust regularized discrim-inant analysis. Statistical Analysis and Data Mining: The ASA Data Science Journal , 10(6):436–447, 2017. Alqallaf, F., Van Aelst, S., Yohai, V. J., and Zamar, R. H. Propagation of outliers in multivariate data. The Annals of Statistics , pp. 311–331, 2009. Bao, Y., Huo, Y., Ren, H., and Zou, C. CAP: A general algorithm for online selective conformal prediction with fcr control. arXiv preprint arXiv:2403.07728 , 2024a. Bao, Y., Huo, Y., Ren, H., and Zou, C. Selective confor-mal inference with false coverage-statement rate control. 
+
+Biometrika , 111(3):727–742, 02 2024b. Barber, R. F., Cand `es, E. J., Ramdas, A., and Tibshirani, R. J. Predictive inference with the jackknife+. The Annals of Statistics , 49(1):486 – 507, 2021. Barber, R. F., Cand `es, E., Ramdas, A., and Tibshirani, R. J. Conformal prediction beyond exchangeability. The An-nals of Statistics , 51(2):816–845, 2023. Bashari, M., Epstein, A., Romano, Y., and Sesia, M. Deran-domized novelty detection with fdr control via conformal e-values. Advances in Neural Information Processing Systems , 36, 2024. Bates, S., Cand `es, E., Lei, L., Romano, Y., and Sesia, M. Testing for outliers with conformal p-values. The Annals of Statistics , 51(1):149 – 178, 2023a. Bates, S., Cand `es, E., Lei, L., Romano, Y., and Sesia, M. Testing for outliers with conformal p-values. The Annals of Statistics , 51(1):149–178, 2023b. B ¨uhlmann, P. and Mandozzi, J. High-dimensional variable screening and bias in subsequent inference, with an empir-ical comparison. Computational Statistics , 29:407–430, 2014. Cauchois, M., Gupta, S., Ali, A., and Duchi, J. C. Robust validation: Confident predictions even when distributions shift. Journal of the American Statistical Association , pp. 1–66, 2024. Chernozhukov, V., W ¨uthrich, K., and Yinchu, Z. Exact and robust conformal inference methods for predictive machine learning with dependent data. In Conference On learning theory , pp. 732–749. PMLR, 2018. Curtis, A. E., Smith, T. A., Ziganshin, B. A., and Elefte-riades, J. A. The mystery of the z-score. Aorta , 4(04): 124–130, 2016. Dua, D. and Graff, C. Uci machine learning repository [http://archive. ics. uci. edu/ml]. irvine, ca: University of california, school of information and computer sci-ence. IEEE transactions on pattern analysis and machine intelligence , 1(1):1–29, 2019. Dwork, C., Roth, A., et al. The algorithmic foundations of differential privacy. Foundations and Trends® in Theo-retical Computer Science , 9(3–4):211–407, 2014. Filzmoser, P., H¨ oppner, S., Ortner, I., Serneels, S., and Ver-donck, T. Cellwise robust m regression. Computational Statistics & Data Analysis , 147:106944, 2020. Garc ´ıa-Escudero, L. A., Rivera-Garc ´ıa, D., Mayo- ´Iscar, A., and Ortega, J. Cluster analysis with cellwise trimming and applications for the robust clustering of curves. In-formation Sciences , 573:100–124, 2021. Guan, L. and Tibshirani, R. Prediction and outlier detection in classification problems. Journal of the Royal Statistical Society Series B: Statistical Methodology , 84(2):524–546, 2022. Hubert, M., Rousseeuw, P. J., and Van den Bossche, W. Macropca: An all-in-one pca method allowing for miss-ing values as well as cellwise and rowwise outliers. Tech-nometrics , 2019. Jin, Y. and Ren, Z. Confidence on the focal: Conformal pre-diction with selection-conditional coverage. Journal of the Royal Statistical Society Series B: Statistical Method-ology , pp. qkaf016, 2025. Lee, Y., Dobriban, E., and Tchetgen, E. T. Simulta-neous conformal prediction of missing outcomes with propensity score epsilon -discretization. arXiv preprint arXiv:2403.04613 , 2024. Lei, J., G’Sell, M., Rinaldo, A., Tibshirani, R. J., and Wasserman, L. Distribution-free predictive inference for regression. Journal of the American Statistical Associa-tion , 113(523):1094–1111, 2018. Liang, Z., Sesia, M., and Sun, W. Integrative conformal p-values for out-of-distribution testing with labelled out-liers. Journal of the Royal Statistical Society Series B: Statistical Methodology , pp. qkad138, 2024. Liu, Y., Ren, H., Guo, X., Zhou, Q., and Zou, C. Cell-wise outlier detection with false discovery rate control. 
+
+Canadian Journal of Statistics , 50(3):951–971, 2022. Marandon, A., Lei, L., Mary, D., and Roquain, E. Adaptive novelty detection with false discovery rate guarantee. The Annals of Statistics , 52(1):157–183, 2024. 10 Conformal Prediction with Cellwise Outliers 
+
+Meinshausen, N., Meier, L., and B ¨uhlmann, P. P-values for high-dimensional regression. Journal of the American Statistical Association , 104(488):1671–1681, 2009. Min, C., Zhao, D., Xiao, L., Zhao, J., Xu, X., Zhu, Z., Jin, L., Li, J., Guo, Y., Xing, J., et al. Driveworld: 4d pre-trained scene understanding via world models for autonomous driving. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pp. 15522–15533, 2024. Murphy, A. H. The finley affair: A signal event in the history of forecast verification. Weather and forecasting , 11(1): 3–20, 1996. ¨Ollerer, V., Alfons, A., and Croux, C. The shooting s-estimator for robust regression. Computational Statistics ,31:829–844, 2016. Papadopoulos, H., Proedrou, K., Vovk, V., and Gammerman, A. Inductive confidence machines for regression. In Ma-chine learning: ECML 2002: 13th European conference on machine learning Helsinki, Finland, August 19–23, 2002 proceedings 13 , pp. 345–356. Springer, 2002. Podkopaev, A. and Ramdas, A. Distribution-free uncertainty quantification for classification under label shift. In Un-certainty in artificial intelligence , pp. 844–853. PMLR, 2021. Raymaekers, J. and Rousseeuw, P. Handling cellwise out-liers by sparse regression and robust covariance. Journal of Data Science, Statistics, and Visualisation , 1(3), Dec. 2021. Raymaekers, J. and Rousseeuw, P. J. The cellwise mini-mum covariance determinant estimator. Journal of the American Statistical Association , 119(548):2610–2621, 2024a. Raymaekers, J. and Rousseeuw, P. J. Challenges of cellwise outliers. Econometrics and Statistics , 2024b. Romano, Y., Patterson, E., and Cand `es, E. Conformalized quantile regression. Advances in neural information pro-cessing systems , 32, 2019. Rousseeuw, P. J. and Bossche, W. V. D. Detecting deviating data cells. Technometrics , 60(2):135–145, 2018. Shang, X., Zhang, C., Kong, R., Zhao, C., and Wang, H. Construction of a diagnostic model for small cell lung cancer combining metabolomics and integrated machine learning. The Oncologist , 29(3):e392–e401, 2024. Tibshirani, R. J., Barber, R. F., Cand `es, E. J., and Ramdas, A. Conformal prediction under covariate shift. Advances in neural information processing systems , 32, 2019. Troyanskaya, O., Cantor, M., Sherlock, G., Brown, P., Hastie, T., Tibshirani, R., Botstein, D., and Altman, R. B. Missing value estimation methods for dna microarrays. 
+
+Bioinformatics , 17(6):520–525, 2001. Van Aelst, S., Vandervieren, E., and Willems, G. Stahel-donoho estimators with cellwise weights. Journal of Sta-tistical Computation and Simulation , 81(1):1–27, 2011. Van Buuren, S., Boshuizen, H. C., and Knook, D. L. Mul-tiple imputation of missing blood pressure covariates in survival analysis. Statistics in medicine , 18(6):681–694, 1999. Vovk, V., Gammerman, A., and Shafer, G. Algorithmic learning in a random world , volume 29. Springer, 2005. Wasserman, L. and Roeder, K. High dimensional variable selection. Annals of statistics , 37(5A):2178, 2009. Yang, Y., Kuchibhotla, A. K., and Tchetgen, E. T. Dou-bly robust calibration of prediction sets under covariate shift. Journal of the Royal Statistical Society Series B: Statistical Methodology , pp. qkae009, 2024. Zaccaria, G., Garc ´ıa-Escudero, L. A., Greselin, F., and Mayo-´Iscar, A. Cellwise outlier detection in heteroge-neous populations. arXiv preprint arXiv:2409.07881 ,2024. Zaffran, M., Dieuleveut, A., Josse, J., and Romano, Y. Con-formal prediction with missing values. In International Conference on Machine Learning , pp. 40578–40604. PMLR, 2023. Zaffran, M., Josse, J., Romano, Y., and Dieuleveut, A. Pre-dictive uncertainty quantification with missing covariates. 
+
+arXiv preprint arXiv:2405.15641 , 2024. Zhang, Y., Jiang, H., Ren, H., Zou, C., and Dou, D. Automs: automatic model selection for novelty detection with error rate control. Advances in Neural Information Processing Systems , 35:19917–19929, 2022. Zhang, Z., Ao, Y., Li, S., and Gu, G. X. An adaptive machine learning-based optimization method in the aero-dynamic analysis of a finite wing under various cruise conditions. Theoretical and Applied Mechanics Letters ,14(1):100489, 2024. 11 Conformal Prediction with Cellwise Outliers 
+
+## A. Notation table  
+
+> Table 2. The mathematical notations in this paper.
+
+Notation Meaning Comments 
+
+Xi The ith instance Data model 
+
+Yi The label corresponding to Xi Data model 
+
+˜Xn+1 The test feature with cellwise outliers Data model 
+
+Zn+1 The instance of outliers with arbitrary distribution Data model 
+
+ˇXDI  
+
+> n+1
+
+The test feature processed by DI Data model 
+
+Xij The jth coordinate of the ith instance Data model 
+
+x The vector x = ( x1, x 2, ..., x d)T ∈ Rd Data model 
+
+xℓ The ℓth coordinate of x Data model 
+
+ˇX∗ 
+
+> i
+
+The ODI feature Data model 
+
+ˇXi The PDI feature Data model 
+
+ˇXin+1 The JDI feature Data model 
+
+ˇXn+1  
+
+> i
+
+The JDI feature which is the same as the PDI feature ˇXi Data model 
+
+R∗ 
+
+> i
+
+The residual computed by ODI features Algorithm output 
+
+ˇRi The residual computed by PDI features Algorithm output 
+
+Dl The labeled dataset Set 
+
+Dt The training dataset Set 
+
+Dc The calibration dataset Set 
+
+O∗ The coordinates of cellwise outliers in ˜Xn+1 Set 
+
+ˆOi The detected coordinates by applying D to Xi Set 
+
+˜On+1 The detected coordinates by applying D to ˜Xn+1 Set 
+
+˜Tn+1 The false discoveries of D applied on ˜Xn+1 except for j ∈ O ∗ Set 
+
+ˆTn+1 The false discoveries of D applied on Xn+1 except for j ∈ O ∗ Set 
+
+ˆμ(·) The prediction model Function 
+
+ˆq− 
+
+> α
+
+(·) The ⌈α(n + 1) ⌉ quantile function Function 
+
+ˆq+ 
+
+> α
+
+(·) The ⌈(1 − α)( n + 1) ⌉ quantile function Function 
+
+ˆsj (·) The cellwise score function of jth coordinate Function 
+
+ϕj (·) The imputation function of jth coordinate Function 
+
+D(x) The output of detection procedure Function 
+
+I(x, O) The output of imputation procedure Function 
+
+FR∗ The distribution function of ODI-CP residuals {R∗ 
+
+> i
+
+}n+1  
+
+> i=n0
+
+Function 
+
+n0 The critical point of split Algorithm parameter 
+
+α The target coverage level Algorithm parameter 
+
+τj The detection threshold of jth coordinate Algorithm parameter 
+
+N (μ, σ 2) The normal distribution with mean μ and variance σ2 Distribution model 
+
+SN (μ, σ 2, α ) The skewed normal with skewness parameter α Distribution model 
+
+t(k) The t-distribution with k degrees of freedom Distribution model 
+
+Bern (p) The Bernoulli distribution with success probability p Distribution model 
+
+## B. More methods to construct PI 
+
+B.1. Naive combination of DI and CP 
+
+We consider a method by naively combining the DI procedure with split conformal prediction, which is abbreviated as 
+
+Naive-DI . The processed features of Naive-DI are defined as 
+
+ˇXNaive-DI  
+
+> i
+
+= I(Xi, ˜On+1 ), i = n0, . . . , n + 1 ,
+
+12 Conformal Prediction with Cellwise Outliers 
+
+and the PI for Yn+1 :
+
+ˆCNaive-DI ( ˜Xn+1 ) = ˆ μ( ˇXNaive-DI  
+
+> n+1
+
+) ± ˆq+ 
+
+> α
+
+({| Yi − ˆμ( ˇXNaive-DI  
+
+> i
+
+)|} ni=n0 ). (B.1) However, Naive-DI constructed in this way fails to achieve 1 − α coverage in several cases. As an example, we consider the coverage of PIs constructed by ODI-CP , PDI-CP and Naive-DI under Setting A when ϵ = {0.1, 0.15 , 0.2},
+
+τj =
+
+q
+
+χ21,0.9 and Zn+1 ,j i.i.d. 
+
+∼ N (μ, σ ) where μ, σ are randomly sampled from U (0 , 0.1) . From Figure 11, it can be seen that when the gap between Zn+1 and the clean data is not very large, and the detection threshold τj is small enough to detect more outliers, the Naive-DI method fails to 1 − α coverage regardless of the level of contaminated probability. In comparison, our method has a better coverage in these cases, which is due to the consideration of the effect of { ˆOi}ni=n0
+
+when masking. This empirical evidence confirms that simply combining DI with CP (without our proposed modifications) cannot guarantee valid coverage. 
+
+Figure 11. Simulation results of ODI-CP , PDI-CP and Naive-DI under Setting A when ϵ ∈ { 0.1, 0.15 , 0.2}. D is DDC, I is Mean Imputation. 
+
+B.2. An alternative version of JDI 
+
+If we take into account the cellwise outliers contained in all calibration features, we can provide the following conservative version of JDI , whose features and PI are listed below. Conservative-JDI ( C-JDI ) features: 
+
+ˇXC-JDI  
+
+> i
+
+= I(Xi,
+
+> n
+
+[
+
+> i=n0
+
+ˆOi ∪ ˜On+1 ), i = n0, . . . , n + 1 ,
+
+and the PI for Yn+1 :
+
+ˆCC-JDI ( ˜Xn+1 ) = ˆ μ( ˇXC-JDI  
+
+> n+1
+
+) ± ˆq+ 
+
+> α
+
+({| Yi − ˆμ( ˇXC-JDI  
+
+> i
+
+)|} ni=n0 ). (B.2) We introduce Theorem B.1 to demonstrate the coverage guarantee of C-JDI .
+
+Theorem B.1. Suppose the detection procedure D satisfies Assumptions 3.1 and 3.2, then 
+
+P
+
+n
+
+Yn+1 ∈ ˆCC-JDI ( ˜Xn+1 )
+
+o
+
+≥ 1 − α. 
+
+Proof. Notice that, Lemma 3.3 shows that ˜On+1 = ˆOn+1 ∪ O ∗, which implies that Sn+1 
+
+> i=n0
+
+ˆOi ∪ O ∗ = Sni=n0
+
+ˆOi ∪ ˜On+1 .Given the unordered set of {Xi}n+1  
+
+> i=n0
+
+, the joint mask Sn+1 
+
+> i=n0
+
+ˆOi ∪ O ∗ is fixed. Hence we know { ˇXC-JDI  
+
+> i
+
+}n+1  
+
+> i=n0
+
+are exchangeable. Using the standard proof of split conformal prediction (Lei et al., 2018; Tibshirani et al., 2019), we can prove the result. 13 Conformal Prediction with Cellwise Outliers 
+
+We present an example for comparison of PDI-CP , JDI-CP , and C-JDI in three settings, where ϵ = 0 .05 , τj and Zn+1 
+
+are the same as those in Appendix B.1. From Figure 12, we can see that our method can achieve the target coverage rate, which is consistent with simulation results. Although the C-JDI method can also achieve the target coverage, its PI is wider and coverage rate is looser than PDI-CP and JDI-CP , indicating that the PIs constructed by C-JDI are more conservative. Taking into account both Appendix B.1 and B.2, our method outperforms Naive-DI and C-JDI , which is able to build tight PIs that satisfy the target coverage. 
+
+Figure 12. Simulation results of PDI , JDI and C-JDI . D is DDC, I is Mean Imputation and ϵ = 0 .05 .
+
+## C. Technical Proofs 
+
+In this section, we fix the training set {(Xi, Y i)}n0−1 
+
+> i=1
+
+and only consider the randomness from calibration set {(Xi, Y i)}ni=n0
+
+and test data (Xn+1 , Y n+1 , Z n+1 ).
+
+C.1. Proof of Lemma 3.3 and Proposition 3.4 
+
+Proof. Firstly, we prove Lemma 3.3. Notice that for any j ∈ [d] \ O ∗, we have ˜Xn+1 ,j = Xn+1 ,j . It follows that 
+
+˜On+1 = O∗ ∪ { j ∈ [d] \ O ∗ : ˆ sj ( ˜Xn+1 ,j ) > τ j }
+
+= O∗ ∪ { j ∈ [d] \ O ∗ : ˆ sj (Xn+1 ,j ) > τ j }
+
+= O∗ ∪ { j ∈ O ∗ : ˆ sj (Xn+1 ,j ) > τ j } ∪ { j ∈ [d] \ O ∗ : ˆ sj (Xn+1 ,j ) > τ j }
+
+= O∗ ∪ ˆOn+1 ,
+
+where the first equality holds due to Assumption 3.1; and the second equality holds due to Assumption 3.2. From the definition, we know 
+
+[I( ˜Xn+1 , ˆOn+1 ∪ O ∗)] j =
+
+( ˜Xn+1 ,j = Xn+1 ,j , j / ∈ ˆOn+1 ∪ O ∗
+
+ϕj ({ ˜Xn+1 ,l }l / ∈ ˆOn+1 ∪O ∗ ) = ϕj ({Xn+1 ,l }l / ∈ ˆOn+1 ∪O ∗ ), j ∈ ˆOn+1 ∪ O ∗
+
+= [ I(Xn+1 , ˆOn+1 ∪ O ∗)] j .
+
+Thus we have 
+
+ˇXDI  
+
+> n+1
+
+= I( ˜Xn+1 , ˜On+1 ) = I( ˜Xn+1 , ˆOn+1 ∪ O ∗) = I(Xn+1 , ˆOn+1 ∪ O ∗), (C.1) which is exchangeable to ˇX∗ 
+
+> i
+
+= I(Xi, ˆOi ∪ O ∗) for i = n0, . . . , n .Next, we prove Proposition 3.4. Recalling that R∗ 
+
+> i
+
+= |Yi − ˆμ( ˇX∗ 
+
+> i
+
+)| for i = n0, . . . , n . Denote R∗ 
+
+> n+1
+
+= |Yn+1 − ˆμ( ˇXDI 
+
+> n+1
+
+)|.By the exchangeability of {R∗ 
+
+> i
+
+}n+1  
+
+> i=n0
+
+, we can guarantee 
+
+P
+
+n
+
+Yn+1 ∈ ˆCODI ( ˜Xn+1 )
+
+o
+
+= P R∗ 
+
+> n+1
+
+≤ ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ) ≥ 1 − α. (C.2) 14 Conformal Prediction with Cellwise Outliers 
+
+C.2. Proof of Theorem 3.5 
+
+Proof. We consider the case where d = 2 . Suppose X is a two-dimensional standard normal random variable with n
+
+observations, the corresponding labels are Yi = Xi, 1 + Xi, 2 where Xi, 1, X i, 2 ∼ Uniform([0 , 1]) for i ∈ [n]. Suppose 
+
+ˆμ is a linear regression model ˆμ(x) = β1x1 + β2x2 where β2̸ = 0 . The test point ˜Xn+1 = ( Xn+1 ,1, X n+1 ,2)⊤ where 
+
+Xn+1 ,2 = M +1  
+
+> β2
+
+1{β1 ≥ 1} + M −β1+2  
+
+> β2
+
+1{β1 < 1} for some large positive value M .Now we consider the case ˇXDI  
+
+> n+1
+
+still contains cellwise outlier after DI , that is D( ˜Xn+1 ) = ∅ and ˇXDI  
+
+> n+1
+
+= ˜Xn+1 . When 
+
+β1 ≥ 1, notice that 
+
+|Yn+1 − ˆμ( ˇXDI 
+
+> n+1
+
+)| = |(1 − β1)Xn+1 ,1 + Xn+1 ,2 − M − 1| ≥ M. (C.3) By the form of PI, it holds that 
+
+1 − α = P{Yn+1 ∈ ˆC( ˇXDI 
+
+> n+1
+
+)} = P |Yn+1 − ˆμ( ˇXDI 
+
+> n+1
+
+)| ≤ ˆqn ≤ P (ˆ qn ≥ M ) .
+
+When β1 < 1, notice that 
+
+|Yn+1 − ˆμ( ˇXDI 
+
+> n+1
+
+)| = |(1 − β1)Xn+1 ,1 + Xn+1 ,2 − M − 2 + β1| ≥ M, 
+
+and (C.3) still holds. 
+
+Theorem C.1. If ˇXDI  
+
+> n+1
+
+contains cellwise outliers, given any PI taking the form ˆC( ˇXDI 
+
+> n+1
+
+) = [ ˆf lo ( ˇXDI 
+
+> n+1
+
+)− ˆqn, ˆf up ( ˇXDI 
+
+> n+1
+
+)+ ˆqn], where ˆf lo and ˆf up are the lower and upper quantile regression models, and ˆqn is the quantile of the empirical distribution of CQR score computed on the calibration set. Suppose ˆC( ˇXDI 
+
+> n+1
+
+) satisfies marginal coverage P{Yn+1 ∈ ˆC( ˇXDI 
+
+> n+1
+
+)} ≥ 1−α.For arbitrary M > 0, there exists ˆf lo and ˆf up , and distributions P and PZ such that for (Xn+1 , Y n+1 ) ∼ P and 
+
+Zn+1 ∼ PZ , P(ˆ qn ≥ M ) ≥ 1 − α. In other words, lim M →∞ E
+
+h
+
+| ˆC( ˇXDI 
+
+> n+1
+
+)|
+
+i
+
+= ∞.Proof. Following the proof of Theorem 3.5 in Appendix B.2, the labels are Yi = Xi, 1 + Xi, 2 where Xi, 1, X i, 2 ∼
+
+Uniform([0 , 1]) for i ∈ [n + 1] . Suppose ˆf lo (x) = βlo  
+
+> 1
+
+x1 + βlo  
+
+> 2
+
+x2 where βlo 
+
+> 2
+
+̸ = 0 , and the test point ˜Xn+1 =(Xn+1 ,1, Z n+1 ,2)⊤ where the outlier is given by 
+
+Zn+1 ,2 = M + 1 
+
+βlo 
+
+> 2
+
+1{βlo  
+
+> 1
+
+≥ 1} + M + 2 
+
+βlo 
+
+> 2
+
+1{0 < β lo  
+
+> 1
+
+< 1} + M − βlo  
+
+> 1
+
++ 2 
+
+βlo 
+
+> 2
+
+1{βlo  
+
+> 1
+
+≤ 0}
+
+for some large positive value M . If ˇXDI  
+
+> n+1
+
+still contains Zn+1 ,2 and ˆC( ˇXDI 
+
+> n+1
+
+) covers the true label, we have 
+
+max { ˆf lo ( ˇXDI 
+
+> n+1
+
+) − Yn+1 , Y n+1 − ˆf up ( ˇXDI 
+
+> n+1
+
+)} ≥ ˆf lo ( ˇXDI 
+
+> n+1
+
+) − Yn+1 ≥ M, 
+
+which means P(ˆ qn ≥ M ) ≥ P(Yn+1 ∈ ˆC( ˇXDI 
+
+> n+1
+
+)) ≥ 1 − α.
+
+C.3. Proof of Theorem 4.3 
+
+Proof. According to Definition 4.2, we denote by ¯xi = (¯ x1, . . . , ¯xj , . . . , ¯xd)⊤ the Mean Imputation values of Xi for 
+
+i = n0, . . . , n + 1 . Denote 
+
+ˆδi,j = 1{ˆs(Xi,j ) ≤ τj }, i = n0, . . . , n + 1 , j ∈ [d], (C.4) and 
+
+ˆ∆i = diag( {ˆδi,j }j∈[d]), i = n0, . . . , n + 1 , (C.5) 
+
+˜∆n+1 = diag( {˜δn+1 ,j }j∈[d]), (C.6) 
+
+∆n+1 = diag( {δn+1 ,j }j∈[d]),
+
+15 Conformal Prediction with Cellwise Outliers 
+
+where ˜δn+1 ,j = 1{ˆsj ( ˜Xn+1 ,j ) ≤ τj } and δn+1 ,j = 1{j ∈ [d] \ O ∗}. Then the difference between ODI feature and PDI 
+
+feature can be written as 
+
+ˇXi − ˇX∗ 
+
+> i
+
+=
+
+h ˆ∆i ˜∆n+1 Xi + ( I − ˆ∆i ˜∆n+1 ) ¯ xi
+
+i
+
+−
+
+h ˆ∆i∆n+1 Xi + ( I − ˆ∆i∆n+1 ) ¯ xi
+
+i
+
+= ˆ∆i( ˜∆n+1 − ∆n+1 )Xi − ˆ∆i( ˜∆n+1 − ∆n+1 ) ¯ xi
+
+= ˆ∆i( ˜∆n+1 − ∆n+1 )( Xi − ¯xi). (C.7) Denote by Ei,j = |Xi,j − ¯xj | the Mean Imputation error of each entry for i = n0, . . . , n . Invoking ℓ1-sensitivity of ˆμ, we have 
+
+ˇRi − R∗ 
+
+> i
+
+= |Yi − ˆμ( ˇXi)| − | Yi − ˆμ( ˇX∗ 
+
+> i
+
+)|
+
+≤ ˆμ( ˇXi) − ˆμ( ˇX∗ 
+
+> i
+
+) ≤ Sˆμ · ˇXi − ˇX∗ 
+
+> i1
+
+= Sˆμ ·
+
+> d
+
+X
+
+> j=1
+
+ˆδi,j |˜δn+1 ,j − δn+1 ,j || Xi,j − ¯xj |
+
+= Sˆμ · X
+
+> j∈[d]\O ∗
+
+ˆδi,j (δn+1 ,j − ˜δn+1 ,j ) · Ei,j 
+
+≤ Sˆμ · max  
+
+> j∈[d]
+
+Ei,j · X
+
+> j∈[d]\O ∗
+
+(δn+1 ,j − ˜δn+1 ,j ):= Sˆμ · Ei · | ˜On+1 \ O ∗|, (C.8) where Ei := max j∈[d] Ei,j and the third equality holds due to Assumption 3.1. By the construction of ˆCODI ( ˜Xn+1 ) in (5), we have 
+
+P
+
+n
+
+Yn+1 ∈ ˆCPDI ( ˜Xn+1 )
+
+o
+
+= P |Yn+1 − ˆμ( ˇXDI 
+
+> n+1
+
+)| ≤ ˆq+ 
+
+> α
+
+({ ˇRi}ni=n0 )
+
+= P R∗ 
+
+> n+1
+
+≤ ˆq+ 
+
+> α
+
+({ ˇRi}ni=n0 ) , (C.9) and the coverage gap between ˆCODI ( ˜Xn+1 ) and ˆCPDI ( ˜Xn+1 ) is 
+
+P
+
+n
+
+Yn+1 ∈ ˆCPDI ( ˜Xn+1 )
+
+o
+
+− P
+
+n
+
+Yn+1 ∈ ˆCODI ( ˜Xn+1 )
+
+o
+
+= P R∗ 
+
+> n+1
+
+≤ ˆq+ 
+
+> α
+
+({ ˇRi}ni=n0 ) − P R∗ 
+
+> n+1
+
+≤ ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 )
+
+= P min  ˆq+ 
+
+> α
+
+({ ˇRi}ni=n0 ), ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ) < R ∗ 
+
+> n+1
+
+≤ max  ˆq+ 
+
+> α
+
+({ ˇRi}ni=n0 ), ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 )
+
+≤ P
+
+n
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
+− Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+
+
+< R ∗ 
+
+> n+1
+
+≤ ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
++ Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+o 
+
+= FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
++ Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+ 
+
+− FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
+− Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+ 
+
+, (C.10) where FR∗ is the distribution function of ODI-CP residuals {R∗ 
+
+> i
+
+}n+1  
+
+> i=n0
+
+. Combined with Assumption 3.2 and Proposition 3.4, we can obtain the coverage property of PDI-CP 
+
+P
+
+n
+
+Yn+1 ∈ ˆCPDI ( ˜Xn+1 )
+
+o
+
+≥ 1 − α
+
+−
+
+h
+
+FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
++ Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+ 
+
+− FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
+− Sˆμ · Ei · | ˜On+1 \ O ∗|} ni=n0
+
+i 
+
+. (C.11) 
+
+C.4. Proof of Proposition 4.4 
+
+Proof. We follow the proof in Barber et al. (2021) to show the result. We abbreviate the set of integers {n0, . . . , n } as 
+
+[n0, n ] in this subsection. Notice that under Assumptions 3.1 and 3.2, ( ˇXn+1  
+
+> i
+
+, Y i) ∪ ( ˇXin+1 , Y n+1 ) are exchangeable. For 
+
+i, j ∈ [n0, n + 1] with i̸ = j, denote ˇXji = I(Xi, ˆOi ∪ ˆOj ∪ O ∗). Then we assert that ˆμ( ˇXji )̸ = ˆ μ( ˇXij ) for i̸ = j.16 Conformal Prediction with Cellwise Outliers 
+
+Define a matrix of residuals, D ∈ R(n+2 −n0)×(n+2 −n0), with entries 
+
+Dpq =
+
+ +∞, p = q
+
+|Yp+n0−1 − ˆμ( ˇXq+n0−1 
+
+> p+n0−1
+
+)|, p̸ = q (C.12) for p, q ∈ [n + 2 − n0], i.e., the off-diagonal entries represent the residual for the (p + n0 − 1) -th point which processed by 
+
+DI with mask ˆOp+n0−1 ∪ ˆOq+n0−1 ∪ O ∗.Define a comparison matrix, A ∈ { 0, 1}(n+2 −n0)×(n+2 −n0), with entries 
+
+Apq = 1{Dpq > D qp },
+
+and Apq = 1 means that the residual of Xp+n0−1 is larger than that of Xq+n0−1 which are processed with the same mask 
+
+ˆOp+n0−1 ∪ ˆOq+n0−1 ∪ O ∗, and we say that data point (p + n0 − 1) “wins” (q + n0 − 1) .Define a set S(A) ⊆ [n + 2 − n0] of strange points as 
+
+S(A) = 
+
+(
+
+p ∈ [n + 2 − n0] : 
+
+> n+2 −n0
+
+X
+
+> q=1
+
+Apq ≥ (1 − α)( n + 2 − n0)
+
+)
+
+, (C.13) i.e., p ∈ S(A) if it holds that, when we compare the residual Dpq of the (p + n0 − 1) -th point against residual Dqp of the 
+
+(q + n0 − 1) -th point, the residual Dpq is the larger one for a sufficiently high fraction of these comparisons. Note that each strange point p ∈ S(A) can “lose” against at most α(n + 2 − n0) − 1 other strange points, this is because point (p + n0 − 1) 
+
+must “win” against at least (1 − α)( n + 2 − n0) points in total because it is strange, and point (p + n0 − 1) cannot win against itself as the definition of Dpq .Denote by s = |S(A)| the number of strange points. The key realization is now that, if we think about grouping each pair of strange points by the losing point, then we see that there are at most 
+
+s · (α(n + 2 − n0) − 1) 
+
+pairs of strange points. So we have 
+
+s(s − 1) 2 ≤ s · (α(n + 2 − n0) − 1) , (C.14) which simplifies to s ≤ 2α(n + 2 − n0) − 1 < 2α(n + 2 − n0).Since the data points {( ˇXji , Y i)}i,j ∈[n0,n +1] are exchangeable and the fitting algorithm is not affected by DI , it follows that 
+
+A d
+
+= Π AΠT for any (n + 2 − n0) × (n + 2 − n0) permutation matrix Π. In particular, for any index q ∈ [n + 2 − n0],suppose we take Π to be any permutation matrix with Πq,n +2 −n0 = 1 (i.e., corresponding to a permutation mapping n + 1 
+
+to q + n0 − 1), then we have 
+
+n + 2 − n0 ∈ S(A) ⇐⇒ q ∈ S(Π AΠT ),
+
+and therefore 
+
+P{n + 2 − n0 ∈ S(A)} = P{q ∈ S(Π AΠT )} = P{q ∈ S(A)}.
+
+In other words, if we compare an arbitrary calibration point q + n0 − 1 where q ∈ [n + 2 − n0] versus the test point n + 1 ,these two points are equally likely to be strange, by the exchangeability of the data. So we can calculate 
+
+P{n + 2 − n0 ∈ S(A)} = 1
+
+n + 2 − n0
+
+> n+2 −n0
+
+X
+
+> q=1
+
+P{q ∈ S(A)}
+
+=
+
+E
+
+hPn+2 −n0 
+
+> q=1
+
+1{q ∈ S(A)}
+
+i
+
+n + 2 − n0
+
+= E[|S(A)|]
+
+n + 2 − n0
+
+= sn + 2 − n0
+
+≤ 2α, (C.15) according to (C.14). By the construction of ˆCJDI ( ˜Xn+1 ) in (9), we have the following equivalence relation 
+
+Yn+1 /∈ ˆCJDI ( ˜Xn+1 ) ⇐⇒ Yn+1 > ˆq+
+
+> α
+
+ˆμ( ˇXin+1 ) + ˇRi
+
+> ni=n0
+
+
+
+17 Conformal Prediction with Cellwise Outliers 
+
+or Yn+1 < ˆq−
+
+> α
+
+ˆμ( ˇXin+1 ) − ˇRi
+
+> ni=n0
+
+
+
+. (C.16) In either case, we have 
+
+(1 − α)( n + 2 − n0) ≤
+
+> n
+
+X
+
+> i=n0
+
+1{Yn+1 /∈ ˆμ( ˇXin+1 ) ± ˇRi}
+
+=
+
+> n
+
+X
+
+> i=n0
+
+1{| Yi − ˆμ( ˇXn+1  
+
+> i
+
+)| < |Yn+1 − ˆμ( ˇXin+1 )|} 
+
+=
+
+> n+1 −n0
+
+X
+
+> q=1
+
+1{Dq,n +2 −n0 < D n+2 −n0,q } =
+
+> n+1 −n0
+
+X
+
+> q=1
+
+An+2 −n0,q , (C.17) and therefore n + 2 − n0 ∈ S(A) according to (C.13). Combined with (C.15), we have 
+
+P{Yn+1 /∈ ˆCJDI ( ˜Xn+1 )} ≤ P{n + 2 − n0 ∈ S(A)} ≤ 2α. (C.18) 
+
+C.5. Proof of Theorem 5.1 
+
+C.5.1. P ROOF OF PDI-CP 
+
+Proof. Under Assumption 3.1, denote 
+
+ˇXDI  
+
+> n+1
+
+= I(Xn+1 , O∗ ∪ ˜Tn+1 ), (C.19) 
+
+ˇX∗ 
+
+> n+1
+
+= I(Xn+1 , O∗ ∪ ˆTn+1 ). (C.20) The difference between ˇXDI  
+
+> n+1
+
+and ˇX∗ 
+
+> n+1
+
+is 
+
+ˇXDI  
+
+> n+1
+
+− ˇX∗ 
+
+> n+1
+
+= ( ˜∆T
+
+> n+1
+
+∆n+1 − ˆ∆T
+
+> n+1
+
+∆n+1 )Xn+1 + ( ˆ∆T
+
+> n+1
+
+∆n+1 − ˜∆T
+
+> n+1
+
+∆n+1 ) ¯ xn+1 
+
+= ∆ n+1 ( ˜∆T 
+
+> n+1
+
+− ˆ∆T
+
+> n+1
+
+)( Xn+1 − ¯xn+1 ), (C.21) where 
+
+˜∆T 
+
+> n+1
+
+= diag( {˜δT 
+
+> n+1 ,j
+
+}j∈[d]) = diag( {1{j / ∈ ˜Tn+1 }} j∈[d]),
+
+ˆ∆T 
+
+> n+1
+
+= diag( {ˆδT 
+
+> n+1 ,j
+
+}j∈[d]) = diag( {1{j / ∈ ˆTn+1 }} j∈[d]),
+
+and ¯xn+1 = (¯ x1, . . . , ¯xj , . . . , ¯xd)⊤ is the Mean Imputation value of ˜Xn+1 .Denote ˇRn+1 = |Yn+1 − ˆμ( ˇXDI 
+
+> n+1
+
+)|, and R∗ 
+
+> n+1
+
+= |Yn+1 − ˆμ( ˇX∗
+
+> n+1
+
+)| is residual computed by ODI feature ˇX∗
+
+> n+1
+
+. Invoking 
+
+ℓ1-sensitivity of ˆμ, we have 
+
+| ˇRn+1 − R∗
+
+> n+1
+
+| ≤ Sˆμ · ˇXDI  
+
+> n+1
+
+− ˇX∗ 
+
+> n+1 1
+
+= Sˆμ · Pdj=1 |δn+1 ,j | · | ˜δT 
+
+> n+1 ,j
+
+− ˆδT 
+
+> n+1 ,j
+
+| · | Xn+1 ,j − ¯xj |
+
+= Sˆμ · P 
+
+> j∈[d]\O ∗
+
+|˜δT 
+
+> n+1 ,j
+
+− ˆδT 
+
+> n+1 ,j
+
+| · | Xn+1 ,j − ¯xj |≤ Sˆμ · | ˜Tn+1 △ ˆTn+1 | · En+1 
+
+:= ∆ n+1 , (C.22) where En+1 := max j∈[d] |Xn+1 ,j − ¯xj | is the same as the definition in Theorem 4.3. Notice that ˇX∗ 
+
+> n+1
+
+is exchangeable with ODI features { ˇX∗ 
+
+> i
+
+}ni=n0 under Assumption 3.1, then the coverage gap of ODI-CP is 
+
+P
+
+n
+
+Yn+1 ∈ ˆCODI ( ˜Xn+1 )
+
+o
+
+− (1 − α)
+
+18 Conformal Prediction with Cellwise Outliers 
+
+= P  ˇRn+1 ≤ ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ) − (1 − α)
+
+≤ P R∗ 
+
+> n+1
+
+− ∆n+1 ≤ ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ) − | P R∗ 
+
+> n+1
+
+≤ ˆq+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 )
+
+= FR∗ (ˆ q+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ) + ∆ n+1 ) − FR∗ (ˆ q+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 )) , (C.23) where FR∗ is the distribution function of ODI-CP residuals {R∗ 
+
+> i
+
+}n+1  
+
+> i=n0
+
+. Similar to the proof of Theorem 4.3, we can obtain the coverage of PDI-CP :
+
+P
+
+n
+
+Yn+1 ∈ ˆCPDI ( ˜Xn+1 )
+
+o
+
+≥ 1 − α − FR∗ (ˆ q+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 ) + ∆ n+1 ) − FR∗ (ˆ q+ 
+
+> α
+
+({R∗ 
+
+> i
+
+}ni=n0 )) 
+
+−
+
+h
+
+FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
++ Sˆμ · Ei · | ˜Tn+1 |} ni=n0
+
+ 
+
+− FR∗
+
+
+
+ˆq+
+
+> α
+
+
+
+{R∗ 
+
+> i
+
+− Sˆμ · Ei · | ˜Tn+1 |} ni=n0
+
+i 
+
+.
+
+C.5.2. P ROOF OF JDI-CP 
+
+Proof. Under Assumption 3.1, denote 
+
+Xn+1  
+
+> i
+
+= I(Xi, ˆOi ∪ O ∗ ∪ ˆTn+1 ), i = n0, . . . , n, (C.24) 
+
+Xin+1 = I(Xn+1 , ˆOi ∪ O ∗ ∪ ˆTn+1 ), i = n0, . . . , n. (C.25) According to Proposition 4.4, we have 
+
+P
+
+n
+
+Yn+1 ∈ ˆCJDI (Xn+1 )
+
+o
+
+≥ 1 − 2α, (C.26) where 
+
+ˆCJDI (Xn+1 ) = ˆq− 
+
+> α
+
+({ˆμ(Xin+1 ) − | Yi − ˆμ(Xn+1  
+
+> i
+
+)|} ni=n0 ), ˆq+ 
+
+> α
+
+({ˆμ(Xin+1 ) + |Yi − ˆμ(Xn+1  
+
+> i
+
+)|} ni=n0 ) . (C.27) Note that if Assumption 3.2 is satisfied, Xn+1  
+
+> i
+
+and Xin+1 are equal to ˇXn+1  
+
+> i
+
+and ˇXin+1 . Based on this, we can characterize the differences between features and obtain the coverage property of ˆCJDI ( ˜Xn+1 ) beyond Assumption 3.2. First, notice that the difference between ˇXin+1 and Xin+1 is 
+
+ˇXin+1 − Xin+1 = ˆ∆i∆n+1 ( ˜∆T 
+
+> n+1
+
+− ˆ∆T
+
+> n+1
+
+)Xn+1 + ˆ∆i∆n+1 ( ˆ∆T 
+
+> n+1
+
+− ˜∆T
+
+> n+1
+
+) ¯ xn+1 
+
+= ˆ∆i∆n+1 ( ˜∆T 
+
+> n+1
+
+− ˆ∆T
+
+> n+1
+
+)( Xn+1 − ¯xn+1 ), (C.28) and the difference between ˇXn+1  
+
+> i
+
+and Xn+1  
+
+> i
+
+is 
+
+ˇXn+1  
+
+> i
+
+− Xn+1  
+
+> i
+
+= ˆ∆i∆n+1 ( ˜∆T 
+
+> n+1
+
+− ˆ∆T
+
+> n+1
+
+)Xi + ˆ∆i∆n+1 ( ˆ∆T 
+
+> n+1
+
+− ˜∆T
+
+> n+1
+
+) ¯ xi
+
+= ˆ∆i∆n+1 ( ˜∆T 
+
+> n+1
+
+− ˆ∆T
+
+> n+1
+
+)( Xi − ¯xi). (C.29) Invoking ℓ1-sensitivity of ˆμ, we have 
+
+|ˆμ( ˇXin+1 ) − ˆμ(Xin+1 )| ≤ Sˆμ · ˇXin+1 − Xin+1 1
+
+= Sˆμ · Pdj=1 |ˆδi,j | · | δn+1 ,j | · | ˜δT 
+
+> n+1 ,j
+
+− ˆδT 
+
+> n+1 ,j
+
+| · | Xn+1 ,j − ¯xj |
+
+= Sˆμ · P 
+
+> j∈[d]\O ∗
+
+|ˆδi,j | · | ˜δT 
+
+> n+1 ,j
+
+− ˆδT 
+
+> n+1 ,j
+
+| · | Xn+1 ,j − ¯xj |≤ Sˆμ · | ˜Tn+1 △ ˆTn+1 | · En+1 ,
+
+(C.30) and 
+
+|Yi − ˆμ( ˇXn+1  
+
+> i
+
+)| − | Yi − ˆμ(Xn+1  
+
+> i
+
+)| ≤ Sˆμ · | ˜Tn+1 △ ˆTn+1 | · En+1 . (C.31) 19 Conformal Prediction with Cellwise Outliers 
+
+Notice that the upper bound in (C.30) and (C.31) is exactly ∆n+1 in (C.22) . Combining with (C.26) , we can obtain the coverage gap: 
+
+P
+
+n
+
+Yn+1 ∈ ˆCJDI ( ˜Xn+1 )
+
+o
+
+− P
+
+n
+
+Yn+1 ∈ ˆCJDI (Xn+1 )
+
+o
+
+= P ˆq−
+
+α ({ˆμ( ˇXin+1 ) − | Yi − ˆμ( ˇXn+1 
+
+i )|} ni=n0 ) < Y n+1 ≤ ˆq+
+
+α ({ˆμ( ˇXin+1 ) + |Yi − ˆμ( ˇXn+1 
+
+i )|} ni=n0 )
+
+−P ˆq−
+
+α ({ˆμ(Xin+1 ) − | Yi − ˆμ(Xn+1 
+
+i )|} ni=n0 ) < Y n+1 ≤ ˆq+
+
+α ({ˆμ(Xin+1 ) + |Yi − ˆμ(Xn+1 
+
+i )|} ni=n0 )
+
+≤ P{ˆq−
+
+α ({ˆμ(Xin+1 ) − ∆n+1 − (|Yi − ˆμ(Xn+1 
+
+i )| + ∆ n+1 )}ni=n0 ) < Y n+1 ≤
+
+ˆq+
+
+α ({ˆμ(Xin+1 ) + ∆ n+1 + ( |Yi − ˆμ(Xn+1 
+
+i )| + ∆ n+1 )}ni=n0 )}−P ˆq−
+
+α ({ˆμ(Xin+1 ) − | Yi − ˆμ(Xn+1 
+
+i )|} ni=n0 ) < Y n+1 ≤ ˆq+
+
+α ({ˆμ(Xin+1 ) + |Yi − ˆμ(Xn+1 
+
+i )|} ni=n0 )
+
+= P
+
+n ˆQ−
+
+α − 2∆ n+1 < Y n+1 ≤ ˆQ+
+
+α + 2∆ n+1 
+
+o
+
+− P
+
+n ˆQ−
+
+α < Y n+1 ≤ ˆQ+
+
+α
+
+o
+
+= FY ( ˆQ+
+
+α + 2∆ n+1 ) − FY ( ˆQ+
+
+α ) + FY ( ˆQ−
+
+α ) − FY ( ˆQ−
+
+α − 2∆ n+1 ), (C.32) where 
+
+ˆQ−
+
+α = ˆ q−
+
+α ({ˆμ(Xin+1 ) − | Yi − ˆμ(Xn+1 
+
+i )|} ni=n0 ), (C.33) 
+
+ˆQ+
+
+α = ˆ q+
+
+α ({ˆμ(Xin+1 ) + |Yi − ˆμ(Xn+1 
+
+i )|} ni=n0 ). (C.34) 
+
+## D. DDC Method 
+
+The DDC method is the most widely used method to detect cellwise outliers. We display the process of DDC in Figure 13, and the details of the robust functions (highlighted in orange) can be found in Rousseeuw & Bossche (2018). 𝐀 
+
+=
+
+𝐀 11 ⋯ 𝐀 1𝐀 
+
+⋮ ⋱ ⋮
+
+𝐀 𝐀 1 ⋯ 𝐀 𝐀 𝐀 
+
+𝐀 
+
+=
+
+𝐀 11 ⋯ 𝐀 1𝐀 
+
+⋮ ⋱ ⋮
+
+𝐀 𝐀 1 ⋯ 𝐀 𝐀 𝐀 
+
+𝐀 
+
+=
+
+𝐀 11 ⋯ 𝐀 1𝐀 
+
+⋮ ⋱ ⋮
+
+𝐀 𝐀 1 ⋯ 𝐀 𝐀 𝐀 
+
+𝐀 
+
+=
+
+𝐀 11 ⋯ 𝐀 1𝐀 
+
+⋮ ⋱ ⋮
+
+𝐀 𝐀 1 ⋯ 𝐀 𝐀 𝐀    
+
+> standardization univariate
+> detection
+> ①bivariate
+> relations
+> ②estimated
+> values
+
+For each column 𝐀 of 𝐀 𝐀 :
+
+𝐀 𝐀 = 𝐀𧰀𝐀𧀀𧰀𣰀 𝐀 (𝐀 𝐀 𝐀 )
+
+𝐀 𝐀 = 𝐀𧰀𝐀𧀀𣰀𣰀𝐀𡠀 𝐀 (𝐀 𝐀 𝐀 − 𝐀 𝐀 )
+
+𝐀 𝐀𲠀 = ( 𝐀 𝐀 𝐀 − 𝐀 𝐀 )/ 𝐀 𝐀 
+
+> flagging
+> outliers
+
+|𝐀 𝐀 𝐀 | > 𝐀 
+
+Input Output 
+
+When |𝐀 𝐀 𝐀 | > 𝐀 :
+
+𝐀 𝐀𲠀 = 𝐀𠐀 
+
+① 𣰀𧰀𝐀 𝐀 ℎ = 𝐀𧰀𝐀𧀀𧰀𝐀𝐀 𝐀 (𝐀 𝐀 𝐀 ,𝐀 𝐀 ℎ)
+
+𝐀 𝐀 ℎ = 𝐀𧰀𝐀𧀀𝐀𧰀𝐀𡠀 𝐀 (𝐀 𝐀 𝐀 | 𝐀 𝐀 ℎ)
+
+𝐀 𝐀 : = ℎ: 𣰀𧰀𝐀 𝐀 ℎ ≥ 0.5
+
+② 𝐀 𝐀 𝐀  
+
+> ’
+
+= 𝐀 (𝐀 𝐀 ℎ, 𝐀 𝐀 ℎ; ℎ ∈ 𝐀 𝐀 )
+
+𝐀 𝐀𲠀 = 𝐀 𝐀 𝐀  
+
+> ’
+
+𝐀𧰀𝐀𧀀𝐀𧰀𝐀𡠀 𝐀 ’ (𝐀 𝐀 ’𝐀 | 𝐀 𝐀 ’𝐀  
+
+> ’
+
+)
+
+For each column 𝐀 of 𝐀 𝐀 :
+
+𝐀 𝐀𲠀 = 𝐀 𝐀 𝐀 −𝐀 𝐀 𝐀     
+
+> 𝐀 𝐀 𝐀 𝐀 𝐀 𝐀 𝐀 𝐀 𝐀 ’(𝐀 𝐀 ’𝐀 −𝐀 𝐀 ’𝐀
+> ’)
+
+Figure 13. An implementation of DDC detection method. 
+
+## E. Additional experiment results 
+
+E.1. Three benchmark methods in simulation 
+
+Now we present the specific construction forms of the three methods used for comparison in Section 6. • Baseline : mask the entries of {Xi}ni=n0 ∪ ˜Xn+1 by O∗, and obtain the processed features 
+
+ˇXBase 
+
+i = I(Xi, O∗), i = n0, . . . , n, 
+
+ˇXBase 
+
+n+1 = I( ˜Xn+1 , O∗) = I(Xn+1 , O∗),
+
+20 Conformal Prediction with Cellwise Outliers 
+
+then construct SCP interval 
+
+ˆCBase ( ˜Xn+1 ) = ˆ μ( ˇXBase  
+
+> n+1
+
+) ± ˆq+ 
+
+> α
+
+({| Yi − ˆμ( ˇXBase  
+
+> i
+
+)|} ni=n0 ).
+
+• SCP : directly compute residuals Ri = |Yi − ˆμ(Xi)| on the calibration set, then construct SCP interval 
+
+ˆCSCP ( ˜Xn+1 ) = ˆ μ( ˜Xn+1 ) ± ˆq+ 
+
+> α
+
+({Ri}ni=n0 ) (E.1) • WCP : consider the weights of residuals 
+
+pwi (x) = w (Xi)
+
+Pnl=n0 w(Xl) + w(x) , i = n0, . . . , n, pwn+1 (x) = w(x)
+
+Pnl=n0 w(Xl) + w(x) ,
+
+where the likelihood ratio w(x) = dP ˜X (x)/dP X (x) with ˜Xn+1 ∼ P ˜X can be estimated by Random Forests (more generally, any classifier that outputs estimated probabilities of class membership) as mentioned in Tibshirani et al. (2019), then construct WCP interval 
+
+ˆCWCP ( ˜Xn+1 ) = ˆ μ( ˜Xn+1 ) ± ˆq+
+
+> α
+> n
+
+X
+
+> i=n0
+
+pwi ( ˜Xn+1 )δRi + pwn+1 ( ˜Xn+1 )δ∞
+
+!
+
+. (E.2) 
+
+E.2. TPR and FDR for detection methods 
+
+In Table 3-5, we summarize the empirical TPR and FDR obtained through the application of the detection methods in the simulation. 
+
+Table 3. Empirical TPR and FDR of DDC under three settings when ϵ = {0.2, 0.15 , 0.1}, where the noise Zn+1 ,j is 10 . 
+
+Setting TPR FDR 0.2 0.15 0.1 0.2 0.15 0.1 A 1 1 1 0.082 0.113 0.179 B 1 1 1 0.067 0.108 0.232 C 1 1 1 0.080 0.116 0.182 
+
+Table 4. Empirical TPR and FDR of DDC under three settings when ϵ = {0.2, 0.15 , 0.1}, where the noise Zn+1 ,j i.i.d. 
+
+∼ N (μ, σ ), μ, σ 
+
+are randomly sampled from U (0 , 10) .
+
+Setting TPR FDR 0.2 0.15 0.1 0.2 0.15 0.1 A 0.991 0.990 0.990 0.084 0.115 0.186 B 0.990 0.990 0.990 0.078 0.116 0.236 C 0.990 0.990 0.990 0.085 0.116 0.182 
+
+Table 5. Empirical TPR and FDR of one-class SVM classifier and cellMCD estimate methods under three settings when ϵ = 0 .1, where the noise Zn+1 ,j i.i.d. 
+
+∼ N (μ, σ ) and μ, σ are randomly sampled from U (0 , 10) .
+
+Setting TPR FDR SVM MCD SVM MCD A 0.988 0.990 0.026 0.173 B 0.988 0.989 0.023 0.172 C 0.988 0.989 0.027 0.175 21 Conformal Prediction with Cellwise Outliers 
+
+E.3. Supplementary simulation results for 6.3 
+
+In addition to Mean Imputation, we present the empirical coverage and length of Baseline and our method under different contamination probabilities when I is kNN or MICE in Figure 14 and 15, respectively. The parameters are the same as those in 6.3.                         
+
+> Figure 14. Simulation results of Baseline and our methods when ϵ∈ { 0.1,0.15 ,0.2}.Dis DDC and Iis kNN .
+> Figure 15. Simulation results of Baseline and our methods when ϵ∈ { 0.1,0.15 ,0.2}.Dis DDC and Iis MICE .
+
+22 Conformal Prediction with Cellwise Outliers 
+
+E.4. Supplement of airfoil dataset study  
+
+> Table 6. Available variables in the airfoil dataset.
+
+Variable Unit Scaled sound pressure level of NASA airfoils (target) dB Frequency Hz Attack-angle deg Chord-length mFree-stream-velocity m/s Suction-side-displacement-thickness mCreating training data, test data, and covariate shift: We repeated an experiment for 200 trials, and for each trial we randomly partition the data {(Xi, Y i)}1000  
+
+> i=1
+
+into two equally sized subsets Dt and Dc, and construct a test set Dtest containing cellwise outliers with the following steps. • Log the first and fifth features of X across all the data. • According to the contamination probability ϵ = 0 .02 , randomly select some entries to assign outlier 50. • Use DI to handle covariates, where τj is set to 
+
+q
+
+χ21,0.95 to control FDR. • The set O∗ used in Baseline and ODI-CP is the coordinates of those artificially added noises. 
+
+E.5. Supplement of wind direction dataset study  
+
+> Table 7. Available variables in the wind direction dataset.
+
+Variable Unit Wind direction (target) rad Cosine of wind direction in the previous hour dimensionless Sine of wind direction in the previous hour dimensionless Atmospheric pressure in the previous hour mB Air temperature (dry bulb) in the previous hour ◦C
+
+Dew point temperature in the previous hour ◦C
+
+Relative humidity in the previous hour %Wind gust in the previous hour m/s Wind speed in the previous hour m/s Additional details are referred to E.4, but the test set Dtest is constructed with the following steps. • According to the contamination probability ϵ = 0 .02 , randomly select some entries to assign outlier 100. • Use DI to handle covariates, where τj is set to 
+
+q
+
+χ21,0.95 to control FDR. • The set O∗ used in Baseline and ODI-CP is the coordinates of those artificially added noises. 
+
+E.6. Supplement of riboflavin dataset study  
+
+> Table 8. Available variables in the riboflavin dataset.
+
+Variable Comments Logarithm of riboflavin production rate target Log-transformed gene expression levels p = 4088 (co)variables 23 Conformal Prediction with Cellwise Outliers 
+
+Additional details are referred to E.4 without introducing artificial outliers. • Use DI to handle covariates, where τj is set to 
+
+q
+
+χ21,0.95 to control FDR. • The set O∗ is unknown, so the experiments of Baseline and ODI-CP are not conducted. • There may be cellwise outliers in Dt and Dc.24

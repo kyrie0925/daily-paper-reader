@@ -1,0 +1,2455 @@
+Title: Robust and Conjugate Spatio-Temporal Gaussian Processes
+
+URL Source: https://openreview.net/pdf?id=YG84SWm7gn
+
+Number of Pages: 31
+
+Markdown Content:
+# Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+William Laplante 1 2 3 Matias Altamirano 2 Andrew Duncan 3 4 Jeremias Knoblauch 2 Franc ¸ois-Xavier Briol 2
+
+## Abstract 
+
+State-space formulations allow for Gaussian pro-cess (GP) regression with linear-in-time computa-tional cost in spatio-temporal settings, but perfor-mance typically suffers in the presence of outliers. In this paper, we adapt and specialise the robust and conjugate GP (RCGP) framework of Altami-rano et al. (2024) to the spatio-temporal setting. In doing so, we obtain an outlier-robust spatio-temporal GP with a computational cost compa-rable to classical spatio-temporal GPs. We also overcome the three main drawbacks of RCGPs: their unreliable performance when the prior mean is chosen poorly, their lack of reliable uncertainty quantification, and the need to carefully select a hyperparameter by hand. We study our method extensively in finance and weather forecasting applications, demonstrating that it provides a re-liable approach to spatio-temporal modelling in the presence of outliers. 
+
+## 1. Introduction 
+
+Gaussian processes (GPs; Williams & Rasmussen (2006)) are flexible probabilistic models used in a vast class of prob-lems from regression (Williams & Rasmussen, 2006) to emu-lation (Santner et al., 2018) and optimisation (Garnett, 2023). GPs originated in spatial statistics, where their use for re-gression was known as kriging (Krige, 1951; Stein, 1999), but they have more recently been used widely in spatio-temporal settings, including in epidemiology (Senanayake et al., 2016), neuroimaging (Hyun et al., 2016), object track-ing (Aftab et al., 2019), and psychological studies (Kupilik 
+
+> 1
+
+Department of Physics and Astronomy, University Col-lege London, London, United Kingdom 2Department of Sta-tistical Science, University College London, London, United Kingdom 3The Alan Turing Institute, London, United Kingdom 
+
+> 4
+
+Department of Mathematics, Imperial College London, Lon-don, United Kingdom. Correspondence to: William Laplante 
+
+<william.laplante.24@ucl.ac.uk >.
+
+Proceedings of the 42 nd International Conference on Machine Learning , Vancouver, Canada. PMLR 267, 2025. Copyright 2025 by the author(s). 1          
+
+> 0
+> 1
+> Data
+> t=0.53 t=0.67 t=0.80
+> 1
+> 0
+> 1
+> STGP
+> 1
+> 0
+> 1
+> ST-RCGP
+> 101
+> 1
+> 0
+> 1
+> Truth
+> 1011013.0
+> 2.5
+> 2.0
+> 1.5
+> 1.0
+> 0.5
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+
+Figure 1. Spatio-temporal GPs in the presence of outliers . The top row shows the observed data as a function of spatial covariates s ∈
+
+R2. Outliers are highlighted in red and are uniformly distributed on [−8, −6] ∪ [6 , 8] . The second row gives the fit of a regular STGP, whilst the third row gives our proposed ST-RCGP fit. The last row shows the true latent function f (s1, s 2, t ) = sin(2 πt )s21 +cos(2 πt )s22. Further details are provided in Appendix C.4. 
+
+& Witmer, 2018). Their popularity arises from their ability to encode spatial and temporal properties such as smooth-ness, periodicity, and sparsity (Duvenaud, 2014), allowing them to model phenomena such as local weather patterns or seasonality. Crucially, GPs also have an exact, closed-form posterior when using a Gaussian likelihood. However, naive implementations have a cubic computational cost in the number of data points N , limiting their scalability. To address this issue, a plethora of approximations have been proposed (Drineas et al., 2005; Titsias, 2009; Hensman et al., 2013; Wilson & Nickisch, 2015). While effective, these do not typically recover the exact GP, require careful tuning, and can degrade performance for complex datasets (Bauer et al., 2016; Pleiss et al., 2018). In spatio-temporal settings, an alternative strategy is to re-formulate the GP as a state-space model (SSM) (Reece & Roberts, 2010; Hartikainen & S ¨arkk ¨a, 2010; Sarkka & Har-tikainen, 2012; Solin, 2016; Nickisch et al., 2018; Hameli-jnck et al., 2021). This gives rise to a class of models— 
+
+spatio-temporal Gaussian processes (STGPs) —with linear cost in the number of temporal observations. But, as with standard GPs, STGPs lack robustness to model misspeci-fication, such as with outliers arising from extreme events 1Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+(Heaton et al., 2011), measurement errors that are spatially correlated (Tadayon & Rasekh, 2019), and other hetero-geneities (Fonseca et al., 2023). Figure 1 illustrates this in the case of outliers. Clearly, the STGP ( 2nd row) fails to align with the ground truth ( 4th row). To resolve this issue, existing work on STGPs has focused on using likelihoods corresponding to distributions which are more expressive than Gaussians, such as mixtures or heavy-tailed distributions. Doing so breaks conjugacy, and the posterior must typically be approximated (Hartikainen et al., 2011; Solin & S ¨arkk ¨a, 2014; Hamelijnck et al., 2021). We refer the reader to Nickisch et al. (2018) for a com-prehensive overview and to Wilkinson et al. (2023) for a Python package providing those algorithms. Although these methods have been efficiently implemented, they typically use additional optimisation steps at each time-point and are hence significantly more costly than conjugate STGPs. We also highlight a small body of work that uses outlier-rejection Kalman filters with STGPs to improve robustness in inference tasks (Bock et al., 2022; Waxman & Djuri ´c, 2024). While these outlier-rejection methods offer robust-ness at lower computational cost compared to non-conjugate STGPs, they are generally considered less expressive and not as strongly supported by theoretical foundations. Recently, Altamirano et al. (2024) introduced a method, called robust and conjugate Gaussian processes (RCGPs) ,that uses generalised Bayesian inference (Bissiri et al., 2016; Knoblauch et al., 2022) to confer robustness to standard GPs. Their approach is highly attractive since it provably provides robustness to outliers whilst maintaining conjugacy, but it shares the cubic cost of GPs. Existing work on RCGPs also has three main limitations: RCGPs underperform when the prior mean is chosen poorly (see Ament et al. (2024) and the Appendix of Altamirano et al. (2024)), their uncer-tainty quantification properties have not been well-studied, and they have an additional hyperparameter compared to standard GPs. Further, the existing heuristic for tuning this parameter relates to the proportion of outliers in the data, which is unknown in practice and generally has to be hand-picked on a case-by-case basis. In this paper, we show how to refine and specialise the RCGP framework for spatio-temporal data. Our algorithm, denoted spatio-temporal RCGP (ST-RCGP) , inherits the computational and memory efficiency of STGPs, as well as the robustness properties of RCGPs (see 3rd row of Fig-ure 1). The sequential aspect of the state-space formulation also allows us to overcome the three main limitations of RCGPs (sensitivity to prior mean, lack of reliable uncer-tainty quantification, and the additional hyperparameter). Overall, we observe that the ST-RCGP provides inferences comparable to state-of-the-art non-Gaussian STGPs with a computational cost similar to classical STGPs. 
+
+## 2. Background 
+
+GP Regression Let {xk, y k}Nk=1 be observations, where 
+
+xk ∈ X ⊆ Rd are covariates and yk ∈ Y ⊆ R are responses. For observation noise ϵk, GP regression considers 
+
+yk = f (xk) + ϵk, for k = 1 , . . . , N (1) where the latent function f : X → R is modelled by a GP prior f ∼ GP (m, κ ) with mean m : X → R and covari-ance (or kernel) κ : X × X → R, such that for any inputs 
+
+X = ( x1, ..., xN )⊤, the vector f = ( f (x1), ..., f (xN )) ⊤
+
+is distributed as a N -dimensional Gaussian N (m, K) with 
+
+m = ( m(x1), ..., m (xN )) ⊤ and (K)ij = κ(xi, xj ). The kernel κ typically depends on parameters θ ∈ Θ that we omit from the notation for brevity. When the observa-tions y = ( y1, ..., y N )⊤ have independent Gaussian noise 
+
+(ϵ1, . . . , ϵ N )⊤ ∼ N (0 , σ 2IN ), the posterior predictive for 
+
+f⋆ = f (x⋆) at x⋆ ∈ X is f⋆|y, X ∼ N (μ⋆
+
+> GP
+
+, Σ⋆
+
+> GP
+
+) with 
+
+μ⋆ 
+
+> GP
+
+= m⋆ + k⊤
+
+> ⋆
+
+ K + σ2IN
+
+−1 (y − m)Σ⋆ 
+
+> GP
+
+= k⋆⋆ − k⊤ 
+
+> ⋆
+
+(K + σ2IN )−1k⋆
+
+(2) where IN is the N × N identity matrix, k⋆ =(κ(x⋆, x 1), ..., κ (x⋆, x N )) ⊤, k⋆⋆ = κ(x⋆, x ⋆), and m⋆ =
+
+m(x⋆). The orange colouring can be ignored for now, but will be used to highlight differences with RCGPs. To obtain this mean and covariance, we must invert an N ×N matrix— an operation with computational complexity O(N 3).
+
+State-Space Formulation An alternative approach, which has linear-in-time cost, is to use a state-space representation. Consider Equation (1) with spatio-temporal inputs. At time 
+
+tk ∈ T ⊆ R, we now have inputs xk,j = ( sj , t k) ∈ X =
+
+S × T on a spatial grid S = ( s1, . . . , sns )⊤ ∈ S ns ⊆
+
+Rns×ds with ns points and spatial dimensionality ds (i.e. 
+
+d = ds + 1 ). The observations corresponding to xk =(xk, 1, . . . , xk,n s )⊤ are denoted yk = ( yk, 1, . . . , y k,n s )⊤ ∈
+
+Rns , leading to a total number of data points N = ntns
+
+where nt is the number of time steps. If standard GPs were used here, the cost would be O(n3 
+
+> t
+
+n3
+
+> s
+
+), which may become impractical. A solution to this issue is to reformulate GPs as SSMs. We first collect ν partial derivatives of f with respect to time in a state vector z = z(s, t ) ∈ R(ν+1) where (z(s, t )) i = 
+
+> ∂i−1
+> ∂t i−1
+
+f (s, t ) for i = 1 , ..., ν +1 . We assume a stationary and separable kernel so that κ(s, t ; s′, t ′) = κs(s − s′)κt(t − t′),where κs and κt are spatial and temporal kernels respec-tively. For a large class of kernels (Solin, 2016), we can represent the GP prior as the solution to a stochastic differ-ential equation (SDE): 
+
+∂z(s, t )
+
+∂t = Ftz(s, t ) + Ltw(s, t ), (3) 2Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+where Ft ∈ R(ν+1) ×(ν+1) , Lt ∈ R(ν+1) ×1, and w(s, t )
+
+is a spatio-temporal white noise process corresponding to the derivative of Brownian motion with spectral den-sity Qc,t ∈ R1×(ν+1) (Solin, 2016). The matrices Ft,
+
+Lt, Qc,t and the constant ν depend on κ. Equation (3) defines a continuous latent process, but given a finite collection of points, this becomes a SSM with states 
+
+zk = (z(s1, t k), ..., z(sns , t k)) ⊤ ∈ Rns(ν+1) and time steps ∆tk = tk −tk−1 (Hartikainen & S ¨arkk ¨a, 2010; Sarkka & Hartikainen, 2012; S¨ arkk¨ a & Solin, 2019): 
+
+z0 ∼ N (0, Σ0), and for k > 0,
+
+zk = Ak−1zk−1 + qk−1, qk−1 ∼ N (0, Σk−1)
+
+yk = Hz k + ϵk
+
+(4) where H ∈ Rns×ns(ν+1) is defined such that Hz k = fk := (f (s1, t k), ..., f (sns , t k)) ⊤. The matrices Ak−1 and Σk−1
+
+depend on Ft, Lt and Qc,t in the SDE formulation. We de-fine them in Appendix C.2, and provide information on how to compute them in practice for a list of common kernels κ.
+
+Filtering and Smoothing Solving the SSM from Equa-tion (4) via sequential inference amounts to first retrieving the filtering distribution p(zk|y1: k), and then the smooth-ing distribution p(zk|y1: N ) (S ¨arkk ¨a, 2013). Taking Equa-tion (4), and assuming the observation noise is Gaussian so that ϵk ∼ N (0 , σ 2Ins ), the predict and update equations are 
+
+conjugate and given by the Kalman filter (Kalman, 1960) and Rauch-Tung-Striebel smoother (Rauch et al., 1965); see Section 8.2 of S ¨arkk ¨a (2013). The resulting distribution has densities p(zk|y1: k−1) = N (zk; mk|k−1, Pk|k−1) and 
+
+p(zk|y1: k) = N (zk; mk|k, Pk|k), with predict step :
+
+mk|k−1 := Ak−1mk−1|k−1
+
+Pk|k−1 := Ak−1Pk−1|k−1A⊤ 
+
+> k−1
+
++ Σk−1, (5) and (Bayes) update step :
+
+Pk|k := 
+
+
+
+P−1 
+
+> k|k−1
+
++ H⊤σ−2Ins H
+
+−1
+
+Kk := Pk|kH⊤σ−2Ins
+
+mk|k := mk|k−1 + Kk(yk − ˆfk),
+
+(6) where ˆfk := Hm k|k−1, Kk ∈ Rns(ν+1) ×ns , mk|k ∈
+
+Rns(ν+1) and Pk|k ∈ Rns(ν+1) ×ns(ν+1) . The posterior 
+
+p(zk|y1: N ) is obtained by marginalising the smoothing dis-tribution, and matches exactly the original GP posterior (Solin, 2016). For a new input (s⋆, t ⋆), the predictive is obtained by including (s⋆, t ⋆) in the filtering and smoothing algorithms and predicting without updating. Importantly, this algorithm only inverts matrices whose sizes scale with 
+
+ν—where typically ν < 10 (Hartikainen & S ¨arkk ¨a, 2010)— or ns, but not with nt. In contrast to the standard GP’s 
+
+O(n3 
+
+> t
+
+n3
+
+> s
+
+) time and O(n2 
+
+> t
+
+n2
+
+> s
+
+) memory cost, the STGP only requires O(ntn3
+
+> s
+
+) time and O(ntn2
+
+> s
+
+) memory (Solin, 2016). −9 yk 0 50.00.51.0                  
+
+> wIMQ (xk, y )
+> Varying γ
+> γ1(xk)
+> γ2(xk)
+> −5yk5
+> Varying β
+> β= 0 .1β= 0 .5β= 1 .0
+> −50yk5
+> Varying c
+> c= 0 .1c= 0 .5c= 2 .0
+
+Figure 2. Behaviour of y 7 → wIMQ (xk , y ) as we vary c, β, and γ.
+
+We emphasize |yk − γ(xk )| and wIMQ (xk , y k ) with datum yk .
+
+Generalised Bayes for GP Regression Conjugate GPs and STGPs rely on the fragile assumption that ϵ1, . . . , ϵ N
+
+are Gaussian. While non-Gaussian likelihoods can address this, they also break conjugacy—and thus require expensive and potentially inaccurate approximations. Fortunately, gen-eralised Bayes (GB) (Bissiri et al., 2016; Knoblauch et al., 2022) can produce robust and conjugate GP posteriors. GB mitigates model misspecification by constructing posterior distributions through a loss L : YN × Y N × X N → R via 
+
+pL(f |X, y) ∝ p(f |X) exp ( −N L(y; f , X)) , (7) where ∝ denotes proportionality and L is typically an esti-mator of a statistical divergence between the likelihood model and the data (Jewson et al., 2018). The loss L
+
+used for RCGPs (Altamirano et al., 2024) is a modifi-cation of the weighted score-matching divergence , first proposed by Barp et al. (2019), to regression. It gener-alises score-matching (Hyv ¨arinen, 2005), and is a special case of the framework in Lyu (2009); Yu et al. (2019); Xu et al. (2022). Importantly, it uses a weight function 
+
+w : X × Y → R \ { 0} that down-weights unreasonably extreme data points. This choice yields the RCGP posterior predictive f⋆ ∼ N (μ⋆
+
+> RCGP
+
+, Σ⋆
+
+> RCGP
+
+) with 
+
+μ⋆ 
+
+> RCGP
+
+= m⋆ + k⊤
+
+> ⋆
+
+ K + σ2Jw
+
+−1 (y − mw)Σ⋆ 
+
+> RCGP
+
+= k⋆⋆ − k⊤ 
+
+> ⋆
+
+(K + σ2Jw)−1k⋆, (8) where w = ( w(x1, y 1), ..., w (xN , y N )) ⊤, and 
+
+mw = m + σ2∇y log( w2)
+
+Jw = diag 
+
+ σ2
+
+2 w−2
+
+
+
+.
+
+The expressions look similar to those in Equation (2), with differences highlighted in orange. This also reveals that standard GPs are recovered for the constant weight 
+
+w(x, y ) = σ/ √2. The similar forms also suggest that, much like classical GPs, a naive implementation of RCGPs has a complexity of O(N 3) due to the associated matrix inversion. However, under mild conditions on w, RCGPs benefit from provable robustness to outliers (see Proposition 3.2 of Altamirano et al., 2024). 3Robust and Conjugate Spatio-Temporal Gaussian Processes 0.0 0.5 1.0                                               
+
+> x
+> −2.50.02.5
+> y
+> m1(x) = 0 (Bad prior mean)
+> m2(x) = sin( x) (Good prior mean) RCGP ( m1, c =QN(1 −)) RCGP ( m2, c =QN(1 −))
+> 0.00.51.0
+> x
+> 0.00.51.0
+> x
+> RCGP ( m2, c = 0 .8) Data
+> 0.20.40.60.81.0Quantiles
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0Coverage
+> Figure 3. Failure Modes with Existings RCGPs . We generated N= 80 data points from the true function f(x) = 3 sin(2 πx )using
+> N(0 ,0.5) additive noise, then corrupted ϵ= 10% of observations around x= 0 .76 . The leftmost figure shows that RCGP’s posterior mean is strongly affected by the choice of prior mean, highlighting Issue #1 . In the two middle plots, we demonstrate that the recommended
+> c=QN(1 −ϵ) = 3 .7(from Altamirano et al. (2024)) is far from optimal—emphasizing Issue #3 —even when fitting simple data and knowing the true proportion of outliers ϵ. These two plots also show RCGP’s inaccurate uncertainty quantification when hyperparameters are chosen poorly, which is further supported by the rightmost coverage plot and illustrates Issue #2 .
+
+In prior work, Altamirano et al. (2024) suggested to take 
+
+w of the form of an inverse multi-quadric (IMQ) kernel depending on a centering function γ : X → R, a shrinking function c : X → R, and a constant β > 0:
+
+wIMQ (x, y ) = β
+
+
+
+1 + (y − γ(x)) 2
+
+c(x)2
+
+− 12
+
+(9) The IMQ has been used frequently to robustify score-based divergences (Barp et al., 2019; Key et al., 2021; Matsub-ara et al., 2022; Altamirano et al., 2023; Matsubara et al., 2024; Liu & Briol, 2024). It is a bump function centred at γ(x) that grows as |y − γ(x)| decreases, and shrinks as 
+
+|y − γ(x)| increases (see Figure 2). The centering function 
+
+γ(x) determines where the bump is maximised, and any y
+
+far from γ(x) is down-weighted (see Figure 2). The shrink-ing function c(x) determines how quickly we down-weight observations that deviate from γ(x), and β determines the maximum of the weight function (see Figure 2). Note that 
+
+β is a multiplicative constant which is equivalent to a GB learning rate (Wu & Martin, 2023). While IMQ-based weights have shown much promise, they rely on three hyperparameters that can be difficult to select: 
+
+γ, β, and c. Altamirano et al. (2024) proposed centering at the prior mean via γ(x) = m(x), and setting β = σ/ √2
+
+to guarantee that observations are never assigned a larger weight than they would in a standard GP. Finally, they sug-gested a heuristic choice for c based on the assumed propor-tion of outliers: if ϵ ∈ [0 , 1] is the expected proportion of outliers, they suggest setting the shrinking function to the constant c(x) = QN (1 − ϵ), for QN (1 − ϵ) the (1 − ϵ)th 
+
+quantile of {| yk − γ(xk)|} Nk=1 .These choices can provide good performance in many set-tings, but introduce several failure modes: 
+
+Issue #1 (Sensitivity to the prior mean m): Altamirano et al. (2024); Ament et al. (2024) pointed to the poor perfor-mance of RCGPs when m is not chosen carefully. Indeed, setting γ(x) := m(x) can be undesirable when m is not a good approximation of f . In that case, observations close to m(x) but far from f (x) will have large weights despite likely being outliers, whereas observations close to f (x) but far from m(x) will be down-weighted despite likely having little noise. We show this in Figure 3. Altamirano et al. (2024) suggest fixing this problem by choosing a prior mean using a simpler regression model, but this solution requires an additional fit of the data, which can be cumbersome. 
+
+Issue #2 (Poor uncertainty quantification): The values of β and c have a significant influence on the predictive variance, but it is not clear that the suggested choices are sensible when it comes to uncertainty quantification, and Al-tamirano et al. (2024) did not study this question. This could mean that RCGPs are consistently under- or overconfident— a problem we also illustrate in Figure 3. Sinaga et al. (2024) proposed a computation-aware extension of RCGPs to im-prove uncertainty quantification, but their approach still depends on having good values for β and c.
+
+Issue #3 (Selection of shrinking function c): The pro-posed heuristic for selecting c requires the user to speculate on the proportion ϵ of outliers. Not only is this difficult to do reliably if we do not know ϵ, but, as shown in Figure 3, the approach can also fail to select good values of c even when the correct ϵ is used. This can lead to unreliable posterior estimates and either under- or overconfidence in the RCGP posterior. In addition, setting x 7 → c(x) to be constant can be sub-optimal when outliers are clustered in time or space, in which case adapting the shrinking function according to its input could lead to improved uncertainty quantification. 
+
+## 3. Methodology 
+
+Spatio-Temporal RCGPs We now show that, similarly to GPs, inference for RCGPs can be performed using an SSM 4Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+representation and filtering/smoothing updates. To achieve this, we use the weighted score-matching loss 
+
+L(xk, yk, zk) = 1
+
+nsnsX
+
+> j=1
+
+∥w(xk,j , y k,j )sfk,j (yk,j )∥22
+
++ 2 ∇y ·  w(xk,j , y k,j )2sfk,j (yk,j ) , (10) where sf (y) := ( f −y)/σ is the score of the Gaussian error, and the dependency on zk is through fk,j := ( Hz k)j . Then, the generalised filtering posterior equations are 
+
+pL(zk|y1: k) ∝ pL(zk|y1: k−1) exp ( −nsL(xk, yk, zk)) ,pL(zk|y1: k−1) = 
+
+Z
+
+p(zk|zk−1)pL(zk−1|y1: k−1)dzk−1,
+
+for p(zk|zk−1) defined as for Equation (4). 
+
+Proposition 3.1. Suppose we model ϵ1, . . . , ϵ N
+
+> iid
+
+∼ N (0 , σ 2)
+
+and choose w : X × Y → R \ { 0} such that y 7 →
+
+w(y, x ) is differentiable. Then, the generalised posterior 
+
+pL(zk|y1: k) associated to the SSM formulation of RCGPs is a N (zk; mGB 
+
+> k|k
+
+, PGB 
+
+> k|k
+
+) and inference can be performed through Kalman filtering/smoothing with predict step 
+
+mk|k−1 := Ak−1mGB 
+
+> k−1|k−1
+
+,
+
+Pk|k−1 := Ak−1PGB 
+
+> k−1|k−1
+
+A⊤ 
+
+> k−1
+
++ Σk−1,
+
+and update step 
+
+PGB  
+
+> k|k
+
+:= 
+
+
+
+P−1 
+
+> k|k−1
+
++ H⊤σ−2J−1 
+
+> wk
+
+H
+
+−1
+
+,
+
+KGB  
+
+> k
+
+:= PGB 
+
+> k|k
+
+H⊤σ−2J−1 
+
+> wk
+
+,
+
+mGB  
+
+> k|k
+
+:= mk|k−1 + KGB  
+
+> k
+
+(yk − ˆfwk ),
+
+where ˆfwk := ˆfk + σ2∇y log( w2
+
+> k
+
+) and Jwk := 
+
+diag ( σ2 
+
+> 2
+
+w−2 
+
+> k
+
+). Moreover, the associated predictive is 
+
+pL(yk|y1: k−1) = 
+
+Z
+
+p(yk|zk)pL(zk|y1: k−1)dzk
+
+= N (yk; ˆfk, ˆSk),
+
+where p(yk|zk) = N (yk; zk, σ 2Ins ), ˆfk := Hm k|k−1,and ˆSk := HP k|k−1H⊤ + σ2Ins .
+
+See Appendix B.1 for the proof. We refer to the SSM formulation of RCGPs as ST-RCGPs, and note that the above closely relates to existing GB filtering updates (Duran-Martin et al., 2024; Reimann, 2024); but differentiates itself by using the weighted score-matching objective of Barp et al. (2019)). In contrast to what we propose in this paper, however, these previous filtering methods do not deal with hyperparameter optimisation and smoothing, or notions of down-weighting optimally. Proposition 3.1 offers two key advantages over standard RCGPs: firstly, it operates with significantly smaller matri-ces of size ns(ν + 1) × ns(ν + 1) rather than ntns × ntns
+
+as for vanilla RCGPs; speeding up computations. Secondly, whilst vanilla RCGPs require the weight function to be fixed during inference, we can adapt it as filtering is performed, thereby improving inference quality. This novelty powers much of our developments, and allows us to address Is-sues #1 , #2 , and #3 mentioned in Section 2. Our notation highlights this adaptivity by indexing weights with time. The standard formulation of RCGPs arises as a particular case of Proposition 3.1 where wk are specified as outlined in Section 2 and are only allowed to depend on the cur-rent observation (xk, y k). In this setting, smoothing and filtering solutions of the ST-RCGP match the RCGP batch solutions exactly . This emphasizes the importance of adap-tivity: ST-RCGPs can fix prevailing issues of vanilla RCGP 
+
+precisely because they allow adaptive weights, which in turn causes filtering and smoothing distributions to differ. Propo-sition 3.2 formalizes this result, and identifies conditions for which ST-RCGP and vanilla RCGP match. 
+
+Proposition 3.2. Consider constructing a generalised pos-terior using L as defined in Equation (10) , and assume that weights are chosen non-adaptively. Then, whenever the GP prior is a Gauss-Markov process, it will hold that filter-ing and smoothing distributions constructed sequentially as in Proposition 3.1 will be equal to those constructed in a single batch from using the vanilla RCGP form defined in Proposition 3.1 of Altamirano et al. (2024). 
+
+See Appendix B.2 for more details and the proof. 
+
+Weight Function Proposition 3.1 imposes some con-straints on the choice of weight function: it should be strictly positive, differentiable over its domain (this ensures that all quantities in Proposition 3.1 are well-defined). We also need the weight to be bounded from above to ensure robustness, and to avoid attributing weight to arbitrarily large y ∈ R,we require that lim |y|→∞ w(x, y ) = 0 . The IMQ satisfies all these conditions, and has been well-studied and recom-mended in prior literature (Matsubara et al., 2022; Riabiz et al., 2022; Chen et al., 2019)—making it an ideal choice of weight function. This choice is further justified by the fact that the IMQ hyperparameters γ, β and c are related to concepts of robustness that we will exploit when specifying the IMQ. In particular, by selecting γ, β and c, we want to 1. down-weight observations far from where we expect the data to be, as specified by the center of the data (via γ); 2. match the rate at which we down-weight observations with how confident we are in our estimate of the center— something that was not considered for RCGPs (via c); 3. be able to recover the STGP when there are no outliers, that is in well-specified settings (via β). 5Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+First, since y 7 → wIMQ (xk, y ) peaks at the centering func-tion γ(xk), we let γ(xk) := EYk ∼pL(·| y1: k−1)[Yk], which is the mean of our GB filtering posterior predictive, thus re-specting principle 1 as observations far from our prediction are down-weighted. This approach removes the vulnerabil-ity of the ST-RCGP to a poor prior mean and does not incur additional cost as filtering is part of the inference procedure of the ST-RCGP, thus resolving Issue #1 . We also note that this estimator of the center is robust , since we use the GB posterior predictive, which we will see is itself robust. Second, we observe in Figure 2 that reducing c narrows 
+
+wIMQ , which in turn increases the rate ∇y wIMQ ∝ 1/c 2 at which observations are down-weighted. To respect principle 2, we let 
+
+c2(xk) := EYk ∼pL(·| y1: k−1)[( Yk − γ(xk)) 2],
+
+which is the variance of the GB filtering posterior predictive and reflects our confidence in γ. This selection of c is systematic, adaptive , and relates to |yk − γ(xk)|, as it is extracted from the same distribution as γ is. These two features are lacking in RCGPs and resolve Issue #3 .Finally, we set β = σ/ √2, because as seen in Proposi-tion 3.1, β is a superfluous hyperparameter when σ is con-sidered, and we wish to recover the STGP in the event where 
+
+γ(xk) = yk for k = 1 , ..., n t or equivalently wk = β1, ac-complishing the purpose of principle 3. In the spatio-temporal setting, γ and c are vec-tors γk := (γ(x1,k ), . . . , γ (xns,k )) ⊤ and ck := (c(x1,k ), . . . , c (xns,k )) ⊤. Here, using the posterior predic-tive pL(yk|y1: k−1) for adaptivity, we take γk := ˆfk and 
+
+c2 
+
+> k
+
+:= diag (ˆSk). In Figure 11 (presented in the appendix), we illustrate how our selection of hyperparameters improves the posterior. Although we favour the above specification of γk, there are other ways to estimate the center of the data that can be appropriate in special cases (see Appendix C.11). 
+
+Robustness To study the robustness of ST-RCGP to out-liers, we use the classical framework of Huber (1981). Con-sider the dataset D = {(xk, yk)}nt
+
+> k=1
+
+, and suppose that for some m ∈ { 1, . . . , n t} and j ∈ { 1, . . . , n s}, we replace a single observation ym,j in the vector yk by an arbitrar-ily large contamination ycm,j , resulting in the contaminated dataset Dcm,j = ( D \ { (xm, ym)}) ∪ { (xm, ycm,j )}, where 
+
+ycm,j = ( ym, 1, ..., y cm,j , ..., y m,n s ). The influence of such contamination is measured using the divergence between a posterior based on D and the posterior based on Dcm,j .As a function of |ycm,j − ym,j |, this divergence is called the posterior influence function (PIF) and has been studied in Ghosh & Basu (2016); Matsubara et al. (2022); Altami-rano et al. (2023; 2024); Duran-Martin et al. (2024). For Gaussian posteriors, Altamirano et al. (2024); Duran-Martin et al. (2024) used the Kullback-Leibler (KL) divergence to compute the PIF in closed form as follows: 
+
+PIF( ycm,j , D ) = KL  pL(f |D)∥pL(f |Dcm,j ) .
+
+We call a posterior robust if the PIF is bounded in its first input, as this implies that even as |ycm,j − ym,j | → ∞ , the contamination’s effect on the posterior is bounded. Our next results formalises the robustness of ST-RCGP. 
+
+Proposition 3.3. For w = wIMQ with β = σ/ √2, γ(x) = ˆfk, and c2(xk) = diag (ˆSk) the PIF of ST-RCGP satisfies 
+
+sup  
+
+> ycm,j ∈R
+
+| PIF( ycm,j , D )| < ∞,
+
+making it robust to outliers. 
+
+See Appendix B.3 for the proof. 
+
+Robust Hyperparameter Optimisation The parame-ters θ we need to optimize consist of the noise level σ2
+
+and kernel parameters such as lengthscale, amplitude and smoothness. Based on p(yk|zk, θ) = N (yk; ˆfk, σ 2Ins )
+
+from Section 2 and the GB posterior pL(zk|y1: k−1, θ) = 
+
+N (mk|k−1(θ), Pk|k−1(θ)) , a standard approach would be to minimise the objective 
+
+φ(θ) := −
+
+> nt
+
+X
+
+> k=1
+
+log pL(yk|y1: k−1, θ),
+
+which has a closed form provided in Appendix C.3. This ap-proach is a version of leave-one-out cross-validation, which has been proposed in Altamirano et al. (2024) to fit RCGP’s hyperparameters (see Appendix C.3). Although objectives like φ are common, they are problematic for robustness. In particular, φ uses a form of log-likelihood loss on the poste-rior predictive—a loss that is well-known to be susceptible to outliers. Unsurprisingly, this makes φ a poor criterion for hyperparameter optimisation—it will overfit the hyperpa-rameters to outliers, and undo most of the robustness gains we achieved through Proposition 3.3 (see Appendix C.3). Fortunately, there is a simple and elegant way around this: weighted likelihood approaches (see e.g. Field & Smith, 1994; Windham, 1995; Dupuis & Morgenthaler, 2002; De-waskar et al., 2023). Specifically, we define 
+
+φGB (θ) := −
+
+> nt
+
+X
+
+> k=1
+
+˜wk log pL(yk|y1: k−1, θ)
+
+where ˜wk := ˜w(wk) ∈ R is a function that maps the weight vector wk at time tk to a type of summary indicating whether or not the observations at time tk jointly constitute an outlier along the temporal dimension of the observation process. In the absence of a spatial dimension, this value can be chosen as the weight itself so that ˜wk := wk, as it reflects our belief that the corresponding point is an outlier. 6Robust and Conjugate Spatio-Temporal Gaussian Processes 05        
+
+> y
+> RCGP
+> m(x)
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0Coverage
+> 0.20.40.60.81.0
+> x
+> 05
+> y
+> ST-RCGP
+> 0.20.40.60.81.0Quantiles
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0Coverage
+
+Figure 4. Simulated Temporal Data With Focussed Outliers . Left: 
+
+N = 200 points are generated from a GP with Mat ´ern kernel ( ν =3/2), and contaminated with 5% outliers. RCGP uses γ(x) = 
+
+m(x) = 1
+
+> N
+
+PNi=1 yi and c = QN (0 .95) . While predictions are made on data with outliers, we fit the hyperparameters of RCGP on 
+
+decontaminated data to make it as strong a competitor as possible. In contrast, ST-RCGP uses the robust hyperparameter optimisation and selection from Section 3 to fit and predict from data with 
+
+outliers. Despite this, ST-RCGP performs much better than RCGP. 
+
+Right: The coverage plots measure how often the uncontaminated data falls within the predictive distribution’s q-th quantile. 
+
+In the spatio-temporal setting, however, we might instead define it as the mean, a lower quantile, or the minimum of weights across spatial locations. We refer the reader to Appendix C.3 for more details and experiments showing how φGB improves on φ in temporal and spatio-temporal settings. On top of the better parameter estimates, we also find that the weighted approach reduces the variance in gradient computation (Wang et al., 2013), and seems to yield faster convergence. The computational cost of φGB is 
+
+O(ntn3
+
+> s
+
+)—the same as for inference with STGPs. 
+
+## 4. Experiments 
+
+In the remainder, we study the advantages of ST-RCGP on numerical examples. First, we investigate how ST-RCGP improves upon RCGP. Second, we explore ST-RCGP in well-specified settings without outliers. Third, we showcase its virtues on financial time series with severe outliers and its superior performance relative to competitors. Our last numerical experiment studies the robustness ST-RCGP ex-hibits towards spatio-temporal temperature anomalies. The code to reproduce all experiments is available at https: //github.com/williamlaplante/ST-RCGP .Throughout Section 4, we evaluate experiments based on root mean squared error RMSE( X, ˆy) := pEY ∼p0(·| X) [( Y − ˆy)2] and evaluations of the neg-ative log predictive distribution NLPD( X, ˆy, ˆσ) := 
+
+EY ∼p0(·| X)
+
+− log pϕ
+
+ Y |ˆy, ˆσ2 on the test data, where 
+
+pϕ is the Gaussian density with mean ˆy and variance ˆσ2
+
+specified by the model. To capture the tradeoff between robustness to outliers and statistical efficiency—defined in this paper as a model’s ability to recover the standard GP in well-specified settings—we report the expected weighted ratio EWR (X) := EY ∼p0(·| X) [w(x, Y )/w STGP (x, Y )] .We expand on these metrics in Appendix C.1. Even when investigating temporal tasks without spatial di-mensions, we keep the name ST-RCGP to clarify that in-ference proceeds (i) via the state-space representation of Proposition 3.1, and (ii) via hyperparameters chosen using the methods of Section 3—rather than those used for vanilla RCGPs in Altamirano et al. (2024). 
+
+Fixing vanilla RCGP In previous sections and Figure 3, we found that vanilla RCGP is vulnerable to prior mean misspecification ( Issue #1 ), can produce poor uncertainty estimates ( Issue #2 ) and cannot correctly select c (Issue #3 ). In our first experiment, we show how ST-RCGP im-proves on those issues. To this end, we simulate data from a GP and compare the fit produced by both algorithms in Figure 4. The plotted predictives show that RCGP is com-promised by outliers due to Issue #1 and Issue #3 , while the coverage plots point to unreliable uncertainty estimates in-duced by Issue #2 . In contrast, using an adaptive centering and shrinking function allows ST-RCGP to produce reliable uncertainty estimates and predictions. 
+
+ST-RCGP in Well-Specified Settings While robust meth-ods offer protection from contaminated data, some can only do so at the expense of statistical efficiency. Here, we show that ST-RCGP remains statistically efficient in well-specified settings and robust to outliers when required. The setup we use is described in Appendix C.13, and results are reported in Table 1. While RMSE and NLPD are compara-ble across methods in well-specified settings, STGP suffers from a clear drop in NLPD and RMSE when outliers are introduced. In contrast, compared to other methods, the ST-RCGP maintains the lowest RMSE and NLPD in both cases. Also, its EWR is high in well-specified settings and drops in the presence of outliers to obtain robustness. The ST-RCGP thus exhibits the properties we seek out of robust methods in well-specified settings. 
+
+Table 1. EWR, RMSE, and NLPD for different methods in well-specified settings and with data containing outliers.                                                           
+
+> Outliers Method EWR NLPD RMSE
+> Yes STGP 1.0±0.030 ±20.38 ±0.02
+> RCGP 0.886 ±0.001 6.6±0.30.21 ±0.01
+> ST-RCGP 0.863 ±0.002 5.5±0.20.19 ±0.01
+> No STGP 1.0±0.06.5±0.20.19 ±0.01
+> RCGP 0.894 ±0.001 5.6±0.10.19 ±0.01
+> ST-RCGP 0.903 ±0.001 5.7±0.10.19 ±0.01
+
+7Robust and Conjugate Spatio-Temporal Gaussian Processes 10 11 12 13 14 15 16               
+
+> Time (Hour)
+> 14450
+> 14500
+> 14550
+> 14600
+> 14650
+> 14700
+> DJIA Index
+> April 22nd, 2013
+> 10 11 12 13 14 15
+> Time (Hour)
+> April 23rd, 2013
+> Data Crash GP RCGP RP ST-RCGP Prior Mean
+> 5000 10000
+> # Data Points
+> 0
+> 10
+> 20
+> 30
+> 40
+> Execution Time (s)
+> 12:57 13:12 13:26
+> 14600
+> 14650
+> 14700
+
+Figure 5. Comparing Estimates of DJIA Index During Twitter Flash Crash Incident . RCGP uses a prior mean of the data over the two days. We notice a dip in the posterior predictive of RCGP when the prior mean aligns with the crash event (red), whereas ST-RCGP and relevance pursuit algorithm (RP) from Ament et al. (2024) remain unaffected. In the right plot, we show computational time vs the number of data points. Note that RP has cost K times the standard GP, where typically K > 1.
+
+Robustness During Financial Crashes On April 23rd 2013, the Associated Press’s Twitter account was hacked and posted false tweets about explosions at the White House. This led to a brief but significant market drop, including in the Dow Jones Industrial Average (DJIA), which quickly re-bounded after the tweet was proven false. This data set was previously studied by Altamirano et al. (2024) and Ament et al. (2024). We plot the GP, RCGP, and ST-RCGP fits in Figure 5, as well as the robust GP via relevance pursuit (RP) fit from Ament et al. (2024). While RP behaves as desired, the plot reveals that the GP is not robust to the crash. Interestingly, the RCGP performs even worse since 
+
+γ, which is chosen as the constant prior mean obtained by averaging two days of data, happens to be close to the outliers during the crash, implying that RCGP is centered around the outliers. This is another instance of Issue #1 , and it is addressed by ST-RCGP. By using an adaptive center-ing function introduced in Section 3, ST-RCGP is centered around more reasonable values. The right-hand panel of Figure 5 also highlights that ST-RCGP leads to substantive computational gains relative to RCGP and GP due to its state-space representation from Proposition 3.1. We do not plot RP because it is implemented using a different package, and computational time is thus not comparable. But the cost of RPs is a multiple of that for GPs (Ament et al., 2024), and hence also significantly more than that of RCGPs and ST-RGCPs. It is also unclear how easily RPs could use the spatio-temporal structure to get a linear-in-time cost. For this reason, we do not explore RP beyond this experiment. Since the flash crash dataset only contains N = 810 data points, we further explore the computational properties of ST-RCGP by considering a trading day of index futures data with N = 46 , 800 data points. We then synthetically induce a crash similar to that in the previous example (see 
+
+Table 2. Performance comparison on N = 46800 data points with outliers. Below, Total (s) denotes clock time for full inference, 
+
+1-Step (ms) the estimated slope of a linear model fitted to execution time data for different data set sizes. Further, RMSE and NLPD 
+
+use 1000 test points around the induced crash that are not outliers.                                                                
+
+> Total (s) 1-Step (ms) RMSE NLPD
+> STGP 8.0±0.70.17 ±0.01 0.54 ±0.01 13 .9±0.3
+> ST-RCGP 9.4±0.40.20 ±0.02 0.145 ±0.002 −0.62 ±0.01
+> MEP 29 .1±0.50.60 ±0.01 0.15 ±0.01 −0.57 ±0.03
+> MVI 28 .3±0.60.61 ±0.01 0.15 ±0.01 −0.53 ±0.04
+> MLa 29 ±20.62 ±0.03 0.17 ±0.01 −0.39 ±0.1
+
+Appendix C.14). Naive GP implementations struggle with data of this size, and so we focus on inherently sequential methods. Table 2 summarises the results, and compares ST-RCGP against STGP, as well as several off-the-shelf in-ference methods for sequential GPs with Student’s t errors from the BayesNewton package (Wilkinson et al., 2023) that include Markov expectation propagation (MEP), Markov variational inference (MVI), and Markov Laplace (MLa). While STGP and ST-RCGP have similar computational cost, the robustness of ST-RCGP leads to superior performance. Conversely, ST-RCGP’s performance is comparable to mod-els using Student’s t errors for this problem, but its compu-tational cost is substantively lower. This is true despite the fact that ST-RCGP is exact, while the other robust methods in Table 2 only produce approximate inferences. 
+
+Forecasting Temperature Across the UK Having estab-lished the performance of ST-RCGP for simpler problems, our last experiment studies its behaviour on spatio-temporal temperature data with synthetically induced outliers. In particular, we induce what are often referred to as focussed 
+
+8Robust and Conjugate Spatio-Temporal Gaussian Processes 50°N                   
+
+> 55°N
+> September October November December
+> 50°N
+> 55°N
+> 10°W 5°W 0° 5°E 10°W 5°W 0° 5°E 10°W 5°W 0° 5°E 10°W 5°W 0° 5°E
+> 7.89
+> 3.68
+> 0.53
+> 4.74
+> 8.95
+> 13.16
+> 17.37
+> 21.58
+> 25.79
+> 30.00
+> °C
+> STGP ST-RCGP
+
+Figure 6. Temperature fit across the UK between September and December 2023 .Focussed outliers appear in November and are shown as red crosses. We forecast the month of December. September is the last month included in parameter optimisation. We include September to show performance on previously seen data. 
+
+Table 3. Performance on temperature data .Models perform inference on contaminated data, but RMSE and NLPD use outlier-free data. November introduces focussed outliers, and De-cember is a one-step forecast. 
+
+STGP ST-RCGP RMSE NLPD RMSE NLPD 
+
+May 0.79 1.63 0.59 0.76 Jun 0.77 1.53 0.54 0.67 Jul 0.76 1.49 0.55 0.75 Aug 0.77 1.61 0.50 0.66 Sep 0.82 2.13 0.49 0.71 Oct 1.23 7.50 0.50 0.63 Nov 3.30 41.62 1.19 2.44 Dec 3.84 3.30 1.38 2.13 
+
+outliers , and which simulate the impact of rare natural phe-nomena that affect neighbouring weather stations. The data we use is collected by the Climate Research Unit (see Harris et al., 2020) and measures temperature from 16/01/2022 to 16/12/2023 at ns = 571 locations, containing N = 11 , 991 
+
+data points in total. Hyperparameter optimisation is per-formed from 16/01/2022 to 30/09/2023, with later dates serving as test data. In October and November 2023, we perform in-sample predictions, and December 2023 is used for a one-month temperature forecast. Figure 6 and Table 3 display the results, and Appendix C.15 provides a coverage analysis. The two models perform similarly when there are no outliers. However, the ST-RCGP outperforms the STGP slightly because the outliers impact the STGP posterior dur-ing the months before they are introduced due to smoothing. With outliers, the STGP loses prediction accuracy (NLPD and RMSE), whereas ST-RCGP maintains consistent RMSE and NLPD over time, offering more reliable predictions at comparable computational cost. 
+
+## 5. Conclusion 
+
+We proposed ST-RCGPs based on an overhaul of the RCGP framework of Altamirano et al. (2024) that addressed some major drawbacks of vanilla RCGPs, further improved their computational efficiency and paved the way for their use in spatio-temporal problems. ST-RCGPs have the computa-tional complexity of STGPs, but additionally provide robust-ness to outliers. Further, we empirically demonstrated that ST-RCGPs match the performance of the relevance pursuit algorithm from Ament et al. (2024) and of various robust GP methods from the BayesNewton package (Wilkinson et al., 2023) at a fraction of their computational cost and without approximation error. Our method builds on classical STGPs, which remain vul-nerable to scaling in the spatial dimension and could be addressed similarly to Hamelijnck et al. (2021) through vari-ational approximations. Furthermore, our method may be computationally suboptimal if parallel computing is avail-able, in which case parallel-scan algorithms (see also S ¨arkk ¨a& Garc ´ıa-Fern ´andez (2020)) could be interesting to adapt to ST-RCGPs if possible. However, we consider these inves-tigations to be outside the scope of this paper. An entirely different but equally relevant endeavour for future research is to explore the use of non-Gaussian likelihoods within the RCGP framework. This would extend its use beyond the standard regression setting, and allow its application to classification problems, count data, and various bounded data domains. 
+
+## Acknowledgements 
+
+WL was supported by UCL’s Center for Doctoral Training in Data-Intensive Science and by the Alan Turing Insti-tute. MA was supported by a Bloomberg Data Science PhD fellowship. FXB and JK were supported by the EPSRC grant EP/Y011805/1, and JK was additionally supported by EP/W005859/1. 
+
+## Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 9Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+## References 
+
+Aftab, W., Hostettler, R., De Freitas, A., Arvaneh, M., and Mihaylova, L. Spatio-temporal Gaussian process models for extended and group object tracking with irregular shapes. IEEE Transactions on Vehicular Technology , 68 (3):2137–2151, 2019. Altamirano, M., Briol, F.-X., and Knoblauch, J. Robust and scalable Bayesian online changepoint detection. In 
+
+International Conference on Machine Learning , pp. 642– 663. PMLR, 2023. Altamirano, M., Briol, F.-X., and Knoblauch, J. Robust and conjugate Gaussian process regression. In Interna-tional Conference on Machine Learning , pp. 1155–1185. PMLR, 2024. Ament, S., Santorella, E., Eriksson, D., Letham, B., Ba-landat, M., and Bakshy, E. Robust Gaussian processes via relevance pursuit. Advances in Neural Information Processing Systems (to appear) , 2024. Barp, A., Briol, F.-X., Duncan, A., Girolami, M., and Mackey, L. Minimum Stein discrepancy estimators. Ad-vances in Neural Information Processing Systems , 32, 2019. Bauer, M., Van der Wilk, M., and Rasmussen, C. E. Un-derstanding probabilistic sparse Gaussian process approx-imations. Advances in Neural Information Processing Systems , 29, 2016. Bissiri, P. G., Holmes, C. C., and Walker, S. G. A general framework for updating belief distributions. Journal of the Royal Statistical Society: Series B (Statistical Method-ology) , 78(5):1103–1130, 2016. Bock, C., Aubet, F.-X., Gasthaus, J., Kan, A., Chen, M., and Callot, L. Online time series anomaly detection with state space gaussian processes. arXiv preprint arXiv:2201.06763 , 2022. Chen, W. Y., Barp, A., Briol, F.-X., Gorham, J., Girolami, M., Mackey, L., and Oates, C. Stein point markov chain monte carlo. In International Conference on Machine Learning , pp. 1011–1021. PMLR, 2019. Dewaskar, M., Tosh, C., Knoblauch, J., and Dunson, D. B. Robustifying likelihoods by optimistically re-weighting data. arXiv preprint arXiv:2303.10525 , 2023. Drineas, P., Mahoney, M. W., and Cristianini, N. On the Nystr ¨om method for approximating a gram matrix for improved kernel-based learning. Journal of Machine Learning Research , 6(12), 2005. Dupuis, D. J. and Morgenthaler, S. Robust weighted likeli-hood estimators with an application to bivariate extreme value problems. Canadian Journal of Statistics , 30(1): 17–36, 2002. Duran-Martin, G., Altamirano, M., Shestopaloff, A., S´ anchez-Betancourt, L., Knoblauch, J., Jones, M., Briol, F.-X., and Murphy, K. P. Outlier-robust Kalman filtering through generalised Bayes. In International Conference on Machine Learning , pp. 12138–12171. PMLR, 2024. Duvenaud, D. Automatic model construction with Gaussian processes . PhD thesis, Apollo - University of Cambridge Repository, 2014. Field, C. and Smith, B. Robust estimation: A weighted maximum likelihood approach. International Statistical Review/Revue Internationale de Statistique , pp. 405–424, 1994. Fonseca, T. C., Lobo, V. G., and Schmidt, A. M. Dynamical non-Gaussian modelling of spatial processes. Journal of the Royal Statistical Society Series C: Applied Statistics ,72(1):76–103, 2023. Garnett, R. Bayesian optimization . Cambridge University Press, 2023. Ghosh, A. and Basu, A. Robust Bayes estimation using the density power divergence. Annals of the Institute of Statistical Mathematics , 68(2):413–437, 2016. Golub, G. H. and Van Loan, C. F. Matrix computations .JHU press, 2013. Hamelijnck, O., Wilkinson, W., Loppi, N., Solin, A., and Damoulas, T. Spatio-temporal variational gaussian pro-cesses. Advances in Neural Information Processing Sys-tems , 34:23621–23633, 2021. Harris, I., Osborn, T. J., Jones, P., and Lister, D. Version 4 of the cru ts monthly high-resolution gridded multivariate climate dataset. Scientific data , 7(1):109, 2020. Hartikainen, J. and S ¨arkk ¨a, S. Kalman filtering and smooth-ing solutions to temporal Gaussian process regression models. In IEEE International Workshop on Machine Learning for Signal Processing , pp. 379–384, 2010. Hartikainen, J., Riihim ¨aki, J., and S ¨arkk ¨a, S. Sparse spatio-temporal Gaussian processes with general likelihoods. In 
+
+Artificial Neural Networks and Machine Learning , pp. 193–200. Springer, 2011. Heaton, M. J., Katzfuss, M., Ramachandar, S., Pedings, K., Gilleland, E., Mannshardt-Shamseldin, E., and Smith, R. L. Spatio-temporal models for large-scale indicators of extreme weather. Environmetrics , 22(3):294–303, 2011. 10 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+Hensman, J., Fusi, N., and Lawrence, N. D. Gaussian processes for big data. In Uncertainty in Artificial Intelli-gence , pp. 282, 2013. Huber, P. J. Robust statistics. Wiley Series in Probability and Mathematical Statistics , 1981. Hyun, J. W., Li, Y., Huang, C., Styner, M., Lin, W., Zhu, H., Initiative, A. D. N., et al. Stgp: Spatio-temporal Gaussian process models for longitudinal neuroimaging data. Neuroimage , 134:550–562, 2016. Hyv ¨arinen, A. Estimation of non-normalized statistical models by score matching. Journal of Machine Learning Research , 6(24):695–709, 2005. Jewson, J., Smith, J. Q., and Holmes, C. Principles of Bayesian inference using general divergence criteria. En-tropy , 20(6):442, 2018. Kalman, R. E. A new approach to linear filtering and pre-diction problems. Transactions of the ASME–Journal of Basic Engineering , 82(Series D):35–45, 1960. Key, O., Fernandez, T., Gretton, A., and Briol, F.-X. Com-posite goodness-of-fit tests with kernels. In NeurIPS 2021 Workshop Your Model Is Wrong: Robustness and Misspecification in Probabilistic Modeling , 2021. Knoblauch, J., Jewson, J., and Damoulas, T. An optimization-centric view on Bayes’ rule: Reviewing and generalizing variational inference. Journal of Machine Learning Research , 23(132):1–109, 2022. Krige, D. G. A statistical approach to some basic mine valuation problems on the Witwatersrand. Journal of the Southern African Institute of Mining and Metallurgy , 52 (6):119–139, 1951. Kupilik, M. and Witmer, F. Spatio-temporal violent event prediction using Gaussian process regression. Journal of Computational Social Science , 1(2):437–451, 2018. Liu, X. and Briol, F.-X. On the robustness of kernel goodness-of-fit tests. arXiv:2408.05854 , 2024. Lyu, S. Interpretation and generalization of score matching. In Proceedings of the Twenty-Fifth Conference on Uncer-tainty in Artificial Intelligence , UAI ’09, pp. 359–366, Arlington, Virginia, USA, 2009. AUAI Press. ISBN 9780974903958. Matsubara, T., Knoblauch, J., Briol, F.-X., and Oates, C. J. Robust generalised Bayesian inference for intractable likelihoods. Journal of the Royal Statistical Society Series B: Statistical Methodology , 84(3):997–1022, 2022. Matsubara, T., Knoblauch, J., Briol, F.-X., and Oates, C. J. Generalized bayesian inference for discrete intractable likelihood. Journal of the American Statistical Associa-tion , 119(547):2345–2355, 2024. Nickisch, H., Solin, A., and Grigorevskiy, A. State space Gaussian processes with non-Gaussian likelihood. In 
+
+International Conference on Machine Learning , Proceed-ings of Machine Learning Research, pp. 3789–3798, 2018. Pleiss, G., Gardner, J., Weinberger, K., and Wilson, A. G. Constant-time predictive distributions for Gaussian pro-cesses. In International Conference on Machine Learning ,pp. 4114–4123. PMLR, 2018. Rauch, H. E., Tung, F., and Striebel, C. T. Maximum likeli-hood estimates of linear dynamic systems. AIAA Journal ,3(8):1445–1450, 1965. Reece, S. and Roberts, S. An introduction to Gaussian processes for the Kalman filter expert. In International Conference on Information Fusion , pp. 1–9, 2010. Reimann, H. Towards robust inference for Bayesian filtering of linear Gaussian dynamical systems subject to additive change. Master’s thesis, Universit¨ at Potsdam, 2024. Riabiz, M., Chen, W. Y., Cockayne, J., Swietach, P., Niederer, S. A., Mackey, L., and Oates, C. J. Optimal thinning of mcmc output. Journal of the Royal Statis-tical Society Series B: Statistical Methodology , 84(4): 1059–1081, 2022. Ruanaidh, J. J. O. and Fitzgerald, W. J. Numerical Bayesian methods applied to signal processing . Springer Science & Business Media, 1996. Santner, T. J., Williams, B. J., and Notz, W. I. The Design and Analysis of Computer Experiments . Springer, 2nd edition, 2018. S ¨arkk ¨a, S. and Garc ´ıa-Fern ´andez, ´A. F. Temporal paral-lelization of bayesian smoothers. IEEE Transactions on Automatic Control , 66(1):299–306, 2020. Sarkka, S. and Hartikainen, J. Infinite-dimensional Kalman filtering approach to spatio-temporal Gaussian process regression. In International Conference on Artificial Intel-ligence and Statistics , volume 22, pp. 993–1001. PMLR, 2012. S ¨arkk ¨a, S. and Solin, A. Applied stochastic differential equations , volume 10. Cambridge University Press, 2019. Senanayake, R., O’Callaghan, S., and Ramos, F. Predict-ing spatio-temporal propagation of seasonal influenza using variational Gaussian process regression. In AAAI Conference on Artificial Intelligence , volume 30, 2016. 11 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+Sinaga, M. A., Martinelli, J., and Kaski, S. Computation-aware robust Gaussian processes. In NeurIPS 2024 Workshop on Bayesian Decision-making and Uncertainty ,2024. Solin, A. Stochastic differential equation methods for spatio-temporal Gaussian process regression . PhD thesis, Aalto University, 2016. Solin, A. and S ¨arkk ¨a, S. Gaussian quadratures for state space approximation of scale mixtures of squared ex-ponential covariance functions. In IEEE International Workshop on Machine Learning for Signal Processing ,pp. 1–6. IEEE, 2014. Stein, M. Interpolation of Spatial Data - Some Theory for Kriging . Springer Science+Business Media, 1999. S ¨arkk ¨a, S. Bayesian Filtering and Smoothing . Institute of Mathematical Statistics Textbooks. Cambridge University Press, 2013. Tadayon, V. and Rasekh, A. Non-Gaussian covariate-dependent spatial measurement error model for analyzing big spatial data. Journal of Agricultural, Biological and Environmental Statistics , 24:49–72, 2019. Titsias, M. Variational learning of inducing variables in sparse Gaussian processes. In Artificial Intelligence and Statistics , pp. 567–574. PMLR, 2009. Wang, C., Chen, X., Smola, A., and Xing, E. P. Variance reduction for stochastic gradient optimization. In Pro-ceedings of the 26th International Conference on Neural Information Processing Systems-Volume 1 , pp. 181–189, 2013. Waxman, D. and Djuri ´c, P. M. A gaussian process-based streaming algorithm for prediction of time series with regimes and outliers. In 2024 27th International Confer-ence on Information Fusion (FUSION) , pp. 1–8. IEEE, 2024. Wilkinson, W. J., S ¨arkk ¨a, S., and Solin, A. Bayes-Newton methods for approximate Bayesian inference with psd guarantees. Journal of Machine Learning Research , 24 (83):1–50, 2023. Williams, C. K. and Rasmussen, C. E. Gaussian processes for machine learning , volume 2. MIT press Cambridge, MA, 2006. Wilson, A. and Nickisch, H. Kernel interpolation for scal-able structured Gaussian processes (kiss-gp). In Interna-tional conference on machine learning , pp. 1775–1784. PMLR, 2015. Windham, M. P. Robustifying model fitting. Journal of the Royal Statistical Society. Series B (Methodological) , pp. 599–609, 1995. Wu, P.-S. and Martin, R. A comparison of learning rate selection methods in generalized Bayesian inference. 
+
+Bayesian Analysis , 18(1):105–132, 2023. Xu, J., Scealy, J. L., Wood, A. T., and Zou, T. Gener-alized score matching for regression. arXiv preprint arXiv:2203.09864 , 2022. Yu, S., Drton, M., and Shojaie, A. Generalized score match-ing for non-negative data. Journal of Machine Learning Research , 20:1–70, 2019. 12 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+# Supplementary Material 
+
+The Appendix is structured as follows: We first introduce notation. Then, in Appendix A, we derive the loss function used in the main paper. Next, in Appendix B, we provide the proofs of all our theoretical results. Finally, in Appendix C, we provide additional details on our numerical experiments, as well as further experiments that complement those in the main text. 
+
+## Notation 
+
+Suppose we have a vector v = ( v1, v 2, ..., v N )⊤ ∈ RN , where vi : R → R, and a matrix M ∈ RN ×N . Then, • diag (v) := 
+
+
+
+v1 · · · 0 0
+
+... . . . ... ...
+
+0 · · · vN −1 00 · · · 0 vN
+
+ and diag (M) := ( M11 , M 22 , . . . , M N N )⊤ where Mij := ( M)ij .• v2 := ( v21 , ..., v 2 
+
+> N
+
+)⊤
+
+• log( v) := (log( v1), . . . , log( vN )) ⊤
+
+• ∇y v =
+
+ ∂∂y v1, . . . , ∂∂y vN
+
+⊤
+
+, where ∂∂y vi is the partial derivative of vi with respect to y.• v ⊙ w := ( v1w1, ..., v N wN )⊤ for w ∈ RN .We now remind the reader of the dimensionality of matrices and vectors crucial to the main algorithm (Proposition 3.1) of this paper: • Ak−1, Σk−1 ∈ Rns(ν+1) ×ns(ν+1) are the transition matrices from Equation (4) • H ∈ Rns×ns(ν+1) is the measurement matrix from Equation (4) • yk, wk, ˆf GB  
+
+> k
+
+∈ Rns are the observations, weights and filtering predictives from Proposition 3.1. • PGB  
+
+> k|k
+
+∈ Rns(ν+1) ×ns(ν+1) is the covariance matrix from Proposition 3.1 • mGB  
+
+> k|k
+
+∈ Rns(ν+1) is the mean from Proposition 3.1 • KGB  
+
+> k
+
+∈ Rns(ν+1) ×ns is the Kalman gain matrix from Proposition 3.1 • Jwk ∈ Rns×ns is the weight-based matrix from Proposition 3.1. Finally, when we use p(·) = N (· ; μ, Σ) , we are referring to the density of the normal distribution with mean μ and covariance Σ, and when we use N (μ, Σ) , we are referring to the distribution. 
+
+## A. Score-Matching & Loss Function 
+
+This section provides the derivation of the loss function used in the main paper based on the weighted Fisher divergence. We define the weighted Fisher divergence at a fixed time tk. Let fk(.) = f (., t k) the spatial model at time tk. Let 
+
+pk(y|s) = p(y|s, t k) be the density of the true data-generating process at time tk, and pfk (y|s) = p(y|fk(s)) be the density of our model at time tk.13 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+The weighted Fisher divergence for regression between the model and data-generating process at time tk depends on the corresponding scores sfk (y|s) = ∇y log pfk (y|s) and sk(y|s) = ∇y log pk(y|s) and is given by (Barp et al., 2019; Xu et al., 2022; Altamirano et al., 2024): 
+
+Dk := ES∼pk,s 
+
+h
+
+EY ∼pk (.|S)
+
+h
+
+∥wk(S, Y ) ( sk(Y |S) − sfk (Y |S)) ∥22
+
+ii 
+
+> +C
+
+= ES∼pk,s 
+
+h
+
+EY ∼pk (.|S)
+
+h
+
+∥wk(S, Y )sfk (Y |S)∥22 + 2 ∇y ·  wk(S, Y )2sfk (Y |S)ii 
+
+,
+
+where pk,s = p(s|tk) is the marginal, wk(s, y ) = w(( s, t k), y ), and the equality—which crucially does not depend on sk
+
+anymore—holds up to an additive constant C not depending on fk.Now, consider a dataset such that xk = ( xk, 1, ..., xk,n s )⊤, for xk,j = ( sj , t k) ∈ X = S × T , yk = ( yk, 1, ..., y k,n s )⊤, and let fk := f (xk) = ( f (xk, 1), ..., f (xk,n s )) ⊤. Moreover, let zk be related to fk as fk := Hz k. The empirical loss we obtain for filtering is then 
+
+L(xk, yk, zk) = 1
+
+nsnsX
+
+> j=1
+
+∥wk,j sf,k,j ∥22 + 2 ∇y ·  (wk,j )2sf,k,j 
+
+ , (11) where wk,j = w(xk,j , y k,j ), and sf,k,j = sfk (yk,j ).
+
+## B. Proofs of Theoretical Results 
+
+B.1. Proof of Proposition 3.1 
+
+In the following, we derive the generalised Bayes filtering posterior distribution when the loss function is quadratic. We then show that the weighted score matching loss with a Gaussian model yields a quadratic loss. Finally, we provide the derivation of the GB predictive. Let us assume a quadratic loss in zk or equivalently in fk := Hz k of the form: 
+
+L(xk, yk, zk) = 12ns
+
+ f ⊤ 
+
+> k
+
+R−1 
+
+> k
+
+fk − f ⊤ 
+
+> k
+
+vk + Ck
+
+ ,
+
+where Rk ∈ Rns×ns is an invertible matrix, vk ∈ Rns , and Ck ∈ R. The GB filtering update equations are then 
+
+pL(zk|y1: k) ∝ p(zk|y1: k−1) exp( −nsL(xk, yk, zk)) 
+
+∝ exp 
+
+
+
+− 12 (zk − mk|k−1)⊤P−1
+
+> k|k−1
+
+(zk − mk|k−1)
+
+
+
+exp 
+
+
+
+− 12
+
+ f ⊤ 
+
+> k
+
+R−1 
+
+> k
+
+fk − 2f ⊤ 
+
+> k
+
+vk
+
+
+
+∝ exp 
+
+
+
+− 12
+
+
+
+z⊤ 
+
+> k
+
+(P−1 
+
+> k|k−1
+
++ H⊤R−1 
+
+> k
+
+H)zk − 2z⊤ 
+
+> k
+
+(P−1
+
+> k|k−1
+
+mk|k−1 + H⊤vk)
+
+
+
+,
+
+(12) which implies that the mean mGB  
+
+> k|k
+
+and covariance PGB  
+
+> k|k
+
+of the GB posterior pL are: 
+
+PGB  
+
+> k|k
+
+=
+
+
+
+P−1 
+
+> k|k−1
+
++ H⊤R−1 
+
+> k
+
+H
+
+−1
+
+mGB  
+
+> k|k
+
+= PGB 
+
+> k|k
+
+
+
+P−1
+
+> k|k−1
+
+mk|k−1 + H⊤vk
+
+
+
+.
+
+(13) As with the typical Kalman filter, those equations can be written in the form 
+
+PGB  
+
+> k|k
+
+=
+
+
+
+P−1 
+
+> k|k−1
+
++ H⊤R−1 
+
+> k
+
+H
+
+−1
+
+KGB  
+
+> k
+
+= PGB 
+
+> k|k
+
+H⊤R−1
+
+> k
+
+mGB  
+
+> k|k
+
+= mk|k−1 + KGB  
+
+> k
+
+(Rkvk − Hm k|k−1),
+
+(14) where KGB  
+
+> k
+
+is the Kalman gain matrix. The typical Kalman filter equations—those used for STGPs—are recovered when 
+
+vk := R−1 
+
+> k
+
+yk and R−1 
+
+> k
+
+:= σ−2Ins .14 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+Weighted score matching and Gaussian likelihood. We now show that the loss function defined in Appendix A and Gaussian likelihood lead to a quadratic loss in fk. We have a Gaussian likelihood, which gives a score function of the form: 
+
+p(yk|zk, xk) ∝ exp 
+
+
+
+− 12 (yk − fk)⊤σ−2Ins (yk − fk)
+
+
+
+=⇒ sf,k = ∇y log p(yk|fk) = ( fk − yk)⊤σ−2Ins , (15) where fk := Hz k, zk = ( zk, 1, ..., z k,n s )⊤, yk = ( yk, 1, ..., y k,n s )⊤ and sf,k = ( sf,k, 1, ..., s f,k,n s )⊤. Then, the loss is given by 
+
+L(xk, yk, zk) = 1
+
+nsnsX
+
+> j=1
+
+(wk,j sf,k,j )2 + 2 ∇y
+
+ w2 
+
+> k,j
+
+sf,k,j 
+
+
+
+= 1
+
+nsnsX
+
+> j=1
+
+
+
+wk,j 
+
+(fk,j − yk,j )
+
+σ2
+
+2
+
++ 2 ∇y
+
+
+
+w2
+
+> k,j
+
+(fk,j − yk,j )
+
+σ2
+
+
+
+= 1
+
+nsnsX
+
+> j=1
+
+1
+
+σ4 w2 
+
+> k,j
+
+f 2 
+
+> k,j
+
+− 2
+
+σ4 fk,j yk,j w2 
+
+> k,j
+
++ 1
+
+σ4 w2 
+
+> k,j
+
+y2 
+
+> k,j
+
++ 2
+
+σ2 ∇y (w2 
+
+> k,j
+
+fk,j ) − 2
+
+σ2 ∇y (w2 
+
+> k,j
+
+yk,j )
+
+Now let us group all the elements that do not depend on f and call it C(yk,j )
+
+L(xk, yk, zk) = 1
+
+nsnsX
+
+> j=1
+
+1
+
+σ4 w2 
+
+> k,j
+
+f 2 
+
+> k,j
+
+− 2
+
+σ4 fk,j yk,j w2 
+
+> k,j
+
++ 2
+
+σ2 ∇y (w2 
+
+> k,j
+
+fk,j ) + C(yk,j )= 1
+
+nsnsX
+
+> j=1
+
+1
+
+σ4 w2 
+
+> k,j
+
+f 2 
+
+> k,j
+
+− 2
+
+σ4 fk,j yk,j w2 
+
+> k,j
+
++ 4
+
+σ2 wk,j fk,j ∇y wk,j + C(yk,j )= 1
+
+nsnsX
+
+> j=1
+
+1
+
+σ4 w2 
+
+> k,j
+
+f 2 
+
+> k,j
+
+− 2
+
+σ4 w2
+
+> k,j
+
+ yk,j − 2σ2(wk,j )−1∇y wk,j 
+
+ fk,j + C(yk,j )
+
+Next, we rewrite the loss in terms of vectors and matrices as follows: 
+
+L(xk, yk, zk) = 12ns
+
+ 2
+
+σ4 f ⊤ 
+
+> k
+
+diag (w2
+
+> k
+
+)fk − 4
+
+σ4 f ⊤
+
+> k
+
+ diag (w2
+
+> k
+
+)yk − 2σ2diag (wk)∇y wk + C(yk)
+
+,
+
+where C(yk) = Pns 
+
+> j=1
+
+C(yk,j ), diag (w2
+
+> k
+
+) ∈ Rns×ns is the diagonal matrix of the vector w2 
+
+> k
+
+= wk ⊙ wk for ⊙ the element-wise multiplication operator, and ∇y wk = ( ∇y wk, 1, ..., ∇y wk,n s )⊤. This leads to 
+
+R−1(yk; wk) := 2
+
+σ4 diag (w2
+
+> k
+
+)
+
+vk(yk; wk) := 2
+
+σ4
+
+ diag (w2
+
+> k
+
+)yk − 2σ2diag (wk)∇y wk
+
+ .
+
+(16) 
+
+GP predictive The GB predictive can be written as: 
+
+pL(yk|y1: k−1) = 
+
+Z
+
+p(yk|zk)pL(zk|y1: k−1)dzk
+
+where p(yk|zk) = N (yk; Hz k, σ 2Ins ) is the likelihood and pL(zk|y1: k−1) = N (zk; mk|k−1, Pk|k−1) is the predict step defined in Proposition 3.1. Since both densities are Gaussian, this integral is known and the solution is also a Gaussian of the form: 
+
+pL(yk|y1: k−1) = 
+
+Z
+
+N (yk; Hz k, σ 2Ins )N (zk; mk|k−1, Pk|k−1)dzk = N (yk; Hm k|k−1, HP k|k−1H⊤ + σ2Ins )
+
+15 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+B.2. Proof that ST-RCGP reproduces RCGP for Proposition 3.2 
+
+We first define the necessary quantities. Let the posterior density of RCGP be 
+
+pRCGP (f1: k|x1: k, y1: k) ∝ p(f1: k|x1: k) exp( −kn sLRCGP (x1: k, y1: k, f1: k)) ,
+
+where p(f1: k|x1: k) is the prior density, and 
+
+LRCGP (x1: k, y1: k, f1: k) := 1
+
+kn skX
+
+> i=1
+> ns
+
+X
+
+> j=1
+
+(w(xi,j , y i,j )sfi (yi,j )) 2 + 2 ∇y (w2(xi,j , y i,j )sfi (yi,j )) , (17) where i indexes time, j indexes spatial coordinates, and k ∈ { 1, ..., n t}. Note that we now have dependence on fk instead of 
+
+zk for simplicity of notation; however the two definitions are equivalent since fk = Hz k.For fixed hyperparameters of w (for example, c, β for wIMQ ), the loss L from Proposition 3.1 relates to LRCGP as 
+
+LRCGP (x1: k, y1: k, f1: k) = 1
+
+k
+
+> k
+
+X
+
+> i=1
+
+L(xi, yi, fi), (18) which implies that the loss LRCGP is summable (can be broken down into a summation over i = 1 , . . . , k ). Moreover, let the posterior filtering distribution of ST-RCGP on fk be 
+
+pST-RCGP (fk|x1: k, y1: k) ∝ pST-RCGP (fk|x1: k, y1: k−1) exp( −nsL(xk, yk, fk)) 
+
+pST-RCGP (fk|x1: k, y1: k−1) = 
+
+Z
+
+p(fk|x1: k, fk−1)pST-RCGP (fk−1|x1: k−1, y1: k−1)dfk−1,
+
+where the loss L is specified as in Proposition 3.1. The above definitions are such that the prior density is the same for pRCGP and pST-RCGP , and the loss L, which is summable, is specified identically. If we further impose on the Gaussian process to be Markovian (the so-called Gauss-Markov process), which is a requirement for the Gaussian process to be expressed as a state-space model, these assumptions will allow us to postulate the following Proposition 3.2: 
+
+Proposition B.1. Suppose that (i) the prior distribution p(f1: k|x1: k) is identical for pRCGP and pST-RCGP ;(ii) the loss function L is defined as in Proposition 3.1 and LRCGP (x1: k, y1: k, f1: k) as in Equation (17) , with weights that do not depend on past observations; (iii) the GP prior f ∼ N (m, κ ) is a Gauss-Markov process and can be expressed as a state-space model. Then, 1. pRCGP (fk|x1: k, y1: k) = pST-RCGP (fk|x1: k, y1: k) (filtering posteriors are equal) 2. pRCGP (fk|x1: nt , y1: nt ) = pST-RCGP (fk|x1: nt , y1: nt ) (smoothing solutions are equal). Proof. The proof is divided into two steps: the first to tackle claim 1., which is that the filtering posteriors are equal, and the second to claim that the smoothing distributions are equal (claim 2.). In both cases, we proceed inductively, with a base case and an inductive step. We first want to show that pRCGP (fk|x1: k, y1: k) = pST-RCGP (fk|x1: k, y1: k).
+
+Step 1: pRCGP (fk|x1: k, y1: k) = pST-RCGP (fk|x1: k, y1: k) (claim 1.). Base Case: 16 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+Consider k = 1 . Then from the RCGP equations in Altamirano et al. (2024) (Proposition 3.1) and in our own Proposition 3.1, the RCGP posterior and the ST-RCGP posterior are: 
+
+pRCGP (f1|x1, y1) = N (f1; μRCGP , ΣRCGP )
+
+pST-RCGP (f1|x1, y1) = N (f1; μST-RCGP , ΣST-RCGP ),
+
+where 
+
+μRCGP = m1 + K1
+
+ K1 + σ2Jw1
+
+−1 (y1 − mw1 )ΣRCGP = K1
+
+ K1 + σ2Jw1
+
+−1 σ2Jw1
+
+(19) and 
+
+μST-RCGP = Hm 1|0 + HP GB 
+
+> 1|1
+
+H⊤  σ2Jw1
+
+−1 
+
+y1 − ˆfw1
+
+
+
+ΣST-RCGP = H
+
+
+
+PGB 
+
+> 1|0
+
+−1
+
++ H⊤σ−2J−1 
+
+> w1
+
+H
+
+−1
+
+H⊤
+
+(20) Then, we expand ΣRCGP as follows: 
+
+ΣRCGP = K1
+
+ K1 + σ2Jw1
+
+−1 σ2Jw1
+
+= K1 − K1
+
+ σ2Jw1
+
+−1 
+
+K−11 +  σ2Jw1
+
+−1−1
+
+= K1 − K1
+
+ K1 + σ2Jw1
+
+−1 K1,
+
+where in the first line, we apply the Woodbury identity (Chapter 2.1.3 Golub & Van Loan, 2013), and in the second, we use the fact that for two invertible matrices A, B , we have (A−1 + B−1)−1 = A(A + B)−1B. Moreover, since fk = Hz k,
+
+ΣST-RCGP = HP GB 
+
+> 1|1
+
+H⊤, so that 
+
+ΣST-RCGP = H
+
+
+
+PGB 
+
+> 1|0
+
+−1
+
++ H⊤σ−2J−1 
+
+> w1
+
+H
+
+−1
+
+H⊤
+
+= HP GB 
+
+> 1|0
+
+H⊤ − HP GB 
+
+> 1|0
+
+H⊤ 
+
+HP GB 
+
+> 1|0
+
+H⊤ + σ2Jw1
+
+−1
+
+HP GB 
+
+> 1|0
+
+H⊤,
+
+where we again use the Woodbury identity. But, both matrices HP GB 
+
+> 1|0
+
+H⊤ and K1 represent the covariance matrix of p(f1|x1),and thus must be equal by the assumption of identical prior (assumption (i)). Therefore, substituting K1 = HP GB 
+
+> 1|0
+
+H⊤ in either of the expression for ΣRCGP or ΣST-RCGP yields ΣRCGP = Σ ST-RCGP .Now, we have 
+
+μRCGP = m1 + K1
+
+ K1 + σ2Jw1
+
+−1 (y1 − mw1 ) = m1 + Σ RCGP 
+
+ σ2Jw1
+
+−1 (y1 − mw1 )
+
+where in the second equality, we substitute ΣRCGP from Equation (19). Since HP 1|1H⊤ is the covariance of 
+
+pST-RCGP (f1|x1, y1), then, HP 1|1H⊤ = Σ ST-RCGP = Σ RCGP (last equality holds from previous step). Moreover, 
+
+Hm 1|0 = ˆf1 and m1 are both the mean of p(f1). Since the priors are identical, we then have Hm 1|0 = ˆf1 = m1, and by extension mw1 = ˆfw1 since the two distributions are defined with the same loss function (and thus have identical weights). Then, as before, substituting these quantities yields μRCGP = μST-RCGP , concluding the base case. Inductive Step: Suppose that pST-RCGP (fk−1|x1: k−1, y1: k−1) = pRCGP (fk−1|x1: k−1, y1: k−1) for some k > 2. Then, 
+
+pRCGP (fk|x1: k, y1: k) = 
+
+Z
+
+pRCGP (f1: k|x1: k, y1: k)df1: k−1
+
+∝
+
+Z
+
+exp( −L (x1: k, y1: k, f1: k)) p(f1: k|x1: k)df1: k−1
+
+(21) 17 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+But p(f1: k|x1: k) = p(fk|f1: k−1, x1: k)p(f1: k−1|x1: k) = p(fk|fk−1, x1: k)p(f1: k−1|x1: k) by the Markov assumption on f
+
+(assumption (iii)). That is, fk is conditionally independent of f1: k−2 given fk−1.Also, exp( −L (x1: k, y1: k, f1: k)) = exp( −L (xk, yk, fk)) exp( −L (x1: k−1, y1: k−1, f1: k−1)) since the loss is summable. Therefore, 
+
+pRCGP (fk|x1: k, y1: k) ∝ exp( −L (xk, yk, fk)) 
+
+Z
+
+p(fk|fk−1, x1: k)p(f1: k−1|x1: k) exp( −L (x1: k−1, y1: k−1, f1: k−1)) df1: k−1,
+
+where we substitute p(f1: k|x1: k) = p(fk|fk−1, x1: k)p(f1: k−1|x1: k) and exp( −L (x1: k, y1: k, f1: k)) =exp( −L (xk, yk; fk)) exp( −L (x1: k−1, y1: k−1, f1: k−1)) . Now, using the definition of the pRCGP for k − 1:
+
+pRCGP (fk|x1: k, y1: k) ∝ exp( −L (xk, yk, fk)) 
+
+Z
+
+p(fk|fk−1, x1: k)pRCGP (f1: k−1|x1: k−1, y1: k−1)df1: k−1.
+
+Splitting the integral into f1: k−2 and fk−1 we obtain: 
+
+pRCGP (fk|x1: k, y1: k) ∝ exp( −L (xk, yk, fk)) 
+
+Z
+
+p(fk|fk−1, x1: k)
+
+Z
+
+pRCGP (fk−1, f1: k−2|x1: k−1, y1: k−1)df1: k−2dfk−1
+
+= exp( −L (xk, yk, fk)) 
+
+Z
+
+p(fk|fk−1, x1: k)pRCGP (fk−1|x1: k−1, y1: k−1)dfk−1,
+
+where in the last equality we integrate out f1: k−2 (which integrates to 1 since pRCGP is a density). Finally, using the inductive step assumption and the definition of the density pST-RCGP , we have: 
+
+pRCGP (fk|x1: k, y1: k) ∝ exp( −L (xk, yk, fk)) 
+
+Z
+
+p(fk|fk−1, x1: k)pST-RCGP (fk−1|x1: k−1, y1: k−1)dfk−1
+
+∝ pST-RCGP (fk|x1: k, y1: k),
+
+Therefore, pRCGP (fk|x1: k, y1: k) ∝ pST-RCGP (fk|x1: k, y1: k). However, since both sides are densities, the proportionality implies equality; that is, pRCGP (fk|x1: k, y1: k) = pST-RCGP (fk|x1: k, y1: k), which concludes the first step of the proof. Now, we want to show that the smoothing solutions are equal (claim 2.). We use a similar approach; however, the proof starts from the largest possible value of k and then goes down in values. 
+
+Step 2: We want to show that pRCGP (fk|x1: nt , y1: nt ) = pL(fk|x1: nt , y1: nt ).Base Case: Consider k = nt. Then, the smoothing and filtering distributions are identically defined. Therefore, by Step 1 ,
+
+pRCGP (fnt |x1: nt , y1: nt ) = pST-RCGP (fnt |x1: nt , y1: nt ).Inductive Step: Suppose that pST-RCGP (fk+1 |x1: nt , y1: nt ) = pRCGP (fk+1 |x1: nt , y1: nt ) for k ≤ nt − 1. We want to show that 
+
+pST-RCGP (fk|x1: nt , y1: nt ) = pRCGP (fk|x1: nt , y1: nt ). Then, by Theorem 8.1 of S ¨arkk ¨a (2013), which requires that fk
+
+be independent of yk+1: nt given fk+1 (satisfied by Markov assumption (iii)), 
+
+pRCGP (fk|x1: nt , y1: nt ) = pRCGP (fk|x1: k, y1: k)
+
+Z  p(fk+1 |fk)pRCGP (fk+1 |x1: nt , y1: nt )
+
+pRCGP (fk+1 |x1: k+1 , y1: k)
+
+
+
+dfk+1 . (22) However, by Step 1, pRCGP (fk|x1: k, y1: k) = pST-RCGP (fk|x1: k, y1: k), and the inductive step implies 
+
+pRCGP (fk+1 |x1: nt , y1: nt ) = pST-RCGP (fk+1 |x1: nt , y1: nt ). Therefore, there remains to show that pRCGP (fk+1 |x1: k+1 , y1: k) = 
+
+pST-RCGP (fk+1 |x1: k+1 , y1: k). But 
+
+pRCGP (fk+1 |x1: k+1 , y1: k) = 
+
+Z
+
+p(fk+1 |fk)pRCGP (fk|x1: k, y1: k)dfk (23a) 
+
+=
+
+Z
+
+p(fk+1 |fk)pST-RCGP (fk|x1: k, y1: k)dfk (23b) 
+
+= pST-RCGP (fk+1 |x1: k+1 , y1: k), (23c) 18 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+where in Equation (23a) we integrate and expand pRCGP (fk, fk+1 |x1: k+1 , y1: k), in Equation (23b), we apply the result from Step 1, and in Equation (23c), we use the definition of pST-RCGP . We conclude that Therefore, substituting the above quantities, 
+
+pRCGP (fk|x1: nt , y1: nt ) = pST-RCGP (fk|x1: k, y1: k)
+
+Z  p(fk+1 |fk)pST-RCGP (fk+1 |x1: nt , y1: nt )
+
+pST-RCGP (fk+1 |x1: k+1 , y1: k)
+
+
+
+dfk+1 
+
+= pST-RCGP (fk|x1: nt , y1: nt ).
+
+This completes our inductive step and the proof. 
+
+B.3. Proof of Proposition 3.3 
+
+To prove the robustness of ST-RCGP, we rely on the fact that ST-RCGP and RCGP share the same distribution for spatio-temporal data; therefore, we could use the following result from Altamirano et al. (2024) adapted to the spatio-temporal setting: 
+
+Proposition B.2 (Altamirano et al. (2024)) . Suppose f ∼ GP (m, k ), (ϵ1, ..., ϵ N )⊤ ∼ N (0 , IN σ2), and let Ck ∈ R; k = 1 , 2
+
+be constants independent of ycm,j . Then, for RCGP regression with sup x∈X ,y ∈Y w(x, y ) < ∞ has the PIF 
+
+PIF( ycm,j , D ) ≤ C1(w(xm,j , y cm,j )2ycm,j )2 + C2. (24) 
+
+Thus, if ∀x ∈ X , sup y∈Y y · w(x, y )2 < ∞ , RCGP is robust since sup ycm,j ∈Y | PIF RCGP (ycm,j , D )| < ∞.
+
+Hence, it suffices to verify that the proposed weight function satisfies the necessary conditions for robustness presented in Proposition B.2. The weight function and the hyperparameter recommended are: 
+
+wIMQ (x, y ) = β
+
+
+
+1 + (y − γ(x)) 2
+
+c(x)2
+
+− 12
+
+, (25) with β = σ2 
+
+> 2
+
+, γ(x) := EpL [y], and c2(x) := EpL [( y − γ(x)) 2].It is straightforward to verify that wIMQ (x, y ) ≤ β for all x ∈ X and y ∈ Y . Since β = σ2 
+
+> 2
+
+< +∞, it follows that 
+
+sup x∈X ,y ∈Y w(x, y ) < +∞. Thus, with the recommended hyperparameters, w satisfies the first condition. Now, we need to check the second condition, which is that ∀x ∈ X , sup y∈Y |y| · w(x, y )2 < +∞. To show this, let us consider an arbitrary x ∈ X and two cases for y:
+
+Case 1: |y| ≤ | γ(x)| + |c(x)| Since wIMQ (x, y ) ≤ β for all x ∈ X and y ∈ Y , it follows: 
+
+|y| · w(x, y )2 ≤ | y|β2 ≤ β2(|γ(x)| + |c(x)|)
+
+Which implies that, as long as |γ(x)| < ∞ and |c(x)| < ∞ we have that: 
+
+sup 
+
+> y∈Y
+> s.t. |y|≤| γ(x)|+|c(x)|}
+
+|y| · w(x, y )2 < ∞
+
+Case 2: |y| > |γ(x)| + |c(x)||y| · w(x, y )2 ≤ | y|β2 11 + (y−γ(x)) 2
+
+> c(x)2
+
+≤ | y|β2 1
+
+> (y−γ(x)) 2
+> c(x)2
+
+= |y|β2 c(x)2
+
+(y − γ(x)) 2 = β2 c(x)2
+
+|y|
+
+
+
+1 − γ(x)
+
+> y
+
+2
+
+Now, we observe that this function is decreasing for |y| > |γ(x)| + |c(x)|, and particularly: 
+
+lim  
+
+> |y|→ +∞
+
+β2 c(x)2
+
+|y|
+
+
+
+1 − γ(x)
+
+> y
+
+2 = 0 ,
+
+19 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+since |y| > |γ(x)|. Therefore, attains its maximum at |y| = |γ(x)| + |c(x)|, which leads to the following bound: 
+
+|y| · w(x, y )2 ≤ β2 c(x)2
+
+|y|
+
+
+
+1 − γ(x)
+
+> y
+
+2 ≤ β2(|γ(x)| + |c(x)|).
+
+Which implies that, as long as |γ(x)| < ∞ and |c(x)| < ∞ we have that: 
+
+sup 
+
+> y∈Y
+> s.t. |y|>|γ(x)|+|c(x)|}
+
+|y| · w(x, y )2 < ∞.
+
+Finally, let us check that |γ(x)| < ∞ and |c(x)| < ∞. Since γ(x) = EpL [y] and c2(x) := EpL [( y − γ(x)) 2] are the mean and the variance of pL(y|x) respectively, and pL(y|x) is a Gaussian, we know that the |γ(x)| < ∞ and |c(x)| < ∞.Putting it all together, we have that: 
+
+∀x ∈ X , sup 
+
+> y∈Y
+
+|y| · w(x, y )2 < ∞.
+
+## C. Additional Numerical Experiments 
+
+C.1. Performance Metrics 
+
+Let p0(·| x) be the density of the true data-generating process on the spatio-temporal grid X = ( x1, . . . , xk)⊤ ∈ X nt . The first performance metric we use is the root mean squared error (RMSE): 
+
+RMSE( X, ˆy) := 
+
+q
+
+EY ∼p0(·| X) [( Y − ˆy)2] ≈
+
+vuut 1
+
+ntnsntX
+
+> k=1
+> ns
+
+X
+
+> j=1
+
+(yk,j − ˆyk,j )2,
+
+where N = ntns is the number of data points, yi is the data, and ˆyi is the model’s prediction. The second performance metric we use is the negative log predictive distribution (NLPD): 
+
+NLPD( X, ˆy, ˆσ) := EY ∼p0(·| X)
+
+− log pϕ
+
+ Y |ˆy, ˆσ2 ≈ − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+log pϕ(yi | ˆyi, ˆσ2 
+
+> i
+
+),
+
+where ˆσ2 
+
+> i
+
+is the model’s variance on the prediction ˆyi, and pϕ is the Gaussian density. Finally, for the methods with weights such as RCGP and ST-RCGP, we introduce the expected weight ratio (EWR): EWR (X) := EY ∼p0(·| X)
+
+ w(x, Y )
+
+wSTGP (x, Y )
+
+
+
+≈ 1
+
+ntnsntX
+
+> k=1
+> ns
+
+X
+
+> j=1
+
+
+
+1 + (yk,j − γ(xk,j )) 2
+
+c(xk,j )2
+
+− 12
+
+,
+
+where wSTGP := σ/ √2 is the constant weight for the standard spatio-temporal GP. Note that by construction, EWR ≤ 1.In particular, if wk = wSTGP for all k = 1 , ..., n t, then EWR = 1 and we recover the STGP posterior exactly. Therefore, since the STGP is not robust to outliers, EWRs that are near one are not necessarily optimal, since an EWR of 1 implies a solution—the vanilla STGP—which is not robust. This metric thus conveys a tradeoff between statistical efficiency—a model’s ability to recover the STGP in well-specified settings—and robustness to outliers. In well-specified settings, we then want EWR to be larger and closer to one. When there are outliers, we wish the opposite so that we benefit from robustness. 
+
+C.2. Implementation Details 
+
+All experiments are run on the CPU of a 2020 13-inch MacBook Pro with M1 chip and 8GB of memory. 
+
+Definition of Matrices Ak−1 and Σk−1 In the following, we provide a few examples of the SDE matrices needed to compute Ak−1 and Σk−1, and explain how they are obtained in practice. We define Ak−1 := exp( F∆tk) and 
+
+Σk−1 := 
+
+Z ∆tk
+
+> 0
+
+eF(∆ tk −τ )LQ cL⊤eF(∆ tk −τ )⊤
+
+dτ, (26) 20 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+where F = Ins ⊗ Ft ∈ Rns(ν+1) ×ns(ν+1) , L = Ins ⊗ Lt ∈ Rns(ν+1) ×ns , and Qc = Ks ⊗ Qc,t ∈ Rns×ns(ν+1) for 
+
+(Ks)ij = κs(si, sj ). The notation ⊗ refers to the Kronecker product of matrices, and the term exp( F∆tk) corresponds to the matrix exponential. From Equation (26), we see that the matrices Ak−1 and Σk−1for k = 1 , ..., n t are derived from Ft,
+
+Lt and Qc,t in the SDE formulation. 
+
+SDE Matrices for Common Kernels We provide in Table 4 common kernels and their SDE matrices. That is, for each kernel we select, we specify the matrix form of Ft, Lt, along with Qc,t . We later explain how these can be used to compute 
+
+Ak−1 and Qk−1. The parameters in Table 4 are the lengthscale ℓ, the amplitude σκ, and the period length ω0; the inputs of the kernels are t, t ′ ∈ R and τ := t − t′; the functions used are the Gamma function Γ and Kν is the modified Bessel function of the second kind. 
+
+Table 4. Table of kernels and their corresponding SDE matrices 
+
+Kernel Formula Parameters Ft Lt Qc,t 
+
+Wiener Process κWP (t, t ′) := σ2 
+
+> κ
+
+min( t, t ′) σκ 0 1 σ2
+
+> κ
+
+Exponential κexp (τ ) := σ2 
+
+> κ
+
+exp( − τℓ ) σκ, ℓ −1/ℓ 1 2σ2
+
+> κ
+
+/ℓ 
+
+Mat´ ern ν = 1 /2 kernel κMat. (τ ) := σ2 
+
+> κ21−ν
+> Γ( ν)
+
+ √2ντ ℓ
+
+ν
+
+Kν
+
+ √2ντ ℓ
+
+
+
+σκ, ℓ ; λ := √3/ℓ 
+
+ 0 1
+
+−λ2 −2λ
+
+ 01
+
+
+
+4λ3σ2
+
+> κ
+
+Mat´ ern ν = 3 /2 kernel (same as above) σκ, ℓ ; λ := √5/ℓ 
+
+ 0 1 00 0 1
+
+−λ3 −3λ2 −3λ
+
+001
+
+ 16 σ2
+
+> κ
+
+λ5/3
+
+Periodic κperiodic (τ ) := σ2 
+
+> κ
+
+exp 
+
+
+
+− 2 sin 2(ω0τ / 2) 
+
+> ℓ2
+
+
+
+σκ, ℓ, ω 0
+
+Pnj=1 
+
+ 0 −ω0jω0j 0
+
+
+
+nI2 0
+
+The matrix Ak−1 can be straightforwardly computed in most programming languages that offer linear algebra computations. The covariance matrix Σt,k −1 is rarely computed directly; instead, it is obtained by Matrix Fraction Decomposition (MFD) (see Chapter 6 of S ¨arkk ¨a & Solin (2019) for an overview of the method). Provided that the matrix Ft is Hurwitz, that is, all its eigenvalues have strictly negative real parts, the procedure to compute Σt,k −1 can be further simplified (S ¨arkk ¨a & Solin, 2019) (i.e., no need for MFD) to 
+
+Σt, 0 = Σt, ∞
+
+Σt,k −1 = Σt, ∞ − At,k −1Σt, ∞A⊤
+
+> t,k −1
+
+,
+
+where the initial covariance Σt, 0 can be found via the steady-state solution by solving for Σt, ∞ in the following continuous Lyapunov equation (S¨ arkk¨ a & Solin, 2019; Hartikainen & S¨ arkk¨ a, 2010) 
+
+FtΣt, ∞ + Σt, ∞F⊤ 
+
+> t
+
++ LtQc,t L⊤ 
+
+> t
+
+= 0.
+
+Note that we provide the full implementation for the ST-RCGP and the STGP in our code. 
+
+C.3. Robust Hyperparameter Optimisation Issue With RCGP Although the RCGP method is robust in inference, it still has well-known problems with hyperparameter optimisation when there are outliers. The method used is outlined in Altamirano et al. (2024), which corresponds to the leave-one-out cross-validation (LOO-CV). The optimisation objective is posed as follows: 
+
+ˆσ2, ˆθ := arg max 
+
+> σ2,θ
+
+( nX
+
+> i=1
+
+log pw(yi|x, y−i, θ, σ 2)
+
+)
+
+,
+
+where y−i = ( y1, . . . , y i−1, y i+1 , . . . , y n). Moreover, the pseudo marginal likelihood is given by pw(yi|x, y−i, θ, σ 2) = 
+
+N (μRi , σ Ri + σ2), where 
+
+μRi := zi + mi −
+
+h K + σ2Jw
+
+−1 (y − mw)
+
+i
+
+> i
+
+h K + σ2Jw
+
+−1i−1
+
+> ii
+
+σRi := 
+
+h K + σ2Jw
+
+−1i−1
+
+> ii
+
+− σ4
+
+2 w(xi, y i)−2,
+
+21 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+where the notation follows that of Equation (8). In Figure 7, we simulate data y with outliers to highlight the issue. We generate 80 data points from a GP with Squared Exponential kernel of amplitude σκ = 0 .2, lengthscale ℓ = 1 , and variance σ2 = 0 .01 in normally distributed data. We position four outliers around the y = 2 mark. To fit the data, we follow the suggested approach from Altamirano et al. (2024) and use a constant mean function equal to the arithmetic average of the data. In Figure 7, we show the results. Clearly, the RCGP fitting the data with outliers fails to produce adequate hyperparameters, whereas the fit on outlier-free data does well. −4 −2 0 2 4  
+
+> x
+> −1012
+> y
+> Data Outliers RCGP fit (Outliers) RCGP fit (No Outliers)
+> Figure 7. RCGP Parameter Optimisation With and Without Outliers. The fit with outliers yields a kernel lengthscale of 0.19, a kernel amplitude of 0.99, and variance of 0.026. The fit without outliers yields a kernel lengthscale of 1.46, a kernel amplitude of 36.9, and variance of 0.0066.
+
+Issue with STGPs Hyperparameter Optimisation the optimisation objective for STGPs is typically 
+
+φ(θ) := −
+
+> nt
+
+X
+
+> k=1
+
+log p(yk|y1: k−1, θ) = − 12
+
+> nt
+
+X
+
+> k=1
+
+log |2πSk(θ)| + ε⊤ 
+
+> k
+
+(θ)S−1 
+
+> k
+
+(θ)εk(θ),
+
+where Sk(θ) := σ2Ins + HP k|k−1(θ)H⊤ and εk := yk − ˆfk(θ).However, with outliers, this objective does not perform well since reasonable estimates of the latent function will have large εk and thus small p(yk|y1: k−1, θ)—effectively fitting the outliers. This makes it so φ may have a global minimum θ⋆
+
+vastly different from the one in well-specified settings, in which case we could not recover the true latent function. We show in Figure 8 what happens when we fit STGP with a φ objective. On the left side of the plot, we fit and make predictions with contaminated data. On the right side of the plot, we fit decontaminated data and make predictions on data with outliers. Both approaches yield undesired results, but most importantly, they are vastly different—a result that stems from introducing outliers in the data used for hyperparameter optimisation. Overall, Figure 8 shows that φ is strongly affected by the presence of outliers and is not a robust objective for finding hyperparameters. 
+
+Improving ST-RCGP’s Hyperparameter Optimisation: Temporal Setting For temporal data, we now show that when there are outliers in the training data and we are using the ST-RCGP algorithm, choosing φGB from Section 3 as an objective function for hyperparameter optimisation is more reliable than using the regular φ. It is given by: 
+
+φGB (θ) := 
+
+> nt
+
+X
+
+> k=1
+
+wk
+
+ log |2πSk(θ)| + ε⊤ 
+
+> k
+
+(θ)S−1 
+
+> k
+
+(θ)εk(θ) ,
+
+where definitions are as above with ns = 1 , and the weights wk are the ones from the ST-RCGP. In Figure 9, we fit the ST-RCGP on contaminated data with both objective functions to the best of our ability (that is, we adapt the learning rate and the number of optimisation steps as best as we can to get optimal results). We observe that using φGB improves the optimisation process drastically compared to using φ, since way fewer steps were necessary, and doing so allows obtaining reasonable hyperparameter values for inference. 22 Robust and Conjugate Spatio-Temporal Gaussian Processes 0.0 0.2 0.4 0.6 0.8 1.0
+
+> x
+> −10
+> −505
+> y
+> STGP Data Outliers
+
+(a) Fitting STGP on Outlier Data. The hyperparameters ob-tained are: Lengthscale ℓ = 0 .118 , amplitude σκ = 3 .438 ,observation noise σ2 = 2 .842 .0.0 0.2 0.4 0.6 0.8 1.0
+
+> x
+> −10
+> −505
+> y
+> STGP Data Outliers
+
+(b) Fitting STGP on Outlier-Free Data. The hyperparameters obtained are: Lengthscale ℓ = 0 .236 , amplitude σκ = 3 .187 ,observation noise σ2 = 0 .055 .
+
+Figure 8. Impact of outliers on hyperparameter optimisation with φ. The data is generated in the same way as for Figure 4 but with 100 data points instead and five outliers from a N (0 , σ = 10) . Both models use a Mat´ ern 3/2 kernel. 0.0 0.2 0.4 0.6 0.8 1.0
+
+> x
+> −10
+> −505
+> y
+> ST-RCGP Data Outliers
+
+(a) Fitting ST-RCGP on Outlier Data With φ. The hyperpa-rameters obtained are: Lengthscale ℓ = 0 .683 , amplitude 
+
+σκ = 2 .078 , observation noise σ2 = 1 .909 . The optimisation process takes roughly 100 steps at a rate of 0.009 and is unsta-ble (does not converge and produces infinite values if learning rate is increased). 0.0 0.2 0.4 0.6 0.8 1.0
+
+> x
+> −10
+> −505
+> y
+> ST-RCGP Data Outliers
+
+(b) Fitting ST-RCGP on Outlier Data With φGB . The hyper-parameters obtained are: Lengthscale ℓ = 0 .112 , amplitude 
+
+σκ = 4 .162 , observation noise σ2 = 0 .094 . The optimisation process takes roughly 25 steps at a rate of 0.2 and is consider-ably more stable. 
+
+Figure 9. Impact of objective function on ST-RCGP’s hyperparameter optimisation. The data is generated in the same way as for Figure 8. Both models use a Mat´ ern 3/2 kernel and centering and shrinking function as specified in Section 3. 
+
+Improving ST-RCGP’s Hyperparameter Optimisation: Spatio-Temporal Setting We turn our attention to spatio-temporal data and make the same point as in the previous paragraph, which is that choosing φGB is more reliable than using the standard φ. We use the following objective: 
+
+φGB (θ) := 
+
+> nt
+
+X
+
+> k=1
+
+˜wk
+
+ log |2πSk(θ)| + ε⊤ 
+
+> k
+
+(θ)S−1 
+
+> k
+
+(θ)εk(θ) ,
+
+where now, the representation ˜wk(wk) of the weights wk at time step tk is given by: 
+
+˜wk := Qk,n s (δ)
+
+Pnt 
+
+> i=1
+
+Qi,n s (δ) ,
+
+where Qk,n s (δ) is the δ-quantile of the weights wk. In this experiment, we choose δ = 0 .05 . The data we use is identical to that for Appendix C.4, except that the outliers are only introduced at steps k = 2 and 6, and the rest remains uncontaminated. As a performance metric, we use the cumulative mean absolute difference (CMAD) between our estimate of the latent function and the true latent function (not the observations), which is given by CMAD = Pnt 
+
+> k=1 1
+> ns
+
+Pns 
+
+> j=1
+
+|fk,j − ˆfk,j |.We fit the data with an ST-RCGP that has a Mat ´ern 3/2 kernel, and a centering and shrinking function as specified in Section 3. We compare using φ and φGB and optimise for 30 training steps with an Adam optimiser with a learning rate of 0.1. We run the process five times with newly sampled data and outliers, keeping the latent function and the distributions from which the 23 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+data and outliers are sampled the same. We find that φ yields CMAD values of [1 .9974 , 1.6703 , 1.9517 , 1.6100 , 1.7321] ,whereas φGB produces CMAD values of [0 .4633 , 0.5385 , 0.5058 , 0.4479 , 0.5321] . The φGB objective yields substantially smaller CMAD values, and thus provides a more reliable hyperparameter objective function. We illustrate this in Figure 10, where we show three time steps of the first run (out of the five) for both objective functions. −1 0 1                
+
+> −101t=0.27
+> Prediction
+> −101
+> −101
+> Data
+> −101
+> −101
+> Latent Function
+> −101
+> −101t=0.33
+> −101
+> −101
+> −101
+> −101
+> −101
+> −101t=0.40
+> −101
+> −101
+> −101
+> −101
+
+## ϕGB 
+
+(a) Fitting ST-RCGP on Outlier Data with the Robust φGB .−1 0 1                
+
+> −101t=0.27
+> Prediction
+> −101
+> −101
+> Data
+> −101
+> −101
+> Latent Function
+> −101
+> −101t=0.33
+> −101
+> −101
+> −101
+> −101
+> −101
+> −101t=0.40
+> −101
+> −101
+> −101
+> −101
+
+## ϕ (b) Fitting ST-RCGP on Outlier Data with the Regular φ..
+
+Figure 10. ST-RCGP Fits Using The Objective Functions φGB and φ.
+
+C.4. Synthetic Spatio-temporal Problem in Figure 1 
+
+A grid of size ns = 25 × 25 is produced and repeated through nt = 10 time steps between t0 = 0 .2 and tf = 0 .8. We use a latent function f (s1, s 2, t ) = sin(2 πt )s21 + cos(2 πt )s22 and generate additive noise from a N (0 , σ 2), where we set σ = 0 .2.At any time step, if a data point is located in the region s1 < 0, with 10% probability, we contaminate the data point with an outlier sampled from U ([ −8, −6] ∪ [6 , 8]) .For both the STGP and ST-RCGP, we fit the data with the optimisation objective φ and use de-contaminated data (original data without outliers) for the objective. We use the Adam optimiser with 20 training steps and 0.4 learning rate. The two algorithms use a Mat´ ern 3/2 kernel. The ST-RCGP uses the adaptive centering and shrinking function from Section 3. 
+
+C.5. RCGP Issues from Section 2 
+
+The data is generated by adding noise sampled from a N (0 , σ = 0 .5) to a latent function f (x) = 3 sin(2 πx ) on a temporal grid x ∈ [0 , 1.4] with nt = 80 points. We substitute at 8 locations outliers drawn from a N (3 , σ = 0 .2) .The RCGP optimisation process we use for kernel hyperparameters and observation noise is the one recommended in Altamirano et al. (2024). Note that we conduct optimisation on the original data without outliers. We have three configurations: First, with constant prior mean m(x) equal to the data average and c = QN (0 .9) ; second, with m(x) = sin(2 πx ) and c = QN (0 .9) ; third, with m(x) = sin(2 πx ) and c = 0 .8. All configurations use a Squared Exponential kernel and are separately optimised (that is, they do not necessarily share hyperparameters). Note that inference is conducted on data with outliers. 
+
+C.6. ST-RCGP Posterior when Varying c and β
+
+We generate N = nt = 100 data points from a GP prior with prior mean m = 0 and Mat ´ern 3/2 kernel with ℓ = 0 .2, σ κ =2.0. We add noise from a N (0 , σ 2) where σ2 = 0 .25 . Outliers are generated by adding noise at 5 temporal locations drawn from a N (0 , σ ) with σ = 20 .24 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+The ST-RCGP uses a Mat ´ern 3/2 kernel with lengthscale ℓ = 0 .198 and amplitude σκ = 3 .01 . We use an adaptive centering function for all values of β and c. Then, we perform inference with varying values of β and c to conduct a sensitivity analysis of those hyperparameters. The results are shown in Figure 11. We notice that increasing β will lead to overfitting the data. Conversely, decreasing β too much yields underconfident uncertainty estimates. The middle ground is β = σ/ √2, which yields mean and uncertainty estimates that are appropriate, thus supporting our selection of hyperparameters. For c, Figure 11 shows that a lower c will be more robust to outliers, but may also overinflate the uncertainty estimate. On the other hand, a c that is too large will produce an algorithm closer to the STGP, which is not robust to outliers. Visibly, the adaptive choice for c performs the best, confirming our choice of hyperparameter. 0.4 0.6 0.8
+
+−10 1
+
+−10 0
+
+010 0
+
+10 1 Data     
+
+> β= 0 .01
+> β= 0 .50
+> β=σ/ √2
+
+0.4 0.6 0.8                               
+
+> Data
+> c= 0 .05
+> c= 5
+> c=adaptive
+> Figure 11. Impact of cand βon the posterior. We keep all parameters other than β, c identical and choose mk= ˆfk. Outliers are highlighted in red. When βincreases (or decreases), the rate at which we learn from data increases (or decreases), and the confidence intervals narrow (or widen). When cdecreases, we increase robustness at the cost of larger posterior uncertainty. These tendencies support
+> β∝σand c=
+> q
+> σ2+σ2
+> fwhere σfis the standard deviation of the predictive filtering posterior p(yk|y1: k−1).
+
+C.7. Well-Log Dataset 
+
+The well-log dataset, first introduced by Ruanaidh & Fitzgerald (1996), comprises 4,050 nuclear magnetic resonance measurements collected during the drilling of a well. Change points in the sequence indicate transitions between sediment layers encountered by the drill. In addition to these distinct transitions, the data also includes outliers and noise caused by shorter-term geological events, such as floods, earthquakes, or volcanic activity. In Figure 12, we contrast the results obtained from the ST-RCGP and the STGP. They perform equally well in well-specified regions, but the STGP lacks robustness to outliers. 
+
+C.8. Sensitivity Analysis on IMQ Exponent 
+
+To understand how the shape of the weight function affects ST-RCGP’s posterior estimates, we conduct a sensitivity analysis. We examine how varying the IMQ exponent—currently α := −1/2— impacts results. We conduct this analysis because Proposition 3.3 shows robustness requires weights to decay faster than 1/p|y|, i.e., α < −1/4; but, overly fast decay can reduce statistical efficiency (overly robust)—highlighting a tradeoff worth exploring. The result of this analysis is shown in Figure 13. 
+
+C.9. Sensitivity Analysis on Centering and Shrinking Functions 
+
+To capture the impact of the centering and shrinking functions on the posterior results, we conduct an analysis where we compare ST-RCGP and RCGP when all parameters are kept as in RCGP, apart from the centering function. We further explore the impact of also altering the shrinking function. To do so, we generate data with outliers the same way as in Appendix C.12. We then plot the posterior distributions of both algorithms in Figure 14 with a confidence interval (CI) of 
+
+3σ.25 Robust and Conjugate Spatio-Temporal Gaussian Processes −6
+
+−4
+
+−202
+
+## Nuclear Magnetic Resonance Data 
+
+STGP 
+
+0 500 1000 1500 2000 2500 3000 Time Step 
+
+−6
+
+−4
+
+−202 ST-RCGP  
+
+> Figure 12. Well-log data . The top and bottom panels show the STGP and ST-RCGP fits to the data, respectively.
+
+C.10. Effect of Outlier Timing on ST-RCGP Posterior 
+
+We investigate the impact of changing the point in time at which outliers are introduced on the posterior of the ST-RCGP. The data is generated as in Appendix C.13. The results are shown in Figure 15. 
+
+C.11. Choices of Centering Function in Special Cases 
+
+In Table 5, we highlight a few potential alternative choices other than ST-RCGP’s filtering predictive ˆfk for the centering function depending on whether the data is temporal or spatio-temporal. Also, we demonstrate which choices of centering functions recover the STGP and RCGP. The following points briefly explain the relevant features of each choice: • Data: This choice, which yields constant weights and thus recovers the STGP, implies that our best estimate of the center of the data is the current observation. Interestingly, if the observation is an outlier, this implies we center the algorithm around the outlier. This provides an intuitive understanding for why the STGP fails to be robust. • Prior Mean: Choosing for our centering function the prior mean m(xk) recovers the RCGP (assuming a constant c for the ST-RCGP). However, as previously explored in Section 4, this choice can yield poor results when the prior mean aligns with the outliers. • Spatial Smoothing: This choice requires an additional hyperparameter (potentially many) that comes from ¯Ks. The matrix ¯Ks dictates how much we want to smooth our data at time step tk. This can be useful when there are unusual spatial structures in the data that ¯Ks can capture. Alternatively, when there are few time steps, the filtering predictive might not be the best estimate of the center of the data, in which case a good way to estimate the center that is more appropriate than a simple average is to use ¯Ks.• Temporal Smoothing: This centering function employs the same concept as the “Spatial Smoothing”. It requires a lookback period nl and weights ψi that determine how important the datum at step i is to estimate the center of the data at step k.• Filtering Predictive: This is the choice we make in this paper for ST-RCGP and explained in Section 3. It involves 26 Robust and Conjugate Spatio-Temporal Gaussian Processes t             
+
+> 010 20
+> y
+> STGP (0) 1/32
+> 010 20
+> y
+> 1/8 1/4
+> 010 20
+> y
+> 1/2 3/4
+> 0.00.20.40.60.81.0
+> t
+> 010 20
+> y
+> 1
+> 0.00.20.40.60.81.0
+> t
+> 2
+> Impact on ST-RCGP Posterior When Varying IMQ Exponent
+
+Figure 13. Impact on ST-RCGP fit when varying the IMQ exponent. The red-shaded plots indicate values of α that violate the robustness condition, i.e. α > −1/4. The figures are denoted by |α|, so that, for example, the top-right panel corresponds to α = −1/32 . Outliers are highlighted in red. 
+
+no additional hyperparameters, and is our model’s best (and robust) prediction of yk given past observations. These reasons are why we choose this option over the other for the ST-RCGP. • Smoothed Predictive (S): Same concept as “Spatial Smoothing,” but the smoothing is applied on predictions instead of on the data. • Smoothed Predictive (T): Same concept as “Temporal Smoothing,” but the smoothing is applied on predictions instead of on the data. 
+
+C.12. Experiments Showing we Fix Vanilla RCGP from Section 4 Data We generate nt = 200 data points at evenly spaced inputs in x = [0 , 1] from a GP with Mat ´ern 3/2 kernel with lengthscale ℓ = 0 .1 and amplitude σ2 
+
+> κ
+
+= 2 , and mean function m(x) = 2 e−5x. The sample function f = ( f1, . . . , f nt )
+
+drawn is then centered: f → f − ¯f , where ¯f := 1
+
+> nt
+
+Pnt 
+
+> i=1
+
+fi. Noise is added and drawn from a N (0 , σ 2) with σ2 = 0 .25 .We contaminate the data with 10 outliers |yci | for i = 1 , ..., 10 sampled from a N (5 , σ 2 = 1) . These outliers replace the data at specified locations. We keep both the original data and the contaminated data for further tasks. 
+
+Fit To fit the RCGP, we use the code from and follow Altamirano et al. (2024). We choose a constant weight function equal to the mean of the data, and c = QN (0 .95) since there are 5% outliers. The hyperparameters are optimized on the original data (without outliers) since training RCGP on contaminated data would result in overfitting the outliers and unreliable predictions. However, RCGP predictions are made on contaminated data. 27 Robust and Conjugate Spatio-Temporal Gaussian Processes 05
+
+## Identical Weights 
+
+> Data ST-RCGP CI (ST-RCGP) RCGP CI (RCGP) Prior Mean
+
+05
+
+## Weights Differ in Centering Function 
+
+0.0 0.2 0.4 0.6 0.8 1.0
+
+t
+
+05
+
+## Weights Differ in Centering and Shrinking Functions 
+
+Figure 14. ST-RCGP and RCGP comparison . We contrast the two algorithms as we progressively change the specification of the weight function. The CI corresponds to the 3σ confidence interval. The prior is the constant function used in the weight function of the RCGP and the ST-RCGP in the first plot. In the second plot, the centering function γ of the ST-RCGP is the predictive mean. In the third plot, the shrinking function c is the filtering predictive’s covariance, as specified in Section 3. 
+
+Table 5. Choice of Centering Function γk For Weights wk . ψi’s for i = nl, ..., k are normalised weights selected from the nl-th past time step tnl (lookback period). ˜Ks ∈ Rns×ns is a row-wise normalized kernel matrix. 
+
+Algorithm Centering γ(x) Description 
+
+STGP yk Data RCGP m(xk) Prior Mean ST-RCGP 
+
+˜Ksyk Spatial Smoothing P 
+
+> i
+
+ψiyi Temporal Smoothing 
+
+ˆfk ≡ Hm k|k−1 Filtering Predictive 
+
+˜Ksˆfk Smoothed Predictive (S) 
+
+P 
+
+> i
+
+ψiˆfi Smoothed Predictive (T) To fit the ST-RCGP, we use the Adam optimiser and the robust scoring objective φGB from Section 3. The hyperparameter selection is as in Section 3. Our learning rate is 0.3, and the number of optimisation steps is 70 (30 would be enough; we’ve 28 Robust and Conjugate Spatio-Temporal Gaussian Processes 05
+
+> Observed Data ST-RCGP CI (ST-RCGP)
+
+# 0.0 0.2 0.4 0.6 0.8 1.0
+
+# t
+
+# 05 
+
+> Figure 15. Impact of outlier timing on ST-RCGP Posterior.
+
+used more to study convergence). In contrast to RCGP, the ST-RCGP is both training and predicting on contaminated data. 
+
+Coverage The coverage values are computed given a prediction μ and standard deviation σ. For each quantile, we find a corresponding z-score, and determine the proportion of data points falling within μ ± zσ .
+
+C.13. Experiments in Well-specified Settings from Section 4 
+
+We use the same dataset as in Appendix C.4, from which we can select the outlier-free data or the contaminated data. We use a Mat ´ern 3/2 kernel for the GP prior. First, we perform hyperparameter optimisation on the dataset with outlier-free data. This involves 25 training steps using the Adam optimiser and a learning rate of 0.3. The criterion we use as our optimisation objective is the standard φ (since there are no outliers). Second, we obtain the performance metrics for each model. This is done by generating new data as previously (from Appendix C.4). For each newly generated data, we compute statistical efficiency, RMSE and NLPD for each model. We take the average and standard deviation to report our metrics. 
+
+C.14. Experiments with Financial Crashes from Section 4 Twitter Flash Crash We retrieve the ”close” data from the DJIA index on April 23rd, 2013, and the previous day. This amounts to 810 data points. We build an evenly spaced temporal grid from 0 to 1 with 810 points. The observations are then standardised. The GP fit is implemented in Python’s sklearn package and uses a Mat ´ern 3/2 kernel with amplitude σκ = 0 .72 , lengthscale 
+
+ℓ = 0 .0955 , observation noise σ = 0 .02 , and prior mean m = 0 . The RCGP fit uses a Mat ´ern 3/2 kernel with σκ = 1 ,lengthscale ℓ = 0 .09 , a and a constant prior mean equal to the average of the data. Also, RCGP has c = 0 .25 , since it offers a more robust posterior than c = QN . The ST-RCGP fit uses a Mat ´ern 5/2 kernel with amplitude σκ = 1 ., lengthscale 
+
+ℓ = 0 .1, σ2 = 0 .02 and has an adaptive shrinking and centering function, as specified in Section 3. The RP fit is exactly the one from Ament et al. (2024) since it is obtained using the same code. 29 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+The execution time is computed post-optimisation of each method, since we wish to capture execution time at inference. Also, to avoid caching and establish a fair comparison, each model has a second instance specifically for inference-making that hasn’t observed data yet but has the optimised hyperparameters. 
+
+Index Futures with Synthetic Crash The data is obtained from https://www.kaggle.com/c/ caltech-cs155-2020/data . It captures an Index Futures price over time, measured at 500ms intervals. We select 
+
+N = 46800 data points, which amounts to a trading day. We built a temporal grid between 0 and 46800 and rescaled it by 0.5 (500 × 0.001 ). The observations are then standardised. The crash induced aims to mimic the Twitter crash incident, but with slightly more outliers. Therefore, we drop 8 data points by [0 .9995 , 0.9994 , 0.9992 , 0.996 , 0.994 , 0.998 , 0.998 , 0.9998] of their original value (not standardised) to create a V-shaped outlier region and add random noise to the drop sampled from a 
+
+N (0 , σ ) for σ = 0 .0001 . Note that the amplitude of this drop is roughly similar to that of the Twitter flash crash experiment. The STGP has a Mat ´ern 3/2 kernel with ℓ = 6 , σκ = 6 , and observation noise σ = 0 .14 . The ST-RCGP has a Mat ´ern 3/2 kernel with ℓ = 6 .5, σκ = 1 , and observation noise σ = 0 .3. It also uses an adaptive centering and shrinking function as in Section 3. The BayesNewton methods all use a Student-T likelihood with df = 6 (degrees of freedom), except for the Laplace method, which has df = 4 . They are also optimized following the code from Wilkinson et al. (2023). The execution times are computed 5 times and evaluated on a new instance of the model’s class to avoid caching issues. The one-step cost for each method is obtained by evaluating execution time for an increasing number of data points ( N =5, 10 , 100 , 500 , 1000 , 2000 , 2500 , ..., 35000 , 40000 , 46800 ), and then performing linear regression. The slope corresponds to the one-step cost. The RMSE and NLPD standard deviations are obtained by repeating inference on a newly generated crash event a total of 20 times. In addition to Table 2, Figure 16 illustrates the fit of each method to the data. 0 100 200 300 400 Time (500ms) 3720 3740 3760 3780 3800 3820 3840 3860 Index Futures  
+
+> Data Outliers VI STGP MEP MLGP ST-RTGP
+> Figure 16. Fitting the STGP, ST-RCGP and some methods from the BayesNewton package to the Index futures data with a synthetically induced crash.
+
+C.15. Experiments with Temperature Forecasting from Section 4 
+
+The data is from the Climate Research Unit (CRU) and is available at https://crudata.uea.ac.uk/cru/data/ hrg/ . We select latitude and longitude ranges of [45 , 60] and [−12 , 8] respectively, which amounts to ns = 571 spatial locations per time step. The data is monthly, starting in January 2022 and ending in December 2023, which is a total of 
+
+nt = 24 time steps. This leads to N = nt × ns = 11 , 991 data points. We add 6 focussed outliers on a patch with latitudes and longitudes in [51 .25 , 53 .25] , [−3, −1] respectively. The outliers are drawn from a N (120 , σ 2) with σ = 10 . Before fitting the data, we pre-process it by standardising. To fit the data, we use the standard objective φ (since the data has been cleaned by the CRU beforehand, see Harris et al. (2020)) with Adam optimiser, 60 optimisation steps and 0.05 learning rate. Both the STGP and the ST-RCGP use a Mat ´ern 3/2 kernel for the temporal and spatial kernels. For STGP, this yields the following hyperparameters: A Temporal amplitude 30 Robust and Conjugate Spatio-Temporal Gaussian Processes 
+
+of σκt = 0 .76 , temporal lengthscale ℓt = 2 .51 , spatial amplitude σκs = 0 .76 , spatial lengthscale ℓs = 2 .42 , and variance 
+
+σ2 = 0 .15 . For ST-RCGP, the hyperparameters are: A Temporal amplitude of σκt = 1 .12 , temporal lengthscale ℓt = 2 .13 ,spatial amplitude σκs = 0 .82 , spatial lengthscale ℓs = 2 .34 , and variance σ2 = 0 .069 . In Figure 17, we demonstrate the coverage of ST-RCGP and STGP on the temperature forecasting experiment for the month of October, which occurs before the introduction of outliers. 0.2 0.4 0.6 0.8 1.0     
+
+> Quantiles
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Coverage
+> ST-RCGP
+> 0.2 0.4 0.6 0.8 1.0
+> Quantiles
+> STGP
+
+Figure 17. STGP and ST-RCGP Coverage during the month of October. 
+
+31

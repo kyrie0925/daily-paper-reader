@@ -1,0 +1,1804 @@
+Title: Non-parametric Online Change Point Detection on Riemannian Manifolds
+
+URL Source: https://openreview.net/pdf?id=VW7Jk8KhNC
+
+Number of Pages: 20
+
+Markdown Content:
+# Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+Xiuheng Wang 1 Ricardo Augusto Borsoi 2 C´ edric Richard 1
+
+## Abstract 
+
+Non-parametric detection of change points in streaming time series data that belong to Eu-clidean spaces has been extensively studied in the literature. Nevertheless, when the data belongs to a Riemannian manifold, existing approaches are no longer applicable as they fail to account for the structure and geometry of the manifold. In this paper, we introduce a non-parametric algorithm for online change point detection in manifold-valued data streams. This algorithm monitors the generalized Karcher mean of the data, computed using stochastic Riemannian optimization. We provide theoretical bounds on the detection and false alarm rate performances of the algorithm, using a new result on the non-asymptotic con-vergence of the stochastic Riemannian gradient descent. We apply our algorithm to two different Riemannian manifolds. Experimental results with both synthetic and real data illustrate the perfor-mance of the proposed method. 
+
+## 1. Introduction 
+
+Change point detection (CPD) is the problem of find-ing abrupt variations in a property of time series data, which may be indicative of transitions between different states (Aminikhanghahi & Cook, 2017). This question often plays a central role in the modeling, analysis and prediction of time series data, and it has been addressed in many ap-plications ranging from remote sensing (Zeng et al., 2020) and climatology (Reeves et al., 2007) to financial data anal-ysis (Bai & Perron, 1998). Research on this topic can be categorized into two primary branches: offline and online. Offline CPD necessitates access to all received samples, as extensively covered in the literature (Truong et al., 2020). In contrast, online CPD methods process data in real-time and aim to detect change points with minimal delay after their          
+
+> 1Universit ´e C ˆote d’Azur, CNRS, OCA, France 2Universit ´e de Lorraine, CNRS, CRAN, Vandoeuvre-l `es-Nancy, France. Corre-spondence to: Xiuheng Wang <xiuheng.wang@unice.fr >.
+> Proceedings of the 41 st International Conference on Machine Learning , Vienna, Austria. PMLR 235, 2024. Copyright 2024 by the author(s).
+
+occurrence. In numerous real-world scenarios, the pursuit of non-parametric CPD is also highly relevant since it can be challenging to possess prior knowledge of the data dis-tribution. However, even with the longstanding history and continued interest in CPD techniques, it is noteworthy that the overwhelming majority of existing algorithms assume that the data resides in Euclidean spaces. Recent developments in statistical learning and signal pro-cessing have increasingly confronted the analysis of data residing in non-Euclidean spaces. Among these spaces, Riemannian manifolds have garnered attention due to their wide-ranging applications, such as in diffusion tensor imag-ing (Pennec et al., 2006), pedestrian detection (Tuzel et al., 2008), and human behavior understanding (Kacem et al., 2018). Consequently, Riemannian optimization (Absil et al., 2009; Boumal, 2023) has emerged as an area of significant interest, offering essential and potent tools for handling data on manifolds, especially with the recent advancements in Riemannian stochastic gradient descent (R-SGD) algo-rithms (Bonnabel, 2013; Zhang & Sra, 2016). While the detection of change points in Euclidean spaces has been no-tably successful, it is noteworthy that only a limited number of CPD methods have been specifically crafted for Rieman-nian manifolds (Bouchard et al., 2020; Dubey & M ¨uller, 2020; Wang et al., 2023a), and these still lack theoretical analyses or online operation. The main hurdles stem from the need to account for the intrinsic non-linear geometry of these spaces and the absence of a vector space structure in the data, making the adaptation of algorithms originally conceived for Euclidean spaces a complex undertaking. In response to the aforementioned challenges, the objective of this paper is to introduce a unified framework for non-parametric and online CPD on Riemannian manifolds. Our contributions are as follows: 1. General non-parametric framework: We propose a comprehensive non-parametric framework for CPD by monitoring central values within Riemannian mani-folds. Our framework places particular emphasis on the generalized Karcher mean. We update two estimates of the generalized Karcher mean using the R-SGD al-gorithm, each with distinct constant step sizes. These two estimates, one with longer memory and the other more adaptive, are compared to construct an online CPD statistic. 1Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+2. Theoretical analyses: We provide theoretical analyses related to the proposed CPD statistic. We establish non-asymptotic convergence results for R-SGD with a curvature-dependent linear rate under the condition of constant step size (Theorem 4.1). Additionally, in the absence of any change, we derive an upper bound for the false alarm rate (Theorem 4.2). Furthermore, in the presence of a change, we establish a lower bound for the detection rate (Theorem 4.3). 3. Application to specific manifolds: We tailor our al-gorithm to suit two common instances of Riemannian manifolds, specifically, the manifold of symmetric pos-itive definite (SPD) matrices and the Grassmann man-ifold. We then provide empirical illustrations of the performance of our CPD algorithm on these manifolds through numerical experiments on synthetic and real-world datasets. By introducing this framework and offering theoretical in-sights into its performance, we aim to contribute to the ad-vancement of non-parametric and online CPD methods for data residing on Riemannian manifolds, which can impact a range of applications such as, e.g., voice activity detection, pedestrian detection and subspace change detection. 
+
+## 2. Related work 
+
+In this section, we review related works on online change point detection and Riemannian optimization which are connected to the proposed approach. 
+
+Online CPD: Online CPD methods can be broadly catego-rized into two main groups: parametric and non-parametric, depending on whether prior knowledge about the data distri-bution is available. Parametric CPD techniques, illustrated by methods such as the cumulative sum (CUSUM) (Page, 1954; Tartakovsky et al., 2014) and the generalized likeli-hood ratio test (GLRT) (Gustafsson, 1996), assume that the data distribution conforms to a known parametric family. In many applications, prior knowledge of the data distribu-tion cannot be guaranteed, leading to the development of non-parametric methods. These approaches encompass var-ious techniques, including monitoring changes in the mean or variance of a data stream, as seen in methods like the Exponentially Weighted Moving Average (EWMA) (Costa & Rahim, 2006), and the use of kernel maximum mean discrepancy (MMD) derived from the data stream (Gretton et al., 2006). Recent advancements in this field have intro-duced innovative non-parametric methods. For instance, the NEWMA algorithm (Keriven et al., 2020) was introduced to detect change points without the necessity of retaining his-torical data samples. This is achieved by comparing two EW-MAs of data stream statistics, each computed with distinct forgetting factors. The non-parametric kernel MMD statistic initially introduced for hypothesis testing in (Gretton et al., 2006) has recently been widely employed in the context of kernel CPD with both offline (Harchaoui et al., 2008; Sinn et al., 2012) as well as online algorithms (Gong et al., 2012; Li et al., 2019). Kernel extensions of the CUSUM statistic have also been considered in (Madrid Padilla et al., 2023; Arlot et al., 2019; Wei & Xie, 2022). A computationally efficient approximation of the kernel MMD based on the neural tangent kernel has also been proposed (Cheng & Xie, 2021). Another non-parametric online algorithm was de-veloped in (Ferrari et al., 2022), making use of adaptive kernel density ratio estimation. The capabilities of neural networks were explored in (Wang et al., 2023b) to enhance the effectiveness of non-parametric online CPD. These algorithms, however, assume that the data belongs to an Euclidean space. While some non-parametric on-line CPD algorithms have been extended to specific non-Euclidean domains, such as graphs (Ferrari & Richard, 2020) and categorical data (Ienco et al., 2014), very few works have investigated scenarios where the data belongs to a Riemannian manifold. In (Bouchard et al., 2020), an online CPD algorithm was specifically designed for the com-pound Gaussian distribution, which, however, is parametric and not broadly applicable. For data lying on manifolds, a non-parametric offline algorithm (Duan et al., 2019) was de-veloped to detect change points of rigid body motions in the special Euclidean group. Another non-parametric technique, monitoring changes in the Fr ´echet means and variances, was proposed in (Dubey & M ¨uller, 2020). However, it can only detect a single change point and operates offline. A work extending NEWMA to manifolds was introduced in (Wang et al., 2023a), but the algorithm is not general and does not have any theoretical analyses. This paper presents a general formulation for CPD on mani-folds based on the generalized Karcher mean, a discussion of its related existence and uniqueness questions, theoretical results related to the convergence, false alarm, and detection performance of the algorithm, and exemplifies its applica-tion to different manifolds with challenging examples. 
+
+Riemannian optimization: Riemannian optimization has recently garnered significant interest as it takes into account the geometry of data manifolds, which is prevalent in many practical applications. Both the books (Absil et al., 2009) and (Boumal, 2023) provide detailed presentations on Rie-mannian optimization. Substantial work has also been under-taken in order to extend optimization algorithms that were originally developed in Euclidean spaces, such as steep-est descent (Smith, 1994) and quasi-Newton (Huang et al., 2015) algorithms, to Riemannian manifolds, as well as to study their convergence behavior. The R-SGD algorithm, as presented in (Bonnabel, 2013), 2Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+has gained significant attention for its capability to handle noisy gradient estimates. Sophisticated variance reduction techniques have been recently introduced to provide algo-rithms with accelerated convergence rate (Zhang et al., 2016; 2018; Zhou et al., 2019). While the asymptotic convergence of the R-SGD was studied in (Bonnabel, 2013) for diminish-ing step sizes, explicit convergence rates were not provided. Results on the sublinear convergence rates of first-order Riemannian optimization on geodesically convex problems were recently obtained in (Zhang & Sra, 2016). However, these rates were derived under the assumption of diminish-ing step sizes or deterministic gradients. 
+
+## 3. Background 
+
+This section introduces some basic concepts of Riemannian geometry, focusing on the essential tools for optimization on manifolds. Detailed presentations can be found in (Absil et al., 2009) and (Boumal, 2023). A Riemannian manifold (M, g ) is a constrained set M en-dowed with a Riemannian metric gx(·, ·) : TxM× TxM → 
+
+R, defined for every point x ∈ M , with TxM the so-called 
+
+tangent space of M at x. A geodesic γ : [0 , 1] → M is the curve of minimal length linking two points x, y ∈ M 
+
+such that x = γ(0) and y = γ(1) , with v ∈ TxM the velocity of γ at 0 denoted by ˙γ(0) . The geodesic distance 
+
+dM(· , ·) : M × M → R is defined as the length of the geodesic linking two points x, y ∈ M . It satisfies all the conditions to be a metric. The exponential map w = exp x(v) is defined as the point 
+
+w ∈ M located on the unique geodesic γ(t) with end-points x = γ(0) , w = γ(1) and velocity v = ˙ γ(0) . Since calculating the exponential map can be computationally demanding, in practice it is common to employ a retrac-tion Rx : TxM → M instead, defined at every x ∈ M ,which consists of a second-order approximation to the ex-ponential map, satisfying dM(Rx(tv), exp x(tv)) = O(t3).Consider a smooth function f : M → R. The Riemannian gradient of f at x ∈ M is defined as the unique tangent vector ∇f (x) ∈ TxM satisfying ddt t=0 f (exp x(tv)) = 
+
+⟨∇ f (x), v⟩x, for all v ∈ TxM.
+
+## 4. Proposed method 
+
+4.1. Problem Background 
+
+Consider a sequence of statistically independent samples xt
+
+belonging to a Riemannian manifold M. The Riemannian CPD problem consists of estimating time index tr ∈ N,referred to as the change point , at which the probability measure of xt undergoes a change (Pennec, 2004): 
+
+t < t r : xt ∼ P1(x) ,t ≥ tr : xt ∼ P2(x) . (1) Here, P1(x) and P2(x) are probability measures on M,such that P1(x)̸ = P2(x), representing how xt is dis-tributed before and after the change point, respectively. Throughout this paper, it is assumed that the difference be-tween the generalized Karcher means of P1(x) and P2(x)
+
+(see Section 4.2 for a definition) is sufficiently large, to make this problem tractable. While the CPD problem as defined in (1) presents only a single change point for simplicity, CPD algorithms are typically designed to handle multiple change points. CPD algorithms aim to compute an estimate ˆtr of the change point. These algorithms have two primary objectives: first, to minimize the delay between the occurrence of a change point and its detection by the algorithm, and second, to minimize the probability of generating false alarms on time steps when no actual change has occurred. While various CPD algorithms have been proposed for Euclidean spaces, the constraint that the data xt belongs to a Riemannian manifold M, which typically lacks a vector space struc-ture, presents challenges for algorithm design. Furthermore, many applications involve streaming data and require the online resolution of the CPD problem. In other words, an al-gorithm must determine whether a recent time index t′ ≤ t
+
+is a change point based solely on past data {xs}ts=1 for every t ∈ N+ while minimizing the detection delay. 
+
+4.2. The algorithm 
+
+In this study, we introduce a non-parametric CPD strategy designed for situations where there is no prior knowledge about the probability measures of the data. In Euclidean spaces, this has been accomplished in particular by moni-toring changes in either the mean or the variance (Costa & Rahim, 2006), or in a generalized statistics (Gretton et al., 2006) of the data stream. We propose to extend such strate-gies to Riemannian manifolds by monitoring changes in a generalized moment of xt ∈ M . This generalized moment can include the Fr ´echet mean (Fr ´echet, 1948), which ex-tends the concept of the Euclidean mean to metric spaces. In a broader sense, we consider a generalized Fr ´echet mean 
+
+of M, as defined in (Sch¨ otz, 2019): 
+
+m∗ ∈ arg min  
+
+> m∈M
+
+f (m) , (2) where f (m) is given by: 
+
+f (m) = Ex∼P (x)
+
+c(x, m) =
+
+Z
+
+c(x, m)dP (x) ,
+
+with c : M × M → [0 , +∞) the cost. This framework generalizes several important central values on Rieman-nian manifolds, including the Fr ´echet mean by consider-ing c(x, m) = d2
+
+> M
+
+(x, m) where dM(x, m) denotes the geodesic distance between x and m, and the median by setting c(x, m) = dM(x, m).3Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+The existence and uniqueness of minimizers for (2) is not guaranteed in general, even in the case of the Fr ´echet mean. When c = d2
+
+> M
+
+, the Karcher mean relaxes this definition by considering the local optima of f (m) rather than only the global one. This allows us to establish existence and uniqueness conditions (Kendall, 1990) and compute m by solving (2) locally using Riemannian optimization meth-ods (Pennec, 2004). In particular, if the support of P (x) is included in a regular geodesic ball (Pennec, 2006, defini-tion 5), then the Karcher mean exists and is unique (Kendall, 1990). This condition is satisfied for connected manifolds with non-positive curvature (Afsari, 2011), referred to as 
+
+Hadamard manifolds (Shiga, 1984). In this work, we extend this concept by defining the generalized Karcher mean as the set of local minimizers of (2) with various central val-ues. Although our framework is considered in a broader sense, we will focus on the case of Karcher mean in Sec-tion 4.3, as discussed in (Wang et al., 2023a), for the sake of convenience and to facilitate the theoretical analysis. The proposed CPD strategy on manifolds will be designed to monitor abrupt changes in a generalized Karcher mean. An important requirement is that change points must be de-tected in an online manner, meaning that they are based only on past data. Consequently, we will adopt stochastic Rie-mannian optimization to estimate the generalized Karcher mean of the streaming data xt in an online manner. This will constitute a fundamental component of our approach. 4.2.1. O NLINE ESTIMATION 
+
+In a non-parametric setting, it is not possible to compute the solution to the optimization problem in (2) explicitly because P (x) is unknown. Instead, we assume that we have access to observations xt and can evaluate both the cost function c(m, xt) and its Riemannian gradient for any parameter m and sample xt. This enables us to construct a stochastic approximation of the gradient ∇f (m) using the input xt. Consequently, we can utilize the R-SGD algo-rithm (Bonnabel, 2013) to compute an online solution to (2) .An update of m can be computed on M as: 
+
+mt+1 = exp mt
+
+  − αH (mt, xt) , (3) with α > 0 a constant step size. In this expression, exp m
+
+denotes the exponential map at m, and H(m, x) is the stochastic Riemannian gradient, assumed to be an unbiased estimate of the full gradient ∇f (m),
+
+Ex∼P (x)
+
+H(m, x) =
+
+Z
+
+H(m, x)dP (x) = ∇f (m) .
+
+The exponential map in (3) can also be replaced by a com-putationally simpler retraction Rmt . It is important to note that we are considering R-SGD in a non-standard setting. The estimates provided by this algorithm should be able to adapt to changes in the data distribution and, consequently, to the underlying cost function f (m). This necessitates the use of a constant (instead of diminishing) step size α,which will impact the theoretical analysis in Section 4.3 since non-asymptotic convergence results will be required. 4.2.2. A N ADAPTIVE CPD Our goal is to detect change points by monitoring abrupt changes in the value of m over time. In simpler terms, we label a time index t′ as a change point if there is a sudden shift in the value of m at that time. This requires knowl-edge of two quantities of interest, mbef and maft , which respectively represent the generalized Karcher mean before and after a candidate change point t′. First, we propose an approach to compute estimates of these quantities, denoted as cmbef and cmaft . Then, a test statistic is designed to com-pare these two quantities using the Riemannian distance, specifically dM(cmbef , cmaft ). The larger the Riemannian distance between the generalized Karcher mean estimates before and after time instant t′, the higher the likelihood of identifying t′ as a change point. The challenge is to find a computationally efficient on-line method for calculating cmbef and cmaft . Previ-ous work (Dubey & M ¨uller, 2020) proposed dividing a data stream {xt}Nt=1 with N samples into two segments, 
+
+{1, . . . , t ′ − 1} and {t′, . . . , N } for every t′, and testing for differences between their Karcher mean and variance. However, this approach is not suitable for processing data streams on the fly or detecting multiple change points. In (Keriven et al., 2020), estimates of cmbef and cmaft were computed considering the data xt to belong to a Euclidean space. This was achieved using two EWMAs with different forgetting factors: one adapting quickly to track cmaft after a change point, and another adapting slowly to keep track of cmbef . However, this approach cannot be directly applied to Riemannian manifolds due to its lack of accounting for manifold geometry. Instead, we propose using two iterative estimates computed using R-SGD algorithms, described in Section 4.2.1, with two different fixed step sizes λ < Λ. The generalized Karcher mean estimates are updated according to (3) as: 
+
+mλ,t +1 = exp mλ,t 
+
+  − λH (mλ,t , xt) , (4) 
+
+mΛ,t +1 = exp mΛ,t 
+
+  − ΛH(mΛ,t , xt) , (5) with initialization mλ, 0 = mΛ,0 = x0. The convergence of the updates (4) and (5) is directly influenced by λ and Λ,with a larger step size typically resulting in faster conver-gence, as we will demonstrate in Theorem 4.1 in the next section. Therefore, having 0 < λ < Λ means that mΛ,t 
+
+is more likely to adapt to new data and quickly approxi-mate cmaft , while mλ,t has a longer memory and is better suited for estimating cmbef . Using constant step sizes is 4Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+Algorithm 1 Online CPD on Riemannian manifolds 
+
+Input: {xt}, step sizes λ, Λ, threshold ξ.Initialization: mλ, 0 = mΛ,0 = x0.
+
+for t = 1 , 2, 3, . . . do 
+
+Update the generalized Karcher mean estimates mλ,t 
+
+and mΛ,t using (4) and (5); Compute the test statistic gt = dM(mλ,t , mΛ,t );
+
+if gt > ξ then 
+
+Flag t as a change point; 
+
+end if end for 
+
+crucial to allow the algorithm to adapt to changes in the data distribution and detect multiple change points. Based on the estimates provided in (4) and (5) , we can formulate an adaptive CPD statistic by calculating the dif-ference between mλ,t and mΛ,t using the Riemannian dis-tance on M as follows: 
+
+gt = dM(mλ,t , mΛ,t ) . (6) The CPD procedure involves comparing the statistic gt to a given threshold ξ. The complete CPD procedure is outlined in Algorithm 1. It is important to note that the selection of ξ directly impacts its average run length and detection delay, as will be shown in Theorems 4.2 and 4.3, which give bounds on the probability of a false alarm and of detecting a true change point. Moreover, as in (N)EWMA methods, the time interval between change points must be sufficiently large so that the algorithms converge to obtain adequate detection and false alarm performance. 
+
+4.3. Theoretical analysis 
+
+In this section, we will assess the performance of the pro-posed CPD algorithm in two main aspects: i) the likelihood of a false alarm, which refers to the probability of incor-rectly identifying a time step as a change point, and ii) the probability of correctly identifying a change point when there is a shift in the generalized Karcher mean of the data stream. To achieve this, we will also need a supplementary outcome, iii) the non-asymptotic convergence analysis of the R-SGD algorithm with a constant step size. For the sake of feasibility in our theoretical analysis, we will concentrate on the Karcher mean with c = d2
+
+> M
+
+, and the R-SGD cost function f (m) = Ed2
+
+> M
+
+(m, x) , which cor-responds to the Karcher variance, which is minimized using the iteration (3) . However, it is important to note that our convergence analysis of R-SGD will not be limited to this particular cost function. We will also focus on Hadamard manifolds as in (Zhang & Sra, 2016). The proofs of all the results are provided in Appendix A. Before presenting the theoretical results, let us introduce some definitions related to the cost function f and its properties as follows. 
+
+Definition 1 (Geodesically strong convexity) A function 
+
+f : M → R is geodesically μ-strongly convex if for any 
+
+x, y ∈ M , we have: 
+
+f (y) ≥ f (x) + ⟨∇ f (x), exp −1 
+
+> x
+
+(y)⟩ + μ
+
+2 ∥ exp −1 
+
+> x
+
+(y)∥2 .
+
+(7) 
+
+Definition 2 (Lipschitz gradients) The gradient of a func-tion f : M → R is said to be L-Lipschitz if, for any 
+
+x, y ∈ M in the domain of f , it satisfies: 
+
+∇f (x) − Γxy ∇f (y) ≤ L d M(x, y) , (8) where Γxy denotes the parallel transport from y to x.
+
+Definition 3 (Smoothness) Any differentiable function f :
+
+M → R is geodesically L-smooth if its gradient is L-Lipschitz, i.e., for any x, y ∈ M , it satisfyies: 
+
+f (y) ≤ f (x) + ⟨∇ f (x), exp −1 
+
+> x
+
+(y)⟩ + L
+
+2 ∥ exp −1 
+
+> x
+
+(y)∥2 .
+
+(9) 4.3.1. N ON -ASYMPTOTIC CONVERGENCE OF R-SGD The following theorem shows that the R-SGD algorithm (3) with a fixed step size α > 0 has a curvature-dependent linear rate of convergence for geodesically strongly convex and smooth functions on Riemannian manifolds. 
+
+Theorem 4.1. Assuming that f : M → R is geodesi-cally μ-strongly convex with geodesically L-Lipschitz gra-dient, the diameter of the domain is bounded by D, the sectional curvature of the manifold is bounded below by κ,and the stochastic gradient is an unbiased estimator of the gradient, namely, EH(mt, xt) = ∇f (mt) with vari-ance E{∥∇ f (mt) − H(mt, xt)∥2} ≤ σ2 and magnitude bounded by ∥H(mt, xt)∥ < ρ . We assume that the step size satisfies 0 < α ≤ min { 12L , Iρ }, where I is the injec-tivity radius of M. Then, for any s ∈ N∗, the stochastic Riemannian gradient descent algorithm satisfies: 
+
+E{f (ms) − f (m∗)} ≤ (1 − ϵ)(s−1) D2
+
+2α + ασ 2
+
+2ϵ , (10) 
+
+with ϵ = min { 1 
+
+> ζ(κ,D )
+
+, αμ } and ζ(κ, D ) = 
+
+√|κ|D
+
+> tanh (
+
+√|κ|D) .
+
+The proof is provided in Appendix A.1, based on certain results in (Boumal, 2023) and the trigonometric distance bound, specifically, Corollary 8 in (Zhang & Sra, 2016). However, it is important to note that Theorem 4.1 differs from Theorem 14 (diminishing step sizes) and 15 (deter-ministic optimization) in (Zhang & Sra, 2016). In our case, we consider a stochastic optimization method with a con-stant step size to compute the CPD statistics gt. If f is geodesically strongly convex and smooth and the manifold satisfies the conditions in Theorem 4.1, convergence can be guaranteed for sufficiently small step sizes α.5Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+4.3.2. P ERFORMANCE GUARANTEE 
+
+We now provide two performance guarantees of our CPD statistics gt as defined in (6) . These guarantees consist of an upper bound on the false alarm rate under the null hypothesis (i.e., when no change point has occurred) and a lower bound on the detection rate under the alternative hypothesis. 
+
+Theorem 4.2. We assume that, under the null hypothesis 
+
+H0, x0, x1, . . . , xt−1 are drawn i.i.d. from P (x) with the Karcher mean m∗. We also assume that the conditions in Theorem 4.1 on f (m), H(m, xt), M and the step sizes λ
+
+and Λ hold. At a steady state (i.e., when t → ∞ ), the false alarm rate can be upper bounded by: 
+
+P g∞ ≥ ξ H0
+
+ ≤ 2
+
+ξ
+
+
+
+f (m∗) + (λ + Λ) σ2
+
+4ϵ
+
+ 12
+
+, (11) 
+
+with ϵ = min  1 
+
+> ζ(κ,D )
+
+, λμ and ξ the detection threshold. 
+
+The proof of this theorem is provided in Appendix A.2. Theorem 4.2 shows that when no change occurs, a higher detection threshold ξ leads to a lower upper bound on the false alarm rate. It is worth noting that the bound on the false alarm rate is influenced by the Karcher variance term, which implies that the bound will be tighter when the data distribution has lower dispersion. Smaller values of λ and Λ
+
+are also recommended for a tighter bound because they re-duce the impact of gradient noise captured by σ2. However, choosing larger detection thresholds and smaller step sizes also reduces the probability of detecting an actual change point, as indicated by the following theorem. 
+
+Theorem 4.3. We assume that, under the alternative hypoth-esis H1, x0, x1, . . . , xt−B−1 are drawn i.i.d. from P1(x)
+
+with Karcher mean m∗
+
+> 1
+
+, and xt−B , xt−B+1 , . . . , xt−1 are drawn i.i.d. from P2(x) with Karcher mean m∗
+
+> 2
+
+. We also assume that the conditions in Theorem 4.1 on f (m),
+
+H(m, xt), the manifold M and the step sizes λ and Λ hold, and that t is sufficiently large such that the algorithms con-verged before the change point. Then, the detection rate can be lower bounded as: 
+
+P(gt > ξ |H1) ≥ dM(m∗
+
+> 1
+
+, m∗
+
+> 2
+
+) − ψ(λ) − ϕ(Λ) − ξD − ξ ,
+
+(12) 
+
+where ψ(λ) = 
+
+
+
+2fbef (m∗
+
+> 1
+
+) + λσ 2
+
+ϵ
+
+ 12
+
++ λρB , ϕ(Λ) = 
+
+
+
+2faft (m∗
+
+> 2
+
+) + (1 − ϵ)B D2
+
+Λ + Λσ2
+
+ϵ
+
+ 12
+
+,
+
+with fbef (m∗
+
+> 1
+
+) = min m∈M Ex∼P1(x){d2
+
+> M
+
+(m, x)} and 
+
+faft (m∗
+
+> 2
+
+) = min m∈M Ex∼P2(x){d2
+
+> M
+
+(m, x)} the Karcher variances of the data before and after the change point. 
+
+The proof of this theorem is provided in Appendix A.3. Theorem 4.3 shows that smaller values of ξ and larger values of dM(m∗
+
+> 1
+
+, m∗
+
+> 2
+
+) make the lower bound on the detection rate tighter when a change point occurs. Moreover, the bound also gets tighter as λ gets smaller and Λ gets bigger, which is intuitive since, when B is not too large, a small λ assures 
+
+mλ,t will still be close to the Karcher mean of the data before the change point, whereas a large Λ means that mΛ,t 
+
+will converge faster to the Karcher mean of the data after the change point, their distance being thus more effective for change detection. However, one should note that λ being too small can hurt the adaptability of the method and its capability to detect multiple change points. Thus, the step sizes should be selected to ensure a sufficiently fast speed of convergence for the desired application. The increase in the number of samples B after a change point has a twofold effect on the lower bound to the de-tection rate in (12) . On the one hand, the estimate of the Karcher means before the change point from the “slow” al-gorithm gets polluted by samples following the post-change distribution, causing the term ψ(λ) to increase with B. On the other hand, the “fast” algorithm will converge to the Karcher means of the post-change data, causing the term 
+
+ϕ(Λ) to decrease with B. The bound also gets larger as the Karcher variances of the data, the gradient noise, and the bound on the diameter of the domain decrease. Note that these quantities are the main sources of stochasticity in the proposed algorithm, and as the uncertainty decreases the theoretical detection performance of the algorithm improves. A similar behavior is also observed for the upper bound to the false alarm rate in (11). One challenge in applying CPD algorithms is the selection of the detection threshold ξ without prior knowledge of the data distribution. In real use cases, a simple yet effec-tive procedure is to adjust ξ so as to achieve some desired performance in the absence of change points. We provide an heuristic procedure for the adaptive threshold selection based on this idea in Appendix B. 
+
+## 5. Application to specific manifolds 
+
+In this section, we tailor Algorithm 1 to two common in-stances of Riemannian manifolds for the case of the Karcher mean cost function c = d2
+
+> M
+
+, which will later be illustrated through numerical experiments in Section 6. The first one is the manifold of p × p SPD matrices, denoted by S++  
+
+> p
+
+. The second is the Grassmann manifold, a set of k-dimensional linear subspaces of Rp, denoted by Gkp . We refer the in-terested reader to (Boumal, 2023; Collas, 2022) for more details. Note that although Gkp is not a Hadamard mani-fold, Algorithm 1 still performs empirically well as will be presented in Section 6. In practice, these manifolds can appear as natural representations of the data (e.g., in diffu-sion tensor imaging) or as feature embeddings thereof. For computational simplicity, we will replace the exponential 6Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+maps in the R-SGD updates (4) and (5) with approximate retractions Rmλ,t and RmΛ,t as in (Bonnabel, 2013). 
+
+5.1. The manifold of SPD matrices 
+
+The manifold S++  
+
+> p
+
+consists of the set of SPD matrices en-dowed with an appropriate metric. When considering the affine invariant metric, the geodesic distance between two SPD matrices Σ and Σt ∈ S ++  
+
+> p
+
+can be computed as (Pen-nec et al., 2006): 
+
+dS++  
+
+> p
+
+(Σ, Σt) = log( Σ− 12 
+
+> t
+
+ΣΣ − 12 
+
+> t
+
+) F , (13) where ∥ · ∥ F denotes the Frobenius norm. In this case, the Riemannian gradient H(Σ, Σt) of the loss function 
+
+d2
+
+> S++
+> p
+
+(Σ, Σt) at Σ ∈ S ++  
+
+> p
+
+is obtained by applying the transformation 12 Σ (GT + G)Σ to its Euclidean gradient 
+
+G (Bhatia, 2009), which gives us: 
+
+H(Σ, Σt) = 2 log( ΣΣ −1 
+
+> t
+
+)Σ . (14) Finally, a second-order retraction on S++  
+
+> p
+
+is given by: 
+
+RΣ,S++  
+
+> p
+
+(ξ) = Σ + ξ + 12 ξΣ−1ξ . (15) With {Σt}t∈N lying in S++  
+
+> p
+
+and the metric defined in (13) , the Karcher means were estimated by min-imizing the following objective function f (Σ) =
+
+EΣt∼P (Σ)
+
+ log( Σ− 12 
+
+> t
+
+ΣΣ − 12 
+
+> t
+
+) 2 
+
+> F
+
+. Note this cost func-tion is known to be geodecially strong convex and smooth as discussed in (Zhang & Sra, 2016). The R-SGD algo-rithms in (4) and (5) with the stochastic gradient (14) and the retraction (15) were used to compute the online CPD statistic in (6). 
+
+5.2. The Grassmann manifold 
+
+We consider the Grassmann manifold Gkp endowed with the canonical metric. The Grassmann manifold is typically characterized as a smooth quotient of the Stiefel manifold 
+
+Skp = {U ∈ Rp×k : U T U = Ik}. This way, by defining the surjective map π : Skp → G kp as follows: π(U ) = 
+
+{U O : O ∈ Rk×k, OT O = Ik}, every point π(U ) ∈ G kp
+
+can be equivalently represented by the orthonormal matrix 
+
+U whose columns form its basis. We spare the reader of the technical details, which can be found in (Absil et al., 2009; Boumal, 2023). To proceed, let us first denote by 
+
+V 1 diag( θt)V T 
+
+> 2
+
+the singular value decomposition (SVD) of U T Ut. The geodesic distance between π(U ) ∈ G kp and 
+
+π(Ut) ∈ G kp can be defined as (Edelman et al., 1998): 
+
+dGkp (U , Ut) = ∥ cos −1(θt)∥2 . (16) The Riemmanian gradient H(U , Ut) of the loss function 
+
+d2
+
+> Gkp
+
+(U , Ut) at π(U ) ∈ G kp can be computed by applying the transformation (I − U U T )G to its Euclidean gradient 
+
+G. Using results from matrix calculus, this results in: 
+
+H(U , Ut) = 
+
+− (I − U U T )U tV 2 diag  2 1 − θ2
+
+> t
+
+− 12
+
+# V T 
+
+> 1
+
+. (17) Let ξ ∈ Tπ(U )Gkp , and let XΥY T = U + ξ be the thin SVD of U + ξ ∈ Rp×k. A second-order retraction on the Grassmann manifold is given by (Boumal, 2023) 
+
+Rπ(U )(ξ) = π XY T  . (18) With {π(Ut)}t∈N lying in Gkp and the metric de-fined in (16) , the Karcher means were estimated by minimizing the objective function f (π(U )) =
+
+Eπ(Ut)∼P (π(U )) 
+
+ cos −1(θt)∥22 . Accordingly, the R-SGD algorithms in (4) and (5) with the stochastic gradi-ent (17) and the retraction (18) were used to compute the online CPD statistic in (6). 
+
+## 6. Experiments 
+
+In this section, we present numerical experiments using the manifolds S++  
+
+> p
+
+and Gkp discussed in Section 5. Our method was implemented in Python using Pymanopt (Townsend et al., 2016). The step sizes of our method were set as 
+
+λ = 0 .01 and Λ = 0 .02 . Open-source code to reproduce the results is publicly available at https://github.com/ xiuheng-wang/CPD_manifold_release . Here we briefly describe the baselines and evaluation metrics. 
+
+Baselines: We selected four CPD methods Scan-B (Li et al., 2019), NEWMA (Keriven et al., 2020), the Fr ´echet CPD (F-CPD) (Dubey & M ¨uller, 2020) and NODE (Wang et al., 2023b) as baselines for comparison with our method. Scan-B, NEWMA, and NODE are online algorithms origi-nally designed for Euclidean spaces but were adapted to the manifold setting in this study. We applied Scan-B, NEWMA, and NODE to the vectorization of the lower triangular por-tion of each SPD matrix Σt and to each entire matrix Ut for the SPD and Grassmann manifolds, respectively. In Scan-B, the number of reference blocks was set to 3. NEWMA was implemented with Random Fourier features using the Gaussian kernel. The window size of Scan-B and NEWMA were both set to 50 . The reference and test window lengths of NODE were both set to 64 . F-CPD was designed to operate on manifolds but can only detect a single change point and operates offline. To address these limitations, we computed statistics in F-CPD to compare data distributions in two consecutive sliding windows, each with 64 samples. We provide a discussion on the computational complexity of our method compared to baselines in Appendix C. 
+
+Metrics: To evaluate the performance of the methods, we considered three metrics: the Average Run Length (ARL), 7Non-parametric Online Change Point Detection on Riemannian Manifolds 0.00 0.25 0.50 0.75 1.00      
+
+> False alarm rate
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Detection rate
+> F-CPD
+> NODE
+> Scan-B
+> NEWMA
+> Our 0200 400 600 800 1000
+> Average run length
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> Mean detection delay
+> F-CPD
+> NODE
+> Scan-B
+> NEWMA
+> Our
+
+Figure 1. ROC curves, ARL versus MDD for the compared algo-rithms on synthetic data on S++  
+
+> p
+
+.0.00 0.25 0.50 0.75 1.00      
+
+> False alarm rate
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Detection rate
+> F-CPD
+> NODE
+> Scan-B
+> NEWMA
+> Our 0200 400 600 800 1000
+> Average run length
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> Mean detection delay
+> F-CPD
+> NODE
+> Scan-B
+> NEWMA
+> Our
+
+Figure 2. ROC curves, ARL versus MDD for the compared algo-rithms on synthetic data on Gkp .
+
+Mean Detection Delay (MDD), and Receiver Operating Characteristic (ROC) curves. ARL represents the expected time before incorrectly announcing a change point when none has occurred, and is related to the false alarm rate. MDD signifies the expected time the algorithm needs to flag a detection after a change point occurs, reflecting its sensitivity. The ROC curve is a graphical representation of the detection rate versus the false alarm rate. 
+
+6.1. Validations on synthetic data 
+
+We first present results over sequences of i.i.d. synthetically generated data in S++  
+
+> p
+
+and Gkp .
+
+Manifold S++  
+
+> p
+
+: We sampled matrices Σt ∈ S ++  
+
+> p
+
+with 
+
+p = 8 from a Wishart distribution with a randomly gener-ated scaling matrix V and p + 2 degrees of freedom. We generated 2000 samples and set a change point at tr = 1500 
+
+where we reset V .
+
+Manifold Gkp : The data π(Ut) ∈ G kp with p = 15 , k = 5 
+
+was generated in two steps. First, we generated matrices Zt
+
+following a matrix Gaussian distribution (Gupta & Nagar, 1999) with random mean and row/column covariance ma-trices. Then, the orthonormal matrices Ut were generated as the left singular vectors corresponding to the k largest singular values of Zt. We generated 2000 samples and set a change point at tr = 1500 where we reset the mean of the matrix Gaussian distribution of Zt.0.00 0.25 0.50 0.75 1.00      
+
+> False alarm rate
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Detection rate
+> Scan-B
+> NEWMA
+> Our-sub
+> Our-cov 0200 400 600 800 1000
+> Average run length
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> Mean detection delay
+> Scan-B
+> NEWMA
+> Our-sub
+> Our-cov
+
+Figure 3. ROC curves, ARL versus MDD for the compared algo-rithms on real data for voice activity detection. 
+
+Results: The ROCs, MDD as a function of ARL for all methods, averaged over 10 4 Monte Carlo runs, are depicted in Figure 1 and 2 for both manifolds. It is evident that the proposed method results in a significantly lower detection delay for a fixed ARL when compared to Euclidean meth-ods Scan-B, NEWMA, and NODE, which does not consider manifold geometry, and F-CPD, which does not benefit from long time series through a recursive operation. The compared methods exhibited similar behavior in both man-ifolds, although the proposed method resulted in slightly lower MDDs for Gkp . This underscores the importance of accounting for manifold geometry and utilizing an efficient online estimation framework. Illustrations of the mean and standard deviation and further comparisons between his-tograms of the test statistics for all compared methods are provided in Appendix D.1 and D.2, respectively. 
+
+6.2. Voice activity detection 
+
+We now present results on real data on both S++  
+
+> p
+
+and Gkp
+
+by considering the task of voice activity detection on audio signals. We first added 4 seconds of real speech extracted from the TIMIT database (Garofolo, 1993) to 15 seconds of background noises in real street environments from the QUT-NOISE database (Dean et al., 2010), with −3 dB Signal-to-Noise Ratio. The goal is to detect the speech segments in the noise background. Then, we used the Short Time Fourier Transform (STFT) (Cohen, 1995) on a one-dimensional audio signal to extract on-the-fly frequency information and form a d = 128 dimensional time series st ∈ Rd. The two methods with the best performance in the experiments with synthetic data, Scan-B and NEWMA, were used as baselines in this experiment. They were directly applied on 
+
+st as they are designed to operate on Euclidean spaces. 
+
+Manifold S++  
+
+> p
+
+: We averaged the neighboring channels of st in the frequency domain to obtain its down-sampled version with 16 channels. We then generated data points 
+
+Σt ∈ S ++  
+
+> p
+
+with p = 16 by computing the covariance matrices in sliding windows, each with 32 samples. The proposed method on such covariance descriptors is denoted as “Our-cov”. 8Non-parametric Online Change Point Detection on Riemannian Manifolds 0.00 0.25 0.50 0.75 1.00      
+
+> False alarm rate
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Detection rate
+> Scan-B
+> NEWMA
+> Our 020 40 60 80 100
+> Average run length
+> 0
+> 1
+> 2
+> 3
+> 4
+> 5
+> Mean detection delay
+> Scan-B
+> NEWMA
+> Our
+
+Figure 4. ROC curves, ARL versus MDD for the compared algo-rithms on real data for skeleton-based action recognition. 
+
+Manifold Gkp : We also applied the truncated SVD with 
+
+k = 1 singular values to the samples in the same sliding windows to obtain orthonormal matrices Ut defining the subspaces π(Ut) ∈ G kp . We denote our method on these subspaces as “Our-sub”. 
+
+Results: The ROCs and MDD as a function of ARL for all methods, averaged over 10 4 Monte Carlo runs, are de-picted in Figure 3. It is important to note that the problem setting is challenging due to the complexity of real acoustic signals and the non-i.i.d. nature of the extracted features. Nevertheless, one can observe that the proposed strategy exhibits a higher detection rate for a given false alarm rate and better performance on MDD versus ARL when com-pared to both Scan-B and NEWMA, except for very small ARLs where Scan-B has a lower MDD. This behavior oc-curs since both the covariance and subspace descriptors are computed over a sliding window, which introduces a small detection delay in our method when the ARL is small 1. How-ever, its performance is significantly better for larger ARLs. This illustrates the superior performance of our method. Furthermore, the performance was slightly superior in the covariance descriptors on S++  
+
+> p
+
+compared to the subspace representations on Gkp .
+
+6.3. Skeleton-based action recognition 
+
+We also present results on real data on the S++  
+
+> p
+
+manifold by considering the problem of detecting change points in skeleton-based action recognition using the HDM05 motion capture database (M ¨uller et al., 2007). In this database, we identified action categories and preprocessed the data as de-scribed in (Huang & Van Gool, 2017) to generate data points 
+
+Σt ∈ S ++  
+
+> p
+
+with p = 93 by computing the joint covariance descriptor (Hussein et al., 2013) of 3D coordinates of the 31 joints. The aim is to flag a change point at the border of two different action categories. We randomly selected 
+
+> 1
+
+Although a shorter sliding window is preferred to introduce a smaller delay, the window length has to be long enough to pro-vide enough samples for an accurate estimation of these statistical descriptors. 
+
+the sequences corresponding to action categories containing more than 200 samples and then concatenated them. The parameters of the compared algorithms were appropriately re-adjusted for this example since there were fewer samples between change points, requiring a faster convergence. 
+
+Results: The ROC and MDD versus ARL curves of the compared methods (Scan-B, NEWMA, and our algorithm), averaged over 10 3 Monte Carlo runs, can be seen in Fig-ure 4. Note that the problem setting is challenging due to the high data dimension. It can be seen that our method achieves a significantly higher detection rate compared to the Scan-B and NEWMA, which had very similar ROCs 2.Moreover, for ARLs smaller than 40 samples, the proposed method and NEWMA obtained similar MDDs. However, when the ARL was higher, the proposed method performed significantly better. This further illustrates the effectiveness of our method. 
+
+## 7. Discussion 
+
+This paper presented a general approach for non-parametric online CPD on Riemannian manifolds. An adaptive test statistic was computed using stochastic Riemannian opti-mization to monitor the generalized Karcher mean of data streams. Performance guarantees for detection and false alarm rates were established based on a theoretical analysis of the non-asymptotic convergence of the R-SGD algorithm. Experimental results on the manifold of SPD matrices and the Grassmann manifold demonstrated the superiority of the proposed algorithm on synthetic and real-world datasets. We also identify the main limitations of our work: • The number of samples needs to be large enough for the “slow” algorithm to converge to the Karcher mean of the data before a new change point occurs to perform well. This is a limitation of our method and also of other recursive algorithms. • Although S++  
+
+> p
+
+and Gkp are selected to illustrate our approach, our framework is more general and can in-deed be applied to other manifolds. The main possible hurdle is related to the convergence rate of the R-SGD algorithm affected by the manifold curvature, being slower for higher curvature values. This in turn can negatively impact the detection delay. • For the theoretical analysis, we make additional as-sumptions on the manifold (e.g., Hadamard). Although this does not limit the practical applicability to other manifolds, manifolds with complex geometries can in-troduce additional challenges such as non-convexity of the cost function. 
+
+> 2
+
+The mean and standard deviation of the test statistic of all methods for this example can also be seen in Appendix D.1. 
+
+9Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+## Impact statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+## Acknowledgements 
+
+The authors would like to thank the reviewers for their con-structive feedback. The work of C ´edric Richard was sup-ported in part by the French Government through the 3IA C ˆote d’Azur Investments in the Future Project under grant ANR-19-P3IA-0002, and in part by grant ANR-19-CE48-0002. The work of Ricardo Borsoi was supported in part by the French National Research Agency, under grants ANR-23-CE23-0024, ANR-23-CE94-0001, and by the National Science Foundation, under grant NSF 2316420. 
+
+## References 
+
+Absil, P.-A., Mahony, R., and Sepulchre, R. Optimization algorithms on matrix manifolds . Princeton University Press, 2009. Afsari, B. Riemannian ℓp center of mass: existence, unique-ness, and convexity. Proceedings of the American Mathe-matical Society , 139(2):655–673, 2011. Aminikhanghahi, S. and Cook, D. J. A survey of methods for time series change point detection. Knowledge and information systems , 51(2):339–367, 2017. Arlot, S., Celisse, A., and Harchaoui, Z. A kernel multiple change-point algorithm via model selection. Journal of machine learning research , 20(162):1–56, 2019. Bai, J. and Perron, P. Estimating and testing linear models with multiple structural changes. Econometrica , 66(1): 47–78, 1998. Bhatia, R. Positive definite matrices . Princeton university press, 2009. Bonnabel, S. Stochastic gradient descent on Riemannian manifolds. IEEE Transactions on Automatic Control , 58 (9):2217–2229, 2013. Bouchard, F., Mian, A., Zhou, J., Said, S., Ginolhac, G., and Berthoumieu, Y. Riemannian geometry for compound gaussian distributions: Application to recursive change detection. Signal Processing , 176:107716, 2020. Boumal, N. An introduction to optimization on smooth manifolds . Cambridge University Press, 2023. Chen, L., Keilbar, G., and Wu, W. B. Recursive quantile estimation: Non-asymptotic confidence bounds. Journal of Machine Learning Research , 24(91):1–25, 2023. Cheng, X. and Xie, Y. Neural tangent kernel maximum mean discrepancy. Advances in Neural Information Pro-cessing Systems , 34:6658–6670, 2021. Cohen, L. Time-frequency analysis , volume 778. Prentice hall New Jersey, 1995. Collas, A. Riemannian geometry for statistical estimation and learning: application to remote sensing . PhD thesis, universit´ e Paris-Saclay, 2022. Costa, A. and Rahim, M. A single EWMA chart for monitor-ing process mean and process variance. Quality Technol-ogy & Quantitative Management , 3(3):295–305, 2006. Dean, D., Sridharan, S., Vogt, R., and Mason, M. The qut-noise-timit corpus for evaluation of voice activity de-tection algorithms. In Proceedings of the 11th Annual Conference of the International Speech Communication Association , pp. 3110–3113. International Speech Com-munication Association, 2010. Duan, X., Sun, H., and Zhao, X. A matrix information-geometric method for change-point detection of rigid body motion. Entropy , 21(5):531, 2019. Dubey, P. and M ¨uller, H.-G. Fr ´echet change-point detection. 
+
+The Annals of Statistics , 48(6):3312–3335, 2020. Edelman, A., Arias, T. A., and Smith, S. T. The geometry of algorithms with orthogonality constraints. SIAM jour-nal on Matrix Analysis and Applications , 20(2):303–353, 1998. Ferrari, A. and Richard, C. Non-parametric community change-points detection in streaming graph signals. In 
+
+IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pp. 5545–5549. IEEE, 2020. Ferrari, A., Richard, C., Bourrier, A., and Bouchikhi, I. On-line change-point detection with kernels. Pattern Recog-nition , pp. 109022, 2022. Fr ´echet, M. Les ´el ´ements al ´eatoires de nature quelconque dans un espace distanci ´e. In Annales de l’institut Henri Poincar´ e, volume 10, pp. 215–310, 1948. Garofolo, J. S. Timit acoustic phonetic continuous speech corpus. Linguistic Data Consortium, 1993 , 1993. Gong, D., Medioni, G., Zhu, S., and Zhao, X. Kernelized temporal cut for online temporal segmentation and recog-nition. In Computer Vision–ECCV 2012: 12th European Conference on Computer Vision, Florence, Italy, Octo-ber 7-13, 2012, Proceedings, Part III 12 , pp. 229–243. Springer, 2012. 10 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+Gretton, A., Borgwardt, K., Rasch, M., Sch ¨olkopf, B., and Smola, A. A kernel method for the two-sample-problem. 
+
+Advances in neural information processing systems , 19, 2006. Gupta, A. K. and Nagar, D. K. Matrix variate distributions ,volume 104. CRC Press, 1999. Gustafsson, F. The marginalized likelihood ratio test for de-tecting abrupt changes. IEEE Transactions on automatic control , 41(1):66–78, 1996. Harchaoui, Z., Moulines, E., and Bach, F. Kernel change-point analysis. Advances in neural information process-ing systems , 21, 2008. Huang, W., Gallivan, K. A., and Absil, P.-A. A Broyden class of quasi-Newton methods for Riemannian optimiza-tion. SIAM Journal on Optimization , 25(3):1660–1685, 2015. Huang, Z. and Van Gool, L. A Riemannian network for SPD matrix learning. In Thirty-First AAAI Conference on Artificial Intelligence , 2017. Hussein, M. E., Torki, M., Gowayyed, M. A., and El-Saban, M. Human action recognition using a temporal hierar-chy of covariance descriptors on 3D joint locations. In 
+
+Twenty-third international joint conference on artificial intelligence , 2013. Ienco, D., Bifet, A., Pfahringer, B., and Poncelet, P. Change detection in categorical evolving data streams. In 29th annual ACM symposium on applied computing , pp. 792– 797, 2014. Kacem, A., Daoudi, M., Amor, B. B., Berretti, S., and Alvarez-Paiva, J. C. A novel geometric framework on gram matrix trajectories for human behavior understand-ing. IEEE transactions on pattern analysis and machine intelligence , 42(1):1–14, 2018. Kendall, W. S. Probability, convexity, and harmonic maps with small image I: uniqueness and fine existence. Pro-ceedings of the London Mathematical Society , 3(2):371– 406, 1990. Keriven, N., Garreau, D., and Poli, I. NEWMA: a new method for scalable model-free online change-point de-tection. IEEE Transactions on Signal Processing , 68: 3515–3528, 2020. Li, S., Xie, Y., Dai, H., and Song, L. Scan b-statistic for kernel change-point detection. Sequential Analysis , 38 (4):503–544, 2019. Madrid Padilla, C. M., Xu, H., Wang, D., Madrid Padilla, O. H., and Yu, Y. Change point detection and infer-ence in multivariate non-parametric models under mixing conditions. Advances in Neural Information Processing Systems , 36, 2023. M ¨uller, M., R ¨oder, T., Clausen, M., Eberhardt, B., Kr ¨uger, B., and Weber, A. Documentation mocap database HDM05. Technical Report CG-2007-2, Universit ¨at Bonn, June 2007. Page, E. S. Continuous inspection schemes. Biometrika , 41 (1/2):100–115, 1954. Pennec, X. Probabilities and statistics on Riemannian man-ifolds: A geometric approach. Technical Report 5093, INRIA, 2004. Pennec, X. Intrinsic statistics on Riemannian manifolds: Basic tools for geometric measurements. Journal of Math-ematical Imaging and Vision , 25:127–154, 2006. Pennec, X., Fillard, P., and Ayache, N. A Riemannian framework for tensor computing. International Journal of computer vision , 66(1):41–66, 2006. Rahimi, A. and Recht, B. Random features for large-scale kernel machines. Advances in neural information pro-cessing systems , 20, 2007. Reeves, J., Chen, J., Wang, X., Lund, R., and Lu, Q. Q. A re-view and comparison of changepoint detection techniques for climate data. Journal of applied meteorology and cli-matology , 46(6):900 – 915, 2007. ISSN 1558-8424. Sch ¨otz, C. Convergence rates for the generalized Fr ´echet mean via the quadruple inequality. Electronic Journal of Statistics , 13:4280–4345, 2019. Shiga, K. Hadamard manifolds. Geometry of Geodesics and Related Topics , 3:239–282, 1984. Sinn, M., Ghodsi, A., and Keller, K. Detecting change-points in time series by maximum mean discrepancy of ordinal pattern distributions. In Proceedings of the Twenty-Eighth Conference on Uncertainty in Artificial Intelligence , pp. 786–794, 2012. Smith, S. Optimization techniques on Riemannian mani-folds. Fields Institute Communications , 3, 1994. Tartakovsky, A., Nikiforov, I., and Basseville, M. Sequential analysis: Hypothesis testing and changepoint detection .CRC press, 2014. Townsend, J., Koep, N., and Weichwald, S. Pymanopt: A python toolbox for optimization on manifolds using automatic differentiation. Journal of Machine Learning Research , 17(137):1–5, 2016. URL http://jmlr. org/papers/v17/16-177.html .11 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+Truong, C., Oudre, L., and Vayatis, N. Selective review of offline change point detection methods. Signal Process-ing , 167:107299, 2020. Tuzel, O., Porikli, F., and Meer, P. Pedestrian detection via classification on Riemannian manifolds. IEEE transac-tions on pattern analysis and machine intelligence , 30 (10):1713–1727, 2008. Wang, X., Borsoi, R., and Richard, C. Online change point detection on Riemannian manifolds with Karcher mean estimates. In IEEE European Signal Processing Confer-ence (EUSIPCO) , 2023a. Wang, X., Borsoi, R. A., Richard, C., and Chen, J. Change point detection with neural online density-ratio estimator. In IEEE international conference on acoustics, speech and signal processing (ICASSP) , 2023b. Wei, S. and Xie, Y. Online kernel CUSUM for change-point detection. arXiv preprint arXiv:2211.15070 , 2022. Zeng, L., Wardlow, B. D., Xiang, D., Hu, S., and Li, D. A review of vegetation phenological metrics extraction using time-series, multispectral satellite data. Remote Sensing of Environment , 237:111511, 2020. Zhang, H. and Sra, S. First-order methods for geodesically convex optimization. In Conference on Learning Theory ,pp. 1617–1638, 2016. Zhang, H., Reddi, S. J., and Sra, S. Riemannian SVRG: Fast stochastic optimization on Riemannian manifolds. In Advances in Neural Information Processing Systems ,pp. 4592–4600, 2016. Zhang, J., Zhang, H., and Sra, S. R-spider: A fast Rie-mannian stochastic optimization algorithm with curva-ture independent rate. arXiv preprint arXiv:1811.04194 ,2018. Zhou, P., Yuan, X., Yan, S., and Feng, J. Faster first-order methods for stochastic non-convex optimization on Rie-mannian manifolds. IEEE transactions on pattern analy-sis and machine intelligence , 43(2):459–472, 2019. 12 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+## A. Proofs of the main results 
+
+A.1. Theorem 4.1 
+
+Assume f is a geodesically L-smooth function, that is, its gradient is geodesically L-Lipschitz. As this property is related to deterministic gradient ∇f (x), we shall first reformulate it with respect to the stochastic gradient. Replacing y = mt+1 ,
+
+x = mt in (9), denote ∆t = f (mt) − f (m∗), and considering the fact ⟨a, b ⟩ ≤ α 
+
+> 2
+
+a2 + 12α b2, we have: 
+
+∆t+1 − ∆t = f (mt+1 ) − f (mt)
+
+≤ ⟨∇ f (mt), exp −1 
+
+> mt
+
+(mt+1 )⟩ + L
+
+2 ∥ exp −1 
+
+> mt
+
+(mt+1 )∥2
+
+= ⟨H(mt, xt), exp −1 
+
+> mt
+
+(mt+1 )⟩ + ⟨∇ f (mt) − H(mt, xt), exp −1 
+
+> mt
+
+(mt+1 )⟩ + L
+
+2 ∥ exp −1 
+
+> mt
+
+(mt+1 )∥2
+
+≤ ⟨ H(mt, xt), exp −1 
+
+> mt
+
+(mt+1 )⟩ + α
+
+2 ∥∇ f (mt) − H(mt, xt)∥2 +
+
+ L
+
+2 + 12α
+
+
+
+∥ exp −1 
+
+> mt
+
+(mt+1 )∥2. (19) Assuming ∥H(mt, xt)∥ < ρ and 0 < α ≤ Iρ where I is the injectivity radius of M, we have ∥αH (mt, xt)∥ < I .By Proposition 10.22 of (Boumal, 2023), exp −1 
+
+> mt
+
+(mt+1 ) = exp −1 
+
+> mt
+
+(exp mt (−αH (mt, xt)) = −αH (mt, xt), taking the expectation w.r.t. {xs}ts=0 , one obtains: 
+
+E∆t+1 − E∆t ≤ − αE∥H(mt, xt)∥2 + ασ 2
+
+2 +
+
+ L
+
+2 + 12α
+
+
+
+α2E∥H(mt, xt)∥2
+
+= ασ 2
+
+2 +
+
+ αL + 1 2 − 1
+
+
+
+αE∥H(mt, xt)∥2. (20) Assuming 0 ≤ α ≤ 12L , we have: 
+
+E∆t+1 − E∆t ≤ ασ 2
+
+2 − α
+
+4 E∥H(mt, xt)∥2. (21) Assume f is a geodesically μ-strongly convex function, replacing y = m∗, x = mt in (7), we have: 
+
+f (mt) − f (m∗) ≤ ⟨−∇ f (mt), exp −1 
+
+> mt
+
+(m∗)⟩ − μ
+
+2 ∥ exp −1 
+
+> mt
+
+(m∗)∥2
+
+= ⟨−∇ f (mt), exp −1 
+
+> mt
+
+(m∗)⟩ − μ
+
+2 d2
+
+> M
+
+(mt, m∗) . (22) Assume the diameter of the domain is bounded above by D, and the sectional curvature lower-bounded by κ < 0, use the trigonometric distance bound, i.e., Corollary 8 in (Zhang & Sra, 2016), we have: 
+
+⟨−∇ f (mt), exp −1 
+
+> mt
+
+(m∗)⟩ ≤ 12α
+
+ d2
+
+> M
+
+(mt, m∗) − d2
+
+> M
+
+(mt+1 , m∗) + ζ(κ, D )α
+
+2 ∥∇ f (mt)∥2. (23) Combining (22) and (23), we have: 
+
+E∆t = E{f (mt) − f (m∗)} ≤ 
+
+ 1 − αμ 
+
+2α
+
+
+
+Ed2
+
+> M
+
+(mt, m∗) − 12α Ed2
+
+> M
+
+(mt+1 , m∗) + ζ(κ, D )α
+
+2 E∥∇ f (mt)∥2
+
+≤
+
+ 1 − αμ 
+
+2α
+
+
+
+Ed2
+
+> M
+
+(mt, m∗) − 12α Ed2
+
+> M
+
+(mt+1 , m∗) + ζ(κ, D )α
+
+2 E∥H(mt, xt)∥2 .
+
+(24) Multiplying (21) by 2ζ(κ, D ) and adding to (24), we have: 
+
+2ζ(κ, D )E∆t+1 − (2 ζ(κ, D ) − 1) E∆t ≤
+
+ 1 − αμ 
+
+2α
+
+
+
+Ed2
+
+> M
+
+(mt, m∗) − 12α Ed2
+
+> M
+
+(mt+1 , m∗) + ασ 2ζ(κ, D ) . (25) Multiplying (25) by (1 − ϵ)−t, we have: 
+
+2(1 − ϵ)−tζ(κ, D )E∆t+1 − 2(1 − ϵ)−t
+
+1 − 12ζ(κ, D )
+
+
+
+ζ(κ, D )E∆t ≤ (1 − ϵ)−t 1 − αμ  12α Ed2
+
+> M
+
+(mt, m∗)
+
+−(1 − ϵ)−t 12α Ed2
+
+> M
+
+(mt+1 , m∗) + (1 − ϵ)−tασ 2ζ(κ, D ) . (26) 13 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+We want to sum (26) from t = 0 to t = s − 1. However, to simplify the summation, we consider the case t = 0 and 
+
+t ≥ 1 separately, because in the latter case, we can get a simpler upper bound. First, let us consider the case t ≥ 1. Let 
+
+ϵ = min { 12ζ(κ,D ) , αμ } (Zhang & Sra, 2016), this implies ϵ ≤ 12ζ(κ,D ) and ϵ ≤ αμ . For t ≥ 1, from (26) we have: 
+
+2(1 − ϵ)−tζ(κ, D )E∆t+1 − 2(1 − ϵ)−(t−1) ζ(κ, D )E∆t ≤ (1 − ϵ)−(t−1) 12α Ed2
+
+> M
+
+(mt, m∗)
+
+− (1 − ϵ)−t 12α Ed2
+
+> M
+
+(mt+1 , m∗)+ (1 − ϵ)−tασ 2ζ(κ, D ) . (27) Now, let us consider the case t = 0 . This case is simple, directly from (26) we have: 
+
+2ζ(κ, D )E∆1 − (2 ζ(κ, D ) − 1) E∆0 ≤
+
+ 1 − αμ 
+
+2α
+
+
+
+Ed2
+
+> M
+
+(m0, m∗) − 12α Ed2
+
+> M
+
+(m1, m∗) + ασ 2ζ(κ, D ) . (28) Finally, summing (26) over t from t = 0 to t = s − 1, and using the previous results, we have: 
+
+2(1 − ϵ)−(s−1) ζ(κ, D )E∆s − (2 ζ(κ, D ) − 1) E∆0 ≤
+
+ 1 − αμ 
+
+2α
+
+
+
+Ed2
+
+> M
+
+(m0, m∗) − (1 − ϵ)−(s−1) 
+
+2α Ed2
+
+> M
+
+(ms, m∗)+
+
+> s−1
+
+X
+
+> t=0
+
+(1 − ϵ)−tασ 2ζ(κ, D )
+
+≤
+
+ 1 − αμ 
+
+2α
+
+
+
+Ed2
+
+> M
+
+(m0, m∗) + 
+
+> s−1
+
+X
+
+> t=0
+
+(1 − ϵ)−tασ 2ζ(κ, D ) , (29) and plugging in dM(m0, m∗) ≤ D (the diameter of the domain is bounded above by D), we have: 
+
+2(1 − ϵ)−(s−1) ζ(κ, D )E∆s − (2 ζ(κ, D ) − 1) E∆0 ≤
+
+ 12α − μ
+
+2
+
+
+
+D2 +
+
+> s−1
+
+X
+
+> t=0
+
+(1 − ϵ)−tασ 2ζ(κ, D )
+
+≤ D2
+
+2α +
+
+> s−1
+
+X
+
+> t=0
+
+(1 − ϵ)−tασ 2ζ(κ, D ) . (30) Replacing y = m0, x = m∗ in (9) , considering an alternative definition of geodesic L-smoothness (Proposition 4.5 and 4.6. of (Boumal, 2023)) and plugging in dM(m0, m∗) ≤ D and ∇f (m∗) = 0 , we have: 
+
+∆0 = f (m0) − f (m∗) ≤ ⟨∇ f (m∗), exp −1 
+
+> m∗
+
+(m0)⟩ + L
+
+2 ∥ exp −1 
+
+> m∗
+
+(m0)∥2
+
+= ⟨∇ f (m∗), exp −1 
+
+> m∗
+
+(m0)⟩ + L
+
+2 d2
+
+> M
+
+(m0, m∗) ≤ LD 2
+
+2 . (31) This ensures E∆0 ≤ LD 2 
+
+> 2
+
+≤ LD 2 so that we have E∆0 ≤ D2 
+
+> 2α
+
+since 0 ≤ α ≤ 12L , one can obtain from (30) that 
+
+E∆s = E{f (ms) − f (m∗)} ≤ (1 − ϵ)(s−1) D2
+
+2α +
+
+> s−1
+
+X
+
+> t=0
+
+(1 − ϵ)t σ2
+
+2
+
+≤ (1 − ϵ)(s−1) D2
+
+2α +
+
+> ∞
+
+X
+
+> t=0
+
+(1 − ϵ)t σ2
+
+2
+
+≤ (1 − ϵ)(s−1) D2
+
+2α + ασ 2
+
+2ϵ , (32) as desired. 14 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+A.2. Theorem 4.2 
+
+Using Markov’s inequality with ξ > 0,
+
+P(gt ≥ ξ|H0) ≤ 1
+
+ξ E{gt|H0} . (33) Now, it remains to find an upper bound to E{gt|H0}. Let us ignore the conditioning of the expectation on H0 to simplify the notation. The rest of the analysis is built upon the triangle inequality and the definition of gt, which is, 
+
+gt = dM(mλ,t , mΛ,t ) ≤ dM(mλ,t , x) + dM(mΛ,t , x) (34) for any x ∈ M . Take the expectation w.r.t. {xs}t−1
+
+> s=0
+
+, with Theorem 4.1, Jensen’s inequality and the fact 
+
+ √a+√b
+
+> 2
+
+2
+
+≤ a+b
+
+> 2
+
+for nonnegative a and b, we can upper bound E{gt} as 
+
+E{gt} ≤ E{dM(mλ,t , x)} + E{dM(mΛ,t , x)} (35) 
+
+≤ E{d2
+
+> M
+
+(mλ,t , x)} 12 + E{d2
+
+> M
+
+(mΛ,t , x)} 12 (36) 
+
+= ( E{f (mλ,t )}) 12 + ( E{f (mΛ,t )}) 12 (37) 
+
+≤
+
+
+
+f (m∗) + (1 − ϵ)t−1D2
+
+2λ + λσ 2
+
+2ϵ
+
+ 12
+
++
+
+
+
+f (m∗) + (1 − ϵ′)t−1D2
+
+2Λ + Λσ2
+
+2ϵ′
+
+ 12
+
+(38) 
+
+≤ 2
+
+
+
+f (m∗) + (1 − ϵ)t−1(λ + Λ) D2
+
+4λΛ + (λ + Λ) σ2
+
+4ϵ
+
+ 12
+
+, (39) with ϵ′ = min { 1 
+
+> ζ(κ,D )
+
+, Λμ} satisfying ϵ′ ≥ ϵ due to the step size condition λ < Λ. Taking the limit as t → ∞ , we get the following bound for E{gt} at steady state: 
+
+lim  
+
+> t→∞
+
+E{gt} ≤ 2
+
+
+
+f (m∗) + (λ + Λ) σ2
+
+4ϵ
+
+ 12
+
+. (40) Combining this bound with (33) we obtain the desired result. 
+
+A.3. Theorem 4.3 
+
+Let us ignore the conditioning of the expectation on H1 to simplify the notation. Since the diameter of the domain is bounded above by D, gt ≤ D, thus, we can apply Markov’s inequality to the nonnegative random variable D − gt to obtain 
+
+P(D − gt ≥ D − ξ) ≤ D − E{gt}
+
+D − ξ , (41) which leads to 
+
+P(gt > ξ ) ≥ E{gt} − ξD − ξ . (42) We now have to lower bound E{gt}. Using the reverse triangle inequality: 
+
+E{gt} = E{dM(mλ,t , mΛ,t )} ≥ E{dM(mλ,t , m∗
+
+> 2
+
+)} − E{dM(mΛ,t , m∗
+
+> 2
+
+)} , (43) with m∗ 
+
+> 2
+
+being the Karcher mean after the change point. Notice the procedure of optimizing the Karcher mean loss function faft (m) = Ex∼P2(x){d2
+
+> M
+
+(m, x)} after the change point (i.e., where the expectation is defined w.r.t. P2(x)), with solution m∗
+
+> 2
+
+, by the SGD algorithms (4) and (5) can be recognized as started from xt−B . Let us take the expectation w.r.t. {xs}t−1 
+
+> s=t−B
+
+in the following steps. 15 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+Now we can upper bound E{dM(mΛ,t , m∗
+
+> 2
+
+)} with Jensen’s inequality, Theorem 4.1, and the fact 
+
+ √a+√b
+
+> 2
+
+2
+
+≤ a+b 
+
+> 2
+
+for nonnegative a and b, leading to 
+
+E{dM(mΛ,t , m∗
+
+> 2
+
+)} ≤ E{dM(mΛ,t , x)} + E{dM(m∗
+
+> 2
+
+, x)} (44) 
+
+≤ E{d2
+
+> M
+
+(mΛ,t , x)} 12 + E{d2
+
+> M
+
+(m∗
+
+> 2
+
+, x)} 12 (45) 
+
+≤
+
+
+
+faft (m∗
+
+> 2
+
+) + (1 − ϵ′)B D2
+
+2Λ + Λσ2
+
+2ϵ′
+
+ 12
+
++ ( faft (m∗
+
+> 2
+
+)) 12 (46) 
+
+≤
+
+
+
+faft (m∗
+
+> 2
+
+) + (1 − ϵ)B D2
+
+2Λ + Λσ2
+
+2ϵ
+
+ 12
+
++ ( faft (m∗
+
+> 2
+
+)) 12 (47) 
+
+≤
+
+
+
+2faft (m∗
+
+> 2
+
+) + (1 − ϵ)B D2
+
+Λ + Λσ2
+
+ϵ
+
+ 12
+
+, (48) where x ∼ P2(x), and ϵ′ = min { 1 
+
+> ζ(κ,D )
+
+, Λμ} satisfying ϵ′ ≥ ϵ due to the step size condition λ < Λ.To lower bound E{dM(mλ,t , m∗
+
+> 2
+
+)}, we can use the reverse triangle inequality, which gives us 
+
+E{dM(mλ,t , m∗
+
+> 2
+
+)} ≥ E{dM(mλ,t −1, m∗
+
+> 2
+
+)} − E{dM(mλ,t −1, mλ,t )}≥ E{dM(mλ,t −B−1, m∗
+
+> 2
+
+)} − 
+
+> t
+
+X
+
+> u=t−B
+
+E{dM(mλ,u −1, mλ,u )}. (49) Using the stochastic gradient update equation, mλ,t = exp mλ,t −1 (−λH (mλ,t −1, xt−1)) , we can express 
+
+dM(mλ,u −1, mλ,u ) as: 
+
+dM(mλ,u −1, mλ,u ) = dM
+
+ mλ,u −1, exp mλ,u −1 (−λH (mλ,u −1, xu−1))  . (50) Since the injectivity radius of the manifold is assumed to be globally bounded above by I, the condition λ ≤ Iρ implies that 
+
+∥λH (mλ,u −1, xu−1)∥ < I . Thus, by proposition 10.22 of (Boumal, 2023), 
+
+dM
+
+ mλ,u −1, exp mλ,u −1 (−λH (mλ,u −1, xu−1))  = λ∥H(mλ,u −1, xu−1)∥ (51) 
+
+≤ ρλ . (52) The term E{dM(mλ,t −B−1, m∗
+
+> 2
+
+)} can be lower bounded as 
+
+E{dM(mλ,t −B−1, m∗
+
+> 2
+
+)} ≥ dM(m∗
+
+> 1
+
+, m∗
+
+> 2
+
+) − E{dM(mλ,t −B−1, m∗
+
+> 1
+
+)} , (53) with m∗ 
+
+> 1
+
+being the Karcher mean of distribution P1(x) of the data before the change point. Knowing that the change point occurred at time t − B, and since the algorithms are assumed to have asymptotically converged before the change point happened (i.e., t − B − 1 is large), we can upper bound E{dM(mλ,t −B−1, m∗
+
+> 1
+
+)} in (53) using Jensen’s inequality, Theorem 4.1, and the fact 
+
+ √a+√b
+
+> 2
+
+2
+
+≤ a+b 
+
+> 2
+
+for nonnegative a and b, which gives us 
+
+E{dM(mλ,t −B−1, m∗
+
+> 1
+
+)} ≤ E{d2
+
+> M
+
+(mλ,t −B−1, x′)} 12 + E{d2
+
+> M
+
+(m∗
+
+> 1
+
+, x′)} 12 (54) 
+
+≤
+
+
+
+fbef (m∗
+
+> 1
+
+) + (1 − ϵ)t−B−1D2
+
+2λ + λσ 2
+
+2ϵ
+
+ 12
+
++ ( fbef (m∗
+
+> 1
+
+)) 12 (55) 
+
+≤
+
+
+
+2fbef (m∗
+
+> 1
+
+) + λσ 2
+
+ϵ
+
+ 12
+
+, (56) where x′ ∼ P1(x) and the expectation above is now taken w.r.t. the distribution P1(x), before the change point; we used that fact (1 − ϵ)t−B−1 → 0 due to the large t − B − 1, and fbef (m) = Ex∼P1(x){d2
+
+> M
+
+(m, x)} denotes the Karcher mean loss function before the change point (i.e., where the expectation is defined w.r.t. P1(x)), with solution m∗
+
+> 1
+
+.16 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+Algorithm 2 Adaptive threshold selection 
+
+Input: {gt}, forgetting factor α, quantile q.Initialization: βgt = g1, γgt = g21 .
+
+for t = 1 , 2, 3, . . . do 
+
+βgt = (1 − α)βgt−1 + αg t;
+
+γgt = (1 − α)γgt−1 + αg 2 
+
+> t
+
+;
+
+ˆξt = βgt + pγgt − (βgt )2√2erf −1(2 q − 1) ;
+
+end for 
+
+Combining the bounds in (49), (52), (53), (56) leads to the following lower bound: 
+
+E{dM(mλ,t , m∗
+
+> 2
+
+)} ≥ dM(m∗
+
+> 1
+
+, m∗
+
+> 2
+
+) −
+
+
+
+2fbef (m∗
+
+> 1
+
+) + λσ 2
+
+ϵ
+
+ 12
+
+− ρλB . (57) Finally, combining the bounds (42), (43), (48) and (57), we obtain 
+
+P(gt > ξ ) ≥ 1
+
+D − ξ
+
+
+
+dM(m∗
+
+> 1
+
+, m∗
+
+> 2
+
+) −
+
+
+
+2fbef (m∗
+
+> 1
+
+) + λσ 2
+
+ϵ
+
+ 12
+
+− ρλB −
+
+
+
+2faft (m∗
+
+> 2
+
+) + (1 − ϵ)B D2
+
+Λ + Λσ2
+
+ϵ
+
+ 12
+
+− ξ
+
+
+
+,
+
+(58) which is the desired result. 
+
+## B. Adaptive threshold selection 
+
+One challenge with applying CPD algorithms is the selection of the detection threshold ξ for a given problem. A classical approach consists of adjusting ξ such that the algorithm achieves some desired performance under the null hypothesis (i.e., in the absence of change points), such as a given probability of false alarms (Keriven et al., 2020). For a false alarm rate of, e.g., 0.05 , ξ can be set as the 95-th quantile of gt. The performance of the algorithm under the null hypothesis can be computed using training data or based on a theoretical analysis, such as the result given in Theorem 4.2. However, threshold selection approaches based on theoretical analyses are hard to apply in practice as they require strong prior knowledge of the statistical distribution of the data, such as the Karcher variance f (m) and gradient noise σ2 in our case. A more practical approach is to set ξ as an estimate of the q-th quantile of gt obtained using a recursive algorithm. Although efficient algorithms have been proposed for recursive quantile estimation (Chen et al., 2023), we use a simpler alternative by approximating gt by a Gaussian distribution (the validity of this hypothesis illustrated empirically in Figure 8), as also done in (Keriven et al., 2020). This way, computing only its first two moments is sufficient to compute the q-th quantile, which is given by the mean plus the standard deviation multiplied by √2erf −1(2 q − 1) , where erf is the Gauss error function. A simple recursive implementation of this strategy is shown in Algorithm 2, which is based on EWMAs of the first two moments of gt. Experiments illustrating the validity of the Gaussian hypothesis over gt and the performance of Algorithm 2 can be found in Appendix D.3. 
+
+## C. Computational complexity 
+
+The computational complexity of our method consists mainly of the cost of implementing the two R-SGD algorithms used to estimate the generalized Karcher means. The R-SGD algorithm is a first-order method that is computationally efficient compared to other manifold optimization algorithms. It comprises two main steps: 1) computation of the Riemannian gradient of the loss function, and 2) computing the exponential or retraction to map the gradient back to the manifold. The computational complexity involved with these steps depends on the choice of the manifold as it affects both the loss function (and therefore the gradient) and the retraction/exponential map. However, for many manifolds of great practical interest, including the SPD and the Grassmann, computing these operations is relatively efficient, and for these two manifolds, we can compute the complexity explicitly. 
+
+Complexity for the SPD manifold: The operations involved in implementing the R-SGD on the manifold of p × p SPD 17 Non-parametric Online Change Point Detection on Riemannian Manifolds 
+
+matrices consist of five matrix multiplications, a matrix inverse, and a matrix logarithm. Thus, the computational cost is given by O(p3) operations. 
+
+Complexity for the Grassmann manifold: The operations involved in implementing the R-SGD on the Grassmann manifold of k-dimensional subspaces in Rp consists of two SVDs, five matrix products, and the evaluation of O(k)
+
+arithmetic functions. Thus, the computational cost is given by O(p2k).
+
+Comparison to baselines: We briefly compare the complexity with respect to the baselines F-CPD (Dubey & M ¨uller, 2020) and NEWMA (Keriven et al., 2020). F-CPD is an offline method designed to operate on manifolds and detects a change point based on a two-sample test. For every candidate change point, the test statistic is computed as a function of the Karcher means and variances of the data before and after the candidate change point, which is computationally very intensive to implement. NEWMA, on the other hand, is an online method designed to operate on Euclidean spaces, by comparing exponentially weighted moving averages of generalized moments of the data computed based on the random features framework. Thus, the cost of NEWMA is dominated by the cost of computing the random features (Keriven et al., 2020). For random Fourier features (Rahimi & Recht, 2007), the computation complexity scales as O(Sd ) operations, where d is the dimension of the input data, and S is the number of random samples (the dimension of the feature space), which are sampled from a probability measure related to the kernel. Thus, depending on the choice of kernel and the feature dimension NEWMA can be efficient, although it does not take the manifold geometry into account. 
+
+## D. Additional results 
+
+D.1. Mean and standard deviation of the test statistics 
+
+In Figure 5, we plot the mean and standard deviation of the test statistics of all the compared algorithms for the examples with synthetic data. It can be seen that for the synthetic example the test statistic of the proposed strategy required approximately 200 samples to converge after a change point occurs. The algorithm achieves good performance for detecting multiple change points as long as the interval between them is sufficiently large compared to the time it requires to converge. By comparison, we also plot in Figure 7 the test statistic for the compared methods for the skeleton-based action recognition example, in which the parameters of the algorithms had to be readjusted to achieve faster convergence since the number of samples between change points is smaller. It can be observed that the algorithms converge significantly faster (requiring only approximately 80 samples), however, the variances of the test statistic, particularly after the change point, are also much higher. This illustrates the trade-off between detection performance and adaptability of the proposed method. 
+
+D.2. Comparisons between the histograms of the test statistics on synthetic data 
+
+To get a deeper insight into the behavior of the ROC curves in the examples with synthetic data (Figures 1 and 2), where our method had an area under curve close to one, we compared the histograms of the test statistics of all methods under the null hypothesis and at their peak value after a change point. The result can be seen in Figure 6. One can observe that different from the competing methods, the histogram of the test statistic of our method under the null shows almost no overlap with its counterpart at peak value after a change point. This explains the behavior seen in the ROC curves. 
+
+D.3. Histogram of the test statistic, Gaussian fit, and illustration of the adaptive threshold procedure 
+
+To illustrate the validity of the Gaussian hypothesis of gt, in Figure 8, we plot the histogram of gt for 1000 Monte Carlo runs, computed based on samples of gt under the null hypothesis when the algorithm is tested for the synthetic example on 
+
+S++  
+
+> p
+
+, after the algorithms converge (with step sizes λ = 0 .01 and Λ = 0 .02 ). It can be observed that the histogram and its Gaussian fit are very close, which justifies the approximations in Algorithm 2. We illustrate the performance of Algorithm 2 with α = 0 .005 and q = 0 .95 (5 % of false alarms). We considered the same setup as in the synthetic example in S++  
+
+> p
+
+, but here we added multiple change points, spaced by 200 samples to allow the algorithm to converge. The test statistic and the adaptive threshold are shown in Figure 9 (results are shown after the steady-state convergence of both the CPD and adaptive threshold selection algorithms), where it can be seen that the dynamic threshold can successfully adapt to detect multiple change points in a continuous run. 18 Non-parametric Online Change Point Detection on Riemannian Manifolds 400 600 800 1000 1200 1400 1600 1800 2000                                                                                   
+
+> 0.025
+> 0.050
+> 0.075 F-CPD
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.00
+> 0.25
+> 0.50 NODE
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.02
+> 0.04
+> 0.06 Scan-B
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 1.0
+> 1.5 NEWMA
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.2
+> 0.3
+> 0.4 Our 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.00
+> 0.05
+> 0.10 F-CPD
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.0
+> 0.2
+> 0.4 NODE
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.005
+> 0.010
+> 0.015 Scan-B
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.25
+> 0.50
+> 0.75 NEWMA
+> 400 600 800 1000 1200 1400 1600 1800 2000
+> 0.01
+> 0.02
+> 0.03 Our
+
+Figure 5. Illustration of the mean and standard deviation of all the compared detection statistics for the experiments on synthetic data on both S++ 
+
+p (left) and Gkp (right). The red line indicates the change point. Count  F-CPD 
+
+> Count
+
+NODE 
+
+> Count
+
+Scan-B 
+
+> Count
+
+NEWMA 
+
+> Count
+
+Our Count  F-CPD 
+
+> Count
+
+NODE 
+
+> Count
+
+Scan-B 
+
+> Count
+
+NEWMA 
+
+> Count
+
+Our 
+
+Figure 6. Histograms of all the compared detection statistics for the experiments on synthetic data on both S++ 
+
+p (left) and Gkp (right). The blue histograms are under the null hypothesis and the pink histograms are at their peak values after the change point. 
+
+19 Non-parametric Online Change Point Detection on Riemannian Manifolds 100 150 200 250 300 350 400               
+
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+> Scan-B
+> 100 150 200 250 300 350 400
+> 0.0
+> 2.5
+> 5.0
+> 7.5 NEWMA
+> 100 150 200 250 300 350 400
+> 2
+> 4
+> 6Our
+
+Figure 7. Illustration of the mean and standard deviation of the compared detection statistics for the experiments on real data for skeleton-based action recognition. The red line indicates the change point. 0.10 0.15 0.20 0.25 0.30 
+
+> 0
+> 5
+> 10
+> 15
+> Density
+
+Figure 8. Histogram of gt under the null hypothesis for synthetic data on S++  
+
+> p
+
+and its Gaussian fit. 2200 2400 2600 2800 3000 3200  
+
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5 Our
+> Adapt. thres.
+
+Figure 9. Illustration of the adaptive threshold procedure. The dotted gray lines indicate change points. 
+
+20

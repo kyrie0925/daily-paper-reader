@@ -1,0 +1,924 @@
+Title: Self-Discriminative Modeling for Anomalous Graph Detection
+
+URL Source: https://openreview.net/pdf?id=l9DJGAtoAj
+
+Number of Pages: 22
+
+Markdown Content:
+# Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Jinyu Cai * 1 Yunhe Zhang * 2 Jicong Fan 3
+
+Abstract 
+
+Identifying anomalous graphs is essential in real-world scenarios such as molecular and social net-work analysis, yet anomalous samples are gener-ally scarce and unavailable. This paper proposes a Self-Discriminative Modeling (SDM) framework that trains a deep neural network only on nor-mal graphs to detect anomalous graphs. The neu-ral network simultaneously learns to construct pseudo-anomalous graphs from normal graphs and learns an anomaly detector to recognize these pseudo-anomalous graphs. As a result, these pseudo-anomalous graphs interpolate between normal graphs and real anomalous graphs, which leads to a reliable decision boundary of anomaly detection. In this framework, we develop three algorithms with different computational efficien-cies and stabilities for anomalous graph detec-tion. Extensive experiments on 12 different graph benchmarks demonstrated that the three variants of SDM consistently outperform the state-of-the-art GLAD baselines. The success of our methods stems from the integration of the discriminative classifier and the well-posed pseudo-anomalous graphs, which provided new insights for graph-level anomaly detection. 
+
+1. Introduction 
+
+Graphs are widely utilized to represent complex relation-ships or interactions between entities in a variety of real-world contexts, such as molecules, biology, and social net-work data analysis (Mislove et al., 2007; Li et al., 2021; Sun et al., 2023; 2024). Although there have been a lot of works of anomaly detection on image data (Cai & Fan, 2022; Fu 
+
+> *
+
+Equal contribution 1Institute of Data Science, National Uni-versity of Singapore, Singapore 2Department of Computer and Information Science, SKL-IOTSC, University of Macau, Macau, China 3School of Data Science, The Chinese University of Hong Kong, Shenzhen, China. Correspondence to: Jicong Fan <fanji-cong@cuhk.edu.cn >.
+
+Proceedings of the 42 nd International Conference on Machine Learning , Vancouver, Canada. PMLR 267, 2025. Copyright 2025 by the author(s). 
+
+et al., 2024), tabular data (Dai et al., 2025; Dai & Fan, 2025), and graph nodes or edges (Duan et al., 2020; Zheng et al., 2021), graph-level anomaly detection (GLAD) (Akoglu et al., 2015; Qiao et al., 2024a), which aims to identify entire graphs that substantially deviate from normal pat-terns, remains a greater challenge due to the difficulty in analyzing overall relationship between graphs. Anomalous Data 
+
+> Training Normal Data
+> Testing Normal Data
+> Generated Anomalous Data
+> 𝑤𝑤
+> r
+> Anomalous data (unavailable in training)
+> Generated anomalous data
+> Normal data
+> Decision boundary
+> Anomalous Data
+> Training Normal Data
+> Testing Normal Data
+> Generated Anomalous Data
+> Anomalous Data
+> Training Normal Data
+> Testing Normal Data
+> Generated Anomalous Data
+> Anomalous Data
+> Training Normal Data
+> Testing Normal Data
+> Generated Anomalous Data
+> Anomalous Data
+> Training Normal Data
+> Testing Normal Data
+> Generated Anomalous Data
+
+Figure 1. Motivation of our method. The left plot illustrates a toy example, where the shadowed region is approximated as a rectan-gle (or a hypercuboid when d > 3). The right plot shows a real example, the t-SNE (Van der Maaten & Hinton, 2008) visualiza-tion of the result of our method on the real dataset AIDS. 
+
+Early research on GLAD explored the graph kernel (GK) methods (Vishwanathan et al., 2010; Shervashidze et al., 2011) to identify graph anomalies by utilizing various simi-larity measurements, though these approaches are limited by their scalability. The emergence of graph neural networks (GNNs) (Kipf & Welling, 2017; Xu et al., 2019; Huang et al., 2023) has significantly advanced the development of GLAD through its powerful graph representation learning capabil-ity. Recent works (Zhao & Akoglu, 2021; Qiu et al., 2022; Zhang et al., 2024) have explored the integration of GNNs with deep one-class classification (DeepSVDD) (Ruff et al., 2018) for GLAD. A hypersphere is taught to model the dis-tribution of normal graphs in the latent space, and anomalies are identified as graphs whose embeddings fall outside of the hypersphere. Beyond these methods, other works have lever-aged various paradigms, such as knowledge distillation (Ma et al., 2022), information bottleneck (Liu et al., 2023a), and Rayleigh quotient (Dong et al., 2024), to enhance the detection of anomalies. Moreover, semi-supervised learn-ing (Zhang et al., 2022a) has been investigated to address the imbalance issue in GLAD by incorporating a small fraction of labeled anomalies for decision boundary learning. Despite the recent advances, several critical challenges still remain to be addressed. The DeepSVDD-based ap-1Self-Discriminative Modeling for Anomalous Graph Detection Normal Graphs 𝐆𝐆           
+
+> Pseudo Anomalous Graphs �𝐆𝐆
+> MLP-based Generator GIN Node Generator Edge Generator Graph Representation Random Noise Vector �𝐙𝐙 Prior Distribution 𝑃𝑃 𝑧𝑧
+> Discriminator Generated Nodes �𝐗𝐗
+> Generated Edges �𝐀𝐀
+> Classifier Normal Graphs 𝐆𝐆
+> SDM-ATI SDM-ATII SDM-NAT
+> Projector Discriminator Projector Anomaly Score Anomaly Score Projector Anomaly Score Adversarial Training Adversarial Training Non-Adversarial Training GIN Graph Representation Resembles Normal Graphs
+> SDM-ATI SDM-ATII/NAT SDM-ATI SDM-ATII SDM-NAT
+
+Figure 2. Illustration of the architecture of the proposed SDM variants. The Green , Orange , and Brown arrows denote the workflows of the SDM-ATI, SDM-ATII, and SDM-NAT, respectively. 
+
+proaches (Zhao & Akoglu, 2021; Qiu et al., 2022; Zhang et al., 2024) rely on the strong assumption that the distri-bution of graph embeddings follows a hypersphere, which may not be realistically achievable in real-world scenar-ios. Additionally, some approaches (Ma et al., 2022; Liu et al., 2023a; Dong et al., 2024) require explicitly defined anomaly scores, which can be challenging to apply in prac-tice as the criteria for measuring anomalous graphs could vary significantly across datasets. Although semi-supervised approaches (Zhang et al., 2022a) are a promising solution, their effectiveness is constrained by the limited diversity of available graph anomalies in real-world scenarios. In this paper, we propose Self-Discriminative Modeling (SDM), a novel framework for graph-level anomaly de-tection. The key idea (illustrated in Figure 1) of SDM is to distinguish normal graphs from the generated pseudo-anomalous graphs that interpolate between normal and (real) anomalous ones. We introduce two approaches to gen-erate such pseudo-anomalous graphs: (1) training a gen-erator using random noise from a latent distribution and (2) training a perturbator to create anomalies from normal graphs. Both approaches leverage adversarial training, in-corporating a discriminator to differentiate between normal and pseudo-anomalous graphs. Moreover, we propose a non-adversarial variant of SDM to enhance model stability and accuracy. Based on each of the three approaches, the discriminator/classifier serves as the anomaly detector and adaptively learns the decision boundary between normality and abnormality. Figure 2 presents the network structure of SDM (three variants). Our contributions are as follows: • We propose a novel and efficient GLAD framework that re-volves around training a discriminator (classifier) to distin-guish normal graphs from well-posed pseudo-anomalous graphs more effectively. • We introduce two adversarial approaches to produce pseudo-anomalous graphs that closely resemble normal graphs but are more similar to anomalous ones, where a discriminator is learned jointly. • We introduce a non-adversarial approach, which gener-ates pseudo-anomalous graphs by adaptively perturbing normal graphs, and trains a classifier to distinguish them. • We demonstrate the effectiveness of three variants of SDM against the state-of-the-art GLAD methods on 12 graph benchmark datasets. 
+
+2. Self-Discriminative Modeling for Anomalous Graph Detection 
+
+2.1. Problem Formulation and Motivation Description Problem Formulation. Let G = {G1, . . . , G N } be a graph dataset comprising N graphs, where a single graph 
+
+Gi = {Vi, E i} contains a node set Vi and an edge set 
+
+Ei. The adjacency matrix of Gi is represented by Ai ∈{0, 1}ni×ni , where ni = |Vi|. The feature matrix of nodes of Gi is denoted as Xi ∈ Rni×d. Suppose the graphs in 
+
+G are normal graphs, we want to train a model from G to determine whether a new graph Gnew is normal or abnormal. This problem is called anomalous graph detection (AGD) 1.A key assumption of the AGD problem is that G1, . . . , G N
+
+> 1
+
+Note that this is an unsupervised learning problem, of which the training data do not contain any anomalous graphs. There are also supervised and semi-supervised settings (Ruff et al., 2020; Zhang et al., 2022a). 
+
+2Self-Discriminative Modeling for Anomalous Graph Detection 
+
+are drawn from an unknown distribution D (deemed as a normal distribution), while any graphs drawn from any other distributions, denoted as ˜D, are anomalous. Very impor-tantly, there is no overlap between D and all possible ˜D.The AGD problem can be regarded as a binary classification problem, i.e. , justifying G ∼ D or G ∼ ˜D. The objective is to train a classifier fθ , using only the given graph set G,to distinguish between G drawn from D and ˜G drawn from 
+
+˜D. However, the difficulty is that ˜D is completely unknown. Therefore, we need to estimate ˜D from G, or at least gen-erate some samples drawn from a subset of ˜D using G. To achieve this, we may solve the following problem minimize  
+
+> θ, ˜Ds
+
+E
+
+> G∼D
+
+ℓ(y, f θ (G)) + E  
+
+> ˜G∼˜Ds⊆˜D
+
+ℓ(˜ y, f θ ( ˜G)) ,
+
+subject to dist (D, ˜Ds) ≤ τ, 
+
+(1) where y ≡ 1 and ˜y ≡ 0 denote the labels of normal and anomalous graphs, respectively, fθ (·) denotes a classifier (e.g. a neural network) parameterized with θ, and ℓ(·) de-notes the loss function. The constraint in Eq. (1) means that 
+
+D and ˜Ds should be close enough with respect to a distance metric dist (·, ·), where τ > 0 is a small constant. However, in Eq. (1) , ˜D remains unknown, and the requirement for 
+
+˜Ds to not overlap with D can be overly restrictive. Even if 
+
+˜Ds overlap with D, the learned fθ could still be effective, provided that the decision boundary encloses D compactly (to be shown in Figure 1). Instead of solving Eq. (1) , we propose to train a model gϕ
+
+that is able to generate pseudo-anomalous graphs from nor-mal graphs and simultaneously train a classifier fθ that can provide a reliable decision boundary between normal graphs and anomalous graphs. To ensure an effective detector fθ ,we should guarantee the following properties: • The generated pseudo-anomalous graphs by gϕ interpolate between normal ones and (real) anomalous ones. • fθ distinguishes between the normal training graphs and most of the generated pseudo-anomalous graphs. We therefore solve 
+
+min  
+
+> θ,ϕ
+
+E
+
+> G∼D
+
+ℓ(y, f θ (G)) + E
+
+> ˜G∼gϕ(G),G ∼D
+
+ℓ(˜ y, f θ ( ˜G)) , (2) where gϕ(·) converts a normal graph to a distribution of pseudo-anomalous graphs. 
+
+Motivation Description. Here we visualize our motiva-tion and show that the two aforementioned properties can be guaranteed. As shown in Figure 1, the first plot sum-marizes the motivation of Eq. (2) . Specifically, the blue points represent normal training data, roughly lying on a (blue) curve. gϕ perturbs each normal graph randomly to generate one or more pseudo-anomalous graphs. We see that most pseudo-anomalous graphs are far from the blue curve, which can be theoretically proved as follows. Let’s consider a more general case in d-dimension space. The shadowed region (between the two black curves in 2D) in the radius-r hypersphere (the yellow circle in 2D) can be approximated as a hypercuboid. Therefore, the volume of the shadowed region is approximated by 
+
+VS =
+
+> d
+
+Y
+
+> i=1
+
+wi, (3) where w denotes the width of hypercuboid, w1 = · · · =
+
+wα = 2 r and 1 ≤ α < d . Then, the ratio of expected num-bers of pseudo-anomalous graphs in the shadowed region and the unshadowed region in the hypersphere is 
+
+η = (2 r)α Qdi=α+1 wiπd/ 2rd 
+
+> Γ(1+ d/ 2)
+
+− (2 r)α Qdi=α+1 wi
+
+, (4) where we have, WLOG, assumed that the points are dis-tributed uniformly because ˜G ∼ gϕ(G) is a stochastic oper-ation. To simplify the analysis, we show the following two examples of Eq. (4): 
+
+η =
+
+( 2wπr −2w , if d = 2 and α = 1 , 
+
+> 4wr 2
+> 4πr 3/3−4wr 2
+
+, if d = 3 and α = 2 . (5) We see that η decreases when w decreases or r increases, where r is related to the variation of pseudo-anomalous graphs. We can conclude that most pseudo-anomalous graphs are outside the shadowed region when there are some small wi, namely, the latent dimension of the normal data is much lower than the ambient dimension. It also means they interpolate between normal graphs and real anomalous graphs. In this case, a classifier that can distinguish between the normal training data and most pseudo-anomalous graphs is sufficient to detect anomalous graphs. Besides, in Eq. (2) ,
+
+fθ should not be too complex. Otherwise, it will overfit on G and the pseudo-anomalous graphs, leading to poor generalization to unseen graphs. The second plot in Figure 1 is a visualization of our method on a real dataset and highlights the successful learning of a useful decision boundary: the generated anomalous graphs surround the normal ones, alongside the (real) anomalous ones. More visualization results of real examples refer to Figures 7 and 8 (Appendix E). We call Eq. (2) Self-Discriminative Modeling (SDM) based GLAD. In the fol-lowing three sections, we will show how to solve Eq. (2) approximately and develop three variants of SDM. 
+
+2.2. Self-Discriminative Modeling: SDM-ATI 
+
+We first present a GAN-based approach to generate pseudo-anomalous graphs. The model consists of a graph gener-ator Gϕ and a graph discriminator Dω , which are alterna-tively trained in an adversarial manner. The generator tries 3Self-Discriminative Modeling for Anomalous Graph Detection 
+
+to produce fake (pseudo-anomalous) graphs (containing nodes and edges generation) that can fool the discrimina-tor, while the discriminator tries to differentiate between anomalous and normal graphs. Specifically, the genera-tor Gϕ generates nodes and edges to form a fake graph set 
+
+˜G = { ˜G1, . . . , ˜GN }. We first sample random variable ˜Z
+
+from a latent distribution P˜Z := N (0, 1) and construct the adjacency matrix as follows 
+
+˜A = T ( ˜X ˜X⊤), ˜X = Gϕ(˜Z), ˜Z ∼ P˜Z, (6) where Gϕ is a Multi-Layer Perceptron (MLP)-based genera-tor that maps the random latent variable ˜Z ∈ RN ×d to the anomalous node attributes, and T : R → [0 , 1] denotes an element-wise transformation function, e.g. Sigmoid (·). In this way, we generate an anomalous graph set ˜G with the generator Gϕ. We then introduce a discriminator Dω , which takes the anomalous graphs ˜G and normal graphs G as input, and aims to distinguish between them effectively. To fully exploit the structural information of graphs, Dω is expected to be a GNN-based discriminator. Specifically, we leverage GIN (Xu et al., 2019) as the backbone network of the dis-criminator Dω to learn graph-level representations. Assume we have an input graph Gi, the latent features h(k)(v) of node v in the k-th layer of GIN can be obtained by aggregat-ing the learned features from its neighboring nodes in the 
+
+(k − 1) -th layer, which can be formulated as 
+
+h(k)(v) = δ(COMBINE( h(k−1) (v),
+
+AGGREGATE( {h(k−1) (u), u ∈ C (v)}))) , (7) where C(v) denotes the neighbor set of node v, and 
+
+δ(·) is a non-linear activation function such as ReLU. 
+
+AGGREGATE( ·) function combines the features of neigh-boring nodes in C(v), and COMBINE( ·) function combines the features from the previous layer and the aggregated neighborhood information to obtain the current layer’s fea-tures. Note that the attribute xv of node v serves as the initial features, i.e. , h(0) (v) = xv . Then the graph-level representation of graph Gi can be derived as follows       
+
+> hGi=R({CONCAT( h(k)(v), k ∈ { 1, . . . , K })}, v ∈Gi),
+
+(8) where CONCAT( ·) function concatenates the representa-tions learned in each GIN layer, and R(·) denotes the sum-readout function. Consequently, we can learn the graph-level representations HG and H˜G for normal and pseudo-anomalous graphs by aggregating the node features, and train the discriminator to distinguish them as much as possi-ble. The generator Gϕ and discriminator Dω are alternatively optimized with a min-max game as follows 
+
+min  
+
+> ϕ
+
+max  
+
+> ω
+
+E
+
+> Xi,Ai∼PG
+
+[Dω (Xi, Ai)] −
+
+E
+
+> ˜Zi∼P˜Z
+
+[Dω (Gϕ(˜Zi), T (Gϕ(˜Zi)Gϕ(˜Zi)⊤))] , (9) where PG denotes the normal graph data distribution, and 
+
+˜Zi ∈ Rn×d′
+
+is sampled from the prior distribution P˜Z ∼N (0, 1). Particularly, the discriminator can naturally serve as an anomaly detector after training. Comparing to Eq. (1) ,we see that the constraint dist (D, ˜Ds) ≤ ϵ is guaranteed if Gϕ given by Eq. (9) is strong enough. It is difficult to guarantee for Eq. (1) that ˜Ds does not overlap with 
+
+D, which however is not compulsory because it is still possible to learn a discriminator from overlapping D, ˜Ds to distinguish between D and ˜D. We call this method SDM-ATI, where AT represents adversarial training. Although SDM-ATI is promising for anomalous graph detection, it may suffer from the following problems: • An MLP-based generator may not effectively capture the structural information of graphs, which could impede the generation of high-quality anomalous graphs. • The interpretability of the GAN-based method is limited because generating anomalous graphs from random noise does not necessarily guarantee the quality of the generated anomalous graphs. • The optimization of the GAN-based method involves a min-max game, which can lead to instability during train-ing. Besides, the competition between the generator and discriminator may result in mode collapse, leading to the generation of poor-quality anomalous graphs. 
+
+2.3. Self-Discriminative Modeling: SDM-ATII 
+
+To address the first two problems of SDM-ATI, we propose a variant of our SDM-ATI, which can leverage the structural information, and further provide more explicit guidance for the generator Gϕ, ensuring the generation of high-quality anomalous graphs that closely resemble normal ones but can still be distinguished by the discriminator. Specifically, we introduce the GIN-based VGAE (Kipf & Welling, 2016) framework to build the generator Gϕ, which consists of a node generator and an edge generator to learn anomalous graphs. The node generator aims to generate anomalous attributes ˜X, while the edge generator, which does not in-clude a decoder, aims to generate the adjacency matrix ˜A.Instead of sampling the input of Gϕ from the latent distribu-tion P˜Z, we take the normal graph set G as the input of Gϕ,to generate anomalous graphs ˜G that are close to G but are expressive pseudo-anomalous graphs. Here, we only describe the node generator, as it differs from the edge generator just in the existence of a decoder. We first learns the graph-level representation HG for the in-put graphs G = {G1, . . . , G N } by Eqs. (7) and (8) , where 
+
+Gi = {Xi, Ai}. Next, we map the graph-level represen-tation into a latent Gaussian distribution N (μ, σ2) as in VGAE, where the means μ and deviations σ are defined as 
+
+μ = GIN μ(HG, A), σ = exp( GIN σ (HG, A)) , (10) 4Self-Discriminative Modeling for Anomalous Graph Detection 
+
+where μ and σ can explicitly define an inference model that we can sample the latent graph representations ZG from it as follows 
+
+q(ZG|HG, A) = 
+
+> N
+
+Y
+
+> i=1
+
+q(ZGi |HG, A), (11) where q(ZGi |HG, A) = N (ZGi |μi, diag (σi)) . Since the sample operation could not provide gradient information, we leverage the reparametrization trick (Kingma & Welling, 2014) to sample the latent graph representation, i.e. ,
+
+ZG = μ + ϵσ, ϵ ∼ N (0, 1), (12) where ϵ denotes the random Gaussian noise subject to the standard normal distribution. Consequently, we can generate a negative graph set, including edges and nodes by 
+
+˜A = T (ZGZ⊤ 
+
+> G
+
+), ˜X = MLP (ZG), (13) where MLP (·) denotes an MLP-based decoder, which aims to generate anomalous attributes ˜X from the latent graph representations, and the anomalous adjacent matrix ˜A is generated from the latent graph representation learned by the edge generator following Eq. (13). We expect to generate high-quality pseudo-anomalous graphs that closely resemble normal ones but can still be distinguished by the classifier. This requires a high level of similarity between the generated anomalous graphs and the normal graphs, which can be regarded as minimizing the discrepancy between the generated graphs and the normal ones. Therefore, we propose to minimize the following discrepancy loss: 
+
+Ldis = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+
+
+Xi − ˜Xi
+
+> 2
+> F
+
+−  Ai log( ˜Ai)+ (1 − Ai) log(1 − ˜Ai)
+
+,
+
+(14) where ˜Xi and ˜Ai are the node attribute and adjacency ma-trix generated by the node generator and edge generator of Gϕ respectively, i.e. , ˜Xi, ˜Ai = Gϕ(Xi, Ai). The first term denotes the attribute reconstruction loss, and the sec-ond denotes the binary cross-entropy loss. Additionally, the distribution of learned latent representation ZG is ex-pected to follow a pre-defined prior distribution, which allows the generated latent representations ZG to be uni-formly distributed in the latent space, ensuring the diver-sity of generated graphs. We can achieve this by penaliz-ing the KL-divergence between q(ZG|HG, A) and a prior distribution P (Z), i.e. , KL [q(ZG|HG, A)|| P (Z)] , where 
+
+P (Z) = Q 
+
+> i
+
+p(Zi) = Q 
+
+> i
+
+N (Zi|0, I) typically follows a Gaussian prior distribution. The overall objective function of the perturbation learning-based approach is 
+
+min  
+
+> ϕ
+
+max  
+
+> ω
+
+E
+
+> Xi,Ai∼PG
+
+[Dω (Xi, Ai) − D ω (Gϕ(Xi, Ai))] + λL dis + γKL [q(ZG|HG, A)|| P (Z)] ,
+
+(15) where the discrepancy loss and KL-divergence terms are specific to the generator. This variant is based on adver-sarial training and perturbation learning, where the pseudo-anomalous graphs are generated via perturbing the latent variable of normal graphs. For convenience, we call this method SDM-ATII. Compared to the GAN-based method, SDM-ATI and SDM-ATII offer better interpretability by ex-plicitly guiding the generator to generate pseudo-anomalous graphs that closely resemble the normal ones. Additionally, SDM-ATII offers better control over the diversity of the generated graphs by penalizing the KL-divergence between the distribution of learned latent graph representation and a prior Gaussian distribution. Compared to Eq. (2) , we explicitly defined the discrepancy loss, i.e. , Eq. (14) , to guarantee that the generated anomalous graphs surrounded the normal ones and learn the decision boundary from the adversarial training of the generator and discriminator. This variant offers improved interpretability compared to SDM-ATI, which relies solely on adversarial training between the generator and discriminator to guarantee the constraint. However, SDM-ATII still suffers from the instability of the min-max optimization. 
+
+2.4. Self-Discriminative Modeling: SDM-NAT 
+
+To address the instability of the min-max optimization in the adversarial approaches SDM-ATI and SDM-ATII, we fur-ther propose a non-adversarial variant called SDM-NAT for the perturbation learning-based variant SDM-ATII, which avoids the instability problem of GANs and simplifies the training process. Specifically, rather than training a genera-tor and a discriminator to compete against each other, we proposed to directly train a classifier fθ to distinguish the anomalous graphs produced by generator Gϕ from normal ones. We can accomplish this by utilizing the node genera-tor and edge generator to produce a set of anomalous graphs 
+
+˜G from normal graphs G, and subsequently train a classifier to distinguish them. The overall objective is           
+
+> min
+> θ,ϕ
+> 1
+> N
+> NX
+> i=1
+>  ℓ(yi, f θ(Xi,Ai)) + ℓ(˜ yi, f θ(Gϕ(Xi,Ai)) 
+> +λL dis +γKL [q(ZG|HG,A)|| P(Z)] ,
+
+(16) where ℓ(·) denotes the binary cross-entropy loss of the clas-sifier, the definitions of Ldis and the KL-divergence are exactly the same as Eq. (15) . The classifier is based on GIN, which receives attribute and adjacency matrices as inputs, allowing for consideration of the structural infor-mation of the graphs. More importantly, our method is unsupervised, requiring no supervised information. We simply set ˜yi = · · · = ˜ yN = 0 for the generated anoma-lous graphs, and y1 = · · · = yN = 1 for normal graphs. Compared to Eq. (2) , we directly learn the decision bound-ary by simultaneously training a classifier with a generator that produces high-quality pseudo-anomalous graphs for the 5Self-Discriminative Modeling for Anomalous Graph Detection 
+
+classifier. This makes our method particularly appealing for real-world applications where obtaining labeled data is challenging and costly. We further highlight the conceptual advances of our SDM framework by extensively discussing existing GLAD meth-ods and GAN-based strategies in Appendix A. To facilitate the understanding of the proposed SDM methods, we also provide the detailed training procedures of SDM-ATI, SDM-ATII, and SDM-NAT in Appendix I. 
+
+3. Experiment 
+
+3.1. Experiment Configuration Datasets. We evaluate the anomaly detection perfor-mance across various graph benchmark datasets, including (1) Small and Moderate-scale Dataset: Four molecule datasets (MUTAG, AIDS, COX2, and ER MD), three bi-ological datasets (PROTEINS, DD, and ENZYMES), and one social network dataset (IMDB-BINARY). These three types of data are typical graph-structured data in real-world scenarios. (2) Imbalanced Large-scale Dataset: Four imbalanced large-scale molecule graph datasets (SW-620, MOLT-4, PC-3, and MCF-7) to evaluate the GLAD perfor-mance under imbalanced scenarios. Note that all the datasets used in our experiment are sourced from TUDataset (Morris et al., 2020), a publicly available graph database 2. For more details for each dataset, please refer to Appendix B. 
+
+Network Architecture. For the network architecture of the proposed SDM variants, we utilize a 3-layer GIN as the backbone network for the generator and discriminator (classifier) in SDM-ATII and SDM-NAT, except for the gen-erator of SDM-ATI, which is an MLP-based neural network. The aggregated dimension and the dimensions of the two latent layers in GIN are set to 16 and 10, respectively. 
+
+Baselines. We extensively compare the three SDM vari-ants with state-of-the-art GLAD baselines: 1. Graph Kernel: Short-Path kernel (SP) (Borgwardt & Kriegel, 2005), Weisfeiler-Lehman kernel (WL) (Sher-vashidze et al., 2011), Neighborhood Hash kernel (NH) (Hido & Kashima, 2009), and Random Walk kernel (RW) (Vishwanathan et al., 2010). 2. GNN-based GLAD: VGAE-AD (Kipf & Welling, 2016), GCN (Kipf & Welling, 2017), GIN (Xu et al., 2019), SOPOOL (Wang & Ji, 2020), RWGNN (Nikolentzos & Vazirgiannis, 2020), OCGIN (Zhao & Akoglu, 2021), GLocalKD (Ma et al., 2021), OCGTL (Qiu et al., 2022), iGAD (Zhang et al., 2022a), SIGNET (Liu et al., 2023a), MUSE (Kim et al., 2024), DO2HSC (Zhang et al., 2024). 
+
+> 2
+
+https://chrsmrrs.github.io/datasets/docs/datasets/ (a) 𝑒𝑒 = 0 (b) 𝑒𝑒 ~U( −0.1,0.1) (c) 𝑒𝑒 ~U( −0.3,0.3)      
+
+> (d) 𝑒𝑒 ~U( −0.5,0.5) (e) 𝑒𝑒 ~U( −0.8,0.8) (f) 𝑒𝑒 ~U( −1,1)
+> Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data Training (normal) Data Generated Pseudo-Anomalous Data
+
+Figure 3. The decision boundaries learned from 2-D synthetic data 
+
+x = sin( z) + e with different e.
+
+Evaluation Metrics. We utilize AUC and F1-Score to evaluate the anomaly detection performance and report the mean value and standard deviation of 10 trials of each method on each dataset. 
+
+Other Details. We provide other settings in Appendix C, including the details regarding data split, trade-off parame-ters, baseline settings, training details, and implementation. 
+
+3.2. Simulation Analysis for Decision Boundary 
+
+We ran a simulation to show the key idea and effectiveness of our methods in addition to Figure 2. For convenience, we only consider SDM-NAT, and we will not use graphs because it is difficult to conduct a reasonable simulation for a number of graphs. Therefore, the corresponding back-bones of SDM-NAT are changed to VAE (generator) and a common MLP-based classifier. Specifically, we generate a number of synthetic 2-D samples (normal training data) using x = sin( z) + e, where e is a noise drawn from a uniform distribution (−a, a ). A larger a leads to a wider normal region. The simulation results are shown in Figure 3, where the pink curve denotes the learned decision bound-aries, and the background color in the figure (changing from blue to red) implies that the score given by the classifier is increasing. The observations are as follows: • The generated pseudo-anomalous data is usually dis-tributed close to the training (normal) data and shows a similar manifold trend as the normal one. • In most cases, the classifier can distinguish those pseudo-anomalous data far from the normal area. • When the interval of normal data turns from narrow to wide, some generated pseudo-anomalous data may be lo-cated close to training data, but the classifier would neglect most of them and draw a superior decision boundary sur-rounding all training data. In conclusion, the proposed model can effectively handle 6Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Table 1. Average AUCs and F1-Scores with standard deviation (10 trials) of different GLAD methods. We assess models by regarding the individual classes as the normal class, respectively. The best results are highlighted in bold and “OM” means out of memory. 
+
+Method Metric PROTEINS DD IMDB-BINARY ER MD 0 1 0 1 0 1 0 1SP (Borgwardt & Kriegel, 2005) AUC 66.83 ±0.00 52.02 ±0.00 82.73 ±0.00 31.57 ±0.00 45.92 ±0.00 47.16 ±0.00 40.92 ±0.00 66.20 ±0.00 F1-Score 63.64 ±0.00 44.50 ±0.00 76.09 ±0.00 38.14 ±0.00 59.00 ±0.00 61.00 ±0.00 37.74 ±0.00 63.89 ±0.00 WL (Shervashidze et al., 2011) AUC 73.19 ±0.00 50.19 ±0.00 81.57 ±0.00 19.22 ±0.00 51.57 ±0.00 46.07 ±0.00 45.71 ±0.00 72.11 ±0.00 F1-Score 76.82 ±0.00 33.80 ±0.00 74.64 ±0.00 26.80 ±0.00 61.00 ±0.00 58.00 ±0.00 45.28 ±0.00 69.44 ±0.00 NH (Hido & Kashima, 2009) AUC 68.28 ±0.00 55.51 ±0.00 81.61 ±0.32 36.84 ±0.00 53.21 ±0.00 46.52 ±0.00 51.55 ±2.00 72.38 ±0.87 F1-Score 68.79 ±0.23 41.93 ±0.21 73.91 ±0.65 40.82 ±1.54 57.71 ±1.46 64.40 ±0.80 50.19 ±0.92 63.89 ±0.00 RW (Vishwanathan et al., 2010) AUC OM OM OM OM 49.51 ±0.00 53.11 ±0.00 78.94 ±0.00 70.33 ±0.00 F1-Score OM OM OM OM 48.88 ±0.00 45.87 ±0.00 65.96 ±0.00 62.60 ±0.00 VGAE-AD (Kipf & Welling, 2016) AUC 27.95 ±3.03 86.09 ±2.07 79.01 ±14.64 64.95 ±5.34 65.36 ±0.78 67.22 ±3.49 87.99 ±3.86 59.48 ±6.94 F1-Score 35.15 ±2.17 79.33 ±2.06 70.42 ±7.55 76.67 ±0.39 62.40 ±3.76 64.79 ±4.35 81.51 ±4.20 58.89 ±5.39 OCGIN (Zhao & Akoglu, 2021) AUC 55.01 ±9.65 47.77 ±7.64 66.59 ±4.44 60.03 ±5.34 34.82 ±1.67 65.04 ±8.79 47.63 ±3.59 67.51 ±1.32 F1-Score 64.18 ±0.15 43.42 ±0.00 56.12 ±0.00 62.24 ±0.00 40.50 ±1.50 63.50 ±8.50 50.94 ±1.89 59.46 ±0.00 GLocalKD (Ma et al., 2022) AUC 72.12 ±0.08 74.80 ±0.12 80.59 ±0.00 79.96 ±0.01 53.83 ±1.24 53.34 ±0.06 78.94 ±0.00 71.54 ±0.00 F1-Score 70.76 ±0.37 71.78 ±0.54 73.48 ±0.57 71.13 ±0.00 54.91 ±0.33 56.06 ±0.11 70.21 ±0.00 62.86 ±0.00 OCGTL (Qiu et al., 2022) AUC 63.20 ±5.40 58.10 ±6.10 77.52 ±0.43 82.45 ±0.19 65.10 ±1.80 64.12 ±1.27 72.67 ±0.20 29.63 ±0.18 F1-Score N/A N/A 71.65 ±0.73 47.96 ±2.14 36.48 ±1.56 61.58 ±1.21 67.17 ±0.92 39.65 ±1.77 SIGNET (Liu et al., 2023a) AUC 69.51 ±0.76 73.58 ±0.85 59.53 ±3.45 59.92 ±0.70 67.9 ±0.96 64.31 ±0.44 75.18 ±8.12 60.43 ±7.33 F1-Score 64.39 ±0.62 73.33 ±0.91 56.76 ±3.47 59.11 ±0.49 64.67 ±0.47 62.33 ±0.47 60.43 ±7.33 56.11 ±6.43 MUSE (Kim et al., 2024) AUC 73.17 ±1.20 41.86 ±1.31 61.06 ±3.03 38.01 ±2.03 45.17 ±3.88 70.86 ±1.92 31.07 ±4.58 77.99 ±0.55 F1-Score 67.58 ±1.16 44.67 ±0.97 58.32 ±3.08 40.21 ±2.01 46.10 ±4.70 65.13 ±1.72 35.67 ±4.69 69.44 ±0.00 DO2HSC (Zhang et al., 2024) AUC 66.04 ±1.99 52.96 ±2.70 77.12 ±2.15 76.51 ±3.17 75.47 ±3.90 77.37 ±5.03 68.31 ±4.31 72.65 ±0.09 F1-Score 61.14 ±2.67 50.00 ±2.72 70.87 ±2.73 75.61 ±2.73 73.28 ±2.44 79.80 ±0.50 66.63 ±3.04 68.67 ±0.09 SDM-ATI AUC 94.93 ±0.03 89.19 ±0.17 85.71 ±11.37 88.50 ±3.22 62.92 ±0.62 86.53 ±0.00 90.52 ±2.93 95.05 ±1.48 F1-Score 91.18 ±0.00 94.89 ±0.89 82.41 ±3.07 84.54 ±3.57 66.76 ±0.28 75.58 ±0.59 89.94 ±0.89 80.00 ±0.00 SDM-ATII AUC 95.28 ±0.11 95.15 ±0.06 86.59 ±6.56 98.00 ±0.01 91.76 ±1.06 87.93 ±0.25 77.15 ±35.32 94.92 ±0.81 F1-Score 88.47 ±0.21 86.67 ±0.00 79.53 ±4.85 91.75 ±0.00 86.29 ±0.58 81.25 ±0.00 73.96 ±31.63 91.11 ±1.11 SDM-NAT AUC 95.91 ±2.55 98.25 ±0.02 90.71 ±1.17 99.23 ±0.42 99.94 ±0.06 96.99 ±2.71 98.74 ±1.59 96.67 ±1.67 
+
+F1-Score 92.42 ±0.62 94.44 ±0.00 83.68 ±1.04 97.59 ±1.29 99.75 ±0.25 91.33 ±4.92 91.19 ±0.89 92.31 ±0.65 
+
+Table 2. Overall performance analysis for the three variants of SDM on One-Class GLAD (Tables 1 and 6). 
+
+Metric SDM-ATI SDM-ATII SDM-NAT AUC Min std 5/14 4/14 10 /14 std ≤5% 10/14 11/14 14 /14 Best Result 2/14 2/14 14 /14 F1-Score Min std 7/14 4/14 9/14 std ≤5% 13/14 12/14 14 /14 Best Result 2/14 1/14 14 /14 
+
+normal intervals with different gaps, where the learned de-cision boundaries enclose the normal training data tightly. The simulation results in Figure 3 strongly support our as-sumption and motivation. 
+
+3.3. Experiment on One-Class GLAD 
+
+We compare our SDM variants (SDM-ATI, SDM-ATII, and SDM-NAT) with state-of-the-art GLAD approaches under the one-class classification setting, where the evalua-tions cover various types of graph-structured data, including molecule, biology, and social network data. Table 1 and Table 6 (in Appendix D) present the experimental results in terms of AUC and F1-Score. We can observe that the three variants of SDM demonstrate consistent improvements over both graph kernel methods and GNN-based GLAD methods. For instance, in the first class of PROTEINS, SDM-NAT achieves 95.91% AUC and 92.42% F1-Score, which signif-icantly outperforms the latest baselines such as SIGNET (69.51% AUC, 64.39% F1-Score), MUSE (73.17% AUC, 67.58% F1-Score), and DO2HSC (66.04% AUC, 61.14% F1-Score). Particularly, we identify a “performance flip” phenomenon, where the performance of different classes in a dataset may have significant differences in approaches, such as most graph kernels, MUSE (on DD), and DO2HSC (on PROTEINS). It is evident that the “performance flip” phenomenon is largely absent in SDM variants, as they maintain robust and competitive performance across differ-ent classes. In terms of the stability of the proposed three SDM variants, we summarize a performance overview (cov-ering Tables 1 and 6) in Table 2, where the results indicate that SDM-NAT achieved the best performance in most cases and consistently maintains the lowest standard deviation (under 5%) for both AUC and F1-Score. This highlights the strong stability and effectiveness of SDM-NAT compared to the other two adversarial variants. 
+
+3.4. Experiment on Large-scale Imbalanced GLAD 
+
+We evaluate the performance on four large-scale imbalanced datasets, including SW-620, MOLT-4, PC-3, and MCF-7, where the rare “active” status in anti-cancer molecules is 7Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Table 3. Average AUCs and F1-Scores with standard deviation (10 trials) on large-scale imbalanced graph datasets. The best results are marked in bold , and “N/A” denotes that the result is not available.                                                                                                                             
+
+> Method SW-620 MOLT-4 PC-3 MCF-7 Supervised AUC F1-Score AUC F1-Score AUC F1-Score AUC F1-Score GCN (Kipf & Welling, 2017) 74.90 ±0.74 52.00 ±0.87 72.55 ±0.52 50.53 ±1.03 75.36 ±2.13 49.99 ±1.63 72.70 ±1.05 48.76 ±0.59 GIN (Xu et al., 2019) 78.61 ±2.85 58.47 ±5.43 75.86 ±1.60 55.43 ±6.52 78.44 ±1.67 59.07 ±4.15 69.54 ±1.15 58.27 ±3.20 SOPOOL (Wang & Ji, 2020) 75.51 ±5.06 58.11 ±2.86 75.11 ±0.97 56.20 ±3.64 69.37 ±1.53 57.80 ±3.74 75.64 ±2.17 56.82 ±3.57 RWGNN (Nikolentzos & Vazirgiannis, 2020) 73.37 ±0.36 51.31 ±1.62 71.30 ±1.23 50.67 ±2.64 76.27 ±0.86 50.44 ±2.76 70.47 ±1.26 51.65 ±3.46 iGAD (Zhang et al., 2022a) 85.82 ±0.69 63.68 ±1.56 83.59 ±1.07 63.30 ±1.17 86.04 ±1.14 63.50 ±0.73 83.22 ±0.64 64.70 ±2.58 Unsupervised AUC F1-Score AUC F1-Score AUC F1-Score AUC F1-Score GLocalKD (Ma et al., 2022) 64.14 ±0.92 60.73 ±0.03 63.43 ±1.26 60.73 ±0.03 66.08 ±0.04 43.13 ±0.14 61.43 ±1.26 45.00 ±0.17 OCGTL (Qiu et al., 2022) 67.69 ±0.02 27.01 ±0.90 57.42 ±2.38 53.38 ±0.64 68.42 ±1.73 27.03 ±0.42 64.92 ±1.92 34.81 ±1.70 SIGNET (Liu et al., 2023a) 39.32 ±0.77 75.40 ±0.19 44.28 ±0.33 70.28 ±0.16 40.56 ±3.05 76.17 ±0.31 40.22 ±0.55 68.30 ±0.42 MUSE (Kim et al., 2024) N/A N/A N/A N/A 49.18 ±2.42 76.60 ±0.71 48.78 ±2.01 68.87 ±0.99 DO2HSC (Zhang et al., 2024) 43.12 ±0.70 33.65 ±0.66 51.51 ±2.39 42.30 ±1.34 52.25 ±3.18 35.66 ±1.26 53.08 ±2.38 43.73 ±1.32 SDM-ATI 90.19 ±8.94 87.40 ±0.21 90.25 ±7.57 83.59 ±0.24 91.59 ±6.73 86.82 ±2.12 81.62 ±8.18 80.61 ±0.04 SDM-ATII 92.91 ±5.48 91.61 ±0.00 97.05 ±2.39 83.76 ±0.07 94.30 ±0.63 87.47 ±1.13 88.40 ±0.13 82.34 ±0.12 SDM-NAT 94.26 ±2.86 93.16 ±1.99 94.20 ±4.79 90.36 ±2.39 97.09 ±1.78 94.17 ±1.70 94.71 ±2.13 88.98 ±1.80
+
+treated as anomalies. Note that we exclude graph kernel methods for comparison due to their scalability constraints. Instead, we compare our SDM variants with the latest GNN-based approaches, including both unsupervised and super-vised ones. Table 3 presents the comparison results, where we observe that supervised methods such as DCGNN and iGAD, significantly outperform unsupervised baselines like OCGTL and GLocalKD. This demonstrates that supervised methods can still leverage the limited labeled anomalies in large-scale imbalanced scenarios to facilitate anomaly detection. Nevertheless, supervised methods do not gener-alize well when the test data are not drawn from the same distribution as the training data, especially when the amount of available anomalous graphs is limited. Conversely, the proposed SDM variants, such as SDM-ATII and SDM-NAT, consistently surpass supervised baselines such as DGCNN and iGAD by more than 10% on most datasets. This can be attributed to the capability of SDM to generate high-quality pseudo-anomalous graphs for refining a more robust deci-sion boundary without extensive reliance on labeled data. Additionally, SDM-NAT demonstrates better stability and accuracy compared to SDM-ATI, as it avoids the instability of GAN-based max-min optimization and explicitly defines an objective of generating high-quality anomalous graphs. 
+
+3.5. Experiment on Multi-Class GLAD 
+
+We conduct a multi-class graph-level anomaly detection experiment on ENZYMES to further demonstrate the ef-fectiveness of our methods. In this experiment, multiple classes are regarded as anomalies. Specifically, we set the class {0, 1, 2, 3} as the normal classes and {4, 5} as the anomalous classes. Figure 4 shows the experimental results of our methods against several state-of-the-art GNN-based GLAD methods. We can observe that the proposed three methods significantly outperform all the baselines by a large margin (more than 20%). This demonstrates the feasibil-50 60 70 80 90 
+
+Algorithm 
+
+> AUC (%)
+
+Algorithm 
+
+> OCGIN
+> GLocalKD
+> OCGTL
+> MUSE
+> SP
+> NH
+> WL
+> VGAE−AD
+> SIGNET
+> DO2HSC
+> SDM−ATI
+> SDM−ATII
+> SDM−NAT
+
+Figure 4. Experimental results of multi-class graph-level anomaly detection task on ENZYMES. 
+
+ity and potential of the proposed methods in dealing with multi-class GLAD scenarios. Moreover, SDM-NAT and SDM-ATII demonstrate better performance than SDM-ATI, and SDM-NAT exhibits more stability than SDM-ATII, as it has fewer performance fluctuations. 
+
+3.6. Analysis of Discriminative Scores 
+
+Figure 5 shows the discriminative scores of SDM-ATI, SDM-ATII, and SDM-NAT on MUTAG (class 1). The top row represents the discriminative scores in the training stage, while the bottom row corresponds to the testing stage. It is evident that during the training phase, the proposed three models effectively differentiate between the generated anomalous data and normal data, and this distinction car-ries over to the testing phase. These findings validate that the classifier trained using high-quality generated anoma-lous graphs can identify outstanding decision boundaries and exhibit excellent generalization capabilities during test-ing. Particularly, despite observing score overlap between the generated anomaly and normal graphs during the train-8Self-Discriminative Modeling for Anomalous Graph Detection (a)  SDGG -ATI Testing Stage 
+
+(b) SDGG -ATII Training Stage  (c) SDGG -NAT Training Stage (a)  SDGG -ATI Training Stage 
+
+(b) SDGG -ATII Testing Stage  (c) SDGG -NAT Testing Stage     
+
+> (a) SDM -ATI (b) SDM -ATII (c) SDM -NAT
+> Figure 5. The discriminative scores of SDM-ATI, SDM-ATII, and SDM-NAT on MUTAG (Class 1), where the top and bottom rows represent the result of the training stage and testing stage, respectively. Note that the x-axis and y-axis indicate the output scores and the number density of data samples within a certain interval.
+
+ing phase of SDM-ATII, significant differentiation is still achieved during the testing phase. This can be attributed to our objective of training a powerful classifier by gener-ating high-quality anomaly graphs that closely resemble normal graphs. Although the classifier may not separate these anomalies adequately during training, which may be due to the over-idealization of the generated anomaly data, the learned decision boundaries are sufficiently effective in distinguishing the anomalies during the test phase. 
+
+3.7. More Experimental Analysis 
+
+Due to the page limitation, we provide more experimen-tal analysis in our appendix, including the experimental results on more datasets ( Appendix D), visualization anal-ysis( Appendix E), parameter analysis ( Appendix F), and ablation study on generator backbone ( Appendix G), etc. 
+
+4. Conclusion 
+
+In this paper, we proposed a self-discriminative modeling (SDM) framework for graph-level anomaly detection. The key idea is to generate pseudo-anomalous graphs that inter-polate between normal graphs and (real) anomalous graphs, though real anomalies are not presented in the training stage. We provide three variants of SDM, namely, SDM-ATI, SDM-ATII, and SDM-NAT. Particularly, SDM-NAT has much higher learning stability and detection accuracy than the other two methods. The comprehensive experiments on various graph benchmark datasets, including molecular, bio-logical, social network, and large-scale imbalanced molecu-lar datasets, demonstrate the effectiveness of our methods compared to state-of-the-art graph-level anomaly detection methods. Surprisingly, although our methods are unsuper-vised learning, they outperformed a few strong baselines of semi-supervised learning methods. One limitation of our work is that we have not considered any real anomalous graphs in the training stage, though they may be available in some scenarios. 
+
+Acknowledgements 
+
+This work was supported by the National Natural Science Foundation of China under Grant No.62376236 and the Gen-eral Program of Natural Science Foundation of Guangdong Province under Grant No.2024A1515011771. 
+
+Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none of which we feel must be specifically highlighted here. 9Self-Discriminative Modeling for Anomalous Graph Detection 
+
+References 
+
+Akoglu, L., Tong, H., and Koutra, D. Graph based anomaly detection and description: a survey. Data Mining and Knowledge Discovery , 29:626–688, 2015. Borgwardt, K. M. and Kriegel, H.-P. Shortest-path kernels on graphs. In Proceedings of the Fifth IEEE International Conference on Data Mining , pp. 8–pp. IEEE, 2005. Cai, J. and Fan, J. Perturbation learning based anomaly detection. Advances in Neural Information Processing Systems , 35, 2022. Cai, J., Han, Y., Guo, W., and Fan, J. Deep graph-level clustering using pseudo-label-guided mutual information maximization network. Neural Computing and Applica-tions , 2024a. Cai, J., Zhan, Y., Lu, Z., Guo, W., and Ng, S.-K. To-wards effective federated graph anomaly detection via self-boosted knowledge distillation. In Proceedings of the ACM International Conference on Multimedia , pp. 5537–5546, 2024b. Cai, J., Zhang, Y., Fan, J., Du, Y., and Guo, W. Dual contrastive graph-level clustering with multiple cluster perspectives alignment. In Proceedings of the Inter-national Joint Conference on Artificial Intelligence , pp. 3770–3779, 2024c. Cai, J., Zhang, Y., Fan, J., and Ng, S.-K. Lg-fgad: An effective federated graph anomaly detection framework. In Proceedings of the International Joint Conference on Artificial Intelligence , pp. 3760–3769, 2024d. Cai, J., Zhang, Y., Wang, S., Fan, J., and Guo, W. Wasser-stein embedding learning for deep clustering: A gener-ative approach. IEEE Transactions on Multimedia , pp. 7567–7580, 2024e. Chen, Z., Liu, B., Wang, M., Dai, P., Lv, J., and Bo, L. Generative adversarial attributed network anomaly de-tection. In Proceedings of the 29th ACM International Conference on Information & Knowledge Management ,pp. 1989–1992, 2020. Dai, W. and Fan, J. AutoUAD: Hyper-parameter optimiza-tion for unsupervised anomaly detection. In The Thir-teenth International Conference on Learning Represen-tations , 2025. URL https://openreview.net/ forum?id=ErQPdaD5wJ .Dai, W., Hwang, K., and Fan, J. Unsupervised anomaly detection for tabular data using deep noise evaluation. 
+
+Proceedings of the AAAI Conference on Artificial Intel-ligence , 39(11):11553–11562, Apr. 2025. doi: 10.1609/ aaai.v39i11.33257. URL https://ojs.aaai.org/ index.php/AAAI/article/view/33257 .Ding, K., Li, J., Agarwal, N., and Liu, H. Inductive anomaly detection on attributed networks. In Proceedings of the International Joint Conferences on Artificial Intelligence ,pp. 1288–1294, 2021. Dong, X., Zhang, X., and Wang, S. Rayleigh quotient graph neural networks for graph-level anomaly detection. In 
+
+Proceedings of the International Conference on Learning Representations , 2024. Duan, D., Tong, L., Li, Y., Lu, J., Shi, L., and Zhang, C. Aane: Anomaly aware network embedding for anomalous link detection. In Proceedings of the IEEE International Conference on Data Mining , pp. 1002–1007. IEEE, 2020. Duan, J., Wang, S., Zhang, P., Zhu, E., Hu, J., Jin, H., Liu, Y., and Dong, Z. Graph anomaly detection via multi-scale contrastive learning networks with augmented view. In 
+
+Proceedings of the AAAI Conference on Artificial Intelli-gence , volume 37, pp. 7459–7467, 2023. Fey, M. and Lenssen, J. E. Fast graph representation learning with pytorch geometric. arXiv preprint arXiv:1903.02428 ,2019. Fu, D., Zhang, Z., and Fan, J. Dense projection for anomaly detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 38, pp. 8398–8408, 2024. Goodfellow, I., Pouget-Abadie, J., Mirza, M., Xu, B., Warde-Farley, D., Ozair, S., Courville, A., and Bengio, Y. Generative adversarial nets. Advances in Neural Informa-tion Processing Systems , 27, 2014. Han, X., Chen, X., and Liu, L.-P. Gan ensemble for anomaly detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 35, pp. 4090–4097, 2021. Hido, S. and Kashima, H. A linear-time graph kernel. In 
+
+Proceedings of the Ninth IEEE International Conference on Data Mining , pp. 179–188. IEEE, 2009. Huang, W., Wan, G., Ye, M., and Du, B. Federated graph semantic and structural learning. In Proceedings of the Thirty-Second International Joint Conference on Artifi-cial Intelligence , pp. 3830–3838, 2023. Huang, X., Yang, Y., Wang, Y., Wang, C., Zhang, Z., Xu, J., Chen, L., and Vazirgiannis, M. Dgraph: A large-scale financial dataset for graph anomaly detection. Advances in Neural Information Processing Systems , 35:22765– 22777, 2022. Kim, S., Lee, S. Y., Bu, F., Kang, S., Kim, K., Yoo, J., and Shin, K. Rethinking reconstruction-based graph-level anomaly detection: Limitations and a simple remedy. Ad-vances in Neural Information Processing Systems , 2024. 10 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Kingma, D. P. and Ba, J. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 , 2014. Kingma, D. P. and Welling, M. Auto-encoding variational bayes. In Proceedings of the International Conference on Learning Representations , 2014. Kipf, T. N. and Welling, M. Variational graph auto-encoders. 
+
+arXiv preprint arXiv:1611.07308 , 2016. Kipf, T. N. and Welling, M. Semi-supervised classification with graph convolutional networks. In Proceedings of the International Conference on Learning Representations ,2017. Lee, S., Jeong, B., Kim, M., Jang, R., Paik, W., Kang, J., Chung, W. J., Hong, G.-S., and Kim, N. Emergency triage of brain computed tomography via anomaly detection with a deep generative model. Nature Communications ,13(1):4251, 2022. Li, R., Yuan, X., Radfar, M., Marendy, P., Ni, W., O’Brien, T. J., and Casillas-Espinosa, P. M. Graph signal pro-cessing, graph neural network and graph learning on bi-ological data: a systematic review. IEEE Reviews in Biomedical Engineering , 2021. Li, X., Sun, Y., Sun, Q., Ren, Z., and Sun, Y. Cross-view graph matching guided anchor alignment for incomplete multi-view clustering. Information Fusion , 100:101941, 2023. Liu, Y., Ding, K., Lu, Q., Li, F., Zhang, L. Y., and Pan, S. Towards self-interpretable graph-level anomaly detection. 
+
+Advances in Neural Information Processing Systems , 36, 2023a. Liu, Y., Liang, K., Xia, J., Zhou, S., Yang, X., Liu, X., and Li, S. Z. Dink-net: Neural clustering on large graphs. In International Conference on Machine Learning , pp. 21794–21812. PMLR, 2023b. Liu, Y., Li, S., Zheng, Y., Chen, Q., Zhang, C., and Pan, S. Arc: A generalist graph anomaly detector with in-context learning. Advances in Neural Information Processing Systems , 2024. Ma, R., Pang, G., Chen, L., and van den Hengel, A. Deep graph-level anomaly detection by glocal knowledge distil-lation. In Proceedings of the Fifteenth ACM International Conference on Web Search and Data Mining , pp. 704– 714, 2022. Ma, X., Wu, J., Xue, S., Yang, J., Zhou, C., Sheng, Q. Z., Xiong, H., and Akoglu, L. A comprehensive survey on graph anomaly detection with deep learning. IEEE Transactions on Knowledge and Data Engineering , 2021. Mislove, A., Marcon, M., Gummadi, K. P., Druschel, P., and Bhattacharjee, B. Measurement and analysis of online so-cial networks. In Proceedings of the 7th ACM SIGCOMM Conference on Internet Measurement , pp. 29–42, 2007. Morris, C., Kriege, N. M., Bause, F., Kersting, K., Mutzel, P., and Neumann, M. Tudataset: A collection of benchmark datasets for learning with graphs. In Proceedings of the International Conference of Machine Learning Workshop on Graph Representation Learning and Beyond , 2020. Mou, S., Gu, X., Cao, M., Bai, H., Huang, P., Shan, J., and Shi, J. Rgi: robust gan-inversion for mask-free image inpainting and unsupervised pixel-wise anomaly detec-tion. In Proceedings of the International Conference on Learning Representations , 2023. Nikolentzos, G. and Vazirgiannis, M. a. Random walk graph neural networks. Advances in Neural Information Processing Systems , 33:16211–16222, 2020. Pan, J., Liu, Y., Zheng, X., Zheng, Y., Liew, A. W.-C., Li, F., and Pan, S. A label-free heterophily-guided approach for unsupervised graph fraud detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pp. 12443–12451, 2025. Qi, Z., Meng, L., Li, Z., Hu, H., and Meng, X. Cross-silo feature space alignment for federated learning on clients with imbalanced data. In Proceedings of the Annual AAAI Conference on Artificial Intelligence , pp. 19986–19994, 2025. Qiao, H. and Pang, G. Truncated affinity maximization: One-class homophily modeling for graph anomaly detec-tion. Advances in Neural Information Processing Systems ,36:49490–49512, 2023. Qiao, H., Tong, H., An, B., King, I., Aggarwal, C., and Pang, G. Deep graph anomaly detection: A survey and new perspectives. arXiv preprint arXiv:2409.09957 , 2024a. Qiao, H., Wen, Q., Li, X., Lim, E.-P., and Pang, G. Gen-erative semi-supervised graph anomaly detection. Ad-vances in Neural Information Processing Systems , 37: 4660–4688, 2024b. Qiu, C., Pfrommer, T., Kloft, M., Mandt, S., and Rudolph, M. Neural transformation learning for deep anomaly detection beyond images. In Proceedings of the Interna-tional Conference on Machine Learning , pp. 8703–8714. PMLR, 2021. Qiu, C., Kloft, M., Mandt, S., and Rudolph, M. Raising the bar in graph-level anomaly detection. In Proceedings of the International Joint Conference on Artificial Intelli-gence , pp. 2196–2203, 2022. doi: 10.24963/ijcai.2022/ 305. 11 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Ruff, L., Vandermeulen, R., Goernitz, N., Deecke, L., Sid-diqui, S. A., Binder, A., M ¨uller, E., and Kloft, M. Deep one-class classification. In Proceedings of the Interna-tional Conference on Machine Learning , pp. 4393–4402. PMLR, 2018. Ruff, L., Vandermeulen, R. A., G ¨ornitz, N., Binder, A., M ¨uller, E., M ¨uller, K.-R., and Kloft, M. Deep semi-supervised anomaly detection. In Proceedings of the International Conference on Learning Representations ,2020. Schlegl, T., Seeb ¨ock, P., Waldstein, S. M., Schmidt-Erfurth, U., and Langs, G. Unsupervised anomaly detection with generative adversarial networks to guide marker discov-ery. In Proceedings of the International Conference on Information Processing in Medical Imaging , pp. 146–157. Springer, 2017. Schlegl, T., Seeb ¨ock, P., Waldstein, S. M., Langs, G., and Schmidt-Erfurth, U. f-anogan: Fast unsupervised anomaly detection with generative adversarial networks. 
+
+Medical Image Analysis , 54:30–44, 2019. Sch ¨olkopf, B., Williamson, R. C., Smola, A., Shawe-Taylor, J., and Platt, J. Support vector method for novelty detec-tion. Advances in Neural Information Processing Systems ,12, 1999. Shervashidze, N., Schweitzer, P., Van Leeuwen, E. J., Mehlhorn, K., and Borgwardt, K. M. Weisfeiler-lehman graph kernels. Journal of Machine Learning Research ,12(9), 2011. Sun, Y., Qin, Y., Li, Y., Peng, D., Peng, X., and Hu, P. Robust multi-view clustering with noisy correspondence. 
+
+IEEE Transactions on Knowledge and Data Engineering ,2024. Sun, Z., Ding, C., and Fan, J. Lov ´asz principle for unsuper-vised graph representation learning. Advances in Neural Information Processing Systems , 2023. Tieleman, T., Hinton, G., et al. Lecture 6.5-rmsprop: Divide the gradient by a running average of its recent magnitude. 
+
+COURSERA: Neural Networks for Machine Learning , 4 (2):26–31, 2012. Tu, W., Zhou, S., Liu, X., Cai, Z., Zhao, Y., Liu, Y., and He, K. Wage: Weight-sharing attribute-missing graph autoencoder. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. Van der Maaten, L. and Hinton, G. Visualizing data using t-sne. Journal of Machine Learning Research , 9(11), 2008. Vishwanathan, S. V. N., Schraudolph, N. N., Kondor, R., and Borgwardt, K. M. Graph kernels. Journal of Machine Learning Research , 11:1201–1242, 2010. Wan, G., Tian, Y., Huang, W., Chawla, N. V., and Ye, M. S3gcl: Spectral, swift, spatial graph contrastive learn-ing. In Forty-first International Conference on Machine Learning , 2024. Wan, G., Shi, Z., Huang, W., Zhang, G., Tao, D., and Ye, M. Energy-based backdoor defense against federated graph learning. In Proceedings of the International Conference on Learning Representations , 2025. Wang, Q., Ding, Z., Tao, Z., Gao, Q., and Fu, Y. Generative partial multi-view clustering with adaptive fusion and cy-cle consistency. IEEE Transactions on Image Processing ,30:1771–1783, 2021. Wang, T., Qiao, M., Lin, Z., Li, C., Snoussi, H., Liu, Z., and Choi, C. Generative neural networks for anomaly detection in crowded scenes. IEEE Transactions on Infor-mation Forensics and Security , 14(5):1390–1399, 2018. Wang, Z. and Ji, S. Second-order pooling for graph neural networks. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2020. Wu, Z., Pan, S., Chen, F., Long, G., Zhang, C., and Philip, S. Y. A comprehensive survey on graph neural networks. 
+
+IEEE Transactions on Neural Networks and Learning Systems , 32(1):4–24, 2020. Wu, Z., Zhang, Z., and Fan, J. Graph convolutional kernel machine versus graph convolutional networks. Advances in Neural Information Processing Systems , 2023. Xiao, C., Xu, X., Lei, Y., Zhang, K., Liu, S., and Zhou, F. Counterfactual graph learning for anomaly detection on attributed networks. IEEE Transactions on Knowledge and Data Engineering , 2023. Xu, K., Hu, W., Leskovec, J., and Jegelka, S. How pow-erful are graph neural networks? In Proceedings of the International Conference on Learning Representations ,2019. Zhang, G., Yang, Z., Wu, J., Yang, J., Xue, S., Peng, H., Su, J., Zhou, C., Sheng, Q. Z., Akoglu, L., et al. Dual-discriminative graph neural network for imbalanced graph-level anomaly detection. Advances in Neural Infor-mation Processing Systems , 35:24144–24157, 2022a. Zhang, X., Mu, J., Zhang, X., Liu, H., Zong, L., and Li, Y. Deep anomaly detection with self-supervised learning and adversarial training. Pattern Recognition , 121:108234, 2022b. 12 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Zhang, Y., Sun, Y., Cai, J., and Fan, J. Deep orthogonal hypersphere compression for anomaly detection. In Pro-ceedings of the International Conference on Learning Representations , 2024. Zhao, L. and Akoglu, L. On using classification datasets to evaluate graph outlier detection: Peculiar observations and new insights. Big Data , 2021. Zheng, Y., Jin, M., Liu, Y., Chi, L., Phan, K. T., and Chen, Y.-P. P. Generative and contrastive self-supervised learn-ing for graph anomaly detection. IEEE Transactions on Knowledge and Data Engineering , 2021. Zhou, J., Cui, G., Hu, S., Zhang, Z., Yang, C., Liu, Z., Wang, L., Li, C., and Sun, M. Graph neural networks: A review of methods and applications. AI open , 1:57–81, 2020. 13 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+A. Related Works 
+
+A.1. Graph-level Anomaly Detection 
+
+Graph-level anomaly detection (Ma et al., 2021; Liu et al., 2024; Cai et al., 2024b;d) typically refers to the identification of graphs that are significantly different from others, e.g. , the active state of molecules or abnormal relational structure in social networks, which exhibit significant differences compared to normal graphs. Different from the anomaly detection tasks on node-level and edge-level (Ding et al., 2021; Huang et al., 2022; Duan et al., 2023; Qiao & Pang, 2023; Qiao et al., 2024b; Pan et al., 2025), graph-level anomaly detection demands the consideration of relationships between different graphs measured from the perspective of the entire graph. Graph kernels (GK), e.g. , Short-Path kernel (SP) (Borgwardt & Kriegel, 2005), Weisfeiler-Lehman kernel (WL) (Shervashidze et al., 2011), Random walk kernel (RW) (Vishwanathan et al., 2010), etc, are generally used to measure the similarity between pair-wise graphs (Akoglu et al., 2015). They can be utilized to achieve graph-level anomaly detection by combining with classical AD methods such as one-class support vector machine (OCSVM) (Sch¨ olkopf et al., 1999). In recent years, graph neural networks (GNNs) (Zhou et al., 2020; Wu et al., 2020; 2023; Liu et al., 2023b; Li et al., 2023; Cai et al., 2024a; Wan et al., 2024; Cai et al., 2024c; Tu et al., 2025) have become a paradigm for learning graph representations. Many outstanding works take advantage of the graph learning capability of GNNs, such as GCN (Kipf & Welling, 2017; Wan et al., 2025) and GIN (Xu et al., 2019), to facilitate graph-level anomaly detection. For instance, Zhao & Akoglu (2021) combined GIN with DeepSVDD (Ruff et al., 2018) to construct an end-to-end graph anomaly detection framework. Qiu et al. (2022) leveraged graph transformation learning (Qiu et al., 2021) to alleviate the performance flip issue in graph anomaly detection. Ma et al. (2022) proposed to learn richer normal patterns of graphs from both local and global perspectives through the knowledge distillation within graph and node representations. Zhang et al. (2022b) investigated the problem of anomaly detection on imbalanced graphs and addressed this issue by introducing a supervised dual-discriminative framework with an imbalanced-specified loss function based on point mutual information. Compared with them, our methods do not require any assumption on the shape of the embedding distribution ( e.g. , hypersphere (Zhao & Akoglu, 2021; Qiu et al., 2022; Zhang et al., 2024)) or explicitly defined anomaly scores (Ma et al., 2022; Liu et al., 2023a; Dong et al., 2024). Besides, our method is fully unsupervised but is able to generate high-quality pseudo-anomalous graphs for training the anomaly detector (classifier), which is more cost-efficient than supervised methods (Zhang et al., 2022b). 
+
+A.2. GAN-based Anomaly Detection 
+
+As an emerging branch of deep learning techniques, generative adversarial network (GAN) (Goodfellow et al., 2014; Wang et al., 2021; Cai et al., 2024e) has been widely studied and utilized in anomaly detection, particularly in the vision area (Schlegl et al., 2019; Cai & Fan, 2022; Mou et al., 2023). For example, Schlegl et al. (2017) proposed AnoGAN, which applied GAN and unsupervised training to learn a manifold for normality, thereby identifying the anomalies in image data. Han et al. (2021) proposed a multiple GAN ensemble framework for anomaly detection, which better models normal data distribution through the interaction between multiple groups of generators and discriminators. Zhang et al. (2022b) leveraged self-supervised learning with a deep adversarial framework to capture the marginal distribution of normal image data for detecting anomalies. Nevertheless, although some recent works (Chen et al., 2020; Zheng et al., 2021; Xiao et al., 2023) explored the feasibility of GAN in node-level AD tasks, the studies and efforts on graph-level AD tasks that require taking both attributes and edges into account are still limited. To this end, our work endeavors to bridge this research gap. We here discuss the connection between the proposed three variants of SDM (refer to Section 2) with the GAN-based approaches. First, SDM-ATI shares the idea of adversarial training in GAN, but they differ in several details. For example, the generator of SDM-ATI simultaneously produces anomalous nodes and edges for an anomalous graph, which differs from the others that focus solely on nodes or images. Besides, most GAN-based approaches adopt two-stage frameworks and define a specific anomaly score, e.g. , mapping loss function (Schlegl et al., 2017; 2019), reconstruction error (Wang et al., 2018; Lee et al., 2022) for detecting anomalies, while SDM-ATI is designed as a joint training framework and relies on the output of the discriminator. Second, SDM-ATII learns to generate high-quality anomalous samples from normal graphs, whereas other GAN-based approaches typically generate from random noise. More importantly, the variational inference (Kipf & Welling, 2016) involved in SDM-ATII guarantees the diversity of generated anomalous graphs. Third, we further proposed another variant, i.e. , SDM-NAT, to address the instability problem during training and generate high-quality anomalous graphs in a non-adversarial manner. 14 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+B. Dataset 
+
+Table 4 illustrates the detailed information of each graph dataset used in our experiment, including the number of graphs, average nodes, average edges, node classes, graph classes, and data type. We also show the imbalance ratio of four large-scale graph datasets in Table 5. 
+
+Table 4. Detailed information of the graph benchmark datasets.                                                                                  
+
+> Dataset Name # Graphs # Average [V]# Average [E]# Node Classes # Graph Classes Data Types Small and moderate-scale datasets PROTEINS 1,113 39.06 72.82 32Biology DD 1,178 284.32 715.66 82 2Biology ENZYMES 600 32.63 62.14 36Biology IMDB-BINARY 1,000 19.77 96.53 –2Social networks ER MD 446 21.33 234.85 10 2Molecule MUTAG 188 17.93 19.79 72Molecule AIDS 2,000 15.69 16.20 38 2Molecule COX2 467 41.22 43.45 82Molecule Imbalanced large-scale datasets SW-620 40,532 26.06 28.09 65 2Molecule MOLT-4 39,765 26.10 28.14 64 2Molecule PC-3 27,509 26.36 28.49 45 2Molecule MCF-7 27,770 26.40 28.53 46 2Molecule
+
+Table 5. The imbalance ratio of large-scale graph benchmark datasets. Datasets Class # Graphs Imbalance Ratio SW-620 Normal 38,122 5.95% Anomalous 2,410 MCF-7 Normal 25,476 8.26% Anomalous 2,294 PC-3 Normal 25,941 9.34% Anomalous 1,568 MOLT-4 Normal 36,625 7.90% Anomalous 3,140 
+
+C. Detailed Experimental Settings 
+
+We consider three types of experiments in this paper to evaluate anomaly detection performance. (1) The first experiment focuses on the one-class classification task, where we treat each class of a dataset as the normal class and assess the anomaly detection performance for each class individually. (2) The second experiment involves anomaly detection on large-scale imbalanced graph datasets, where the class with a small number of samples is designated as the anomaly. (3) Moreover, we evaluate anomaly detection in multi-class scenarios, where the anomalies may come from multiple classes. Here, we describe the detailed experimental settings as follows: • Data Split: For small and moderate-scale datasets, we allocate 80% of the data from the normal class for training, and subsequently construct the testing data by combining the remaining normal data with an equal or smaller number of anomalous data samples. For large-scale imbalanced datasets, we allocate 80% of the data in the normal class as the training set, and form the test set with the rest of the normal data and all the abnormal data. • Trade-off Parameters: For SDM-ATI and SDM-ATII, we fix the clipping parameter c of the adversarial loss at 0.01. Besides, SDM-ATII and SDM-NAT have two critical hyper-parameters, λ and γ, in their loss functions, which control the contributions of the discrepancy loss and KL-divergence loss, respectively. We employ a grid search strategy, covering a range of [0 .001 , 100] , to explore the parameter space and determine their optimal values thoroughly. Furthermore, 15 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Table 6. Average AUCs and F1-Scores with standard deviation (10 trials) on MUTAG, AIDS, and COX2. The best results are marked in 
+
+bold .
+
+Method Metric MUTAG AIDS COX2 0 1 0 1 0 1SP (Borgwardt & Kriegel, 2005) AUC 69.44 ±0.00 67.52 ±0.00 97.78 ±0.00 79.54 ±0.00 54.08 ±0.00 57.60 ±0.00 F1-Score 58.33 ±0.00 60.00 ±0.00 95.00 ±0.00 76.56 ±0.00 49.32 ±0.00 45.00 ±0.00 WL (Shervashidze et al., 2011) AUC 19.44 ±0.00 89.12 ±0.00 98.84 ±0.00 84.44 ±0.00 59.90 ±0.00 29.25 ±0.00 F1-Score 16.67 ±0.00 76.00 ±0.00 93.75 ±0.00 83.55 ±0.00 60.27 ±0.00 35.00 ±0.00 NH (Hido & Kashima, 2009) AUC 66.53 ±3.30 79.97 ±0.40 96.85 ±0.21 63.47 ±3.23 61.41 ±0.82 47.17 ±0.00 F1-Score 56.67 ±6.24 76.00 ±0.00 97.50 ±0.00 59.25 ±1.35 56.44 ±1.03 50.00 ±3.16 RW (Vishwanathan et al., 2010) AUC 94.44 ±0.00 86.98 ±0.00 73.61 ±0.00 58.31 ±0.00 52.43 ±0.00 28.75 ±0.00 F1-Score 83.33 ±0.00 80.00 ±0.00 66.25 ±0.00 57.50 ±0.00 47.95 ±0.00 30.00 ±0.00 VGAE-AD (Kipf & Welling, 2016) AUC 80.00 ±7.07 73.30 ±5.40 56.59 ±1.59 96.74 ±0.53 59.28 ±1.55 73.33 ±1.48 F1-Score 78.33 ±6.67 65.56 ±2.22 55.34 ±2.91 93.94 ±0.51 59.19 ±0.00 73.00 ±5.10 OCGIN (Zhao & Akoglu, 2021) AUC 88.40 ±2.14 74.66 ±1.68 94.38 ±0.10 20.56 ±4.52 59.64 ±5.78 56.83 ±7.68 F1-Score 61.54 ±0.00 62.95 ±0.00 88.12 ±0.62 29.22 ±5.16 47.95 ±0.00 52.38 ±0.00 GLocalKD (Ma et al., 2022) AUC 84.03 ±0.00 90.59 ±0.61 100.00 ±0.00 94.45 ±5.85 51.42 ±0.66 65.79 ±0.98 F1-Score 83.33 ±0.00 86.17 ±0.91 100.00 ±0.00 88.27 ±7.70 51.24 ±0.60 65.33 ±0.67 OCGTL (Qiu et al., 2022) AUC 93.61 ±0.24 87.04 ±1.74 98.09 ±0.48 99.49 ±0.08 60.42 ±0.90 54.65 ±3.09 F1-Score 38.46 ±12.87 80.00 ±0.00 97.50 ±0.00 97.25 ±0.57 55.62 ±5.24 52.38 ±4.26 SIGNET (Liu et al., 2023a) AUC 79.40 ±3.69 86.13 ±3.52 88.28 ±1.69 96.15 ±0.89 47.25 ±0.00 64.50 ±0.00 F1-Score 80.56 ±3.93 80.00 ±3.27 80.25 ±2.00 89.69 ±1.06 52.05 ±0.00 60.00 ±0.00 MUSE (Kim et al., 2024) AUC 83.79 ±7.02 87.73 ±2.45 55.96 ±2.12 92.56 ±3.03 54.14 ±3.23 48.08 ±7.04 F1-Score 75.20 ±6.14 73.07 ±4.11 52.88 ±1.26 85.91 ±4.39 52.14 ±3.49 48.50 ±9.50 DO2HSC (Zhang et al., 2024) AUC 94.72 ±4.47 88.83 ±6.58 91.09 ±2.34 88.03 ±0.91 63.16 ±3.36 72.28 ±4.67 F1-Score 89.17 ±7.50 86.80 ±6.21 82.92 ±3.12 83.50 ±0.56 58.36 ±2.95 69.00 ±4.90 SDM-ATI AUC 95.83 ±0.00 73.44 ±34.56 100.00 ±0.00 100.00 ±0.00 71.46 ±9.15 79.45 ±5.82 F1-Score 83.33 ±0.00 91.67 ±0.00 100.00 ±0.00 100.00 ±0.00 70.78 ±7.91 67.10 ±4.17 SDM-ATII AUC 99.31 ±1.42 81.50 ±25.66 100.00 ±0.00 100.00 ±0.00 81.51 ±0.31 91.78 ±3.95 F1-Score 99.13 ±1.74 80.27 ±23.47 99.37 ±0.63 100.00 ±0.00 74.05 ±0.95 84.79 ±3.38 SDM-NAT AUC 100.00 ±0.00 99.36 ±0.35 100.00 ±0.00 100.00 ±0.00 96.66 ±0.00 97.05 ±1.62 
+
+F1-Score 100.00 ±0.00 98.53 ±0.20 100.00 ±0.00 100.00 ±0.00 90.41 ±0.00 92.50 ±2.50 
+
+Appendix F contains the evaluation of the impact of variations in the values of λ and γ on the anomaly detection performance. • Baseline Settings: We achieve anomaly detection for all graph kernels and InfoGraph by combining them with OCSVM (Sch ¨olkopf et al., 1999). For other baseline methods, e.g. , OCGIN, OCGTL, GLocalKD, iGAD, SIGNET, MUSE, and DO2HSC, we follow the settings in their papers and reproduce the experimental results with the officially released codes. To guarantee a fair comparison, we use the same network structure, i.e. , GIN (Xu et al., 2019), for each GNN-based baseline and SDM variants. Particularly, in the imbalanced graph anomaly detection task, we apply the cross-entropy loss function to the supervised GNN baselines, e.g. , GCN, DGCNN, GIN, SOPOOL, and RWGNN. • Training Details: For small-scale graph datasets, the grid search strategy is utilized to find the optimal performance, where the coefficients ( λ and γ) vary in {0.1, 1, 10 }, and the batch size varies in {4, 8, 16 }, while we increase the batch size to 256 to accommodate the requirement of experiment on larger-scale datasets. We utilize RMSprop (Tieleman et al., 2012) as the optimizer for SDM-ATI and SDM-ATII, and Adam (Kingma & Ba, 2014) for SDM-NAT during training. Besides, we set the learning rate ρ to 0.001 with the total training epochs to 300. • Implementation: We leverage PyTorch Geometric (Fey & Lenssen, 2019) for implementation, and all experiments are executed on an NVIDIA Tesla A100 GPU with an AMD EPYC 7532 CPU. 16 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+D. More Experimental Results 
+
+D.1. Performance Comparison on More Datasets 
+
+Table 6 presents an additional evaluation of our SDM framework (SDM-ATI, SDM-ATII, and SDM-NAT) against various graph kernel methods and GNN-based GLAD methods on four benchmark datasets, including MUTAG, AIDS, and COX2. We can observe that our SDM variants consistently outperform baseline methods across all benchmark datasets. Particularly, SDM-NAT performance achieves 96.66% (AUC) and 90.41% (F1-Score) on the challenging dataset COX2 (class 0), which marks a more than 20% improvement over other state-of-the-art approaches such as OCGTL and DO2HSC. Notably, SDM-NAT exhibits markedly lower variance than adversarial strategies (SDM-ATI, SDM-ATII) and competing baselines, which highlights its robustness in decision boundary learning. Moreover, we notice that certain baselines show substantial performance drops when setting another class as the normal class, e.g. , the AUC decline of OCGIN on AIDS and SIGNET on COX2, which implies the challenges of handling heterogeneous distributions without strong assumptions. In contrast, the proposed SDM framework achieves consistent efficacy across graph datasets from diverse domains, demonstrating its broad applicability to real-world scenarios. 
+
+D.2. Explanation of SDM’s Advantages on Imbalance GLAD 
+
+To better understand the success of SDM, we provide a visual illustration in Figure 6 to explain why the SDM can outperform other supervised methods in the context of imbalanced scenarios (Kim et al., 2024; Qi et al., 2025). This figure demonstrates a binary classification scenario where the anomalous data used for training lies on the right side of the normal data, and the trained classifier successfully categorizes them with a red decision boundary. However, unknown anomalies may be located on the left side of the decision boundary (shown by the blue dashed line), where the binary classifier fails to detect them. This phenomenon is common in large-scale unbalanced anomaly detection due to limited supervised information, where the distribution of test data is not exactly the same as that of the training data. Normal samples 
+
+> Anomalous samples
+> Training data
+> Anomalous samples
+> Normal samples
+> Unknown anomalous sample
+> Unknown anomalous sample
+> Testing data
+> Binary classification
+> Ideal decision boundary
+> Decision Boundary
+
+Figure 6. The illustration of the advantages of SDM. The red line denotes the decision boundary learned by the binary classification, whereas the blue dashed line denotes the ideal decision boundary. 
+
+E. Visual Analysis of Learned Decision Boundary 
+
+In this section, we aim to intuitively demonstrate the effectiveness of the proposed methods. Specifically, we provide visualization results of learned embeddings using t-SNE (Van der Maaten & Hinton, 2008). We show the t-SNE visualizations (on MUTAG and AIDS) for the learned embeddings of several baseline methods and the three variants of SDM in Figures 7 and 8, enabling a more comprehensive assessment. These two figures show that the proposed SDM methods learn more explicit decision boundaries to distinguish anomalous samples compared to the visualization results of other baseline methods. Besides, these figures also offer compelling insights into the learned decision boundaries derived from the generated anomalous data. We can observe that the normal data from both training and testing stages approximately lie on the same manifold, which implies that the normality is well captured in our methods. Moreover, the real anomalous and generated pseudo-anomalous data are well separated into different regions from the normal data. This distinct separation serves as compelling evidence of the discriminative power implicit in our methods. 17 Self-Discriminative Modeling for Anomalous Graph Detection 1-15             
+
+> 5
+> -10
+> -5
+> 0.50
+> 0
+> -5
+> 5
+> 0-10
+> -15
+> -20 2
+> -20
+> 0-2
+> -15
+> -25 -4
+> -10
+> (i) SDM-ATII (h) SDM-ATI (j) SDM-NAT
+> -20 -10
+> 0
+> 00
+> 10
+> 20
+> 20
+> 10
+> 0
+> 5
+> 815
+> 10
+> 14 6
+> 15
+> 13
+> 412
+> (c) GLocalKD (b) OCGIN (g) DO2HSC (a) VGAE-AD
+> -10
+> 5
+> -5
+> 0
+> 0
+> 5
+> 10
+> 5-50
+> -5-10 -10
+> -5
+> 10 10
+> 0
+> 5
+> 15 0
+> 10
+> 20 -10
+> (d) OCGTL
+> 6
+> 4
+> 7
+> 8
+> 10 3
+> 9
+> 5
+> 10
+> 20
+> -5
+> (f) MUSE (e) SIGNET
+
+Figure 7. The t-SNE visualization on MUTAG (Class 1). Note that the points marked in red , light blue , and dark blue represent the real anomalous data, and the normal data in training and testing stages, while points marked in yellow denote the generated anomalous data in our methods. -20       
+
+> -10 10
+> 0
+> 00
+> 20
+> -10 10
+> -20 10 -20
+> -10
+> 0
+> 0
+> 10
+> 0
+> 20
+> -10
+> 20
+> 20 -5
+> -10
+> 00
+> 5
+> -20 10
+> 0
+> 10
+> (i) SDM-ATII (h) SDM-ATI (j) SDM-NAT
+> 20 -10
+> 20
+> 0
+> 0
+> -20 -2
+> 10
+> (d) OCGTL
+> 50
+> -50
+> -50
+> 0
+> 00
+> 50
+> -50 50
+> (c) GLocalKD (b) OCGIN (a) VGAE-AD (g) DO2HSC (f) MUSE (e) SIGNET
+
+Figure 8. The t-SNE visualization on AIDS (Class 1). Note that the points marked in red , light blue , and dark blue represent the real anomalous data, and the normal data in training and testing stages, while points marked in yellow denote the generated anomalous data in our methods. 
+
+Nevertheless, it is worth noting that t-SNE would change the actual data distribution through dimensionality reduction. Therefore, the distribution of generated anomalies may not encompass the normal data in the visualization results. However, we can still observe that more discriminative latent representations are learned in SDM variants compared to other baselines. This observation demonstrates the strong discrimination of the trained classifier, which is attributed to the high-quality pseudo-anomalous graphs generated adaptively. These insightful visualizations offer a better understanding of the proposed methods, vividly illustrating their ability to learn effective decision boundaries and unveil intricate patterns and anomalies hidden within complex graph structures. 
+
+F. Parameter Sensitivity Analysis 
+
+We investigate the impact of two main hyper-parameters, λ and γ, in SDM-ATII and SDM-NAT on the anomaly detection performance. Note that SDM-ATI is not included in this analysis because its loss function does not have any hyper-parameters. Specifically, we set the value of λ and γ from a wide range, i.e. , [1 e−3, 1e2], to evaluate their impact on anomaly detection performance. Figures 9 and 10 show the experimental results on COX2 and ER MD, where we have the following observations. First, we find that a balanced trade-off of λ and γ is crucial to achieve ideal performance for SDM-ATII and SDM-NAT. As illustrated in these two figures, we can observe that either excessively large or small values of λ and γ typically yield sub-optimal results in various cases. Second, we can observe that both SDM-ATII and SDM-NAT exhibit relatively stable performance across a broad range of [1 e−3, 1e2] for λ and γ values, particularly on ER MD (Class 0) where SDM-ATII and SDM-NAT show stable performance in terms of AUC and F1-Score. Additionally, from the experimental results on other 18 Self-Discriminative Modeling for Anomalous Graph Detection (b) ER_MD  Class 1 Class 0 
+
+> (a) COX2
+> Class 1 Class 0
+
+ATII 
+
+Figure 9. Parameter sensitivity analysis of SDM-ATII on COX2 and ER MD. Note that the values of λ and γ changes in the range of 
+
+[1 e−3, 1e2].(b) ER_MD  Class 1 Class 0 
+
+> (a) COX2
+> Class 1 Class 0
+
+NAT 
+
+Figure 10. Parameter sensitivity analysis of SDM-NAT on COX2 and ER MD. Note that the values of λ and γ change in the range of 
+
+[1 e−3, 1e2].
+
+cases, we can observe that the performance variation of both methods under varying λ and γ values also remains marginal within a relatively wide range. These observations fully demonstrate the stability and robustness of our methods. 
+
+G. Ablation Study of Generator Backbone 
+
+We conduct an ablation study by thoroughly comparing VGAE-based and GIN-based generators to elucidate our rationale for leveraging VGAE as the preferred backbone for generators in SDM. It should be noted that the key difference between VGAE-based and GIN-based backbones lies in the incorporation of variational inference, which introduces stochasticity in generating anomalous graphs. Figure 11 shows a comprehensive performance comparison in terms of AUC across three graph datasets, including COX2, DD, and MUTAG. From this figure, we can observe that the VGAE-based backbone consistently outperforms the GIN-based backbone by a substantial margin. This significant improvement can be attributed to the inherent disparities in their respective generation 19 Self-Discriminative Modeling for Anomalous Graph Detection (a)  SDGG -ATI Testing Stage  (b) SDGG -ATII Testing Stage  (c) SDGG -NAT Testing Stage        
+
+> (a) COX2 (Class 0) (b) DD (Class 0) (c) MUTAG (Class 0)
+> (d) COX2 (Class 1) (e) DD (Class 1) (f) MUTAG (Class 1)
+> Figure 11. Performance comparison between VGAE-based and GIN-based generator.
+
+processes. The GIN-based backbone generates graphs deterministically, while the VGAE-based generator incorporates stochasticity. In contrast to the GIN-based backbone, VGAE employs the reparameterization technique to learn a target distribution, allowing it to capture the data and underlying distribution. Consequently, the latent distribution of generated pseudo-anomalous data is more likely to reside in plausible regions rather than simply approximating the normal data. The experiment demonstrates the exceptional ability of the VGAE-based generator to produce high-quality pseudo-anomalous graphs, yielding superior performance in graph-level anomaly detection tasks. This also aligns with the motivation and expectation depicted in Figure 6, where the stochasticity in the generation process plays an important role in learning a good decision boundary. 
+
+H. Robustness Analysis under Data Contamination 
+
+To evaluate the robustness of the proposed SDM under data contamination, we conduct an experiment by injecting anomalous data into the training set at varying contamination levels, which is defined as a certain percentage of the normal data (0%, 10%, 20%, and 30%, respectively). Table 7 shows the experimental results on MUTAG (class 0), where we can observe that the three SDM variants maintain stable performance under different contamination levels. In particular, the performance of SDM variants under a 10% contamination level still outperforms the SOTA baseline, such as DOH2SC (94.72% AUC w/o contamination). These results fully demonstrate the robustness and real-world applicability of our approach.  
+
+> Table 7. Comparison of model performance at different contamination levels.
+
+Contamination Level 0% 10% 20% 30% SDM-ATI AUC 95.83(0.00) 94.77(0.79) 93.85(0.04) 94.23(1.23) F1-Score 83.33(0.00) 82.61(0.46) 80.24(0.00) 81.27(1.96) SDM-ATII AUC 99.31(1.42) 97.58(0.48) 97.25(0.02) 97.04(0.15) F1-Score 99.13(1.74) 94.12(0.00) 88.24(0.00) 89.22(0.98) SDM-NAT AUC 100.00(0.00) 97.67(0.73) 96.44(0.21) 95.71(2.17) F1-Score 100.00(0.00) 92.16(1.96) 88.24(0.00) 87.70(3.39) 20 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+I. Detailed Algorithm 
+
+To facilitate the understanding of the training procedure of the proposed SDM methods, we provide the detailed algorithms of three SDM variants in Algorithms 1, 2, and 3. 
+
+Algorithm 1 SDM-ATI 
+
+Input: Input graph set G, number of GIN layers K, clipping parameter c, learning rate ρ, batch size m, total training epochs T .
+
+Output: The anomaly detection scores.  
+
+> 1:
+
+Initialize the network parameters ϕ, ω; 
+
+> 2:
+
+for t → T do  
+
+> 3:
+
+for each batch G do  
+
+> 4:
+
+Update Generator:  
+
+> 5:
+
+Unfreeze the the parameter ϕ of generator Gϕ; 
+
+> 6:
+
+Freeze the the parameter ω of discriminator Dω ; 
+
+> 7:
+
+Sample random variable ˜Z from latent Gaussian distribution P˜Z ∼ N (0, 1); 
+
+> 8:
+
+Generate anomalous graph set ˜G from generator Gϕ with the input ˜Z via Eq. (6);  
+
+> 9:
+
+Update the parameter ϕ of generator Gϕ by 
+
+Gϕ ← ∇ [− 1
+
+> m
+
+Pmi=1 Dω (Gϕ(˜Zi), T (Gϕ(˜Zi)Gϕ(˜Zi)⊤))] ;
+
+ϕ ← ϕ − ρ · RMSProp (ϕ, Gϕ);  
+
+> 10:
+
+Update Discriminator:  
+
+> 11:
+
+Freeze the the parameter ϕ of generator Gϕ; 
+
+> 12:
+
+Unfreeze the the parameter ω of discriminator Dω ; 
+
+> 13:
+
+Repeat steps 6 - 7;  
+
+> 14:
+
+Update the parameter ω of generator Dω by 
+
+Dω ← ∇ [− 1
+
+> m
+
+Pmi=1 Dω (Xi, Ai) + 1
+
+> m
+
+Pmi=1 Dω (Gϕ(˜Zi), T (Gϕ(˜Zi)Gϕ(˜Zi)⊤))] ;
+
+ω ← ω − ρ · RMSProp (ω, Dω ); 
+
+ω ← clip (ω, −c, c );  
+
+> 15:
+
+end for  
+
+> 16:
+
+end for  
+
+> 17:
+
+Compute anomaly detection scores for test graphs via the trained discriminator Dω ; 
+
+> 18:
+
+Return: The anomaly detection scores. 21 Self-Discriminative Modeling for Anomalous Graph Detection 
+
+Algorithm 2 SDM-ATII 
+
+Input: Input graph set G, number of GIN layers K, clipping parameter c, learning rate ρ, batch size m, total training epochs T .
+
+Output: The anomaly detection scores.  
+
+> 1:
+
+Initialize the network parameters ϕ, ω; 
+
+> 2:
+
+for t → T do  
+
+> 3:
+
+for each batch G do  
+
+> 4:
+
+Update Generator:  
+
+> 5:
+
+Unfreeze the the parameter ϕ of generator Gϕ; 
+
+> 6:
+
+Freeze the the parameter ω of discriminator Dω ; 
+
+> 7:
+
+Extract graph-level representation with the input normal attributes X and adjacency matrix A via Eqs. (7) and (8) ; 
+
+> 8:
+
+Generate anomalous anomalous graph set ˜G from generator Gϕ with normal attributes X and adjacency matrix A
+
+via Eqs. (10), (11), (12), and (13);  
+
+> 9:
+
+Update the parameter ϕ of generator Gϕ by 
+
+Gϕ ← ∇ [− 1
+
+> m
+
+Pmi=1 Dω (Gϕ(Xi, Ai) + λm
+
+Pmi=1 (∥Xi − ˜Xi∥2 
+
+> F
+
+− (Ai log( ˜Ai) + (1 − Ai) log(1 − ˜Ai))) + 
+
+γKL [q(ZG|HG, A)|| P (Z)]] ;
+
+ϕ ← ϕ − ρ · RMSProp (ϕ, Gϕ);  
+
+> 10:
+
+Update Discriminator:  
+
+> 11:
+
+Freeze the the parameter ϕ of generator Gϕ; 
+
+> 12:
+
+Unfreeze the the parameter ω of discriminator Dω ; 
+
+> 13:
+
+Repeat steps 6 - 7;  
+
+> 14:
+
+Update the parameter ω of generator Dω by 
+
+Dω ← ∇ [− 1
+
+> m
+
+Pmi=1 Dω (Xi, Ai) + 1
+
+> m
+
+Pmi=1 Dω (Gϕ(Xi, Ai))] ;
+
+ω ← ω − ρ · RMSProp (ω, Dω ); 
+
+ω ← clip (ω, −c, c );  
+
+> 15:
+
+end for  
+
+> 16:
+
+end for  
+
+> 17:
+
+Compute anomaly detection scores for test graphs via the trained discriminator Dω ; 
+
+> 18:
+
+Return: The anomaly detection scores. 
+
+Algorithm 3 SDM-NAT 
+
+Input: Input graph set G, number of GIN layers K, learning rate ρ, batch size m, total training epochs T .
+
+Output: The anomaly detection scores.  
+
+> 1:
+
+Initialize the network parameters ϕ, θ for anomalous generator Gϕ and classifier fθ ; 
+
+> 2:
+
+for t → T do  
+
+> 3:
+
+for each batch G do  
+
+> 4:
+
+Extract graph-level representation with the input normal attributes X and adjacency matrix A via Eqs. (7) and (8) ; 
+
+> 5:
+
+Generate anomalous graph set ˜G from generator Gϕ with normal attributes X and adjacency matrix A via Eqs. (10), (11), (12), and (13);  
+
+> 6:
+
+Calculate the anomalous reconstruction loss via Eq. (14);  
+
+> 7:
+
+Calculate the total loss via Eq. (16);  
+
+> 8:
+
+Update the parameter ϕ and θ of anomalous generator Gϕ and classifier fθ using backpropagation;  
+
+> 9:
+
+end for  
+
+> 10:
+
+end for  
+
+> 11:
+
+Compute anomaly detection scores for test graphs via the trained classifier fθ ; 
+
+> 12:
+
+Return: The anomaly detection scores. 22

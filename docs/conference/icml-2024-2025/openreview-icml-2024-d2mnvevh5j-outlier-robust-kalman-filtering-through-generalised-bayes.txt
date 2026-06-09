@@ -1,0 +1,3326 @@
+Title: Outlier-robust Kalman Filtering through Generalised Bayes
+
+URL Source: https://openreview.net/pdf?id=D2MNVeVh5J
+
+Number of Pages: 34
+
+Markdown Content:
+# Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Gerardo Duran-Martin 1 2 Matias Altamirano 3 Alexander Y. Shestopaloff 1 4 Leandro Sánchez-Betancourt 2 5 
+
+Jeremias Knoblauch 3 Matt Jones 6 François-Xavier Briol 3 Kevin Murphy 7
+
+## Abstract 
+
+We derive a novel, provably robust, and closed-form Bayesian update rule for online filtering in state-space models in the presence of outliers and misspecified measurement models. Our method combines generalised Bayesian inference with filtering methods such as the extended and en-semble Kalman filter. We use the former to show robustness and the latter to ensure computational efficiency in the case of nonlinear models. Our method matches or outperforms other robust fil-tering methods (such as those based on varia-tional Bayes) at a much lower computational cost. We show this empirically on a range of filtering problems with outlier measurements, such as ob-ject tracking, state estimation in high-dimensional chaotic systems, and online learning of neural networks. 
+
+## 1. Introduction 
+
+Probabilistic state-space models (SSMs) are widely used to address problems in time-series forecasting, online learning, tracking problems, and signal processing. A key challenge in SSMs is to perform online (sequential) posterior infer-ence, also known as Bayesian filtering. If the model is linear and the and the dynamics are known, then the Kalman fil-ter (KF) algorithm is the optimal filter in terms of minimal mean squared error (Morris, 1976). If the model is not lin-ear, approximate inference methods must be used. Although there are a number of techniques available, in this paper we focus on the extended Kalman filter (EKF) (see e.g., 
+
+> 1
+
+School of Mathematical Sciences, Queen Mary University, London, UK 2Oxford-Man Institute of Quantitative Finance, Uni-versity of Oxford, UK 3Department of Statistical Science, Univer-sity College London, London, United Kingdom 4Department of Mathematics and Statistics, Memorial University of Newfound-land, St. John’s, NL, Canada 5Mathematical Institute, University of Oxford, UK 6Institute for Cognitive Science, University of Colorado Boulder, US 7Google DeepMind. Correspondence to: Gerardo Duran-Martin <g.duranmartin@qmul.ac.uk>. 
+
+Proceedings of the 41 st International Conference on Machine Learning , Vienna, Austria. PMLR 235, 2024. Copyright 2024 by the author(s). 
+
+Figure 1. First state component of the SSM (20) . The grey dots are measurements sampled from (20) and the red crosses are mea-surements sampled from an outlier measurement process. The dotted blue line shows the KF posterior mean estimate and the solid orange line shows our proposed WoLF posterior mean esti-mate. The regions around the posterior mean cover two standard deviations. For comparison, the dashed black line shows the true sampled state process. 
+
+Sarkka & Svensson, 2023) and the ensemble Kalman filter (EnKF) (see e.g., Roth et al., 2017a), because they both admit closed-form Bayesian updates to Gaussian posterior approximations and scale to high dimensions. In a Bayesian setting, the KF and KF-like methods typi-cally use a Gaussian measurement model for computational convenience. However, a weakness of this assumption is that extreme observations, such as outliers, are not well modelled by Gaussians, leading to model misspecification (Grubbs, 1969; Hampel et al., 2011). Moreover, in practice, the true dynamics are often different from the one assumed by the filter. This could be because the measurements are corrupted, or because the user does not have access to the measurement function. For example, in tracking problems, sensor measurement errors record the wrong position of an object; similarly, in economics and finance, there are in-stances of data providers sending time series with erroneous values (see e.g. Liu, 2020, for a survey). There is a large literature that studies the filtering problem in the presence of outliers and misspecified measurement mod-els 1. Some approaches extend the state space by introducing 
+
+> 1
+
+Alternatively, a measurement model can be referred to as an observation model. 
+
+1Outlier-robust Kalman Filtering through Generalised Bayes 
+
+hierarchical priors on the measurement model. Since closed-form estimation of the state is not generally feasible, a fac-torised variational Bayes (VB) approach can be employed to obtain a fixed-point solution (see e.g., Ting et al., 2007; Aga-mennoni et al., 2012; Huang et al., 2016; Nurminen et al., 2015; Wang et al., 2018; Piché et al., 2012). Alternatively, Huberised (E)KF-type methods are optimisation-based ap-proaches to filtering, which minimise the Huber loss; see Boncelet & Dickinson (1983); Karlgaard (2015); Das (2023) and the references therein. Recently, Boustati et al. (2020) proposed a particle filter (PF) approach that uses gener-alised Bayes (GB) to handle model misspecification from outliers; this builds on work showing that GB updates are theoretically sound and robust to outliers and model mis-specification (see, e.g., Bissiri et al., 2016; Jewson et al., 2018; Knoblauch et al., 2022; Fong et al., 2021; Jewson & Rossell, 2022; Husain & Knoblauch, 2022; Matsubara et al., 2023; 2022). However, these approaches can be slow, due to the need to perform iterative optimisation per step (for VB) (Knoblauch et al., 2018), or the need to use a large number of samples (for PF) (Boustati et al., 2020). See Appendix A for an overview of a number of these methods. In this paper, we propose a novel approach that tackles the filtering problem in the presence of outliers and measure-ment model misspecification. Our method is based on the GB approach where one replaces the log-likelihood of the measurement process with a loss function. We call our method the weighted observation likelihood filter (WoLF) 
+
+because it uses a weighted log-likelihood as loss. A key advantage of this choice is that we can have closed-form (conjugate) update equations that compute an approximate Gaussian posterior. We derive WoLF variants for the KF, the EKF, and the ensemble Kalman Filter (EnKF). Our approach has several key advantages over prior work: (i) it is fast and has similar computational cost to the KF thanks to closed-form updates, (ii) it is flexible to the form of misspecification, (iii) it is provably robust to outliers, and (iv) it is easy to implement and straightforward to apply to other filtering methods. See Figure 1 for an illustrative example. The remainder of the paper proceeds as follows: in Section 2 we introduce the filtering problem and some common algorithms to approximate a Gaussian posterior. In Sec-tion 3 we present our method and derive WoLF variants to the KF, the EKF, and the EnKF. Next, in Section 3.4 we show that for certain choices of weighting functions, our method is provably robust. Finally, in Section 4, we show empirically that our method matches and in some cases outperforms previous robust filtering methods at a lower running time. We consider a variety of filtering problems, including 2d-tracking, state estimation in high-dimensional chaotic systems, and online learning of neural networks. Our code can be found at https://github.com/gerdm/ weighted-likelihood-filter .
+
+## 2. Background: Filtering in SSMs 
+
+We briefly review Kalman filtering and the main extensions we consider in this work. In what follows, m, d ∈ N are the dimensions of the state and measurement processes, and 
+
+p(·) is used for densities. Given an initial state θ0 ∈ Rm, a Markovian state-space model (SSM) is defined as 
+
+θt = ft(θt−1) + ϕt, (1) 
+
+yt = ht(θt) + φt, (2) for t ∈ { 1, . . . , T }. Here, θt ∈ Rm is the (latent) state vector, yt ∈ Rd is the (observed) measurement vector, ft :
+
+Rm → Rm is the dynamics function, ht : Rm → Rd is the measurement function, 2 ϕt is a zero-mean Gaussian-distributed random vector with known covariance matrix 
+
+Qt, and φt is any zero-mean random vector representing the measurement noise. The meaning of the state depends on the application; for example, it can be the position of an object, the state of the atmosphere, or the weights of a neural network, as we will see in the results section. The filtering of an SSM consists of two steps: the predict step and the update step. Given the result of a previous update step (i.e., the iterative posterior) p(θt−1|y1: t−1), the predict step estimates the prior predictive distribution 
+
+p(θt|y1: t−1) = 
+
+Z
+
+p(θt|θt−1)p(θt−1|y1: t−1)d θt−1, (3) and the update step estimates the new posterior distribution 
+
+p(θt|y1: t) ∝ p(yt|θt)p(θt|y1: t−1). (4) where ∝ indicates equality up to a multiplicative normalisa-tion constant. 
+
+2.1. The Kalman filter 
+
+Suppose the SSM is linear and Gaussian, that is, 
+
+θt = Ft θt−1 + ϕt,
+
+yt = Ht θt + φt, (5) with φt a zero-mean Gaussian with known covariance ma-trix Rt, Ft ∈ Rm×m, and Ht ∈ Rd×m. Then, given the initial condition p(θ0) = N (θ0 | μ0, Σ0) — a Gaus-sian density with known mean μ0 ∈ Rm and covariance 
+
+Σ0 ∈ Rm×m — the exact Bayesian predict and update steps are given by 
+
+p(θt|y1: t−1) = N (θt | μt|t−1, Σt|t−1), (6) 
+
+p(θt|y1: t) = N (θt | μt, Σt), (7)    
+
+> 2In many applications, the function htis modulated by an exogenous feature vector xt. See e.g., Section 4.2.
+
+2Outlier-robust Kalman Filtering through Generalised Bayes 
+
+with prior predictive mean and covariance given by 
+
+μt|t−1 = Ft μt−1,
+
+Σt|t−1 = Ft Σt−1 F⊺ 
+
+> t
+
++ Qt, (8) and posterior mean and covariance given by 
+
+Σ−1 
+
+> t
+
+= Σ−1 
+
+> t|t−1
+
++ H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht,
+
+Kt = Σt H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+,
+
+μt = μt|t−1 + Kt (yt − ˆyt),
+
+(9) where ˆyt = Ht μt|t−1 is the predicted observation and Kt
+
+is the Kalman gain matrix used to map the error (residual) vector in observation space to an update in latent state space. 
+
+2.2. The Extended Kalman filter 
+
+When the state and measurement functions are non-linear, a common approach is to introduce a Gaussian posterior density q(θt|y1: t) = N (θt | μt, Σt) that approximates the posterior density p(θt|y1: t) through a Kullback-Leibler pro-jection. This is done using Gaussian approximations of the joint densities q(θt, θt−1|y1: t−1) and q(θt, yt|y1: t−1) and then performing a closed-form Bayesian update; see Section 8.4 in Sarkka & Svensson (2023) for details. The EKF is a special case of the above in which one lin-earises ft in (1) and ht in (2) , and assumes a Gaussian measurement noise φt. As a consequence, the predict and update equations resemble those of the standard KF. More precisely, the EKF replaces the mean of the state transition density p(θt|θt−1) in (1) with 
+
+E[θt|θt−1] ≈ Ft(θt−1 − μt−1) + ft(μt−1) =: ¯ μt|t−1,
+
+(10) and the measurement mean of p(yt|θt) in (2) with 
+
+E[yt|θt] ≈ Ht(θt − μt|t−1) + ht(μt|t−1) =: ¯ yt, (11) where μt|t−1 = E[ ¯ μt|t−1|μt−1] = ft(μt−1), Ft is the Jacobian of ft evaluated at μt−1, Ht is the Jacobian of ht
+
+evaluated at μt|t−1, and ˆyt = E[¯ yt] = ht(μt|t−1). The linearisation of the transition and measurement around the respective previous means allows the resulting predict and update equations to closely resemble (8) and (9) . Therefore, the algorithm remains relatively scalable and more efficient low-rank extensions can also be derived (see e.g. Chang et al., 2023; Lambert et al., 2023; Cartea et al., 2023). 
+
+2.3. The ensemble Kalman filter 
+
+The ensemble Kalman filter (EnKF) was developed as an al-ternative to the extended Kalman filter for high-dimensional and highly non-linear state dynamics (see e.g., Evensen, 1994; Burgers et al., 1998; Roth et al., 2017a). This method avoids the need to compute Jacobians and the storage of an explicit m × m posterior covariance matrix, by instead representing the belief state with an ensemble of N ∈ N
+
+particles ˆθ(i) 
+
+> t
+
+∈ Rm for i = 1 , . . . , N evolved through time. This enables the method to scale to high-dimensional state spaces with complex nonlinear dynamics, such as those fre-quently arising in data assimilation for weather forecasting (Evensen, 2009). In the EnKF, the predict step samples (1) to obtain ˆθ(i)
+
+> t|t−1
+
+. Then, the update step samples predictions 
+
+ˆy(i) 
+
+> t|t−1
+
+∈ Rd, for each particle, according to 
+
+ˆy(i) 
+
+> t|t−1
+
+∼ N 
+
+
+
+ht
+
+ˆθ(i)
+
+> t|t−1
+
+
+
+, Rt
+
+
+
+. (12) The particles are then updated according to 
+
+ˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ ¯Kt
+
+ yt − ˆy(i)
+
+> t|t−1
+
+, (13) with gain matrix ¯Kt calculated from the ensemble. See Appendix D.3 for details. 
+
+## 3. The weighted observation likelihood filter 
+
+Our method is based on the GB approach where one modi-fies the update step in (4) to use a loss function ℓt : Rm → R
+
+in place of the negative log-likelihood of the measurement process. This gives the generalised posterior 
+
+q(θt|y1: t) ∝ exp( −ℓt(θt)) q(θt|y1: t−1). (14) We propose to gain robustness to outliers in observation space by taking the loss function to be the model’s negative log-likelihood scaled by a data-dependent weighting term 
+
+ℓt(θt) = −W 2(yt, ˆyt) log q(yt|θt), (15) with W : Rd ×Rd → R the weighting function and q(yt|θt)
+
+the modelled measurement process. We call our method the 
+
+weighted observation likelihood filter (WoLF) . To specify an instance of our method, ones needs to define the likeli-hood q(yt|θt) and the weighting function W . In the next subsections, we show the flexibility of WoLF and derive weighted-likelihood-based KF, EKF, and EnKF algorithms. Setting W (yt, ¯yt) = 1 trivially recovers existing methods, but we will instead use non-constant weighting functions inspired by the work of (Barp et al., 2019; Matsubara et al., 2022; Altamirano et al., 2023a;b). 
+
+3.1. Linear weighted observation likelihood filter 
+
+The following proposition gives a closed-form solution for the update step of WoLF under a linear measurement func-tion and a Gaussian likelihood (see Appendix C.1 for the proof). 
+
+Proposition 3.1. Consider the linear-Gaussian SSM (5) 
+
+with weighting function W : Rd × Rd → R. Then, the update step of WoLF with loss function (15) is given by (9) 
+
+with R−1 
+
+> t
+
+replaced by ¯R−1 
+
+> t
+
+= W 2(yt, ˆyt) R−1 
+
+> t
+
+.
+
+3Outlier-robust Kalman Filtering through Generalised Bayes 
+
+The resulting predict and update steps for WoLF under lin-ear dynamics and zero-mean Gaussians for the state and measurement process are shown in Algorithm 1. 
+
+Algorithm 1 WoLF predict and update step 
+
+Require: Ft, Qt // predict step 
+
+μt|t−1 ← Ft μt−1
+
+Σt|t−1 ← Ft Σt−1 F⊺ 
+
+> t
+
++ Qt
+
+Require: yt, Ht, Rt // update step 
+
+ˆyt ← Ht μt|t−1
+
+wt ← W (yt, ˆyt)
+
+Σ−1 
+
+> t
+
+← Σ−1 
+
+> t|t−1
+
++ w2 
+
+> t
+
+H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+Kt ← w2 
+
+> t
+
+Σt H⊺ 
+
+> t
+
+R−1
+
+> t
+
+μt ← μt|t−1 + Kt (yt − ˆyt)
+
+The computational complexity of WoLF under linear dy-namics matches that of the KF, i.e., O(m3). Alternative robust filtering algorithms require multiple iterations per measurement to achieve robustness and stability, making them significantly slower; see Table 1 for the computational complexity for the methods we consider, and Table 2 and Figure 5 for empirical comparisons. 
+
+3.2. Nonlinear weighted observation likelihood filter 
+
+Our method readily extends to other nonlinear filtering algo-rithms. For example, a WoLF version of the EKF is obtained by introducing a weighting function to (11) yielding the ap-proximate log-likelihood 
+
+log q(yt|θt) = W 2(yt, ˆyt) log N (yt | ¯yt, Rt). (16) Similarly, we can derive a weighted ensemble Kalman filter by weighting error terms in the update step (13) ; see Ap-pendix D.3 for details. Finally, our method can be easily extended to handle measurement processes modelled as an exponential family, such as in classification; see Appendix D.1 for details. 
+
+3.3. The choice of weighting function 
+
+Weighted likelihoods have a well-established history in Bayesian inference and have demonstrated their efficacy in improving robustness (Grünwald, 2012; Holmes & Walker, 2017; Grünwald & van Ommen, 2017; Miller & Dun-son, 2018; Bhattacharya et al., 2019; Alquier & Ridgway, 2020; Dewaskar et al., 2023). In this context, the corre-sponding posteriors are often referred to as fractional, tem-pered, or power posteriors. In most existing work, the determination of weights relies on heuristics and the as-signed weights remain constant across all data points so that 
+
+W (yt, ˆyt) = w ∈ R for all t. In contrast, we dynamically incorporate information from the most recent observations without incurring additional computational costs by defining the weight as a function of the current observation yt and its prediction ˆyt = ht(μt|t−1), which is based on all of the past observations. To define the weighting function, we take inspiration from previous work for dealing with outliers. In particular, Wang et al. (2018) proposed classifying robust filtering algorithms into two main types: compensation-based algorithms, which incorporate information from tail events into the model in a robust way (see, e.g., Huang et al., 2016; Agamennoni et al., 2012), and detect-and-reject algorithms, which assume that outlier observations bear no useful information and thus are ignored (see, e.g., Wang et al., 2018; Mu & Yuen, 2015). Below we show how both of these strategies can be imple-mented using our WoLF method by merely changing the weighting function. 
+
+Inverse multi-quadratic weighting function: As an ex-ample of a compensation-based method, we follow Altami-rano et al. (2023b) and use the Inverse Multi-Quadratic (IMQ) weighting, which in our SSM setting is 
+
+W (yt, ˆyt) = 
+
+
+
+1 + || yt − ˆyt|| 22
+
+c2
+
+−1/2
+
+, (17) where c > 0 is the soft threshold and ∥ · ∥ denotes the l2
+
+norm. We call WoLF with IMQ weighting “WoLF-IMQ”. 
+
+Mahalanobis-based weighting function: The l2 norm in the IMQ can be modified to account for the covariance structure of the measurement process by replacing it with the Mahalanobis distance between yt and ˆyt:
+
+W (yt, ˆyt) = 1 + ∥R−1/2 
+
+> t
+
+(yt − ˆyt)∥22
+
+c2
+
+!−1/2
+
+. (18) We call WoLF with this weighting function the WoLF-MD method. This type of weighted IMQ function has been used extensively in the kernel literature (see e.g. Chen et al., 2019; Detommaso et al., 2018; Riabiz et al., 2022). 
+
+Threshold Mahalanobis-based weighting function: As an example of a detect-and-reject method, we consider 
+
+W (yt, ˆyt) = 
+
+(
+
+1 if ∥R−1/2 
+
+> t
+
+(yt − ˆyt)∥22 ≤ c
+
+0 otherwise (19) with c > 0 the fixed threshold. The weighting function (19) corresponds to ignoring information from estimated measurements whose Mahalanobis distance to the true mea-surement is larger than some predefined threshold c. In the linear setting, this weighting function is related to the benchmark method employed in Ting et al. (2007). We refer to WoLF with this weighting function as “WoLF-TMD”. 4Outlier-robust Kalman Filtering through Generalised Bayes 
+
+For yt ∈ Rd with d = m ≫ 1 and diagonal measurement covariance Rt = diag (rt, 1, . . . , r t,d ), the WoLF-TMD function can be modified to weight individual observations so that W : Rd × Rd → Rd. See Section 4.3 for an example and Appendix D.2 for a discussion. The proposed weighting functions — the IMQ, the MD, and the TMD — are defined such that W : Rd ×Rd → [0 , 1] and therefore can only down-weight observations. This means that our updates are always conservative, i.e., our posteriors will be wider in the presence of outliers (see Figure 1 for an example). 
+
+3.4. Theoretical properties 
+
+In this section, we prove the outlier-robustness for WoLF-type methods. We use the classical framework of Huber (1981). Consider measurements y1: t. We measure the in-fluence of a contamination yct by examining the divergence between the posterior with the original observation yt and the posterior with the contamination yct , which is allowed to be arbitrarily large. As a function of yct , this divergence is called the posterior influence function (PIF) and was studied in Ghosh et al. (2016); Matsubara et al. (2022); Altamirano et al. (2023a;b). Following Altamirano et al. (2023b), we consider the Kullback-Leibler (KL) divergence, which al-lows us to obtain closed-form expressions for Gaussians. The PIF is given by 
+
+PIF( yct , y1: t) = KL ( p(θt|yct , y1: t−1)∥p(θt|yt, y1: t−1)) .
+
+If sup yct ∈Rd | PIF( yct , y1: t)| < ∞, then the posterior is called outlier-robust, which indicates that as ∥yt − yct ∥2 →∞, the contamination’s effect on the posterior is bounded. This is the Bayesian equivalent to bias-robustness in fre-quentist statistics. 
+
+Theorem 3.2. Consider the linear Gaussian SSM (5) or its linearised (EKF) approximation. The standard (E)KF posterior has an unbounded PIF and is not outlier robust. In contrast, the generalised posterior presented in Proposi-tion 3.1 has bounded PIF and is, therefore, outlier robust for any weighting function W such that sup yt∈Rd W (yt, ˆyt) <
+
+∞ and sup yt∈Rd W (yt, ˆyt)2 ∥yt∥2 < ∞.
+
+The proof is in Appendix C.2. In particular, the conditions are satisfied when W is (17) , (18) , or (19) , which are the focus of our paper. Figure 2 shows an empirical validation of this proposition for the 2D tracking problem detailed in Section 4.1. Here, it is clear that the PIF for the standard KF is unbounded, whereas our methods exhibit a bounded influ-ence. In Appendix C.3 we show a version of the theorem above for the EnKF.              
+
+> Figure 2. PIF for the 2d tracking problem of Section 4.1. The last measurement ytis replaced with yct=yt+ϵ, where ϵ∈[−5,5] ×
+> [−5,5] . We observe that the PIF is asymetric for the weighted methods; this is because the weighting term is a function of the prior predictive and the measurement at time t. See Appendix E.1 for a more detailed explanation.
+
+## 4. Experiments 
+
+In this section, we study the performance of the WoLF meth-ods in multiple filtering settings. Each experiment employs a dataset (or samples data from an SSM), a collection of benchmark methods, and a metric to compare the methods. For our robust baselines, we make use of three methods that are representative of recent state-of-the-art approaches to robust filtering: the Bernoulli KF of Wang et al. (2018) (KF-B ), which is an example of a detect-and-reject strat-egy; the inverse-Wishart filter of Agamennoni et al. (2012) (KF-IW ), which is an example of a compensation-based strategy; and the Huberised EnKF of Roh et al. (2013) (Hub-EnKF ), which is an example of a Huberised algo-rithm. The KF-B and KF-IW are deterministic and opti-mise a VB objective to compute a Gaussian approximation to the state posterior (see Appendix A for details). We do not compare against sophisticated hierarchical methods nor methods based on particle filtering, because these do not scale well to high-dimensional state spaces. For the neural network fitting problem, we also consider a variant of on-line gradient descent ( OGD ) based on Adam (Kingma & Ba, 2017), which uses multiple inner iterations per step (mea-surement). This method does scale to high-dimensional state spaces, but sadly only gives a maximum a posteriori (MAP) estimate and is not as sample efficient as a robust Bayesian filter. For experiments where KF or EKF is used as the baseline, we consider the following WoLF variants: (i) the WoLF version with inverse multi-quadratic weighting function (WoLF-IMQ ), (ii) the thresholded WoLF with Mahalanobis-based weighting function ( WoLF-TMD ). When using the EKF variants, we linearise the state mean (10) and measure-ment mean (11) . For experiments where the ensemble KF (EnKF ) is taken as the baseline algorithm, we benchmark the performance of the weighted likelihood EnKF with (i) 5Outlier-robust Kalman Filtering through Generalised Bayes 
+
+weighting with averaged-particles ( AP-EnKF ) and (ii) the per-particle weightings ( PP-EnKF ). See Appendix D.3 for a detailed description of the robust EnKF methods.                            
+
+> Method Cost #HP Ref
+> KF O(m3)0Kalman
+> KF-B O(I m 3)3Wang et al.
+> KF-IW O(I m 3)2Agamennoni et al.
+> OGD O(I m 2)2Bencomo et al.
+> WoLF-IMQ O(m3)1(Ours)
+> WoLF-TMD O(m3)1(Ours)
+> Table 1. Computational complexity of the update step, assuming
+> d≤mand assuming linear dynamics. Here, Iis the number of inner iterations, #HP refers to the number of hyperparameters we tune, and ”Cost” refers to the computational complexity.
+
+In each experiment, and unless otherwise specified, we run 
+
+100 trials to evaluate each method. The hyperparameters of each method are chosen on the first trial using the Bayesian optimisation (BO) package of Nogueira (2014). BO is a popular derivative-free approach to function maximisation (see e.g. Frazier, 2018). Specifically, we optimise the hy-perparameters that minimise the chosen metric on the first run of each experiment. Where a multi-output metric is specified, the minimisation is taken over the maximum of the output. The hyperparameters for KF/EKF-like methods are: the noise scaling and number of inner iterations for the 
+
+KF-IW , the two shape parameters and the number of inner iterations for the KF-B , the learning rate and number of inner iterations for the OGD , the thresholding value for the 
+
+WoLF-TMD , and the soft threshold hyperparameter for the 
+
+WoLF-IMQ . See Table 1 for a summary. The results we obtain can be summarised as follows: WoLF-based methods either outperform or match the performance of their counterparts in the metrics we specify below, but typically at a much lower running time. 
+
+4.1. Robust KF for tracking a 2D object 
+
+We consider the classical problem of estimating the position of an object moving in 2D with constant velocity, which is commonly used to benchmark tracking problems (see e.g., Example 8.2.1.1 in Murphy (2023) or Example 4.5 in Sarkka & Svensson (2023)). The SSM takes the form 
+
+p(θt|θt−1) = N (θt | Ftθt−1, Qt),p(yt|θt) = N (yt | Htθt, Rt), (20) where Qt = q I4, Rt = r I2, (θ0,t , θ1,t ) is the position, 
+
+(θ2,t , θ3,t ) is the velocity,                       
+
+> Ft=
+> 
+> 10∆0010∆00100001
+> ,Ht=
+> 10000100
+> 
+> ,
+
+∆ = 0 .1 is the sampling rate, q = 0 .10 is the system noise, 
+
+r = 10 is the measurement noise, and IK is a K × K
+
+identity matrix. We simulate 500 trials, each with 1,000 steps. For each method, we compute the scaled RMSE metric JT,i =
+
+qPTt=1 (θt,i − μt,i )2 for i ∈ { 0, 1, 2, 3} as well as the total running time (relative to the KF ). In our experiments, the true data generating process is one of two variants of (20) . The first variant (which we call 
+
+Student observations ) corresponds to a system whose mea-surement process comes from the Student-t likelihood: 
+
+p(yt|θt) = St (yt | Htθt, Rt, ν t)=
+
+Z ∞
+
+> 0
+
+N
+
+
+
+yt | Htθt, Rt
+
+τ
+
+
+
+Gam 
+
+
+
+τ | νt
+
+2 , νt
+
+2
+
+
+
+dτ, 
+
+(21) with Gam (·| a, b ) the density of a Gamma distribution with shape a and rate b, and νt = 2 .01 . The second variant (which we call mixture observations ) corresponds to a system where the mean of the observations changes sporadi-cally. Instances of this variant can occur as a form of human error or a software bug in a data-entry program. To emu-late this scenario, we modify (20) by using the following mixture model for the observation process: 
+
+p(yt|θt) = N (yt | mt, Rt),
+
+mt =
+
+(
+
+Ht θt w.p. 1 − pϵ,
+
+2 Ht θt w.p. pϵ,
+
+(22) where pϵ = 0 .05 . 
+
+> Figure 3. The left panel shows a sample path using the Student variant and the right panel shows a sample path using the mixture variant. The top left figure on each panel shows the true underlying state in black, and the measurements as grey dots.
+
+Results Figure 3 shows a sample of each variant along with the filtered state for each method. For the Student variant (left panel), the WoLF-IMQ and the WoLF-TMD 
+
+estimate the true state more closely than the competing methods. Both the KF-IW and the KF-B look comparable 6Outlier-robust Kalman Filtering through Generalised Bayes 
+
+to the KF , which are not robust to outliers. For the mix-ture variant (right panel), 3 we see that the WoLF-IMQ , the 
+
+WoLF-TMD , and the KF-B filter the true state correctly. In contrast, the KF-IW and the KF are not robust to outliers. 4  
+
+> Figure 4. Distribution (across 500 2d tracking trials) of RMSE for first component of the state vector, JT, 0. Left panel: Student observation model. Right panel: Mixture observation model.
+
+The results in Figure 3 hold for multiple trials as shown in Figure 4, which plots the distribution of the errors in the first component of the state vector. The heavy tail of the 
+
+WoLF-TMD on the mixture observations variant, and the distribution of JT,k for all k are studied in Appendix E.2.1. Method Student Mixture 
+
+KF-B 2.0x 3.7x 
+
+KF-IW 1.2x 5.3x 
+
+WoLF-IMQ (ours) 1.0x 1.0x 
+
+WoLF-TMD (ours) 1.0x 1.0x   
+
+> Table 2. Mean slowdown rate over KF .
+
+Table 2 shows the median slowdown (in running time) to process the measurements relative to the KF . The slowdown for method X is obtained diving the running time of method 
+
+X over the running time of the KF . Under the Student vari-ant, the WoLF-IMQ , the WoLF-TMD , and the KF-IW have similar running time to the KF . In contrast, the KF-B takes twice the amount of time. Under the mixture variant, the 
+
+KF-B and the KF-IW are almost four times and five times slower than the KF respectively. The changes in slowdown   
+
+> 3The top left figure in the right panel is cropped, see Figure 13 for the uncropped version.
+> 4KF-B removes outliers that bear no information according to some criterion, but in the Student-t case, it fails. KF-IW , on the other hand, estimates a measurement covariance rather than the dispersion of such a measurement covariance. In this sense, it is misspecified in both cases.
+
+rate are due the number of inner iterations that were chosen during the first trial. 
+
+4.2. Robust EKF for online MLP regression (UCI) 
+
+In this section, we benchmark the methods using a corrupted version of the tabular UCI regression datasets. 5 Similar to other papers that deal with non-linear online learning (see, e.g. Chang et al., 2023), we consider a single-hidden-layer multi-layered perceptron (MLP) with twenty hidden units and a real-valued output unit. In this experiment, the state dimension (number of parameters in the MLP) is 
+
+m = ( nin × 20 + 20) + (20 × 1 + 1) , where nin is the dimen-sion of the feature xt.6 One of the main advantages of using a Bayesian filtering method for fitting neural networks (com-pared to using OGD ) is the ability to handle non-stationary distributions (see e.g. Chang et al., 2023). Below, we take a static state (see e.g. Lambert et al., 2021), so that the prior predictive mean is μt|t−1 = μt−1. In Appendix E.3 we study online learning with non-stationary environments. Each trial is carried out as follows: first, we randomly shuf-fle the rows in the dataset; second, we divide the dataset into a warmup dataset (10% of rows) and a corrupted dataset (remaining 90% of rows); third, we normalise the corrupted dataset using min-max normalisation from the warmup dataset; fourth, with probability pϵ = 0 .1, we re-place a measurement yt ∈ R with a corrupted data point 
+
+ut ∼ U [−50 , 50] ; and fifth, we run each method on the corrupted dataset. For each dataset and for each method, we evaluate the prior predictive RMedSE =
+
+q
+
+median {(yt − ht(μt|t−1)) 2}Tt=1 ,which is the squared root of the median squared error between the measurement yt and the prior predictive 
+
+ht(μt|t−1) = h(μt|t−1, xt).7 Here, h is the MLP. We also evaluate the average time step of each method, i.e., we run each method and divide the total running time by the number of samples in the corrupted dataset. 
+
+Results Figure 5 shows the percentage change of the RMedSE and the percentage change of running time with respect to those of the OGD for all corrupted UCI datsets. Given the computational complexity of the remaining meth-ods, ideally, a robust Bayesian alternative to the OGD should be as much to the left as possible on the x-axis (rel. time step) and as low as possible on the y-axis (rel. RMedSE). We observe that the WoLF-IMQ and the WoLF-TMD have both of these traits. In particular, we observe that the only two points in the third quadrant are those of the WoLF-IMQ        
+
+> 5The dataset is available at https://github.com/ yaringal/DropoutUncertaintyExps .
+> 6See Table 3 for the values that nin takes for each dataset.
+> 7We use median instead of mean because we have outliers in measurement space.
+
+7Outlier-robust Kalman Filtering through Generalised Bayes    
+
+> Figure 5. RMedSE versus time per step (relative to the OGD minus
+> 1) across the corrupted UCI datasets.
+
+and the WoLF-TMD . Note that the EKF-IW and the EKF-B 
+
+have much higher relative running time and the EKF has much higher relative RMedSE. 
+
+4.3. Robust EnKF for Lorenz96 model 
+
+We consider a modified version of the Lorenz96 model that is commonly used to simulate the atmosphere (see e.g. Lorenz, 2006; Arnold et al., 2013) For a fixed ∆ > 0, the SSM is given by 
+
+θt+∆ ,i − θt,i 
+
+∆ =
+
+
+
+θt,i +1 − θt,i −2
+
+
+
+θt,i −1 − θt,i + ϕt,i ,
+
+yt,i =
+
+(
+
+θt,i + φt,i w.p. 1 − pϵ,
+
+100 w.p. pϵ.
+
+(23) Here, θt,k is the value of the state component k at step t,
+
+ϕt,i ∼ N (8 , 1) , φt,i ∼ N (0 , 1) , pϵ = 0 .001 , i = 1 , . . . , d ,
+
+t = 1 , . . . , T , with T ≫ 1 the number of steps, and we use the convention θt,d +k = θt,k , θt, −k = θt,d −k. Similar to Roth et al. (2017a), we integrate the state process in (23) to match the formulation in (1) using the Runge-Kutta-4 (RK4) procedure with discretisation step ∆ = 0 .05 , integrated over T = 10 3 steps, N = 1 , 000 number of particles, and 
+
+d = m = 100 . A run of the state process is shown in Figure 6. Note that the probability of an outlier happening on any state component at any timestep is pϵ × d = 0 .1.In this experiment, EnKF is the baseline. As in Roth et al. (2017b), we use the metric Lt =
+
+q 1 
+
+> d
+
+(θt − μt)⊺(θt − μt)
+
+to measure the in-state RMSE. 
+
+Results An evaluation of Lt for the EnKF , the AP-EnKF ,the PP-EnKF , and the Hub-EnKF is shown in the top row of Figure 7. The grey vertical lines denote timesteps where an outlier event happened, i.e., at least one entry of yt is 100 .           
+
+> Figure 6. Sample of the Lorenz process with d= 40 . Here, the “waves” move westward. The red dots represent where measure-ment outliers occur. We take pϵ= 0 .01 and ∆ = 0 .05 integrated over T= 60 steps.
+
+The top plot shows that the Hub-EnKF and AP-EnKF have an almost-identical behaviour. However, the bottom row of Figure 7 shows that the AP-EnKF and the PP-EnKF are more robust to the choice of threshold c compared to the 
+
+Hub-EnKF . This is because the Hub-EnKF makes updates with outlier observations clipped at c, whereas WoLF-like methods disregard error measurements above c. We present the results of the EnKF when the number of particles is less than the number of state components in Appendix E.2.3. In the experiment, we modify the algorithms to make use of the covariance inflation correction first proposed by Anderson (1999). The conclusions from this section extend to the covariance inflation case. 
+
+## 5. Conclusion 
+
+We introduced a provably robust filtering algorithm based on generalised Bayes which we call the weighted observation likelihood filter or WoLF. Our algorithm is as fast as the KF, has closed-form update equations, and is straightforward to apply to various filtering methods. The superior perfor-mance of the WoLF is shown on a wide range of filtering problems. In contrast, alternative robust methods either have higher computational complexity than the WoLF, or similar computational complexity but not higher performance. Future work will investigate how to overcome the limita-tions of our approach. For example, (i) not being robust to outliers in the state-process, (ii) the assumption of a known covariance Rt, (iii) the assumption of known dynamics for the covariance Qt, and (iv) the assumption of a unimodal posterior. 8Outlier-robust Kalman Filtering through Generalised Bayes         
+
+> Figure 7. The top row shows a sample run of the EnKF , the
+> AP-EnKF , the PP-EnKF , and the Hub-EnKF ; outlier events are shown in grey vertical bars. The bottom row shows the bootstrap estimate of LTover 20 runs and 500 bootstrapped samples as a function of the chyperparameter.
+
+## Acknowledgements 
+
+JK and FXB were supported by the EPSRC grant [EP/Y011805/1]. 
+
+## Impact statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+## References 
+
+Agamennoni, G., Nieto, J. I., and Nebot, E. M. Approximate inference in state-space models with heavy-tailed noise. 
+
+IEEE Transactions on Signal Processing , 2012. Agee, W. S., Dunn, B. A., and NM, W. S. M. R. Robust filtering and smoothing via gaussian mixtures. NTIS, SPRINGFIELD, VA, 1980, 34 , 1980. Alquier, P. and Ridgway, J. Concentration of tempered posteriors and of their variational approximations. 2020. Altamirano, M., Briol, F.-X., and Knoblauch, J. Robust and scalable Bayesian online changepoint detection. In 
+
+International Conference on Machine Learning , 2023a. Altamirano, M., Briol, F.-X., and Knoblauch, J. Robust and conjugate Gaussian process regression. 
+
+arXiv:2311.00463 , 2023b. Anderson, J. L. A monte carlo implementation of the nonlin-ear filtering problem to produce ensemble assimilations and forecasts. Monthly weather review , 127(12):2741– 2758, 1999. Arnold, H., Moroz, I., and Palmer, T. Stochastic parametriza-tions and model uncertainty in the Lorenz’96 system. 
+
+Philosophical Transactions of the Royal Society A: Math-ematical, Physical and Engineering Sciences , 371(1991): 20110479, 2013. Arroyo, A., Cartea, A., Moreno-Pino, F., and Zohren, S. Deep attentive survival analysis in limit order books: Esti-mating fill probabilities with convolutional-transformers. 
+
+Quantitative Finance , pp. 1–23, 2024. Barp, A., Briol, F.-X., Duncan, A. B., Girolami, M., and Mackey, L. Minimum Stein discrepancy estimators. In Neural Information Processing Systems , pp. 12964– 12976, 2019. Bencomo, G. M., Snell, J. C., and Griffiths, T. L. Implicit maximum a posteriori filtering via adaptive optimization. 
+
+arXiv:2311.10580 , 2023. Bhattacharya, A., Pati, D., and Yang, Y. Bayesian fractional posteriors. 2019. Bishop, C. M. Pattern Recognition and Machine Learning (Information Science and Statistics) . Springer-Verlag, 2006. Bissiri, P. G., Holmes, C. C., and Walker, S. G. A general framework for updating belief distributions. Journal of the Royal Statistical Society Series B: Statistical Method-ology , 78(5):1103–1130, 2016. Boncelet, C. G. and Dickinson, B. W. An approach to robust Kalman filtering. In IEEE Conference on Decision and Control , pp. 304–305, 1983. Boustati, A., Akyildiz, O. D., Damoulas, T., and Johansen, A. Generalised Bayesian filtering via sequential monte carlo. Advances in neural information processing systems ,33:418–429, 2020. 9Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Bradbury, J., Frostig, R., Hawkins, P., Johnson, M. J., Leary, C., Maclaurin, D., Necula, G., Paszke, A., VanderPlas, J., Wanderman-Milne, S., and Zhang, Q. JAX: composable transformations of Python+NumPy programs, 2018. URL 
+
+http://github.com/google/jax .Burgers, G., Van Leeuwen, P. J., and Evensen, G. Analysis scheme in the ensemble Kalman filter. Monthly weather review , 126(6):1719–1724, 1998. Calvet, L. E., Czellar, V., and Ronchetti, E. Robust filtering. 
+
+Journal of the American Statistical Association , 110(512): 1591–1606, 2015. Cao, W., Liu, C., Lan, Z., Li, S. E., Pan, W., and Alessan-dri, A. Robust bayesian inference for moving horizon estimation. arXiv preprint arXiv:2210.02166 , 2022. Cartea, Á., Duran-Martin, G., and Sánchez-Betancourt, L. Detecting toxic flow. arXiv:2312.05827 , 2023. Chang, P. G., Duran-Martin, G., Shestopaloff, A. Y., Jones, M., and Murphy, K. Low-rank extended Kalman filtering for online learning of neural networks from streaming data. In Conference on Lifelong Learning Agents , 2023. Chen, W. Y., Barp, A., Briol, F.-X., Gorham, J., Girolami, M., Mackey, L., and Oates, C. Stein point markov chain Monte Carlo. In International Conference on Machine Learning , pp. 1011–1021, 2019. Das, S. Robust state estimation methods for robotics appli-cations . PhD thesis, West Virginia University, 2023. Detommaso, G., Cui, T., Marzouk, Y., Spantini, A., and Scheichl, R. A Stein variational newton method. Ad-vances in Neural Information Processing Systems , 2018. Dewaskar, M., Tosh, C., Knoblauch, J., and Dunson, D. B. Robustifying likelihoods by optimistically re-weighting data. arXiv:2303.10525 , 2023. Duran-Martin, G., Kara, A., and Murphy, K. Efficient online Bayesian inference for neural bandits. In International Conference on Artificial Intelligence and Statistics , 2022. Evensen, G. Sequential data assimilation with a nonlinear quasi-geostrophic model using monte carlo methods to forecast error statistics. Journal of Geophysical Research: Oceans , 99(C5):10143–10162, 1994. Evensen, G. Data Assimilation: The Ensemble Kalman Filter . Springer, 2nd ed. 2009 edition edition, 2009. Fong, E., Holmes, C., and Walker, S. G. Martingale poste-rior distributions. arXiv:2103.15671 , 2021. Frazier, P. I. A tutorial on Bayesian optimization. 
+
+arXiv:1807.02811 , 2018. Ghosh, S., Delle Fave, F. M., and Yedidia, J. Assumed density filtering methods for learning Bayesian neural networks. In Conference on Artificial Intelligence and Interactive Digital Entertainment , 2016. Grubbs, F. E. Procedures for detecting outlying observations in samples. Technometrics , pp. 1–21, 1969. Grünwald, P. The safe Bayesian. In International Con-ference on Algorithmic Learning Theory , pp. 169–183, 2012. Grünwald, P. and van Ommen, T. Inconsistency of Bayesian inference for misspecified linear models, and a proposal for repairing it. Bayesian Analysis , 12(4):1069 – 1103, 2017. Hampel, F. R., Ronchetti, E. M., Rousseeuw, P. J., and Stahel, W. A. Robust statistics: the approach based on influence functions . John Wiley & Sons, 2011. Holmes, C. C. and Walker, S. G. Assigning a value to a power likelihood in a general Bayesian model. 
+
+Biometrika , 104(2):497–503, 2017. Horn, R. A. and Johnson, C. R. Matrix analysis . Cambridge university press, 2012. Huang, Y., Zhang, Y., Li, N., and Chambers, J. A robust Gaussian approximate filter for nonlinear systems with heavy tailed measurement noises. In IEEE International Conference on Acoustics, Speech and Signal Processing ,pp. 4209–4213, 2016. Huber, P. J. Robust statistics. Wiley Series in Probability and Mathematical Statistics , 1981. Husain, H. and Knoblauch, J. Adversarial interpretation of Bayesian inference. In International Conference on Algorithmic Learning Theory , pp. 553–572. PMLR, 2022. Jewson, J. and Rossell, D. General Bayesian loss function selection and the use of improper models. Journal of the Royal Statistical Society Series B: Statistical Methodol-ogy , pp. 1640–1665, 2022. Jewson, J., Smith, J. Q., and Holmes, C. Principled Bayesian minimum divergence inference. Entropy , pp. 442, 2018. Kalman, R. E. A new approach to linear filtering and predic-tion problems. Journal of Basic Engineering , 82(Series D):35–45, 1960. Karlgaard, C. D. Nonlinear regression Huber–Kalman fil-tering and fixed-interval smoothing. Journal of guidance, control, and dynamics , 38(2):322–330, 2015. 10 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Khan, M. E. and Rue, H. The bayesian learning rule. 
+
+Journal of Machine Learning Research , 24(281):1– 46, 2023. URL http://jmlr.org/papers/v24/ 22-0291.html .Kingma, D. P. and Ba, J. Adam: A method for stochastic optimization, 2017. Knoblauch, J., Jewson, J. E., and Damoulas, T. Doubly ro-bust bayesian inference for non-stationary streaming data with beta -divergences. Advances in Neural Information Processing Systems , 31, 2018. Knoblauch, J., Jewson, J., and Damoulas, T. An optimization-centric view on Bayes’ rule: Reviewing and generalizing variational inference. Journal of Machine Learning Research , 23(132):1–109, 2022. Lambert, M., Bonnabel, S., and Bach, F. The recursive variational Gaussian approximation (R-VGA). Statistics and Computing. , 32(1):10, 2021. Lambert, M., Bonnabel, S., and Bach, F. The limited-memory recursive variational Gaussian approximation (L-RVGA). Statistics and Computing , 33(70), 2023. doi: 10.1007/s11222-023-10239-x. URL https://inria. hal.science/hal-03501920 .Lin, W., Khan, M. E., and Schmidt, M. Fast and simple Natural-Gradient variational inference with mixture of exponential-family approximations. In ICML , June 2019. URL http://arxiv.org/abs/1906.02914 .Liu, G. Data quality problems troubling business and fi-nancial researchers: A literature review and synthetic analysis. Journal of Business & Finance Librarianship ,25(3-4):315–371, 2020. Lorenz, E. N. Predictability – a problem partly solved , pp. 40–58. Cambridge University Press, 2006. Masreliez, C. Approximate non-gaussian filtering with linear state and observation relations. IEEE Transactions on Automatic Control , 20(1):107–110, 1975. Masreliez, C. and Martin, R. Robust bayesian estimation for the linear model and robustifying the kalman filter. 
+
+IEEE transactions on Automatic Control , 22(3):361–371, 1977. Matsubara, T., Knoblauch, J., Briol, F.-X., and Oates, C. J. Robust generalised Bayesian inference for intractable likelihoods. Journal of the Royal Statistical Society: Se-ries B , 84(3):997–1022, 2022. Matsubara, T., Knoblauch, J., Briol, F.-X., and Oates, C. J. Generalized Bayesian inference for discrete intractable likelihood. Journal of the American Statistical Associa-tion , pp. 1–11, 2023. Meyr, H. and Spies, G. The structure and performance of estimators for real-time estimation of randomly varying time delay. IEEE transactions on acoustics, speech, and signal processing , 32(1):81–94, 1984. Miller, J. W. and Dunson, D. B. Robust Bayesian infer-ence via coarsening. Journal of the American Statistical Association , 2018. Morris, J. The Kalman filter: A robust estimator for some classes of linear quadratic problems. IEEE Transactions on Information Theory , 22(5):526–534, 1976. Mu, H.-Q. and Yuen, K.-V. Novel outlier-resistant extended Kalman filter for robust online structural identification. 
+
+Journal of Engineering Mechanics , 141(1):04014100, 2015. Murphy, K. P. Probabilistic Machine Learning: Advanced Topics . MIT Press, 2023. Nogueira, F. Bayesian Optimization: Open source constrained global optimization tool for Python, 2014. URL https://github.com/fmfn/ BayesianOptimization .Nurminen, H., Ardeshiri, T., Piché, R., and Gustafsson, F. Robust inference for state-space models with skewed measurement noise. IEEE Signal Processing Letters , 22 (11):1898–1902, 2015. Ollivier, Y. Online natural gradient as a Kalman filter. Elec-tronic Journal of Statistics , 12(2):2930–2961, 2018. Piché, R., Särkkä, S., and Hartikainen, J. Recursive outlier-robust filtering and smoothing for nonlinear systems us-ing the multivariate student-t distribution. In IEEE In-ternational Workshop on Machine Learning for Signal Processing , pp. 1–6, 2012. Riabiz, M., Chen, W., Cockayne, J., Swietach, P., Niederer, S. A., Mackey, L., and Oates, C. J. Optimal thinning of MCMC output. arXiv:2005.03952 , 2022. Roh, S., Genton, M. G., Jun, M., Szunyogh, I., and Hoteit, I. Observation quality control with a robust ensemble Kalman filter. Monthly Weather Review , 141(12):4414– 4428, 2013. Roth, M., Hendeby, G., Fritsche, C., and Gustafsson, F. The ensemble Kalman filter: a signal processing perspective. 
+
+Journal on Advances in Signal Processing , 2017:1–16, 2017a. Roth, M., Hendeby, G., Fritsche, C., and Gustafsson, F. The ensemble Kalman filter: a signal processing perspective. 
+
+EURASIP Journal on Advances in Signal Processing , pp. 1–16, 2017b. 11 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Sarkka, S. and Svensson, L. Bayesian Filtering and Smooth-ing (2nd edition) . Cambridge University Press, 2023. Schick, I. C. and Mitter, S. K. Robust recursive estimation in the presence of heavy-tailed observation noise. The annals of statistics , 22(2):1045–1080, 1994. Ting, J.-A., Theodorou, E., and Schaal, S. Learning an outlier-robust kalman filter. In European Conference on Machine Learning , pp. 748–756. Springer, 2007. Wang, H., Li, H., Fang, J., and Wang, H. Robust Gaus-sian Kalman filter with outlier detection. IEEE Signal Processing Letters , 25(8):1236–1240, 2018. West, M. Robust sequential approximate bayesian estima-tion. Journal of the Royal Statistical Society Series B: Statistical Methodology , 43(2):157–166, 1981. 12 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+# Supplementary Materials 
+
+The Appendix is structured as follows. Appendix A provides an overview of outlier-robust filtering methods. Appendix B derives the WoLF-MD method from a maximum-a-posteriori (MAP) estimate perspective. Appendix C collects proofs; more precisely, Appendix C.1 proves Proposition 3.1 and Appendix C.2 proves Theorem 3.2. We also show robustness for the IMQ, MD, and TMD weighting functions. Next, in Appendix D, we discuss the exponential-family, multi-output weighting function, and EnKF extensions to the WoLF. Finally, in Appendix E, we investigate the 2d tracking problem of Section 4.1 in more detail; we conduct robustness checks and we introduce an additional experiment for corrupted non-linear non-stationary learning. 
+
+## A. Background on existing robust filters and related methods 
+
+Robust Bayesian filtering and the minimum variance estimator dates back to Masreliez (1975) and Masreliez & Martin (1977). These methods propose a modified KF-recursion for the linear SSM written in terms of the score function of the measurement prior predictive. In these early works, inference relies on Monte Carlo. West (1981) follows these earlier works and proposes KF-like updates for non-normal measurement models. That paper also studies whether several popular likelihood functions are robust in the sense of “ignoring outliers” — the analysis includes the Student-t, power exponential, Huber, logistic, and stable-law likelihoods. For the case of Student-t likelihood with one degree of freedom (i.e., Cauchy) and linear dynamics, the update equation for the posterior mean derived in West (1981) is equivalent to ours when using IMQ weights. However, the approach taken in West (1981) cannot recover our TMD scheme, due to being tied to a given choice of measurement model. Furthermore, West (1981) does not provide a theoretical foundation to use their approach in non-linear measurement models. The work in Meyr & Spies (1984) proposes a scheme to eliminate observations that a KF procedure labels as outliers. Their methodology relies on a “secondary decision system” which checks for discrepancies between the predicted mean and the observation, eliminating observations with high discrepancies. This scheme is analogous to the TMD scheme, however, it is not shown to be provably robust. Another alternative to robustify measurement models against outliers is the work in Agee et al. (1980). Their paper introduces Gaussian-mixture models for robust filtering and smoothing. Their inference method is based on particle filtering. To the best of our knowledge, the first work that proposes robust filtering in the context of robust statistics is Calvet et al. (2015). Their robust filter follows Masreliez & Martin (1977) and is based on a “Huberisation” of the derivative of the log-measurement density (score function), which then they integrate. See Schick & Mitter (1994) for a comprehensive review of classical robust-KF methods for linear SSMs. Recently proposed provably-robust methods include the work by Boustati et al. (2020) and Cao et al. (2022). Finally, we discuss similarities and differences with the Bayesian learning rule (BLR) line of work by Khan & Rue (2023). BLR also allows the replacing of the likelihood with a loss function, but that loss depends only on the parameter and the observation, i.e., BLR uses ℓt(θ) = L(yt, f t(θ)) , with L : Rd × Rd a loss function. By contrast, our loss depends on the weight Wt, which in turn depends on the belief state, via ˆyt = ft(μt|t−1), which in turn is a function of all the past data, i.e., our loss has the form ℓt(θ) = L(y1: t, f t(θ)) . In addition, WoLF is designed for the online inference setting, whereas BLR, at least in its standard form, is designed for offline inference. Finally, note that the exponential family extension of BLR Lin et al. (2019) has also been proposed as a way to get robustness by using scale mixture posteriors. However, this induces robustness in parameter space, whereas we focus on robustness in observation space. In particular, the weighting term for the BLR mixture model depends on the distance in parameter space, θt − μt, whereas ours depends on the difference in observation space, yt − ˆyt.
+
+A.1. Variational-based methods 
+
+In this section, we provide an overview of variational-Bayes (VB) robust filtering methods. As above, θt is the state vector of interest and Ψt are additional state parameters. Given the SSM (1) and measurement model p(yt|θt, Ψt), VB-based 13 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+methods seek an approximate posterior distribution over the extended state process Φt = ( θt, Ψt) that factorises as 
+
+q(Φt) = 
+
+> K
+
+Y
+
+> k=1
+
+q(Φt,k ), (24) with Φt = ( Φt, 1, . . . , Φt,K ), and K the number of collections. It can be shown that the log-density q∗ that minimises the KL divergence between the true posterior distribution and the variational distribution is given by 
+
+log q∗(Φt,k ) = E¬k [log p(yt, Φt)] + C, (25) where C is the normalising constant of q∗, and the notation E¬k [·] denotes the conditional expectation given all elements in Φt except from Φt,k . See Section 10.1.1 in Bishop (2006) for details. Below, we discuss the robust VB-based filtering variants we use in the paper. 
+
+A.2. KF-IW method of Agamennoni et al. (2012) 
+
+Agamennoni et al. (2012) extend the state-space to be Ψt = ( θt, Rt), where Rt is the measurement covariance. Note that the classical KF setting, Rt is known. The SSM is of the form 
+
+p(θt|θt−1) = N (θt | Ftθt−1, Qt),p(Rt) = W−1(Rt | νΛ, ν ),p(yt|θt, Rt) = N (yt | Htθt, Rt),
+
+(26) where W−1(·| P, η ) is the density of an inverse Wishart distribution with positive-definite scale matrix P ∈ Rm×m,
+
+η > m − 1 degrees of freedom, and ν > 0 is the noise-scaling hyperparameter. They consider the class of variational distributions 
+
+q(¯θ, ¯R) = q(θ0)q(R0)
+
+> T
+
+Y
+
+> t=1
+
+q(θt|θt−1)q(Rt), (27) with ¯θ = ( θ0, . . . , θT ) and ¯R = ( R0, . . . , RT ). They show that the class of VB posteriors (25) , under the model in (26) and (27), take the form 
+
+q(θt|θt−1) = N (θt | μt, Σt), (28) 
+
+q(Rt) = W−1(Rt|νtΛt, ν t), (29) with μt, Σt, Λt, and νt specified in Algorithm 2. In this method the hyperparameters are the number of iterations I and the 
+
+Algorithm 2 Agamennoni et al. (2012) predict and update step for i.i.d. noise with I ≥ 1 inner iterations. 
+
+Require: Ft, Qt, μt−1, Σt−1 // predict step 
+
+μt|t−1 ← Ft μt−1
+
+Σt|t−1 ← Ft Σt−1 F⊺ 
+
+> t
+
++ Qt
+
+μt, Σt ← μt|t−1, Σt|t−1
+
+Require: yt, Ht, Rt, ℓ ∈ R+ // update step 
+
+for i = 1 , . . . , I do 
+
+St ← (yt − Ht μt)( yt − Ht μt)⊺ + H⊺ 
+
+> t
+
+Σt Ht
+
+Λt ← (ℓ + 1) −1(ℓ R0 + St)
+
+Kt ← (Ht Σt|t−1Ht + Λt)−1H⊺ 
+
+> t
+
+Σt|t−1
+
+μt ← μt|t−1 + K⊺ 
+
+> t
+
+(yt − H⊺ 
+
+> t
+
+μt|t−1)
+
+Σt ← K⊺ 
+
+> t
+
+Λt Kt + ( I − Ht Kt)⊺ Σt|t−1(I − Ht Kt)
+
+end for 
+
+scaling term ℓ. The prior measurement covariance is R0.14 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+A.3. KF-B method of Wang et al. (2018) 
+
+Wang et al. (2018) extend the state-space to be Ψt = ( θt, ξ t, w t), where wt is an outlier event and ξt is its probability. The SSM is of the form: 
+
+p(θt|θt−1) = N (θt | Ftθt−1, Qt),p(ξt) = Beta (ξt|α0, β 0),p(ρt|ξt) = Bern (ρt|ξt),p(yt|θt, Rtρt) = 
+
+(
+
+N (yt | ht(θt), Rt) if ρt = 1 ,
+
+1 if ρt = 0 .
+
+(30) In the above equations, Beta (·| a, b ) is the density of a Beta distribution with shape parameters a and b, and Bern (·| π) is the mass of a Bernoulli random variable with parameter π ∈ [0 , 1] . They consider the class of variational distributions 
+
+q(¯θ, ¯ρ, ¯ξ) = q(θ0)q(ρ0)q(ξ0)
+
+> T
+
+Y
+
+> t=1
+
+q(θt|θt−1)q(ρt)q(ξt), (31) with ¯θ = ( θ0, . . . , θT ), ¯ρ = ( ρ0, . . . , ρ T ), ¯ξ = ( ξ0, . . . , ξ T ). We provide the the predict and update equations in Algorithm 3. Here, the hyperparameters are the prior rates α0 and β0, and the number of inner iterations I, Ψ( ·) is the digamma 
+
+Algorithm 3 Wang et al. (2018) predict and update step with I ≥ 1 inner iterations. 
+
+Require: α0, β 0, μt−1, Σt−1
+
+Require: Ft, Qt // predict step 
+
+μt|t−1 ← Ft μt−1
+
+Σt|t−1 ← Ft Σt−1 F⊺ 
+
+> t
+
++ Qt
+
+μt, Σt ← μt|t−1, Σt|t−1
+
+Require: yt, Ht, Rt, tol. ≪ 1 // update step 
+
+ρt, α ′, β ′ ← 1, α 0, β 0
+
+for i = 1 , . . . , I do if ρϵ < tol. then 
+
+μt ← μt|t−1
+
+Σt ← Σt|− 1
+
+else 
+
+¯Rt ← R/ρ t
+
+ˆyt ← Ht μt|t−1
+
+Σ−1 
+
+> t
+
+← Σ−1 
+
+> t|t−1
+
++ H⊤ 
+
+> t
+
+¯R−1 
+
+> t
+
+Ht
+
+Kt ← Σt H⊺ 
+
+> t
+
+¯R−1
+
+> t
+
+μt ← μt|t−1 + Kt (yt − ˆyt)
+
+end if 
+
+Bt ← Eθ∼N (μt,Σt) [( yt − ht(θ)( yt − ht(θ)) ⊺]log ¯ πt ← Ψ( α′) − Ψ( α′ + β′ + 1) log(1 − ¯πt) ← Ψ( β′ + 1) − Ψ( α′ + β′ + 1) 
+
+ρt ← exp(log ¯ πt−Tr (BtR−1  
+
+> t)/2) exp(log ¯ πt−Tr (BtR−1
+> t)/2)+exp(log(1 −¯πt))
+
+α′ ← α0 + ρt
+
+β′ ← β0 + 1 − ρt
+
+end for 
+
+function, and Bt is of closed form after linearising the measurement function. 15 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+A.4. Ting et al. (2007) 
+
+Ting et al. (2007) extend the state-space to be Ψt = ( θt, w t), where wt is a weighting term for the observation covariance 
+
+R. In their method, R is known and fixed. The SSM is of the form: 
+
+p(θt|θt−1) = N (θt | Fθt−1, Q),p(wt) = Gam( wt|aw, b w),p(yt|θt) = N (yt | Hθt, R/w t),
+
+(32) for a diagonal dynamics covariance Q, aw, b w > 0, and diagonal observation covariance R. They consider the class of variational distributions 
+
+q( ¯ w, ¯θ) = q(θ0)
+
+> T
+
+Y
+
+> t=1
+
+q(θt|θt−1)q(wt), (33) with ¯θ = ( θ0, . . . , θT ) and ¯w = ( w0, . . . , w T ). They show, for known F, H, Q, and R, that the variational distributions are of the form 
+
+q(θt|θt−1) = N (θt|μt, Σt), (34) 
+
+q(wt) = Gam (wt|aw,t , b w,t ), (35) where 
+
+aw,t = aw + 12 ,bw,t = bw + Eθ∼N (μt,Σt)[( yt − Hθ)⊺R−1(yt − Hθ)] ,
+
+Σ−1 
+
+> t
+
+= Q−1 + vtH⊺R−1H,
+
+Kt = ΣtH⊺R−1,
+
+μt = Fμt−1vt Kt(xt − HF μt−1),vt = aw,t + 12
+
+bw,t + Eθ∼N (μt,Σt)[( yt − Hθ)⊺R−1(yt − Hθ)] .
+
+(36) Their method assumes no prior knowledge of either the measurement matrix H or the projection matrix F. These are estimated using the EM algorithm. Assuming known H and F — as we do in this paper — allows us to bypass the M-step. However, this is detrimental to their approach since no information about the posterior covariance is propagated forward. 
+
+A.5. Huang et al. (2016) 
+
+Huang et al. (2016) extend the state-space to be Ψt = ( θt, Rt, ν t, w t), where Rt is the measurement covariance, wt is a weighting term for the measurement covariance, and νt are the degrees of freedom for the weighting term. The SSM takes the form: 
+
+p(θt|θt−1) = N (θt | ft(θt−1), Qt),p(νt) = Gam( νt | at, b t),p(wt) = Gam( λt|νt/2, ν t/2) ,p(Rt) = W−1(Rt | Λt, u t),p(yt|θt, Rt) = N (yt | ht(θt), Rt/w t),
+
+(37) with Qt = diag (qt, 1, . . . , q t,D ). Note that their method combines the SSMs in Ting et al. (2007) and Agamennoni et al. (2012). 
+
+## B. WoLF-MD as a MAP estimator 
+
+In this section we show how to derive WoLF-MD as a MAP estimator. This is an alternative derivation that circumvents the use of generalised Bayes. 16 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+B.1. Deriving the Mahalanobis IMQ term 
+
+Consider the modified observation model of (32): 
+
+p(wt) = Gam( wt|α, β ), (38) 
+
+p(yt|ˆyt) = N (yt|ˆyt, w −1 
+
+> t
+
+Rt), (39) with ˆyt = Htμt|t−1 known at time t, and α, β > 0. The posterior on wt is 
+
+p(wt|yt) ∝ wα−1 
+
+> t
+
+e−βw t wtR−1 
+
+> t
+> 1/2
+
+exp 
+
+
+
+− 12 e⊤ 
+
+> t
+
+wtR−1 
+
+> t
+
+et
+
+
+
+(40) 
+
+∝ Gam 
+
+
+
+wt|α + ny
+
+2 , β + 12 ∥et∥2
+
+> R−1
+> t
+
+
+
+, (41) where et = yt − ˆyt and ∥v∥A = A1/2v 2 is the Mahalanobis distance. The maximum-a-posteriori (MAP) estimate for 
+
+wt is 
+
+Wt = argmax 
+
+> wt∈R+
+
+p(wt|yt) = α + ny 
+
+> 2
+
+− 1
+
+β + 12 ∥et∥2
+
+> R−1
+> t
+
+. (42) For a given c ∈ R, take the hyperparameters α and β to be 
+
+α = c2 − ny + 2 2 , β = c2
+
+2 , (43) where ny is the number of measurements. We obtain 
+
+wt = 1 + ∥et∥2
+
+> R−1
+> t
+
+c2
+
+!−1/2
+
+. (44) This is the Mahalanobis-based IMQ weighting function (18) . Substituting the MAP estimate back into the observation model yields the weighted loglikelihood approximation 
+
+log p (yt|ˆyt) ≈ w2 
+
+> t
+
+log N (yt|ˆyt, Rt) . (45) 
+
+B.2. Prior Uncertainty 
+
+In this section, we take the measurement mean to be the output of a predictive model ¯yt with unknown parameter θt. We let 
+
+p (θt|y1: t−1) = N  θt|μt|t−1, Σt|t−1
+
+ , (46) 
+
+p (yt|θt, w t) = N  yt|¯yt, w −1 
+
+> t
+
+Rt
+
+ , (47) where ¯yt is given by (11). The joint posterior is 
+
+p (θt, w t|y1: t) ∝ wα−1 
+
+> t
+
+e−βw t exp 
+
+
+
+− 12
+
+ θt − μt|t−1
+
+⊤ Σ−1
+
+> t|t−1
+
+ θt − μt|t−1
+
+
+
+× wtR−1 
+
+> t
+> 1/2
+
+exp 
+
+
+
+− 12 (yt − ¯yt)⊤ wtR−1 
+
+> t
+
+(yt − ¯yt)
+
+
+
+∝ wα−1+ ny /2 
+
+> t
+
+exp − 12 θt − μt|t−1 −
+
+
+
+Σ−1 
+
+> t|t−1
+
++ wtH⊤ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+−1
+
+wtH⊤ 
+
+> t
+
+R−1 
+
+> t
+
+et  
+
+> 2
+> Σ−1
+> t|t−1+wtH⊤
+> tR−1
+> tHt
+
+!
+
+× exp 
+
+
+
+−βw t − 12 e⊤
+
+> t
+
+ w−1 
+
+> t
+
+Rt + HtΣt|t−1H⊤
+
+> t
+
+−1 et
+
+
+
+.
+
+where the notation || x|| A means x⊺ A−1 x. Then, the marginal for wt can be written as 
+
+p (wt|y1: t) ∝ wα−1+ ny /2 
+
+> t
+
+Σ−1 
+
+> t|t−1
+
++ wtH⊤ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+> −1/2
+
+exp 
+
+
+
+−βw t − 12 e⊤
+
+> t
+
+ w−1 
+
+> t
+
+Rt + HtΣt|t−1H⊤
+
+> t
+
+−1 et
+
+
+
+. (48) 17 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+By taking the limit Σt|t−1 → 0, equation (48) becomes 
+
+lim  
+
+> Σt|t−1→0
+
+p (wt|y1: t) ∝ wα−1+ ny /2 
+
+> t
+
+exp 
+
+
+
+−βw t − 12 e⊤ 
+
+> t
+
+R−1 
+
+> t
+
+etwt
+
+
+
+, (49) with maximum at 
+
+w∗ 
+
+> t
+
+= argmax 
+
+> wt
+
+lim  
+
+> Σt|t−1→0
+
+= α − 1 + ny
+
+> 2
+
+β + 12 e⊤ 
+
+> t
+
+R−1 
+
+> t
+
+et
+
+, (50) that matches (42) . Therefore in the SSM setting, the Mahalanobis IMQ weighting is the MAP estimate for wt after ignoring the prior uncertainty Σt|t−1.
+
+## C. Proofs of theoretical results 
+
+C.1. Proof of Proposition 3.1 
+
+Proof. Let w2 
+
+> t
+
+:= W 2(yt, ˆyt). The loss function takes the form 
+
+ℓt(θt) = −w2 
+
+> t
+
+log N (yt | Htθt, Rt)= 12 (yt − Htθt)⊺ (Rt/w 2 
+
+> t
+
+)−1 (yt − Htθt) − w2 
+
+> t
+
+d
+
+2 log π − w2
+
+> t
+
+2 log |Rt|
+
+= 12 (yt − Htθt)⊺ ¯R−1 
+
+> t
+
+(yt − Htθt) + C, 
+
+(51) with ¯Rt = Rt/w 2 
+
+> t
+
+, and where C = − w2  
+
+> td
+> 2
+
+log π − w2 
+
+> t
+> 2
+
+log |Rt| is a term that does not depend on θt. The remaining follows from the standard KF derivation. Note that the loss function does not correspond to the log-likelihood for a homoskedastic Gaussian model since ¯Rt may depend on all data, including yt.Figure 8 shows the weighted log-likelihood (51) for a univariate N (0 , 1) Gaussian density as a function of the weighting term w2 
+
+> t
+
+∈ (0 , 1] . We observe that a weighting log-likelihood resembles a heavy-tailed likelihood for wt < 1.
+
+Figure 8. Weighted likelihood (unnormalised) for a standard Gaussian. 
+
+C.2. Proof of Theorem 3.2 
+
+Theorem 3.2 comprises several sub-claims, each of which we will prove as a separate lemma in this section. At the end of the section, we will integrate all the lemmas to prove the main result. The first results are for the linear Gaussian SSM case. 
+
+Lemma C.1. Consider the linear Gaussian SSM. The standard KF posterior has an unbounded PIF and is not outlier robust. 
+
+18 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Proof. Let p(θt|yt, y1: t−1) = N (θt|μt, Σt), and p(θt|yct , y1: t−1) = N (θt|μct , Σct ), the uncontaminated and contaminated standard Kalman filter posterior. Here 
+
+μt = μt|t−1 + Kt (yt − ˆyt) , μct = μt|t−1 + Kct (yct − ˆyt) ,
+
+Σ−1 
+
+> t
+
+= Σ−1 
+
+> t|t−1
+
++ H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht, (Σct )−1 = Σ−1 
+
+> t|t−1
+
++ H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht.
+
+Here μt|t−1, Kt, Ht, Σ−1
+
+> t|t−1
+
+, R−1 
+
+> t
+
+do not depend on the contamination yct . It is clear that Σ−1 
+
+> t
+
+= ( Σct )−1, hence Kct =
+
+Σct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+= ΣtH⊺ 
+
+> t
+
+R−1 
+
+> t
+
+= Kt. Using the fact that given two d-dimensional Gaussians N (μ0, Σ0) and N (μ1, Σ1), the KL divergence is KL (N (μ0, Σ0)∥N (μ1, Σ1)) = 12
+
+
+
+Tr  Σ−11 Σ0
+
+ − m + ( μ1 − μ0)⊺ Σ−11 (μ1 − μ0) + ln 
+
+ det Σ1
+
+det Σ0
+
+ 
+
+,
+
+and given that Tr( Ip) = p, we can derive the PIF as 
+
+PIF( yct , y1: t) = KL ( p(θt|yct , y1: t−1)∥p(θt|yt, y1: t−1)) = 12 Tr  Σ−1 
+
+> t
+
+Σt
+
+ − m + ( μt − μct )⊺ Σ−1 
+
+> t
+
+(μt − μct ) + ln 
+
+ det Σt
+
+det Σt
+
+ !
+
+= Tr ( Im) − m + 12 (μt − μct )⊺ Σ−1 
+
+> t
+
+(μt − μct )= 12 (yt − yct )⊺ K⊺ 
+
+> t
+
+Σ−1 
+
+> t
+
+Kt (yt − yct ) .
+
+Here, K⊺ 
+
+> t
+
+Σ−1 
+
+> t
+
+Kt is positive definite. To see this, first note that for every invertible matrix B and conformable positive definite matrix A, B⊺AB is positive definite (Chapter 7.1 Horn & Johnson, 2012). Since Kt is a product of invertible matrices, it therefore is itself invertible. In fact, let z ∈ Rm be a non-zero vector. We can write z⊺B⊺AB z = ˜ z⊺A˜z, for 
+
+˜z = Bz. We know that ˜z = Bz̸ = 0 , because B is invertible. Then, since A is positive definite and ˜z ∈ Rm, it holds that 
+
+˜z⊺A˜z > 0, proving that B⊺AB is positive definite. Finally, since Σ−1 
+
+> t
+
+is positive definite, it therefore holds that K⊺ 
+
+> t
+
+Σ−1 
+
+> t
+
+Kt
+
+is positive definite, too. This in turn allows us to lower-bound the PIF by 
+
+12 λmin (K⊺ 
+
+> t
+
+Σ−1 
+
+> t
+
+Kt)∥yt − yct ∥22 ≤ 12 (yt − yct )⊺ K⊺ 
+
+> t
+
+Σ−1 
+
+> t
+
+Kt (yt − yct ) = PIF( yct , y1: t),
+
+where we use the fact that for every positive definite matrix A and vector z, we have λmin (A)∥z∥2 ≤ z⊺Az ≤
+
+λmax (A)∥z∥2, where λmin (A) and λmax (A) are the minimum and maximum eigenvalues of A, respectively (Chapter 5.7 Horn & Johnson, 2012). Moreover, we know that λmin 
+
+ K⊺ 
+
+> t
+
+Σ−1 
+
+> t
+
+Kt
+
+ > 0, since K⊺ 
+
+> t
+
+Σ−1 
+
+> t
+
+Kt is positive definite, and it does not depend on yct . Therefore, it indeed holds that PIF( yct , y1: t) → +∞ as ∥yt − yct ∥22 → +∞.
+
+Lemma C.2. Consider the linear Gaussian SSM. The generalised posterior presented in Proposition 3.1 has bounded PIF and is, therefore, outlier robust for any weighting function W such that sup yt∈Rd W (y1: t) < ∞ and 
+
+sup yt∈Rd W (y1: t)2 ∥yt∥2 < ∞.Proof. Let W be a weighting function such that sup yt∈Rd W (y1: t) < ∞ and sup yt∈Rd W (y1: t)2∥yt∥2 < ∞. Lets define wt := W 2(y1: t), and wct := W 2(yct , y1:1 −t). Let q(θt|yt, y1: t−1) = N (θt|μt, Σt), and q(θt|yct , y1: t−1) = 
+
+N (θt|μct , Σct ), where 
+
+μt = μt|t−1 + wtKt (yt − ˆyt) , μct = μt|t−1 + wct Kct (yct − ˆyt) ,
+
+Σ−1 
+
+> t
+
+= Σ−1 
+
+> t|t−1
+
++ wtH⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht, (Σct )−1 = Σ−1 
+
+> t|t−1
+
++ wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht,
+
+as in Algorithm 1 Then, the PIF has the form 
+
+PIF( yt, y1: t−1) = 12 Tr  (Σct )−1Σt
+
+ − p
+
+| {z }
+
+> (1)
+
++ ( μt − μct )⊺ (Σct )−1 (μt − μct )
+
+| {z }
+
+> (2)
+
++ ln 
+
+ det Σct
+
+det Σt
+
+| {z }
+
+> (3)
+
+!
+
+.
+
+19 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Now, we will get a bound for each term in the PIF. The first term can be bounded as 
+
+(1) = Tr  (Σct )−1Σt
+
+ − m ≤ Tr  (Σct )−1 Tr ( Σt) − m, 
+
+where we use the fact that for two positive semidefinite matrices A, B, it holds that Tr( AB ) ≤ Tr( A) Tr( B). Observing that Σt does not depend on yct , we can now write C1 = Σt, so that by using the arithmetic rules of traces, we obtain 
+
+(1) ≤ C1 Tr 
+
+
+
+(Σct )−1
+
+− m
+
+= C1 Tr 
+
+
+
+Σ−1 
+
+> t|t−1
+
++ wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+
+
+− m
+
+= C1 Tr 
+
+
+
+Σ−1
+
+> t|t−1
+
+
+
++ C1wct Tr  H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+ − m. 
+
+Here, we use the fact that the trace of a sum is a sum of traces, and the trace of the constant times matrix is equal to the constant times trace of the matrix. Finally, since sup yct ∈Rd wct ≤ C2 < ∞, the entire expression can be bounded by a constant C3 < ∞ that does not depend on the contamination yct as 
+
+(1) ≤ C1 Tr 
+
+
+
+Σ−1
+
+> t|t−1
+
+
+
++ C1C2 Tr  H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+ − m = C3,
+
+where we use the fact that both traces are finite since both matrices are real-valued. Next, we bound the second term by noting that it is the squared Mahalanobis norm of μt − μct with respect to Σct , and we write it as ∥μt − μct ∥Σct (in particular, it then satisfies all the properties of a norm). Therefore, we apply the triangle inequality to obtain 
+
+(2) = ( ∥μt − μct ∥Σct )2
+
+= ( ∥wtKt(yt − ˆyt) − wct Kct (yct − ˆyt)∥Σct )2
+
+≤ (∥wtKt(yt − ˆyt)∥Σct + ∥wct Kct (yct − ˆyt)∥Σct )2
+
+≤ 2( ∥wtKt(yt − ˆyt)∥2 
+
+> Σct
+
++ ∥wct Kct (yct − ˆyt)∥2 
+
+> Σct
+
+).
+
+In the last inequality, we use the fact that, for two real numbers a and b, it holds that (a + b)2 ≤ 2( a2 + b2). Then, we bound each term separately, 
+
+2∥wtKt(yt − ˆyt)∥2 
+
+> Σct
+
+= 2 w2 
+
+> t
+
+(yt − ˆyt)⊺K⊺ 
+
+> t
+
+(Σct )−1Kt(yt − ˆyt)
+
+≤ 2w2 
+
+> t
+
+λmax 
+
+ K⊺ 
+
+> t
+
+(Σct )−1Kt
+
+ ∥yt − ˆyt∥22,
+
+where 2λmax 
+
+ K⊺ 
+
+> t
+
+(Σct )−1Kt
+
+ ≤ C4 < ∞, since K⊺ 
+
+> t
+
+(Σct )−1Kt is a positive definite matrix, and thus, all eigenvalues are real-valued. This property arises from the fact that for every invertible matrix B and a positive definite matrix A, B⊺AB is positive definite. Finally, we must verify that (Σct )−1 is positive definite. Let z ∈ Rm be a non-zero vector. Then, 
+
+z⊺ Σct
+
+−1z = z⊺ Σ−1 
+
+> t|t−1
+
++ wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+z = z⊺ Σ−1
+
+> t|t−1
+
+z + wct
+
+ z⊺H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Htz.
+
+We know that Σ−1 
+
+> t|t−1
+
+is positive definite, hence z⊺ Σ−1
+
+> t|t−1
+
+z > 0. Moreover, z⊺H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Htz > 0 because H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+is positive definite. Since wct = W 2(yct , y1:1 −t) ≥ 0 for all yct ∈ Rd, then wct
+
+ z⊺H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Htz ≥ 0. Finally, combining these inequalities, z⊺ Σct
+
+−1z > 0. Therefore, (Σct )−1 is positive definite. Therefore, 
+
+2∥wtKt(yt − ˆyt)∥2 
+
+> Σct
+
+≤ C4(wt∥yt − ˆyt∥2)2 = C5
+
+since (wt∥yt − ˆyt∥2)2 does not depend on the contamination. Similarly, 
+
+2∥wct Kct (yct − ˆyt)∥2 
+
+> Σct
+
+≤ C6(wct ∥yct − ˆyt∥2)2,
+
+where, using the same argument as before, 2λmax 
+
+ (Kct )⊺(Σct )−1Kct
+
+ ≤ C6 < ∞. Now, since sup yct ∈Rd wct ∥yct ∥2 ≤ C7 <
+
+∞, we have: 
+
+C6(wct ∥yct − ˆyt∥2)2 ≤ C6(wct ∥yct ∥2 + wct ∥ˆyt∥2)2 ≤ C6(C7 + C2∥ˆyt∥2)2 = C8.
+
+20 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Putting it all together, we find that 
+
+(2) ≤ C5 + C8.
+
+Lastly, the third and final term can be rewritten using properties of determinants as 
+
+(3) = ln 
+
+ det Σct
+
+det Σt
+
+
+
+= ln 
+
+ 1det Σt
+
+
+
++ ln (det Σct ) = ln 
+
+ 1det Σt
+
+
+
++ ln 
+
+ 1det( Σct )−1
+
+
+
+.
+
+We define C9 = ln 
+
+ 1det Σt
+
+
+
+since it does not depend on the contamination, and write 
+
+(3) = C9 + ln 
+
+ 1det( Σct )−1
+
+
+
+= C9 + ln 
+
+ 1det 
+
+
+
+Σ−1 
+
+> t|t−1
+
++ wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+
+
+≤ C9 + ln 
+
+ 1det 
+
+
+
+Σ−1
+
+> t|t−1
+
+
+
++ det  wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+ ,
+
+where in the last inequality, we use the fact that for two positive semidefinite matrices A, B, it also holds that det( A + B) ≥
+
+det( A) + det( B). Finally, 
+
+(3) ≤ C9 + ln 
+
+ 1det 
+
+
+
+Σ−1
+
+> t|t−1
+
+
+
++ det  wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+
+
+≤ C9 + ln 
+
+ 1det 
+
+
+
+Σ−1
+
+> t|t−1
+
+ = C10 .
+
+Here, we use the fact that wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht is positive semidefinite, as we showed previously. Therefore det  wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht
+
+ ≥
+
+0. By putting the bounds for (1), (2), and (3) together, we obtain 
+
+PIF( yt, y1: t−1) = 12 Tr  (Σct )−1Σt
+
+ − d
+
+| {z }
+
+> (1)
+
++ ( μt − μct )⊺ (Σct )−1 (μt − μct )
+
+| {z }
+
+> (2)
+
++ ln 
+
+ det Σct
+
+det Σt
+
+| {z }
+
+> (3)
+
+!
+
+.
+
+≤ C3 + C5 + C8 + C10 < ∞.
+
+We now extend the result to the linearised approximation of the SSM case. 
+
+Lemma C.3. Consider the linearised approximation of the SSM. The standard EKF posterior has an unbounded PIF and is not outlier robust. Proof. We can easily replicate the procedure in Lemma C.1 to the EKF since it can be straightforwardly applied to the approximate posterior presented in Section 2.2. Specifically, for the standard EKF, we compute: 
+
+PIF( yct , y1: t) = KL ( p(θt|yct , y1: t−1)∥p(θt|yt, y1: t−1)) (52) 21 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+for p(θt|yt, y1: t−1) = N (θt|μt, Σt), and p(θt|yct , y1: t−1) = N (θt|μct , Σct ), representing the uncontaminated and contam-inated standard EKF posterior. In particular, 
+
+μt = μt|t−1 + Kt(yt − ˆyt), μct = μt|t−1 + Kct (yct − ˆyt),
+
+Σ−1 
+
+> t
+
+= Σ−1 
+
+> t|t−1
+
++ H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht, (Σct )−1 = Σ−1 
+
+> t|t−1
+
++ H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht.
+
+Here, μt|t−1, Kt, Ht, Σ−1
+
+> t|t−1
+
+, R−1 
+
+> t
+
+do not depend on the contamination yct , and μt|t−1 = E[ ¯ μt|t−1|μt−1] = ft(μt−1),
+
+ˆyt = E[¯ yt] = ht(μt|t−1), where ¯μt|t−1 and ¯yt are defined as Equation (10) and Equation (11) respectively, and Ht is the Jacobian of ht evaluated at μt|t−1. Since it follows the same structure as the standard Kalman filter, replicating the procedure in Lemma C.1, we obtain that the standard EKF is not robust. 
+
+Lemma C.4. Consider the linearised approximation of the SSM. The generalised posterior presented in Proposition 3.1 has bounded PIF and is, therefore, outlier robust for any weighting function W such that sup yt∈Rd W (yt, ˆyt) < ∞ and 
+
+sup yt∈Rd W (yt, ˆyt)2 ∥yt∥2 < ∞.Proof. We can easily replicate the procedure in Lemma C.2 since it can be straightforwardly applied to the approximate posterior presented in Section 3.2. Now consider the weighted EKF. We compute 
+
+PIF( yct , y1: t) = KL ( q(θt|yct , y1: t−1)∥q(θt|yt, y1: t−1)) . (53) Let W : Rd×d → R be a weighting function such that sup yt∈Rd W (yt, ˆyt) < ∞ and sup yt∈Rd W (yt, ˆyt)2∥yt∥2 < ∞.Define wt := W 2(yt, ˆyt), and wct := W 2(yct , ˆyt).Let q(θt|yt, y1: t−1) = N (θt|μt, Σt), and q(θt|yct , y1: t−1) = N (θt|μct , Σct ), where 
+
+μt = μt|t−1 + wtKt(yt − ˆyt), μct = μt|t−1 + wct Kct (yct − ˆyt),
+
+Σ−1 
+
+> t
+
+= Σ−1 
+
+> t|t−1
+
++ wtH⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht, (Σct )−1 = Σ−1 
+
+> t|t−1
+
++ wct H⊺ 
+
+> t
+
+R−1 
+
+> t
+
+Ht.
+
+for μt|t−1 and ˆyt as before. Then, following the same procedure as in the proof of Lemma C.2, we show that this PIF is bounded and the method is robust. 
+
+Proof of Theorem 3.2 The proof of Theorem 3.2 follows directly from Lemmas C.1 to C.4. 
+
+C.3. Ensemble Kalman Filter 
+
+Now, we extend Theorem 3.2 to the ensemble Kalman filter case. There are a couple of caveats to proving robustness for this case. While we know the distribution of the particles in the case where the state-space model is linear and Gaussian, this is not always the case. Therefore, we propose studying the empirical measures defined by the particles. The problem with this is that the Kullback-Leibler divergence is not defined for empirical measures with different supports. This is why we propose using the 2-Wasserstein distance instead since it is unbounded and well-defined for empirical measures. The 2-Wasserstein distance is defined as follows: If P is an empirical measure with samples x1, ..., x n and Q is an empirical measure with samples y1, ..., y n,
+
+DW2 (P, Q ) = inf 
+
+> π
+
+1
+
+n
+
+> n
+
+X
+
+> i=1
+
+xi − yπ(i)
+
+> 22
+
+!1/2
+
+,
+
+where the infimum is over all permutations π of n elements. Therefore, the PIF for the ensemble Kalman filter case has the form 
+
+PIF( yct , y1: t) = DW2 (PN , PcN ) , (54) where PN is the empirical measure of the (non-contaminated) particles 
+
+nˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ wt ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+o Ni=1 
+
+, and 
+
+PcN is the empirical measure of the contaminated particles 
+
+nˆθ(i) 
+
+> tc
+
+= ˆθ(i) 
+
+> t|t−1
+
++ wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+o Ni=1 
+
+. As in the previous definition, if sup yct ∈Rd | PIF( yct , y1: t)| < ∞, then the posterior is called outlier-robust. 22 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Lemma C.5. The generalised posterior presented in Appendix D.3 has bounded PIF (as defined in Equation (54) )and is, therefore, outlier robust for any weighting function W : Rd×d → R such that sup yt∈Rd W (yt, ˆyt) < ∞ and 
+
+sup yt∈Rd W (yt, ˆyt)2 ∥yt∥2 < ∞.Proof. Let W : Rd×d → R be a weighting function such that sup yt∈Rd W (yt, ˆyt) < ∞ and sup yt∈Rd W (yt, ˆyt)2∥yt∥2 <
+
+∞. Define wt := W 2(yt, ˆyt), and wct := W 2(yct , ˆyt). Then, the PIF 
+
+PIF( yct , y1: t) = DW2 (PN , PcN ) = inf 
+
+> π
+
+1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ˆθ(i) 
+
+> t
+
+− ˆθ(π(i)) 
+
+> tc
+> 22
+
+!1/2
+
+,
+
+where the infimum is over all permutations π of N elements, PN is the empirical measure of the parti-cles 
+
+nˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ wt ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+o Ni=1 
+
+, and PcN is the empirical measure of the contaminated particles 
+
+nˆθ(i) 
+
+> tc
+
+= ˆθ(i) 
+
+> t|t−1
+
++ wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+o Ni=1 . Therefore, we know that the infimum will be smaller than considering only the identity as permutation, 
+
+DW2 (PN , PcN ) ≤ 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ˆθ(i) 
+
+> t
+
+− ˆθ(i)
+
+> tc
+> 22
+
+!1/2
+
+.
+
+Now, using the equation of the particles: 
+
+DW2 (PN , PcN ) ≤ 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ˆθ(i) 
+
+> t|t−1
+
++ wt ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+− ˆθ(i) 
+
+> t|t−1
+
+− wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+ 22
+
+!1/2
+
+= 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+wt ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+− wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+ 22
+
+!1/2
+
+.
+
+We use triangle inequality to obtain: 
+
+DW2 (PN , PcN ) ≤ 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+
+
+wt ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+> 2
+
++ wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+
+
+> 2
+
+2
+
+!1/2
+
+≤ 2
+
+N
+
+> N
+
+X
+
+> i=1
+
+wt ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+ 22
+
++ wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+ 22
+
+!1/2
+
+.
+
+Lets define C11 = PNi=1 ∥wt ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+∥22, a constant that does not depend on the contamination. Therefore: 
+
+DW2 (PN , PcN ) ≤ 2
+
+N C11 +
+
+> N
+
+X
+
+> i=1
+
+wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+ 22
+
+!! 1/2
+
+.
+
+First, we observe that wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+ 22 = ( wct )2 
+
+yct − ˆy(i)
+
+> t|t−1
+
+⊺ ¯K⊺ 
+
+> t
+
+¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+
+
+. Now we bound this expression using the fact that for every positive definite matrix A and vector z, we have λmin (A)∥z∥2 ≤ z⊺Az ≤
+
+λmax (A)∥z∥2, where λmin (A) and λmax (A) are the minimum and maximum eigenvalues of A, respectively (Chapter 5.7 Horn & Johnson, 2012): 
+
+wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+ 22
+
+≤ (wct )2λmax ( ¯K⊺ 
+
+> t
+
+¯Kt) yct − ˆy(i)
+
+> t|t−1
+> 22
+
+,
+
+where λmax 
+
+  ¯K⊺ 
+
+> t
+
+¯Kt
+
+ ≤ C12 < ∞, since ¯K⊺ 
+
+> t
+
+¯Kt is a positive definite matrix, and thus, all eigenvalues are real-valued. Then, 
+
+wct ¯Kt
+
+
+
+yct − ˆy(i)
+
+> t|t−1
+
+ 22
+
+≤ C12 
+
+
+
+wct yct − ˆy(i) 
+
+> t|t−12
+
+2
+
+.
+
+23 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Now, since sup yct ∈Rd wct ≤ C13 < ∞, and sup yct ∈Rd wct ∥yct ∥2 ≤ C14 < ∞, we have: 
+
+C12 
+
+
+
+wct yct − ˆy(i) 
+
+> t|t−12
+
+2
+
+≤ C12 
+
+
+
+wct ∥yct ∥2 + wct ˆy(i) 
+
+> t|t−12
+
+2
+
+≤ C12 
+
+
+
+C14 + C13 ˆy(i) 
+
+> t|t−12
+
+2
+
+= C15 .
+
+Putting it all together, we find that 
+
+DW2 (PN , PcN ) ≤ 2
+
+N C11 +
+
+> N
+
+X
+
+> i=1
+
+C15 
+
+!! 1/2
+
+< ∞.
+
+## D. Extensions of the weighted likelihood filter 
+
+Below, we discuss a number of extension to the WoLF methodology including generalisations to (i) exponential-family members, (ii) multi-output weighting functions, and (iii) the EnKF. 
+
+D.1. Exponential family likelihoods 
+
+We extend WoLF for measurements modelled using an element of the exponential family of distributions (as first mentioned in Section 3.2). Classical examples of exponential families, in addition to the Gaussian distribution, are the Bernoulli distribution, the Gamma distribution, the Beta distribution, and the Poisson distribution. These distributions can be considered to tackle filtering problems when the measurements are generated respectively from a binary process, a process that only takes values in positive real line, a process that takes values in the interval [0 , 1] , or a counting process. We take the mass function of a measurement yt ∈ B ⊆ Rd to be of the form 
+
+p(yt|θt) = expfam (yt|ηt) = Z−1(ηt) exp 
+
+
+
+η⊺ 
+
+> t
+
+T (yt) + b(yt)
+
+
+
+. (55) with B the support of the measurement yt, ηt ∈ Rk the natural parameters, A : B → Rk the sufficient statistic function, 
+
+b : B → R the base measure, and Z : Rk → R the normalising function. To simplify the notation, let ηt = ht(θt) and 
+
+zt = T (yt). We also define the dual (moment) parameters 
+
+λt = E [zt|ηt] = ∇ηt log Z(ηt) (56) and the conditional variance 
+
+Rt = Cov [zt|ηt] = ∇ηt λt = ∇2 
+
+> ηt
+
+log Z(ηt), (57) and we take our predictive model to output the dual parameters: 
+
+λt = ht(θt). (58) For example, for a Gaussian likelihood with fixed observation noise and a linear observation model as in (5) , we have that 
+
+A(yt) = yt, λt = Htθt, and Rt is constant. The exponential family EKF algorithm of Ollivier (2018) approximates the likelihood in (55) with a moment-matched Gaussian, 
+
+q(yt|θt) = N (zt|¯λt, Rt), (59) where ¯λt = Ht(θt − ¯μt|t−1) + ht( ¯ μt|t−1), and μt|t−1 is given by (10) . We modify this algorithm by including a weighting term on the log-likelihood to get 
+
+log q(yt|θt) = Wt(yt, ˆyt)2
+
+
+
+− 12 ¯λ⊤ 
+
+> t
+
+R−1 
+
+> t
+
+¯λt + ¯λ⊤ 
+
+> t
+
+R−1 
+
+> t
+
+T (yt)
+
+
+
++ cst , (60) with cst . a constant term that does not depend on θ. We leave the study of W (yt, ˆyt) when modelling a non-Gaussian exponential family for future work. 24 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+D.2. Dimension-specific weighting 
+
+In this section, we provide details about the implementation of a vector-valued weighting function Wt : Rd × Rd → Rd
+
+introduced in Section 3.3. See Section 4.3 for an evaluation of this method. We consider yt ∈ Rd with d > 1.If the likelihood factorises as p (yt|θt) = Qdj=1 p (yt,j |θt), with yt,j the j-th element of the t-th measurement, we define the weighted log-likelihood as 
+
+log q (yt|θt) = 
+
+> d
+
+X
+
+> j=1
+
+w2 
+
+> t,j
+
+log p (yt,j |θt) , (61) where w2 
+
+> t,j
+
+= W 2(yt, ˆyt)j is the j-th entry of the vector-valued weight function. For a Gaussian likelihood p(yt|θt) = N (yt|ht (θt) , Rt) we define the weighted likelihood as 
+
+q(yt|θt) = N  yt|ht (θt) , ¯Rt
+
+ , (62) 
+
+¯R−1 
+
+> t
+
+= Diag ( wt) R−1 
+
+> t
+
+Diag ( wt) , (63) which is a special case of (61) when Rt is diagonal. 8 This expression scales the precision of each yt,j by w2 
+
+> t,j
+
+while preserving correlations. It can also be written in terms of dimension-specific weighting on the errors: 
+
+log q(yt|θt) = − 12 ˜Et (θt)⊺ R−1 
+
+> t
+
+˜Et (θt) , (64) 
+
+˜Et (θt) = Diag ( wt) ( yt − ht (θt)) . (65) The EKF update from the weighted loglikelihood in (62) mirrors the standard EKF update with the true observation precision 
+
+R−1 
+
+> t
+
+replaced by ¯R−1 
+
+> t
+
+:
+
+Σ−1 
+
+> t
+
+= Σ−1 
+
+> t|t−1
+
++ H⊤ 
+
+> t
+
+¯R−1 
+
+> t
+
+Ht, (66) 
+
+μt = μt|t−1 + Kt(yt − ˆyt), (67) 
+
+Kt = ΣtH⊤ 
+
+> t
+
+¯R−1 
+
+> t
+
+. (68) This generalises the WoLF update with scalar weight given by Proposition 3.1. Finally, when wt,j = 0 for one or more observation dimensions, (61) and (62) define improper observation distributions because the marginals on these dimensions are uniform over R and the precision ¯R−1 
+
+> t
+
+is singular. Nevertheless, the joint marginal for the dimensions with positive weights, yt,J t where Jt = {j : wt,j > 0}, is a proper distribution. This is all that is needed because the observations yt,j with wt,j = 0 are ignored in the update. This can be seen in (66) , (67) , and (68) ,where as a consequence of (63), the error terms and the Jacobian are both zeroed out on the zero-weighted dimensions. 
+
+D.3. Weighted ensembles 
+
+In this section, we introduce the weighted EnKF first mentioned in Section 3.2. We begin with a discussion of the EnKF originally referenced in Section 2.3. 
+
+The ensemble Kalman filter: The ensemble Kalman filter (EnKF) (Roth et al., 2017b) uses an ensemble of N ∈ N
+
+particles {ˆθ(i)
+
+> t|t−1
+
+}Ni=1 . For each i = 1 , . . . , N , the update step samples predictions ˆy(i) 
+
+> t|t−1
+
+according to 
+
+ˆy(i) 
+
+> t|t−1
+
+∼ N 
+
+
+
+ht
+
+ˆθ(i)
+
+> t|t−1
+
+
+
+, Rt
+
+
+
+. (69) and then updates each particle according to 
+
+ˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ ¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+, (70) The EnKF gain ¯Kt is 
+
+¯Kt = cov i
+
+hˆθ(i)
+
+> t|t−1
+
+, ˆy(i)
+
+> t|t−1
+
+i  
+
+Vi
+
+h
+
+ˆy(i)
+
+> t|t−1
+
+i −1
+
+. (71) 
+
+> 8
+
+Diag( v) for v ∈ RK is the K × K matrix with Diag( v)i,i = vi and Diag( v)i,j = 0 for i̸ = j.
+
+25 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+We write Ei [·] , cov i [·, ·] , Vi [·] to refer to the distribution over particles as indexed by i.The EnKF converges to standard KF as N → ∞ when the likelihood is linear-Gaussian and the prior is also Gaussian, 
+
+p (yt|θt) = N (yt|Htθt, Rt) , (72) 
+
+ˆθ(i) 
+
+> t|t−1
+
+∼ N  μt|t−1, Σt|t−1
+
+ . (73) Under these conditions the EnKF gain ¯Kt matches the KF gain Kt, because 
+
+cov i
+
+hˆθ(i)
+
+> t|t−1
+
+, ˆy(i)
+
+> t|t−1
+
+i
+
+= Σt|t−1H⊤ 
+
+> t
+
+, (74) 
+
+Vi
+
+h
+
+ˆy(i)
+
+> t|t−1
+
+i
+
+= HtΣt|t−1H⊤ 
+
+> t
+
++ Rt, (75) 
+
+¯Kt = Σt|t−1H⊤
+
+> t
+
+ HtΣt|t−1H⊤ 
+
+> t
+
++ Rt
+
+−1 (76) 
+
+= Kt, (77) and therefore the statistics of the posterior ensemble also match the KF update 
+
+μt = Ei
+
+hˆθ(i)
+
+> t
+
+i
+
+= μt|t−1 + Kt
+
+ yt − Htμt|t−1
+
+ , (78) 
+
+Σt = Vi
+
+hˆθ(i)
+
+> t
+
+i
+
+= Σt|t−1 − KtHtΣt|t−1. (79) 
+
+The weighted-likelihood EnKF: We propose a weighted version of EnKF based on our WoLF with dimension-specific weights and Gaussian likelihood, where (69) is modified to sample particle predictions from the weighted likelihood in (62) :
+
+ˆy(i) 
+
+> t|t−1
+
+∼ N 
+
+
+
+ht
+
+ˆθ(i)
+
+> t|t−1
+
+
+
+, ¯Rt
+
+
+
+. (80) The weighted EnKF converges to the WoLF as N → ∞ , by the same argument for the vanilla EnKF and EKF in (74) through (79). Specifically, under this limit the sampling scheme in (80) and the update in (70) yield 
+
+¯Kt = Σt|t−1H⊤
+
+> t
+
+ HtΣt|t−1H⊤ 
+
+> t
+
++ ¯Rt
+
+−1 , (81) 
+
+μt = μt|t−1 + ¯Kt
+
+ yt − Htμt|t−1
+
+ , (82) 
+
+Σt = Σt|t−1 − ¯KtHtΣt|t−1, (83) which matches the WoLF update in (66), (67), and (68). For the case of scalar weights with w2 
+
+> t
+
+= W 2(yt, ˆyt) ∈ { 0, 1} as in (19) , the weighted EnKF can be implemented by unweighted sampling as in (69) followed by a weighted update that replaces (70) with 
+
+ˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ w2 
+
+> t
+
+¯Kt
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+. (84) That is, the update is simply skipped when w2 
+
+> t
+
+= 0 , in agreement with Proposition 3.1 and Algorithm 1. For the case of vector weights wt as in Appendix D.2, when wt ∈ { 0, 1}d the weighted EnKF can be implemented by a generalisation of (84) that ignores only those observation components yt,j for which wt,j = 0 . Specifically, we can use the vanilla EnKF sampling in (69) but sample only the positively weighted dimensions, i.e. ˆy(i) 
+
+> t|t−1,J t
+
+where Jt = {j : wt,j > 1}.Thus ˆy(i) 
+
+> t|t−1
+
+has size |Jt| and (71) yields ¯Kt with size m × | Jt|, and the particles can be updated according to 
+
+ˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ ¯Kt
+
+
+
+yt,J t − ˆy(i)
+
+> t|t−1,J t
+
+
+
+. (85) This agrees with the vanilla EnKF update except that zero-weighted observation dimensions are ignored. It can be shown to converge to the dimensionally weighted WoLF described in Appendix D.2 as N → ∞ .9
+
+> 9
+
+The general case of wt ∈ [0 , 1] d can be implemented by combining this scheme with weighted sampling of positively weighted dimensions, i.e. using (80) to sample ˆy(i) 
+
+> t|t−1,J t
+
+.
+
+26 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+For the experiments reported here (Section 4.3), we take the shortcut of sampling predictions for all dimensions and generalising (84) to vector weights: 
+
+ˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ ¯KtDiag( wt)
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+. (86) This approximates the method of sampling only ˆy(i) 
+
+> t|t−1,J t
+
+and updating with (85) . This is more efficient in our Jax (Bradbury et al., 2018) implementation because all arrays are of constant size. We generalise (19) to define the weight vector as 
+
+wt,j =
+
+
+
+1 1
+
+> N
+
+PNi=1 
+
+
+
+yt,j − ˆy(i)
+
+> t|t−1,j
+
+2
+
+≤ c, 
+
+0 otherwise ,
+
+(87) We call this the average-particle EnKF (AP-EnKF) .Alternatively, we propose the update equation 
+
+ˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ ¯Kt Diag 
+
+
+
+w(i)
+
+> t
+
+  
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+, (88) with 
+
+w(i) 
+
+> t,j
+
+=
+
+
+
+1
+
+
+
+yt,j − ˆy(i)
+
+> t|t−1,j
+
+2
+
+≤ c, 
+
+0 otherwise ,
+
+(89) which we call the per-particle EnKF (PP-EnKF) .
+
+The Huberised EnKF: The update equations for the PP-EnKF and AP-EnKF are related to the Huberised EnKF (H-EnKF) algorithm of Roh et al. (2013) that update particles according to 
+
+ˆθ(i) 
+
+> t
+
+= ˆθ(i) 
+
+> t|t−1
+
++ ¯Kt ρ
+
+
+
+yt − ˆy(i)
+
+> t|t−1
+
+
+
+, (90) with 
+
+ρ(z) = 
+
+
+
+c if z > c, 
+
+−c if z < −c, z otherwise ,
+
+(91) 
+
+c > 0 a given threshold, and the function ρ is applied element-wise. 
+
+## E. Additional numerical experriments 
+
+This section provides additional numerical experiments. In particular, in Appendix E.1, we discuss Figure 2 in more detail; in Appendix E.2, we conduct robustness checks for the numerical experiments presented in Section 4; and in Appendix E.3, we provide an additional experiment for online learning in a non-stationary environment with outlier measurements. 
+
+E.1. Description of the PIF 
+
+In this section, we discuss the 2d tracking problem of Section 4.1 in more detail. We generate t = 20 steps from (20) and the last measurement yt is replaced with yct = yt + ϵ, where ϵ ∈ [−5, 5] × [−5, 5] is the outlier noise. Figure 9 (left) shows the weighting term for the WoLF methods as a function of the outlier noise ϵ. Alternatively, Figure 9 (right) shows the Mahalanobis distance between the prior predictive ˆyt and the outlier measurement yct . We observe that the midpoint of the contours for all methods is not centred at ϵ = (0 , 0) . This is because the weighting term is a function of the prior predictive and the measurement at time t. Hence, for the IMQ, the weighting is 1 only if the prior predictive equals the measurement, i.e., ˆyt = Htμt|t−1. This result explains the distored PIF observed in Figure 2. Figure 10 shows the PIF for the WoLF-IMQ and the WoLF-TMD first shown in Figure 2. We observe that the PIF for the WoLF-TMD has a hard cutoff that strongly bounds the PIF values at the expense of higher PIF around a region near the cutoff boundary. In contrast, the WoLF-IMQ bounds the PIF values more softly and has lower maximum PIF than the WoLF-TMD. 27 Outlier-robust Kalman Filtering through Generalised Bayes                       
+
+> Figure 9. Weighting term Wt(y1: t)given an the outlier measurement yct. The x-axis and y-axis describe the errors ϵ∈[−5,5] ×[−5,5] .
+> Figure 10. PIF of Figure 2 for extended domain of the errors ϵ∈[−15 ,10] ×[−15 ,10] .
+
+E.2. Robustness 
+
+E.2.1. 2 D TRACKING 
+
+In this section, we present further results from experiment 4.1. Figure 11 shows the distribution over errors over all 4 state components for both outlier variants of the 2d tracking problem. For the mixture variant, we see elongated tails in the error distribution for the WoLF-TMD algorithm. To see why, consider the trace of weights over time in Figure 12. We observe that both WoLF-IMQ and WoLF-TMD set the weighting term close to (or equal) to zero in outlier events. However, the 
+
+WoLF-TMD is more prone to have false positives (at a rate of about 7% in this example), in which it fails to update the posterior state. This explains the elongated tails. 
+
+Right panel of Figure 3 2d tracking: hyperparameter choice Here we show the performance of each method for the experiment in Section 4.1 as we vary the hyperparameters. We do this for both, the Mixture case and the Student-t case. Figure 14 shows the RMSE for estimating the first state component as we vary the c hyperparameter for the IMQ and the TDM weighting functions; for KF-IW , we use two inner iterations and we vary the h hyperparameter; for KF-B , we fix 
+
+β = 1 .0, use four inner iterations and vary the value of α. The definition for the RMSE JT, 0 is as in Section 4.1. 
+
+Empirical comparison to (Boustati et al., 2020) In this section, we compare the particle-filter-based method of (Boustati et al., 2020), which we denote the RBPF . Figure 15 extends Figure 4 to include the RBPF . The RBPF performs comparably to our proposed method; however, it has much higher computational cost and does not have a closed-form solution. 28 Outlier-robust Kalman Filtering through Generalised Bayes       
+
+> Figure 11. Distribution of JT,i for all state components. The left panel is for the student variant (21) and the right panel is for the mixture variant (22).
+> Figure 12. Trace of the weighting term for WoLF-IMQ and WoLF-MD.
+
+E.2.2. UCI DATASETS 
+
+In this section, we give more details on the MLP regression experiments in Section 4.2. The size of the datasets and models which we use are summarised in Table 3. 
+
+Speed vs accuracy Figure 16 (left) shows the time-step and RMedSe for the Kin8nm dataset over multiple trials. Our methods, the WoLF-IMQ and the WoLF-TMD , strike the best balance between RMedSE and running time among the competing methods. The EKF-IW and the EKF-B have comparable error rates to the WoLF methods, but their running time is 6x and 12x slower than the WoLF-IMQ , respectively. The EKF has comparable running time, but 3x higher average RMedSE than the WoLF-IMQ . Finally, the OGD is 40% faster, but has 2x higher average RMedSE than the WoLF-IMQ .
+
+Sensitivity to outlier rate We evaluate the sensitivity of the methods to the choice of corrosion rate pϵ for the Kin8nm dataset. Figure 16 (right) shows the RMedSE after 100 trials of each method as a function of pϵ. We set the hyperparameters using BO with pϵ = 0 .1 and evaluate the RMedSE with pϵ ∈ { 0.00 , 0.05 , . . . , 0.45 }. We observe that all robust methods — the WoLF-IMQ , the WoLF-TMD , the EKF-B , and the EKF-IW — have similar RMEdSE for any choice of pϵ and have similar RMedSE rate of increase. Conversely, the EKF and the OGD are much less stable and their RMedSE error rate increases at a faster pace. E.2.3. L ORENZ 96 MODEL 
+
+In this subsection, we evaluate the EnKF methods in the Lorenz96 model presented in subsection 4.3 when we only have 
+
+N = 20 particles but d = 100 states. In this scenario, the EnKF is usually modified to incorporate the covariance inflation 
+
+proposed in Anderson (1999). We present the results for a single run of the modified methods in the left panel of Figure 17. In the right panel of Figure 17, we perform a sensitivity analysis to the choice of hyperparameter c. Similar to the results 29 Outlier-robust Kalman Filtering through Generalised Bayes    
+
+> Figure 13. Sample of the top-left panel in Figure 3
+> Figure 14. Jt, 0over 100 runs for the methods as a function of their hyperparameter.
+
+presented in the main body of text, we observe that, in the best scenario, the Hub-EnKF and AP-EnKF behave similarly. However, the Hub-EnKF is more sensitive to the choice of hyperparameters than the AP-EnKF and PP-EnKF .
+
+E.3. Robust EKF for online MLP regression (1d) — suplementary experiment 
+
+In this section, we consider an online nonlinear 1d regression, with the training data coming either from an i.i.d. source, or a correlated source. The latter corresponds to a non-stationary problem (see e.g. Cartea et al., 2023; Arroyo et al., 2024; Duran-Martin et al., 2022). We present a stream of observations Dfilter = ( y1, x 1), . . . (yT , x T ) with yt ∈ R the measurements, xt ∈ R the exogenous variables, and T = 1500 . The measurements and exogenous variables are sequentially sampled from the processes 
+
+yt =
+
+(
+
+θ∗ 
+
+> 1
+
+xt − θ∗ 
+
+> 2
+
+cos( θ∗ 
+
+> 3
+
+xt π) + θ∗ 
+
+> 4
+
+x3 
+
+> t
+
++ Vt w.p. 1 − pϵ,Ut w.p. pϵ, (92) where the parameters of the observation model are θ∗ = (0 .2, −10 , 1.0, 1.0) , the inputs are xt ∼ U [−3, 3] , and the noise is 
+
+Vt ∼ N (0 , 3) , Ut ∼ U [−40 , 40] , and pϵ = 0 .05 .We consider four configurations of this experiment. In each experiment the data is either sorted by xt value (i.e, the exogenous variable satisfies xi < x j for all i < j , representing a correlated source) or is unsorted (representing an i.i.d. source), and the measurement function is either a clean version of the true data generating process (i.e., (92) with pϵ = 0 and unknown coefficients θ), or a neural network with unknown parameters θ. Specifically, we use a multi-layered perceptron 30 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Figure 15. Distribution (across 500 2d tracking trials) of RMSE for first component of the state vector, JT, 0. Left panel: Student observation model. Right panel: Mixture observation model. We extend Figure 4 to include the RBPF .
+
+#Examples T #Features d #Parameters m
+
+Dataset Boston 506 14 321 
+
+Concrete 1, 030 9 221 
+
+Energy 768 9 221 
+
+Kin8nm 8, 192 9 221 
+
+Naval 11 , 934 18 401 
+
+Power 9, 568 5 141 
+
+Protein 45 , 730 10 241 
+
+Wine 1, 599 12 281 
+
+Yacht 308 7 181 
+
+Table 3. Description of UCI datasets. Number of parameters refers to the size of the one-layer MLP. 
+
+(MLP) with two hidden layers and 10 units per layer: 
+
+h(θt, x t) = w(3)  
+
+> t
+
+ϕ
+
+
+
+w(2)  
+
+> t
+
+ϕ
+
+
+
+w(1)  
+
+> t
+
+xt + b(1) 
+
+> t
+
+
+
++ b(2) 
+
+> t
+
+
+
++ b(3)  
+
+> t
+
+, (93) with activation function ϕ(u) = max {0, u } applied elementwise. Thus the state vector encodes the parameters: 
+
+θt = ( w(1)  
+
+> t
+
+∈ R10 ×1, w(2)  
+
+> t
+
+∈ R10 ×10 , w(3)  
+
+> t
+
+∈ R1×10 , b(1)  
+
+> t
+
+∈ R10 , b(2)  
+
+> t
+
+∈ R10 , b(3)  
+
+> t
+
+∈ R)
+
+and has size so that θ ∈ R141 . Note that in this experiment ht(θ) = h(θ, x t). We set Qt = 10 −4I, which allows the parameters to slowly drift over time and provides some reguralisation. For each method, we evaluate the RMedSE =
+
+q
+
+median {(yt − ht(μt|t−1)) 2}Tt=1 . The EKF-IW and the EKF-B methods are taken with two inner iterations, which implies that their computational complexity is twice that of the WoLF methods. 
+
+MLP measurement model Figure 18 shows results when the data are presented in sorted order of xt. We show the performance on 100 trials. The left panel shows the mean prior-predictive h(μt|t−1, x t) of each method, and the underlying true state process, for a single trial. The right panel shows the RMedSE after multiple trials. We observe on the right panel that the WoLF-IMQ and the EKF-IW have the lowest mean error and lowest standard deviation among the competing methods. However, the EKF-IW takes twice as long to run the experiment. For all methods, the performance worse on the left-most side of the plot on the left panel, which is a region with not enough data to determine whether a measurement is an inlier or an outlier. Figure 19 shows the results when data are presented in random order of xt. We show results for a single run on the left panel 31 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Figure 16. Left panel shows the RMedSE (root median squared error) vs running time (per observation) to fit a neural network to the Kin8nm UCI regression dataset. Each point corresponds to a different trial. Right panel shows the RMedSE (root median squared error) vs percentage probability of outlier, pϵ when fitting a neural network to the Kin8nm UCI regression dataset. (We show the bootstrp average over 100 trials and 95% confidence interval) Crucially, the same hyper-parameters are used for all experiments (and are estimated under pϵ = 0 .1). 
+
+Figure 17. The left panel shows a run of the EnKF , the AP-EnKF , the PP-EnKF , and the Hub-EnKF ; with covariance inflation; outlier events are shown in grey vertical bars. The right panel shows the bootstrap estimate of LT over 20 runs and 500 bootstrapped samples as a function of the c hyperparameter. 
+
+and the the RMedSE after multiple trials on the right panel. Similar to the sorted configuration, we observe that the EKF-IW 
+
+and the WoLF-IMQ are the methods with lowest RMedSE. However, the EKF-IW has longer tails than the WoLF-IMQ .
+
+True measurement model We modify the experiment above by taking the measurement function to be ht(θt) = 
+
+h(θt, x t) = θt, 1xt − θt, 2 cos( θt, 3xt π) + θt, 4x3 
+
+> t
+
+, with state θt ∈ R4 and θt,i the i-th entry of the state vector θt. Figure 20 shows a single run of the filtering process when the data is presented unsorted (left panel) and sorted (right panel). We observe that the behaviour of the WoLF-IMQ , the WoLF-TMD , and the EKF-IW have similar performance. However, the 
+
+EKF-IW takes twice the amount of time to run. The OGD and the EKF are not able to correctly filter out outlier measurement at the tails. Finally, the EKF-B over-penalises inliers and does not capture the curvature of the measurement process. 32 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Figure 18. Results with sorted data. Left panel shows a run of each filter on the 1d regression, with the true underlying data-generating function in solid black line and the next-step predicted observation as dots. Right panel shows the RMedSE distribution over multiple trials. 
+
+Figure 19. Results with unsorted inputs. The left panel shows a run of each filter with the underlying data-generating function in solid black line and the next-step predicted observation as dots. The right panel shows the distribution of GT for multiple runs. We remove all values of GT that have a value larger than 800. 
+
+33 Outlier-robust Kalman Filtering through Generalised Bayes 
+
+Figure 20. The figure shows a run of each filter with the underlying data-generating function in solid black line and the evaluation of 
+
+h(μt|t−1, x t) in points. The left panel shows the configuration with unsorted xt values and the right panel shows the configuration with sorted xt values. 
+
+34

@@ -1,0 +1,1401 @@
+Title: Reducing sequential change detection to sequential estimation
+
+URL Source: https://openreview.net/pdf?id=EZLsxOgcDg
+
+Number of Pages: 15
+
+Markdown Content:
+# Reducing sequential change detection to sequential estimation 
+
+Shubhanshu Shekhar 1 Aaditya Ramdas 1 2 
+
+# Abstract 
+
+We consider the problem of sequential change detection under minimal assumptions on the dis-tribution generating the stream of observations. Formally, our goal is to design a scheme for de-tecting any changes in a parameter or functional 
+
+θ of the data stream distribution that has small detection delay, but guarantees control on the fre-quency of false alarms in the absence of changes. We describe a simple reduction from sequential change detection to sequential estimation using confidence sequences (CSs): begin a new level-
+
+(1 − α) CS at each time step, and proclaim a change as soon as the intersection of all active CSs becomes empty. We prove that the average run length of our scheme is at least 1/α , resulting in a change detection scheme with minimal structural assumptions (thus allowing for possibly depen-dent observations, and nonparametric distribution classes), but strong guarantees. We also describe an interesting parallel with Lorden’s reduction from change detection to sequential testing and connections to the recent “e-detector” framework. 
+
+# 1. Introduction 
+
+We consider the following problem of sequential change detection (SCD): for a general space X , given a stream of 
+
+X -valued observations X1, X 2, . . . , our goal is to design a method to detect any changes in a prespecified parameter or functional θ (possibly infinite dimensional) associated with the source generating this stream. Let P denote a class of probability distributions on the infinite product space 
+
+Ω = X ∞, and let θ : P → Θ, denote a mapping from probability distributions to some (possibly infinite dimen-sional) parameter space Θ. The data distribution satisfies the following for some T ∈ N ∪ {∞} :     
+
+> 1Department of Statistics and Data Science, Carnegie Mel-lon University 2Machine Learning Department, Carnegie Mel-lon University. Correspondence to: Shubhanshu Shekhar <shub-han2@andrew.cmu.edu >.
+> Proceedings of the 41 st International Conference on Machine Learning , Vienna, Austria. PMLR 235, 2024. Copyright 2024 by the author(s).
+
+• For n ≤ T , the observations are the first T elements of a trajectory of P0 ∈ P , with θ(P0) = θ0.• For n > T , the observations are drawn from another distribution P1 ∈ P , such that θ(P1) = θ1̸ = θ0.In particular, P0, P 1 are distributions over an infinite se-quence of observations, and the data is not assumed to be i.i.d. (independent and identically distributed), meaning that we do not assume that P0, P 1 take the form p∞ for some distribution p over X . Further, P1 (and hence θ1) is allowed to depend on X1, . . . , X T . We refer to the term T as the 
+
+changepoint , and to P0 and P1 as the pre- and post-change 
+
+distributions respectively. Under the above model, our goal is to design a data-driven method for detecting any change in the value of θ, with-out any knowledge of T, P 0, P 1. In technical terms, our objective is to define a stopping time τ , at which we stop collecting more data, and declare a changepoint has previ-ously occurred. There are two problem settings to consider: non-partitioned and partitioned. By default, define the filtration F ≡
+
+(Fn)n≥0, where Fn is by default the sigma algebra 
+
+σ(X1, . . . , X n) and F0 = {∅ , Ω}.
+
+Problem 1.1 (Non-partitioned SCD) . For some unknown triple (T, P 0, P 1), suppose X1, X 2, . . . denote a data stream, such that (Xn)n≤T are drawn from P0, and 
+
+(Xn)n>T are drawn from P1, such that θ(P1) = θ1̸ = θ0 =
+
+θ(P0). The goal is to define a stopping time τ , adapted to the filtration F satisfying: 
+
+• If T = ∞, and there is no changepoint, we require that E∞[τ ] ≥ 1/α , for a prespecified α ∈ (0 , 1) . The term E∞[τ ] is called the average run length (ARL), and represents the frequency of false alarms. 
+
+• If T < ∞, and there is a changepoint at which the distribution changes from P0 to P1, we desire the de-tection delay, ET [( τ − T )+], to be as small as possible. 
+
+The non-partitioned SCD problem stated above, does not require any pre-specified partitioning of P into pre- and post change distribution classes. That is, it assumes that the data generating distribution changes from one unknown 1Reducing sequential change detection to sequential estimation 
+
+distribution P0 in P to another unknown distribution P1 in 
+
+P. This is in contrast to another formulation of the SCD problem, where it is assumed that we know some partition of P into “pre-change” and “post-change” classes P0, P1
+
+such that P0, P 1 are known to respectively lie in P0, P1.In this setting, we are not interested in changes within P0,only changes from P0 to P1. Sometimes, P0 is even as-sumed to be a singleton, meaning the pre-change distribu-tion is assumed to be known exactly; we will not make any such assumption. The additional knowledge about the two partitioned distribution classes, that is not available in the first formulation, is often critical in designing optimal SCD schemes, especially in parametric problems. The strategy we develop in this paper is also applicable to an interme-diate variant of the SCD problem, that only assumes the knowledge of the pre-change parameter class, Θ0.
+
+Problem 1.2 (Partitioned SCD) . For some unknown triple 
+
+(T, P 0, P 1), suppose X1, X 2, . . . denote a stream of X -valued observations, satisfying the following assumptions: The observations (Xn)n≤T are drawn according to a pro-cess P0 ∈ P with parameter θ0 ∈ Θ0 ⊂ Θ, where Θ0 is known. The observations (Xn)n>T are drawn from P1 with parameter θ1, such that θ1̸ ∈ Θ0, and θ1 is unknown, and lies in a set Θ1 ⊂ Θ\Θ0. The goal is to design a stopping time τ , satisfying the bulleted criteria stated in Problem 1.1. 
+
+Sequential changepoint detection is a very well-studied problem in the sequential analysis literature, going back to the early works by Shewhart (1925; 1930); Page (1954); Shiryaev (1963). These initial papers developed computa-tionally efficient likelihood-based schemes for known pre-and post-change distributions, which have since then been extended to more general cases of composite, but paramet-ric, pre- and post-change distribution classes. We refer the reader to the book by Tartakovsky et al. (2014) for a de-tailed discussion of the parametric SCD problem. Unlike the parametric case, there exist very few general princi-ples (analogous to the likelihood and generalized likelihood based schemes) for designing SCD methods with nonpara-metric distribution classes. Two recent exceptions to this trend include the paper on e-detectors by Shin et al. (2024) for Problem 1.2 (partitioned), and the BCS-Detector 
+
+scheme proposed by Shekhar & Ramdas (2023) for Prob-lem 1.1 (non-partitioned). This paper focuses on the non-partitioned setting, and provides a simpler and theoretically stronger alternative to Shekhar & Ramdas (2023), while also being applicable to the partitioned setting, where it generalizes an old reduction by Lorden (1971). 
+
+Remark 1.3. Before proceeding, we clarify our use of the term “reduction” in this paper. Specifically, we use “reduc-tion” from change detection to estimation to mean that if we have a scheme to construct confidence sequences (see Def-inition 1.4) for a parameter θ, then we can immediately employ it as a subroutine, along with some logically simple operations (such as checking for intersections), to develop a scheme for detecting changes in that parameter. 
+
+The BCS-Detector scheme. of Shekhar & Ramdas (2023), recalled in Definition A.5 in Appendix A, is also a reduction from changepoint detection to estimation, but in this paper we propose a different, and even simpler re-duction. To elaborate, BCS-Detector uses a single confi-dence sequence (CS) in the forward direction, but with every new observation, it constructs a new CS in the backward direction (the so-called “backward CS” or BCS, constructed using observations with their time indices reversed). The scheme stops and declares a detection, as soon as the inter-section of the single forward CS and the all active BCSs becomes empty. Since it is critical to our simplified scheme as well, we recall the definition of a CS below. 
+
+Definition 1.4 (Confidence Sequence (CS)) . Given obser-vations X1, X 2, . . . drawn from a distribution P with asso-ciated parameter/functional θ ≡ θ(P ), a level-(1 − α) CS for θ, is a sequence of sets (Cn)n≥1, satisfying: • For every n ≥ 1, the set Cn ⊂ Θ is Fn-measurable. In words, the set Cn is constructed using only the information contained in the first n observations. • The sets satisfy a uniform coverage guarantee: 
+
+P (∀n ∈ N : θ(P ) ∈ Cn) ≥ 1 − α. Equivalently, a CS is a sequence of confidence intervals that is valid at any F-stopping time τ : P (θ(P ) ∈ Cτ ) ≥ 1 − α.
+
+Remark 1.5. Due to the uniform coverage guarantee, if 
+
+(Cn) is a CS, then so is (∩m≤nCm). Thus, we can assume without loss of generality that the sets involved in a CS are nested; that is Cn ⊆ Cn′ for all n′ < n .
+
+Remark 1.6. Confidence sequences (CSs) are a fundamen-tal tool in sequential and anytime-valid inference, and were first developed by Robbins and co-authors in the 1960s. Some early influential papers on this topic include the works of Darling & Robbins (1967), Lai (1976), Jenni-son & Turnbull (1984). More recently, there has been a renewed interest in confidence sequences, driven by their applications in multi-armed bandits (Jamieson et al., 2014) and A/B testing (Johari et al., 2015). Some important mod-ern contributions in this area include the works of Howard et al. (2021); Howard & Ramdas (2022), Orabona & Jun (2023), Waudby-Smith & Ramdas (2023), Wang & Ramdas (2023), Chowdhury & Gopalan (2017); Chowdhury et al. (2023), and Kaufmann & Koolen (2021). Our primary ob-jective in this paper is to develop a scheme to harness the significant recent progress on the topic of confidence se-quences, in order to develop a general recipe for designing powerful change-detection schemes. The BCS-Detector scheme of Shekhar & Ramdas (2023) satisfies several favorable properties: it can be instantiated 2Reducing sequential change detection to sequential estimation 
+
+for a large class of parametric and nonparametric problems, it provides non-asymptotic control over the ARL, and has strong guarantees over the detection delay. However, a closer look at their scheme reveals that it implicitly makes a “bidirectional” assumption about the data generating pro-cess: at any n ≥ 1, the BCS-Detector assumes the ability to construct a CS in the forward direction (based on 
+
+X1, . . . , X n), as well as in the backward direction (using 
+
+Y1 = Xn, Y 2 = Xn−1, . . . , Y n = X1). Most methods for constructing CSs proceed by designing martingales or su-permartingales adapted to the natural (forward) filtration of the observations. Hence, the BCS-Detector implicitly involves constructing martingales (or supermartingales) in both, the forward and reverse directions; this in turn is typi-cally only possible if the observations are independent. This restriction limits the applicability of the BCS-Detector 
+
+scheme, a weakness that we eliminate. 
+
+Contributions. Our main contributions are as follows: • In Section 2, we propose a new SCD scheme, that we refer to as the RCS-Detector . This scheme pro-ceeds by constructing a new forward CS with each observation, and stops as soon the intersection of all the active CSs (see Remark 2.2) becomes empty. • Unlike the BCS-Detector of Shekhar & Ramdas (2023), our new scheme relies only on forward CSs, thus eliminating their independence requirement on the observations, and allowing for martingale dependence. • Our scheme also achieves a tighter bound (by a factor 
+
+2) on the ARL, as compared to the BCS-Detector ,while matching its detection delay guarantees. • Finally, our reduction from change detection to sequen-tial estimation for Problem 1.1 provides a satisfactory analog to the famous reduction by (Lorden, 1971) from Problem 1.2 to sequential testing (Section 3), and also significantly generalizes the latter for Problem 1.2. 
+
+# 2. Our proposed reduction 
+
+We now describe our scheme that proceeds by starting a new CS in the forward direction with each new observation. 
+
+Definition 2.1 (RCS-Detector ). Suppose we are given a stream of observations X1, X 2, . . . , and a functional θ as-sociated with the source. For Problem 1.1 (non-partitioned), define the C(0)  
+
+> n
+
+= Θ for all n ≥ 1, while for Prob-lem 1.2 (partitioned) set C(0)  
+
+> n
+
+= Θ 0, for all n ≥ 1. Proceed as follows for n = 1 , 2, . . . :
+
+1. Observe the next data-point Xn.2. Using Xn, update all the previous CSs (that is, {C(m) :0 ≤ m < n }) and also initialize a new level-(1 − α)
+
+CS, denoted by C(n).3. If the intersection of all initialized CSs becomes empty, meaning ∩nm=0 C(m) 
+
+> n
+
+= ∅, then set τ ← n, and declare a detection. In the last step, we have implicitly used the nestedness discussed Remark 1.5, but if the CSs are not nested, we can use the stopping criterion ∩nm=0 ∩ni=m C(m) 
+
+> i
+
+= ∅.
+
+Remark 2.2. Note that at the end of round n, the 
+
+RCS-Detector scheme has n + 1 “active CSs”: 
+
+C(0) , C (1) , . . . , C (n). At this time, each CS C(m) consists of the sets {C(m) 
+
+> m
+
+, . . . , C (m) 
+
+> n
+
+} constructed using the obser-vations Xm, . . . , X n. Specifically, the most recent CS, de-noted by C(n), consists of a single set {C(n) 
+
+> n
+
+}, constructed using only the observation Xn.
+
+Remark 2.3. In general, the computation cost of our re-duction (and the BCS-Detector ) increases quadratically with n since at time n we need to update all CSs ini-tialized so far using Xn, meaning that we form the sets 
+
+{C(m) 
+
+> n
+
+: 1 ≤ m ≤ n}. One possible way of reducing this computational cost is by considering only the w most recent CSs, for some window-size w > 0. Selecting the appropri-ate value of w, either based on some prior information about the change magnitude, or by learning it in a data-driven manner is an interesting direction for future work. Compared to the BCS-Detector of Shekhar & Ramdas (2023), the main change in the above scheme is that it creates a new forward CS with each new observation, instead of a new “backward CS” (a new concept defined by their paper, but this complexity is unnecessary with ours). 
+
+2.1. Analyzing the average run length 
+
+We now show that our RCS-Detector scheme admits a nonasymptotic lower bound on the average run length (ARL) when there is no change. 
+
+Theorem 2.4 (ARL control) . The changepoint detection scheme described in Definition 2.1 controls the average run length (ARL) at level 1/α . That is, when T = ∞, our proposed stopping time τ satisfies E∞[τ ] ≥ 1/α .
+
+The proof of this result is in Section 4.1. Note that for the 
+
+BCS-Detector obtained a lower bound of 1/2α−3/2 on the ARL. Thus, our RCS-Detector achieves an improved (approximately by a factor of 2) lower bound under weaker model assumptions on the data stream, while matching the detection delay guarantees of BCS-Detector , as we show in the next section. This improved performance guarantee is a consequence of more refined analysis (that we are unable to extend to BCS-Detector ), and in practice, we observe 3Reducing sequential change detection to sequential estimation 
+
+that the empirical performance of RCS-Detector and 
+
+BCS-Detector are comparable to each other on indepen-dent data streams. 
+
+Remark 2.5. An alternative performance measure to ARL is the probability of false alarms (PFA) , which is equal to the probability that the stopping time τ is finite; that is 
+
+P∞(τ < ∞). If we modify our RCS-Detector to use a level-(1 − 6α/ (n2π2)) CS in each round, then the resulting scheme ensures 
+
+P∞(τ < ∞) ≤ X
+
+> n≥1
+
+P∞
+
+n 
+
+(C(n) 
+
+> t
+
+)t≥n miscovers θ0
+
+o 
+
+≤ α X
+
+> n≥1
+
+6
+
+π2n2 = α. 
+
+This implies that the ARL of the above modified 
+
+RCS-Detector scheme is infinity, since E∞[τ ] ≥ (1 −
+
+α) × ∞ = ∞. This significantly stronger control over false alarms comes at the cost of an increase in detection delay. In particular, we can show that for most CSs, the detection delay of this modified scheme will have a logarithmic de-pendence on T . This means that the worst case (over all 
+
+T values) detection delay of the PFA-controlling scheme is usually unbounded. 
+
+2.2. Analyzing the detection delay 
+
+We now state an assumption under which we will analyze the detection delay of our SCD scheme. 
+
+Assumption 2.6. Letting d denote a metric on Θ, Xn
+
+be shorthand for (X1, . . . , X n), and (Cn)n≥0 be a given confidence sequence, we assume that the width of the set 
+
+Cn ≡ Cn(Xn, α ) has a deterministic bound 
+
+sup 
+
+> θ′,θ ′′ ∈Cn
+
+d(θ′, θ ′′ ) a.s. 
+
+≤ w(n, P, α ),
+
+with lim n→∞ w(n, P, α ) = 0 , for all P ∈ P , α ∈ (0 , 1] .
+
+The above assumption requires the existence of a determin-istic envelope function for the diameter of the confidence se-quence, which converges to zero pointwise for every (P, α ),as n increases. This is a very weak assumption, and essen-tially all known CSs satisfy it. We now analyze the detection delay of our SCD scheme for Problem 1.1 under Assumption 2.6. 
+
+Theorem 2.7. Consider the SCD problem with observations 
+
+X1, X 2, . . . such that (Xn)n≤T are drawn from a distribu-tion P0 (with parameter θ0), while (Xn)n>T are drawn from a product distribution P1 (with parameter θ1̸ = θ0), and are independent of the pre-change observations. Sup-pose the RCS-Detector from Definition 2.1 is applied to this problem, with the CSs satisfying Assumption 2.6. Let ET := {θ0 ∈ ∩ Tn=1 C(1)  
+
+> n
+
+} denote the “good event” (having at least (1 − α) probability) that the first CS cov-ers the true parameter up to the changepoint. For Prob-lem 1.1 (non-partitioned), if T is large enough to ensure that w(T, P 0, α ) < d (θ0, θ 1), then the detection delay of our proposed scheme satisfies 
+
+ET [( τ − T )+|E T ] ≤ 31 − α u(θ0, θ 1, T ),
+
+where u(θ0, θ 1, T ) := min {n ≥ 1 : w(T, P 0, α ) + 
+
+w(n, P 1, α ) < d (θ0, θ 1)}. For Problem 1.2 (partitioned), the RCS-Detector satisfies 
+
+ET [( τ − T )+|F T ] ≤ 31 − α u(Θ 0, θ 1), (1) 
+
+where u(Θ 0, θ 1) := min {n ≥ 1 : w(n, P 1, α ) <
+
+inf θ′∈Θ0 d(θ′, θ 1)} for all values of T < ∞.
+
+The proof of this result adapts the arguments devel-oped by Shekhar & Ramdas (2023) for analyzing the 
+
+BCS-Detector , and we present the details in Section 4.2. 
+
+Remark 2.8. The above detection delay bound exactly 
+
+matches that obtained by the BCS-Detector of Shekhar & Ramdas (2023), which (as mentioned earlier) had a worse ARL guarantee of ARL ≥ 1/(2 α) − 3/2. Recalling Theo-rem 2.4, our new scheme achieves an improved bound on the ARL, while matching its detection delay. The previous result provides an explicit detection delay bound applicable to a large class of problems in terms of the CS width w(n, P, α ). We now state a less explicit bound on the detection delay that is valid under much weaker conditions. 
+
+Proposition 2.9. Consider an SCD problem in which the post change observations are (i) stationary, and (ii) indepen-dent of FT = σ(X1, . . . , X T ). Then, the detection delay of the RCS-Detector on Problem 1.2 (partitioned) satisfies the following bound: 
+
+ET [( τ − T )+|F T ] ≤ E0[N1], where 
+
+Nm := inf {n − m : C(m) 
+
+> n
+
+∩ θ0 = ∅} , for m ≥ 1.
+
+An exactly analogous bound holds for ET [( τ − T )+|E T ]
+
+for Problem 1.1 (non-partitioned), with the modification that Θ0 is replaced with {θ : d(θ0, θ ) ≤ d(θ0, θ 1)/2} in the definition of Nm.
+
+This result can be used as an intermediate step in obtaining sharp detection delay bounds for the RCS-Detector on problems with some additional structure. We demonstrate this next in Section 2.3, for the problem of detecting changes in mean of bounded data. 
+
+2.3. A nonparametric example: change in mean for bounded random variables 
+
+We now analyze the performance of our changepoint de-tection scheme the problem of detecting changes in the 4Reducing sequential change detection to sequential estimation 
+
+mean of bounded real-valued random variables supported on X = [0 , 1] . Note that despite the simple observation space, the class of distributions on this X is highly compos-ite and nonparametric. In particular, there does not exist a common dominating measure for all distributions in this class, which renders likelihood based techniques inapplica-ble to this problem. Formally, we consider the instances of Problem 1.1 and Problem 1.2 with X = [0 , 1] , and the parameter space 
+
+Θ = [0 , 1] with metric d(θ, θ ′) = |θ − θ′|. For Prob-lem 1.2, we assume that the pre-change mean θ0 lies in a known set Θ0 ⊂ Θ. For an unknown value T ∈ N ∪ {∞} ,the distribution generating the observations changes from 
+
+P0, with mean θ0, to another distribution P1, with mean 
+
+θ1̸ = θ0. The (unknown) change magnitude is denoted by 
+
+d(θ0, θ 1) = ∆ = |θ1 − θ0|.For this problem, we employ our RCS-Detector strategy using an instance of the betting-based construction of CSs for the means of bounded random variables (details in Ap-pendix B) proposed by Waudby-Smith & Ramdas (2023). Our next result analyzes its performance. 
+
+Proposition 2.10. Consider the problem of detecting changes in mean with bounded observations, under these additional conditions: (i) the post-change observations are independent of the pre-change observations, and (ii) both, the pre- and post-change observations are i.i.d. (that is 
+
+P0, P 1 are infinite products of some distributions p0, p 1
+
+on X ). For Problem 1.1 (non-partitioned), if T ≥
+
+64 log(64 /∆2α)/∆2, the RCS-Detector instantiated with the betting CS (details in Appendix B) satisfies: 
+
+E∞[τ ] ≥ 1
+
+α , and ET [( τ − T )+|E ] = O
+
+ log(1 /αK 1)
+
+K1
+
+
+
+,
+
+(2) 
+
+where K1 = K1(P1, θ 0) := inf Pθ :|θ−θ0|≤ ∆/2 dKL (p1 ∥ pθ ).In the display above, E is the “good event” in Theorem 2.7, having probability at least 1 − α.For Problem 1.2 (partitioned), the RCS-Detector satis-fies the following: 
+
+E∞[τ ] ≥ 1
+
+α , and ET [( τ − T )+] = O
+
+ log(1 /αK 2)
+
+K2
+
+
+
+,
+
+(3) 
+
+where K2 ≡ K2(P1, Θ0) = inf Pθ :θ∈Θ0 dKL (p1 ∥ pθ ). In the statements above, Pθ = p∞ 
+
+> θ
+
+denotes any product distri-bution on X ∞ with mean θ.
+
+The proof of this result is in Appendix B, and relies on a careful analysis of the behavior of betting CSs. If the pre-change distribution P0 is also i.i.d. (say P0 = p∞ 
+
+> 0
+
+), and is known, then K2 in (3) reduces to dKL (p1 ∥ p0). The resulting detection delay is order optimal, according to Lor-den (1971)[Theorem 3], and furthermore, this optimality is achieved for an unknown P1 lying in a nonparametric distribution class. 
+
+Remark 2.11. By an application of Pinsker’s inequal-ity (Fact A.3 in Appendix A), we know that both K1 and 
+
+K2 are Ω(∆ 2), which gives us the weaker upper bound on the detection delay, O  log(1 /α ∆) /∆2. This is the upper bound on the detection delay derived by Shekhar & Ramdas (2023) for the change of mean detection problem, using the empirical-Bernstein CS of Waudby-Smith & Ramdas (2023), and a direct application of the general delay bound of Theorem 2.7. 
+
+2.4. Numerical experiments      
+
+> 10 −510 −410 −310 −210 −1
+> 0
+> 20 ,000
+> 40 ,000
+> α
+> ARL
+> ARL versus α
+> RCS
+> BCS
+
+Figure 1: The figure plots the estimates of (lower bounds on) the ARL of the two schemes constructed based on 50 
+
+independent trials. In this section, we empirically compare the performance of the our RCS-Detector with the BCS-Detector 
+
+scheme of Shekhar & Ramdas (2023) on the problem of detecting changes in mean of bounded observations. For simplicity, we instantiate both these schemes using Hoeffd-ing CS (details below) proposed by Waudby-Smith & Ram-das (2023), since it admits a closed form representation. Our main objective in this section is to illustrate how the 
+
+RCS-Detector (and BCS-Detector ) can be used to address non-partitioned change detection problems with minimal knowledge and assumptions on the distributions. We leave a more thorough empirical evaluation of our gen-eral scheme and its instantiations in different scenarios, as an interesting direction for future work. 
+
+Experiment setup. We consider the problem of detecting changes in the mean of bounded observations, where • X1, X 2, . . . , are independent observations, supported on X = [0 , 1] .• For t ≤ T , each Xt is drawn according to a Beta 5Reducing sequential change detection to sequential estimation 
+
+distribution with parameters (2 , 2(1 − μ0)/μ 0), where 
+
+μ0 denotes the pre-change mean. • For t > T , each Xt is drawn from a Beta distribution with parameters (2 , 2(1 − μ1)/μ 1), where μ1̸ = μ0 is the post-change mean value. • We denote the change magnitude by ∆ = |μ1 − μ0|.We instantiate both the schemes using the follow-ing Hoeffding-type confidence sequence constructed by Waudby-Smith & Ramdas (2023): 
+
+Ct =
+
+" Pti=1 λiXi
+
+Pti=1 λi
+
+± log(2 /α ) + Pti=1 λ2 
+
+> i
+
+/8
+
+Pti=1 λi
+
+#
+
+,
+
+where λi =
+
+s
+
+8 log(2 /α )
+
+i × log( i + 1) ∧ 1, for all i ≥ 1.
+
+ARL comparison. In the first experiment, we compare the average run length (ARL) of the two schemes. For this, we set ∆ = 0 , and consider five values of α in the set 
+
+{10 −i : 1 ≤ i ≤ 5}, and estimate the ARL as the average of the stopping times over 50 trials (capped at 50000 ). The results of this experiment, plotted in Figure 1, indicate that the both schemes provide the required control over ARL, but the RCS-Detector has a slightly higher variability, especially at smaller α values. See Appendix C for some additional details of this experiment. 
+
+Detection delay comparison. We now compare the de-tection delay of the two schemes. To do this, we set α = 0.001 , and consider six value of ∆ ∈{0.05 , 0.075 , 0.10 , 0.125 , 0.15 , 0.175 }. For every ∆ value, we ran 50 independent trials with the two schemes to esti-mate their average detection delay (clipped at a maximum of 24000 ). As shown in Figure 2, the detection delay of the two schemes are roughly comparable for independent data. However, the RCS-Detector has the additional benefit of being applicable to a more general class of problems with dependent data streams; we present one such example in Appendix C. 
+
+# 3. Connection to Lorden’s reduction from SCD to testing 
+
+Using the duality between confidence sequences and sequential hypothesis tests, we now show that our 
+
+RCS-Detector strategy is a generalization of a well-known result of Lorden (1971), that reduces the problem of SCD (with separated distribution classes) to that of repeated sequential tests. Lorden’s work built upon the interpretation of CuSum algo-rithm as repeated sequential probability ratio tests (SPRT) for known pre- and post-change distributions by Page (1954). In particular, Lorden (1971) considered a para-metric SCD problem with a known pre-change distribution 
+
+P0, and a parametric composite class of post-change dis-tributions {Pθ1 : θ1 ∈ Θ1}. Then, given a sequential test, or equivalently, extended stopping time, {N (α, θ 0) : α ∈
+
+(0 , 1) }, satisfying PP0 (N (α, θ 0) < ∞) ≤ α, Lorden (1971) proposed the following SCD strategy: • For every m ≥ 1, define N (m)(α, θ 0) as the stopping rule N (α, θ 0) applied to the observations 
+
+Xm, X m+1 , . . . .• Using these, declare the changepoint at the time τL ≡
+
+τL(α), defined as 
+
+τL = inf  
+
+> m≥1
+
+{N (m)(α, θ 0) + m}.
+
+In words, this scheme can be summarized as: initiate a new sequential level-α test with every new observation, and stop and declare a detection as soon as one of the active tests rejects the null . For this scheme, Lorden (1971) established the ARL control; that is, EP0 [τL] ≥ 1/α , for the specified 
+
+α ∈ (0 , 1) . Furthermore, under certain assumptions on the expected stopping time of the test N (α, θ 0) under the alternative, Lorden (1971) also established the minimax optimality of the scheme in the regime of α → 0.Our main result of this section establishes a connection between Lorden’s reduction and RCS-Detector .
+
+Proposition 3.1. Consider an SCD problem with pre-change parameter set Θ0 = {θ0}, and a post-change pa-rameter set Θ1. Then, we have the following: 
+
+• For every Lorden-type scheme τL, there exists an 
+
+RCS-Detector τR, such that τL = τR.
+
+• For every RCS-Detector τR, there exists a Lorden-type scheme τL, such that τR = τL.Thus, there is a one-to-one correspondence between Lor-den’s reduction and RCS-Detector for such problems. 
+
+The proof of this statement is in Section 4.4, and it relies on the duality between CSs and power-one sequential tests. We end our discussion with two remarks. 
+
+Remark 3.2. While we focused on the case of a singleton null, {P0}, a similar result holds for the case of a composite null {Pθ0 : θ0 ∈ Θ0}, with Θ0 ∩ Θ1 = ∅. The only modification needed is to update the stopping time N (α, Θ0)
+
+to be equal to inf {n ≥ 1 : Θ 0 ∩ Cn = ∅} . By Theorem 2.4, the resulting SCD scheme still controls the ARL at the required level 1/α .
+
+Remark 3.3. Note that the e-detector framework, devel-oped by Shin et al. (2024), also generalizes and strictly 6Reducing sequential change detection to sequential estimation                      
+
+> 5·10 −20.10.15
+> 0
+> 10 ,000
+> 20 ,000
+> Change magnitude ( ∆)
+> Detection Delay
+> Delay versus ∆
+> RCS
+> BCS
+> 600 800 1,000 1,200 1,400
+> 0
+> 0
+> 0
+> 0
+> Detection Delay
+> Density
+> Distribution of (τ−T)+for ∆ = 0 .125
+> RCS
+> BCS
+> 1,000 2,000 3,000
+> 0
+> 0
+> 0
+> 0
+> Detection Delay
+> Density
+> Distribution of (τ−T)+for ∆ = 0 .1
+> RCS
+> BCS
+
+Figure 2: The first plot shows the variation of the detection delay (averaged over 50 trials) for the two schemes (both constructed using Hoeffding CS) with the change magnitude ( ∆). As suggested by Theorem 2.7, the detection delay of the two schemes are comparable. In some problem instances (smaller ∆ values), the performance of RCS-Detector is slightly better (middle plot), while in some others (larger ∆ values), the BCS-Detector does better (right plot). The maximum detection delay in the experiments was capped at 24000 , which is why the delay of the two schemes agree at 
+
+∆ = 0 .05 (indicating that the true detection delay of both schemes is some quantity strictly larger than 24000 ). improves upon Lorden’s scheme to work for composite, and nonparametric pre- and post-change distribution classes ( P0
+
+and P1 respectively). However, the e-detectors were devel-oped explicitly for Problem 1.2 (partitioned); that is for a known class of pre-change distributions P0 (although the general idea could be suitably adapted for the non-separated formulation in some cases). This is unlike our scheme that is applicable to both the partitioned and non-partitioned formulations of the SCD problem. 
+
+# 4. Deferred proofs 
+
+We now present the proofs of the two main technical results characterizing the performance of our RCS-Detector 
+
+scheme, stated in Section 2 and Section 3. 
+
+4.1. Proof of Theorem 2.4 
+
+We prove this statement in three steps. First, we define an e-process (recalled in Definition 4.1) corresponding to every confidence sequence (C(m) 
+
+> n
+
+)n≥m involved in our scheme. Then, using these e-processes we introduce an e-detector 
+
+(Mn)n≥1, that is, a process adapted to the natural filtration 
+
+F that satisfies E∞[Mτ ′ ] ≤ E∞[τ ′] for all stopping times τ ′.Finally, we show that our stopping time τ , introduced in Def-inition 2.1, is larger than τ ′ = inf {n ≥ 1 : Mn ≥ 1/α },defined using the e-detector. This allows us to lever-age Shin et al. (2024, Proposition 2.4) to conclude that 
+
+E∞[τ ′] ≥ 1/α , which implies required statement about the ARL of τ .Since we prove this result by attaching an e-process to every CS, we recall their definition below. 
+
+Definition 4.1 (e-processes) . Given a class of probability measures P, and a filtration F ≡ (Fn)n≥1 defined on some measurable space, an e-process for P is a collection of nonnegative random variables (En)n≥1 adapted to F, sat-isfying EP [Eτ ′ ] ≤ 1 for all P ∈ P , and for all stopping times τ ′ (adapted to the same filtration). 
+
+Step 1. Construct an e-process for every CS. For every CS starting with the mth observation, denoted by 
+
+(C(m) 
+
+> n
+
+)n≥m, we associate a process defined as 
+
+E(m) 
+
+> n
+
+=
+
+(
+
+0, if n < m, OR if n ≥ m, and θ0 ∈ C(m) 
+
+> n
+
+, 
+
+> 1
+> α
+
+, if n ≥ m, and θ0̸ ∈ C(m) 
+
+> n
+
+.
+
+It is easy to verify that for every m ≥ 1, the process {E(m) 
+
+> n
+
+:
+
+n ≥ 1} is an e-process: • For every n ≥ 1, the value of E(m) 
+
+> n
+
+is Fn =
+
+σ(X1, . . . , X n) measurable. • For any stopping time τ ′, adapted to the filtration F,we have 
+
+E∞[E(m)  
+
+> τ′
+
+] = E∞
+
+
+
+0 × 1τ ′<m + 1
+
+α × 1τ ′≥m1θ0̸ ∈C(m) 
+
+> τ′
+
+
+
+= 1
+
+α × E∞
+
+h
+
+1τ ′≥m1θ0̸ ∈C(m) 
+
+> τ′
+
+i
+
+≤ 1
+
+α × E∞
+
+h
+
+1θ0̸ ∈C(m) 
+
+> τ′
+
+i
+
+= 1
+
+α × P∞
+
+
+
+θ0̸ ∈ C(m) 
+
+> τ′
+
+
+
+≤ 1
+
+α × α = 1 .
+
+7Reducing sequential change detection to sequential estimation 
+
+The last inequality uses the fact that (C(m) 
+
+> n
+
+)m≥n is a level-
+
+(1 − α) CS for θ0. Thus, for every m ≥ 1, the process 
+
+(E(m) 
+
+> n
+
+)n≥1 is a valid e-process. 
+
+Step 2. Construct an e-detector. For every n ≥ 1, we define Mn to be equal to Pnm=1 E(m) 
+
+> n
+
+, and observe that the process (Mn)n≥1 is an e-detector , as defined by Shin et al. (2024, Definition 2.2) because it satisfies the following two properties: • (Mn)n≥1 is adapted to (Fn)n≥1: since for any n ≥ 1,all the E(m) 
+
+> n
+
+are Fn-measurable by construction. • For any stopping time τ ′, we have E∞[Mτ ′ ] ≤ E∞[τ ′],as noted by Shin et al. (2024, Definition 2.6). 
+
+Step 3. Bound the ARL using the e-detector. Finally, we translate the stopping criterion of our proposed scheme (stated as the non-intersection of the confidence sequences) in terms of the e-detector (Mn)n≥1. In particular, we have 
+
+{τ ≤ n} = {∩ nm=0 C(m) 
+
+> n
+
+= ∅} ⊂ {∃ m ∈ [n] : θ0̸ ∈ C(m) 
+
+> n
+
+}
+
+= {∃ m ∈ [n] : E(m) 
+
+> n
+
+= 1 /α }
+
+= {Mn ≥ 1/α }. (4) In words, when T = ∞, if the intersection of the CSs is empty prior to some time n, it means that at least of of the CSs constructed prior to n must miscover. This in turn implies that the value of at least one of the e-processes at 
+
+n is equal to 1/α ; or the value of the e-detector Mn is at least 1/α . Recall, that in the first equality above, we have assumed that the sets in the confidence sequences are nested; that is, C(m) 
+
+> n
+
+⊂ C(m) 
+
+> n′
+
+for every m ≤ n′ < n . This allows us to look only at the intersection of the most recent sets to define the stopping condition. We now define a new stopping time τ ′ = inf {n ≥ 1 : Mn ≥ 1/α }, and observe that it is stochastically dominated by τ ; that is, (4) implies 
+
+{τ ′ > n } = {Mn < 1/α } ⊂ { τ > n },
+
+which allows us to conclude that E∞[τ ′] ≤ E∞[τ ].From Shin et al. (2024, Proposition 2.4), we know that 
+
+E∞[τ ′] ≥ 1/α , and we conclude the result by noting that 
+
+E∞[τ ] ≥ E∞[τ ′] since τ stochastically dominates τ ′.
+
+4.2. Proof of Theorem 2.7 
+
+The proof of this result follows the general argument de-veloped by Shekhar & Ramdas (2023) for analyzing their 
+
+BCS-Detector strategy, with some modifications due to the use of forward CSs (instead of backward CSs used in the BCS-Detector ). In particular, we consider blocks of the post-change observa-tions, each of length u ≡ u(θ0, θ 1, T ), starting at time Tj =
+
+T + ju for j ≥ 0. Note that all these blocks are independent of each other (since P1 is a product distribution), and also independent of the event E = {θ0 ∈ C(1)  
+
+> T
+
+}. Now, observe that for k ≥ 1, we have {τ > T k} = ∩kj=1 {τ > T j }, which furthermore implies 
+
+{τ > T k} ∩ E ⊂ ∩ kj=1 {C(Tj−1) 
+
+> Tj
+
+∩ C(1) 
+
+> T
+
+̸ = ∅} ∩ E ⊂ ∩ kj=1 {C(Tj−1) 
+
+> Tj
+
+miscovers θ1} ∩ E . (5) The last inclusion follows from the definition of u ≡
+
+u(θ0, θ 1, T ), and the event E. Introducing Dk =
+
+PTk+1   
+
+> t=Tk+1
+
+PT (τ ≥ t|E ), and using (5), we obtain: 
+
+Dk ≤
+
+> Tk+1
+
+X 
+
+> t=Tk+1
+
+PT (τ ≥ Tk|E ) = uPT (τ > T k|E )
+
+≤ u × PT
+
+
+
+∩kj=1 {C(Tj−1) 
+
+> Tj
+
+miscovers θ1} ∩ E|E 
+
+
+
+> (i)
+
+≤ u
+
+PT (E) ×
+
+> k
+
+Y
+
+> j=1
+
+PT
+
+
+
+{C(Tj−1) 
+
+> Tj
+
+miscovers θ1} ∩ E 
+
+
+
+≤ uα k
+
+1 − α .
+
+The inequality (i) uses the fact that E only depends on the pre-change observations, and hence is independent of the post-change CSs. For any k0 > 1, observe that 
+
+ET [( τ − T )+] ≤ k0u +
+
+> ∞
+
+X
+
+> k=k0
+
+Dk = u
+
+
+
+k0 + αk0
+
+(1 − α)2
+
+
+
+.
+
+By setting k0 = ⌈2 log(1 /1 − α)/ log(1 /α )⌉, we get the required statement for Problem 1.1. To prove the second part of Theorem 2.7, we proceed as above, considering blocks of post-change observations of length u ≡ u(Θ 0, θ 1) as defined in (1) . We then define 
+
+Tj = T + ju for j ≥ 0, and note that 
+
+{τ > T k} ⊂ ∩ kj=1 {C(Tj−1) 
+
+> Tj
+
+∩ Θ0̸ = ∅} ⊂ ∩ kj=1 {C(Tj−1) 
+
+> Tj
+
+miscovers θ1}.
+
+The rest of the argument, then proceeds exactly as before. 
+
+4.3. Proof of Proposition 2.9 
+
+The first step is to show that when T < ∞, we have 
+
+(τ − T )+ ≤ NT +1 , almost surely .
+
+This inequality is true trivially on the event {τ ≤ T }, since each Nm is non-negative. Now, observe that 
+
+(τ − T )1τ >T = inf {n − T : ∩m≤nC(m) 
+
+> n
+
+= ∅, n > T }≤ inf {n − T : C(0)  
+
+> n
+
+∩ C(T +1)  
+
+> n
+
+= ∅, n > T }
+
+= inf {n − T : Θ 0 ∩ C(T +1)  
+
+> n
+
+= ∅, n > T }
+
+= NT +1 
+
+8Reducing sequential change detection to sequential estimation 
+
+The first inequality uses the fact that we are taking fewer intersections (hence will take longer to stop), while the sec-ond equality uses the fact that C(0)  
+
+> n
+
+= Θ 0 for Problem 1.2. To conclude the proof, we observe that 
+
+ET [( τ − T )+|F T ] ≤ ET [NT +1 |F T ] (i)
+
+= ET [NT +1 ]
+
+> (ii )
+
+= E0[N1].
+
+The equality (i) follows from the independence of post-change data to FT , and (ii ) follows from the stationarity of the post-change data. 
+
+4.4. Proof of Proposition Proposition 3.1 
+
+We prove this statement in three steps: in the first two steps, we show show how to construct a τR from τL, and a τL
+
+from τR respectively; and then establish their equivalence in the third step. 
+
+Step 1. Consider a Lorden-type stopping time τL =inf {m + N (m)(α, θ 0) : m ≥ 1}, and use its underlying test N (α, ·) to construct CSs as follows: 
+
+C(m) 
+
+> n
+
+= {θ ∈ Θ0 ∪ Θ1 : N (m)(α, θ ) > n }.
+
+Note that {N (m)(α, θ ) > n } = {N (m)(α, θ ) ≤ n}c is an Fn measurable event as required. These CSs can now be used to define an RCS-Detector τR = inf {n ≥ 1 : 
+
+∩nm=0 C(m) 
+
+> n
+
+= ∅} .
+
+Step 2. Consider an RCS-Detector τR, and let C denote the method for constructing confidence sequences used by 
+
+τL. Then, we can define a sequential test for {P0} as 
+
+N (α, θ 0) = inf {n ≥ 1 : θ0̸ ∈ Cn},
+
+where Cn = C(X1, . . . , X n; α). By the uniform coverage guarantee of confidence sequences, we have 
+
+PP0 (N (α, θ 0) < ∞) = PP0 (∃n ∈ N : θ0̸ ∈ Cn) ≤ α.Thus, N (α, θ 0) is a valid level-α sequential test for the sim-ple null {P0}. Similarly, N (m) for m ≥ 1, can be defined as the stopping time N (α, θ 0) constructed using observations 
+
+(Xn)n≥m starting at time m. More specifically, we have 
+
+N (m)(α) = inf {n − m : θ0̸ ∈ C(m) 
+
+> n
+
+, n ≥ m},
+
+where C(m) 
+
+> n
+
+= C (Xm, X m+1 . . . , X n; α) .
+
+Using this, we can define a Lorden-type change detector 
+
+τL = inf m≥1{N (m)(α, θ 0) + m}.
+
+Step 3. We conclude the proof by noting that in both the cases above, we have τL = τR. In particular, observe the following chain of equalities: 
+
+{τL ≤ n} = {∃ n′ ≤ n, ∃m ≤ n′ : N (m)(α) = n′ − m}
+
+= {∃ n′ ≤ n, ∃m ≤ n′ : θ0̸ ∈ C(m) 
+
+> n′
+
+}
+
+= {∃ n′ ≤ n :   ∩n′ 
+
+> m=1
+
+C(m)
+
+> n′
+
+ ∩ { θ0} = ∅} 
+
+= {∩ nn′=1 ∩n′ 
+
+> m=0
+
+C(m) 
+
+> n′
+
+= ∅} 
+
+= {∩ nm=0 ∩nn′=m C(m) 
+
+> n′
+
+= ∅} 
+
+= {τR ≤ n}.
+
+In the last two equalities, we have used the fact that C(0) 
+
+> n
+
+for all n ≥ 0 is equal to Θ0 = {θ0}.
+
+# 5. Conclusion 
+
+In this paper, we proposed a new and simple reduction from sequential changepoint detection to sequential estimation: our scheme that constructs a new CS with every observa-tion, and declares a detection as soon as the intersection of the active CSs becomes empty. The design of our scheme improves on the BCS-Detector of Shekhar & Ramdas (2023), which proceeds by initializing new “backward CSs” with each new observation. Indeed, we showed that our new scheme matches the detection delay performance of 
+
+BCS-Detector , while improving the ARL lower bound by a factor of 2. Furthermore, our scheme achieves this improvement under weaker dependence assumptions (i.e., without needing the ability to construct CSs in both for-ward and backward directions). Interestingly, our proposed scheme can be seen as a nonparametric generalization of Lorden’s reduction from SCD to repeated sequential testing, due to the duality between sequential testing and CSs. As a consequence of our proposed reduction, the large and rapidly growing literature on CSs can now immediately be brought to bear on change detection problems. While our method does involve per-step computation that grows lin-early with sample size, it at least provides an immediate statistically optimal baseline method for new (even non-parametric) problems, and we argue that this versatility will result in its broad use, even if it is superseded by other computationally efficient methods for specific problems. 9Reducing sequential change detection to sequential estimation 
+
+# Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+# References 
+
+Chowdhury, S. R. and Gopalan, A. On kernelized multi-armed bandits. In International Conference on Machine Learning , pp. 844–853. PMLR, 2017. Chowdhury, S. R., Saux, P., Maillard, O., and Gopalan, A. Bregman deviations of generic exponential families. In 
+
+The Thirty Sixth Annual Conference on Learning Theory ,pp. 394–449. PMLR, 2023. Darling, D. A. and Robbins, H. Confidence sequences for mean, variance, and median. Proceedings of the National Academy of Sciences , 58(1):66–68, 1967. Durrett, R. Probability: Theory and Examples . Cambridge Series in Statistical and Probabilistic Mathematics. Cam-bridge University Press, 5th edition, 2019. Hazan, E. Introduction to online convex optimization. 
+
+Foundations and Trends in Optimization , 2(3-4):157–325, 2016. Hoeffding, W. Probability inequalities for sums of bounded random variables. Journal of the American Statistical Association , pp. 13–30, 1963. Honda, J. and Takemura, A. An asymptotically optimal bandit algorithm for bounded support models. In The Twenty Third Annual Conference on Learning Theory , pp. 67–79. PMLR, 2010. Howard, S. R. and Ramdas, A. Sequential estimation of quantiles with applications to A/B testing and best-arm identification. Bernoulli , 28(3):1704–1728, 2022. Howard, S. R., Ramdas, A., McAuliffe, J., and Sekhon, J. Time-uniform, nonparametric, nonasymptotic confidence sequences. The Annals of Statistics , 49(2):1055–1080, 2021. Jamieson, K., Malloy, M., Nowak, R., and Bubeck, S. lil’UCB: An optimal exploration algorithm for multi-armed bandits. In Conference on Learning Theory , pp. 423–439. PMLR, 2014. Jennison, C. and Turnbull, B. W. Repeated confidence intervals for group sequential clinical trials. Controlled Clinical Trials , 5(1):33–45, 1984. Johari, R., Pekelis, L., and Walsh, D. J. Always valid inference: Bringing sequential analysis to A/B testing. 
+
+arXiv preprint arXiv:1512.04922 , 2015. Kaufmann, E. and Koolen, W. M. Mixture martingales revis-ited with applications to sequential tests and confidence intervals. The Journal of Machine Learning Research , 22 (1):11140–11183, 2021. Lai, T. L. On confidence sequences. The Annals of Statistics ,pp. 265–280, 1976. Lorden, G. Procedures for reacting to a change in distribu-tion. The Annals of Mathematical Statistics , pp. 1897– 1908, 1971. Orabona, F. and Jun, K.-S. Tight concentrations and con-fidence sequences from the regret of universal portfolio. 
+
+IEEE Transactions on Information Theory , 2023. Page, E. S. Continuous inspection schemes. Biometrika , 41 (1/2):100–115, 1954. Shekhar, S. and Ramdas, A. Sequential changepoint detec-tion via backward confidence sequences. In Proceedings of the 40th International Conference on Machine Learn-ing , volume 202 of Proceedings of Machine Learning Research , pp. 30908–30930. PMLR, 23–29 Jul 2023. Shewhart, W. A. The application of statistics as an aid in maintaining quality of a manufactured product. Journal of the American Statistical Association , 20(152):546–548, 1925. Shewhart, W. A. Economic quality control of manufactured product. Bell System Technical Journal , 9(2):364–389, 1930. Shin, J., Ramdas, A., and Rinaldo, A. E-detectors: a non-parametric framework for online changepoint detection. 
+
+New England Journal of Statistics and Data Science ,2024. Shiryaev, A. N. On optimum methods in quickest detection problems. Theory of Probability & Its Applications , 8(1): 22–46, 1963. Tartakovsky, A., Nikiforov, I., and Basseville, M. Sequential analysis: Hypothesis testing and changepoint detection .CRC Press, 2014. Tsybakov, A. B. Introduction to Nonparametric Estimation .Springer Series in Statistics, 2009. Wang, H. and Ramdas, A. Catoni-style confidence se-quences for heavy-tailed mean estimation. Stochastic Processes and their Applications , 163:168–202, 2023. Waudby-Smith, I. and Ramdas, A. Estimating means of bounded random variables by betting. Journal of the Royal Statistical Society B (with discussion) , 2023. 10 Reducing sequential change detection to sequential estimation 
+
+# A. Background 
+
+In this section, we recall some facts from probability theory that were used in proving our main results, and then present the details of the BCS-Detector scheme of Shekhar & Ramdas (2023). 
+
+Facts from probability. We begin by recalling the following statement about the expectation of a random sum of random variables (Durrett, 2019, Theorem 2.6.2). 
+
+Fact A.1 (Wald’s equation) . Suppose X1, X 2, . . . denote a sequence of i.i.d. random variables with E[Xi] < ∞, and let Sn denote the sum Pni=1 Xi for all i ≥ 1. Then, for any random stopping time N with E[N ] < ∞, we have 
+
+E[SN ] = E[N ]E[X1].
+
+Next, we recall a standard concentration inequality for bounded random variables (Hoeffding, 1963, Theorem 1). 
+
+Fact A.2 (Hoeffding’s inequality) . Suppose X1, X 2, . . . denote independent random variables supported on the interval 
+
+[a, b ]. Then, we have 
+
+P (|Sn − E[Sn]| > u ) ≤ exp 
+
+
+
+− u2
+
+2n(b − a)2
+
+
+
+for any u > 0, where Sn = Pni=1 Xi.
+
+Finally, we state a result connecting the KL divergence and the total variation distance between two probability distribu-tion (Tsybakov, 2009, Lemma 2.5). 
+
+Fact A.3 (Pinsker’s inequality) . Suppose P and Q denote two probability distributions. Then, we have 
+
+dT V (P, Q ) ≤
+
+r dKL (P ∥ Q)2 ,
+
+where dT V and dKL denote the total variation distance and the KL divergence respectively. 
+
+Details of BCS-Detector . First, we recall the definition of backward CSs that are crucial to the design of 
+
+BCS-Detector .
+
+Definition A.4 (Backward CS) . Suppose X1, X 2, . . . , X n denote observations drawn from a distribution Pθ , parametrized by θ ∈ Θ. Then, a level-(1 − α) backward CS for θ with n observations is a collection of sets {B(n) 
+
+> t
+
+: 1 ≤ t ≤ n} satisfying the following: • For any t ∈ [n], the set B(n) 
+
+> t
+
+is σ(Xt, . . . , X n) measurable. • The sets satisfy the uniform coverage guarantee: P
+
+
+
+∀t ∈ [n] : θ ∈ B(n)
+
+> t
+
+
+
+≥ 1 − α.Having introduced this notion of backward CSs, the BCS-Detector strategy of Shekhar & Ramdas (2023) proceeds as follows: 
+
+Definition A.5 (BCS-Detector ). Given a stream of observations X1, X 2, . . . , proceed as follows: • Construct one level-(1 − α) forward CS, denoted by {Ct : t ≥ 1}
+
+• With each new observation, construct a new backward CS {B(t) 
+
+> s
+
+: 1 ≤ s ≤ t}.• Stop as soon as ∩ts=1 Cs ∩ B(t) 
+
+> s
+
+becomes empty. 
+
+# B. Proof of Proposition 2.10 
+
+Before presenting the proof of Proposition 2.10, we first recall some of details of the betting CS first proposed by Waudby-Smith & Ramdas (2023). 11 Reducing sequential change detection to sequential estimation 
+
+Background on betting CS. Given observations X1, X 2, . . . drawn from an independent process with mean θ, the betting CS is defined as 
+
+Cn = {s ∈ [0 , 1] : Wn(s) < 1/α }, with 
+
+Wn(s) := 
+
+> n
+
+Y
+
+> i=1
+
+(1 + λt(s)( Xt − s)) , for all s ∈ [0 , 1] ,
+
+where {λt(s) : t ≥ 1, s ∈ [0 , 1] } are predictable bets, taking values in [−1/(1 − s), 1/s ]. For certain betting strategies, such as the mixture method (Hazan, 2016, § 4.3), the regret is logarithmic for all s. In particular, this implies that 
+
+sup λ∈[ −11−s , 1 
+
+> s
+
+]
+
+Pnt=1 log (1 + λ(Xt − s)) − Pnt=1 log (1 + λt(s)( Xt − s)) ≤ 2 log n, for all n ≥ 13 . Note that this idea of using the mixture method with known regret guarantees, for the specific context of betting CS, was first considered by Orabona & Jun (2023). We now present the details of the proof of Proposition 2.10. First we show that under the condition that T ≥ 64 log(64 /∆2α)/∆2, the analysis of the first setting (i.e., with unknown Θ0) can be reduced to the second case (with known Θ0). Then, we present the details of the proof of the second setting. 
+
+Proof of (2). Using the fact that log(1 + x) ≥ x − x2/2 for x > −1, we can further lower bound log Wn(s) with 
+
+log Wn(s) ≥ sup 
+
+> λ∈
+
+[ −11−s , 1 
+
+> s
+
+]
+
+ nX
+
+> t=1
+
+λ(Xt − s) − λ2
+
+2 (Xt − s)2 − log( n2)
+
+
+
+.
+
+By setting the value of λ to 1
+
+> n
+
+Pnt=1 Xt − s, and on simplifying, we can show that the betting CS after n observation satisfies 
+
+|C(1)  
+
+> n
+
+| ≤ 4plog( n/α )/n . This implies that for T ≥ 64 log(64 /∆2α)/∆2, the width of the CS starting at time 1 must be smaller than ∆/2 = |θ1 − θ0|/2. If the event E = {θ0 ∈ C(1)  
+
+> T
+
+} happens (recall that this is a probability 1 − α event), then we know that θ0 ∈ eΘ0 := {θ : |θ − θ0| ≤ ∆/2}. This set eΘ0 plays the role of the known pre-change parameter class in the analysis. Hence the rest of the proof to obtain the upper bound stated in (2) proceeds exactly as in the case when the pre-change distribution class is known, and we present the details for the latter case next. 
+
+Proof of (3). Since the proof of this result is long, we break it down into four simpler steps. 
+
+Step 1: Bound ET [( τ − T )+|F T ] with the maximum expectation of a class of stopping times (Nθ )θ∈Θ0 . Introduce the stopping times Nm = inf {n − m : C(m) 
+
+> n
+
+∩ Θ0 = ∅} , and recall from Proposition 2.9 that 
+
+ET [( τ − T )+|F T ] ≤ ET [NT +1 |F T ] = E0[N1].
+
+The equality uses the fact that the post-change observations are independent of FT , and are drawn i.i.d. (hence stationary). To simplify the ensuing argument, we will use Cn to denote C(1)  
+
+> n
+
+for n ≥ 1. Furthermore, we also assume that θ1 < θ for all θ ∈ Θ0, and inf θ∈Θ0 θ = θ1 + ∆ . The other case, can be handled in an exactly analogous manner. By the definition of betting CS, the stopping time N1 can be written as the supremum of a collection of stopping times: 
+
+N1 = sup 
+
+> θ∈Θ0
+
+Nθ ,
+
+where Nθ = inf {n ≥ 1 : Wn(θ) ≥ 1/α }.
+
+Step 2: Bound (Nθ )θ∈Θ0 with a monotonic class of stopping times. Next, we will upper bound each Nθ with another stopping time γθ , which have the property that γθ′ < γ θ for θ′ > θ . In particular, using the regret guarantee of the betting strategy, observe the following: 
+
+log( Wn(θ)) ≥ sup 
+
+> λ∈
+
+[ −11−θ , 1 
+
+> θ
+
+]
+
+> n
+
+X
+
+> t=1
+
+log(1 + λ(Xt − θ)) − 2 log n
+
+≥ sup 
+
+> λ∈
+
+[0, 11−θ ]
+
+> n
+
+X
+
+> t=1
+
+log(1 + λ(θ − Xt) − 2 log n
+
+:= Zn(θ) − 2 log n. 
+
+12 Reducing sequential change detection to sequential estimation 
+
+Define a new stopping time γθ = inf {n ≥ 1 : Zn(θ) − 2 log n ≥ log(1 /α )}, and note that the above display implies 
+
+γθ ≥ Nθ , and thus we have NT +1 − T ≤ sup θ∈Θ0 γθ . We now show the monotonicity of γθ .For any θ′ > θ , we have λ(θ′ − Xt) ≥ λ(θ − Xt) for any λ > 0, which implies that Pnt=1 log(1 + λ(θ′ − Xt)) ≥Pnt=1 log(1 + λ(θ − Xt)) . Thus, we have the following relation (for θ′ > θ ): 
+
+Zn(θ′) = sup  
+
+> λ∈
+> h
+> 0,11−θ′
+> i
+> n
+
+X
+
+> t=1
+
+log(1 + λ(θ′ − Xt)) 
+
+≥ sup 
+
+> λ∈
+
+[0, 11−θ ]
+
+> n
+
+X
+
+> t=1
+
+log(1 + λ(θ′ − Xt)) 
+
+≥ sup 
+
+> λ∈
+
+[0, 11−θ ]
+
+> n
+
+X
+
+> t=1
+
+log(1 + λ(θ − Xt)) = Zn(θ).
+
+Thus, Zn(θ′) ≥ Zn(θ), which implies that γθ′ ≤ γθ , and in particular, γθ ≤ γθ1+∆ for all θ ∈ Θ0. This leads to the required conclusion 
+
+NT +1 − T ≤ sup 
+
+> θ∈Θ0
+
+Nθ ≤ sup 
+
+> θ∈Θ0
+
+γθ ≤ γθ1+∆ .
+
+This is a crucial step, as it reduces the task of analyzing the supremum of a large collection of stopping times, into that of analyzing a single stopping time γθ1+∆ .
+
+Step 3: Bound γθ1+∆ with the ‘oracle’ stopping time ρ∗. Let λ∗ ≡ λ∗(θ1 + ∆) denote the log-optimal betting fraction, defined as argmax λ∈[0 ,1/(1 −θ1−∆) E[log(1 + λ(θ1 + ∆ − X))] , where X is drawn from the post-change distribution. By definition then, we have 
+
+Zn(θ1 + ∆) ≥
+
+> n
+
+X
+
+> t=1
+
+log(1 + λ∗(θ1 + ∆ − Xt)) := Z∗
+
+> n
+
+(θ1 + ∆) ,
+
+which immediately implies 
+
+γθ1+∆ ≤ ρ∗ := inf {n ≥ 1 : Z∗
+
+> n
+
+(θ1 + ∆) ≥ log( n2/α )}.
+
+The stopping time ρ∗ is much easier to analyze as it is the first crossing of the boundary log( n2/α ) by the random walk 
+
+Z∗
+
+> n
+
+(θ1 + ∆) with i.i.d. increments. 
+
+Step 4: Evaluate the expectation of ρ∗. Observe that Z∗ 
+
+> n
+
+≡ Z∗
+
+> n
+
+(θ1 + ∆) = Pnt=1 Vt, with Vt = log(1 + λ∗(θ1 + ∆ − Xt)) .Without loss of generality, we can assume that λ∗ < 1/(1 − θ1 − ∆) (if not, we simply repeat the argument with λ∗ − ϵ for an arbitrarily small ϵ > 0), and hence (Vt)t≥1 are i.i.d. and bounded increments, which means that E[Vt] < ∞. In fact, by the dual definition of the information projections (Honda & Takemura, 2010), we have E[Vt] = K2 ≡ K2(P1, Θ0). Next, with n0 := inf {n ≥ 1 : log( n2/α )/n < K 2/2}, we have for n ≥ n0 by an application of Hoeffding’s inequality (Fact A.2 in Appendix A): 
+
+P (ρ∗ > n ) ≤ P 1
+
+n
+
+> n
+
+X
+
+> t=1
+
+Vt − K2 ≤ − K2
+
+2
+
+!
+
+≤ exp ( −c′′ n) ,
+
+for some c′′ > 0. Hence, the expectation of ρ∗ satisfies 
+
+E[ρ∗] = X
+
+> n≥0
+
+P (ρ∗ > n ) ≤ n0 + X
+
+> n≥n0
+
+exp ( −c′′ n)= n0 + e−c′′ n0
+
+1 − e−c′′ < ∞.
+
+13 Reducing sequential change detection to sequential estimation 
+
+Thus, both ρ∗ and (Vt)t≥1 have bounded expectations, and we can appeal to Wald’s lemma (Fact A.1 in Appendix A) to obtain E[Z∗ 
+
+> ρ∗
+
+] = E[ρ∗]K2. Furthermore, by the definition of ρ∗, and the boundedness of (Vt)t≥1, we can upper bound 
+
+E[Z∗ 
+
+> ρ∗
+
+] with log(1 /α ) + 2 log( ET [ρ∗]) + c′, where c′ = max {log(1 + λ∗
+
+> θ1+∆
+
+), log(1 − λ∗
+
+> θ1+∆
+
+)}. In other words, we have 
+
+E[ρ∗] ≤ log(1 /α ) + 2 log( E[ρ∗]) + c′
+
+K2
+
+,
+
+which on further simplification, gives us E[ρ∗] = O
+
+ log(1 /αK 2)
+
+> K2
+
+
+
+. This completes the proof. 
+
+# C. Details of Experiments      
+
+> 0500 1,000
+> 0
+> 0.01
+> 0.02
+> 0.03
+> Detection Delay
+> Density
+> Delay comparison with CuSum ( ∆=0.1)
+> RCS
+> CuSum
+> 1,000 2,000 3,000 4,000
+> 0
+> 0
+> 0
+> Detection Delay
+> Density
+> Delay with Dependent data ( ∆=0.1)
+> RCS
+
+Figure 3: The plot on the left compares the distribution of the detection delay of CuSum (with exact knowledge of pre-and post-change distributions) and RCS-Detector . As expected the performance of CuSum is significantly better than RCS-Detector in problems where precise information of the distributions is available. The plot on the right shows the detection delay performance of RCS-Detector on a problem with dependent data: a situation in which the 
+
+BCS-Detector becomes inapplicable. 
+
+Confidence Sequence. Recall that in our experiments with bounded observations, we employed the following Hoeffding CS developed by Waudby-Smith & Ramdas (2023): 
+
+Ct = [˜ μt ± wt], where 
+
+˜μt =
+
+Pti=1 λiXi
+
+Pti=1 λi
+
+, wt = log(2 /α ) + Pti=1 λ2 
+
+> i
+
+/8
+
+Pti=1 λi
+
+, and λi =
+
+s
+
+8 log(2 /α )
+
+i(i + 1) ∧ 1.
+
+The main reason for using this CS is that it has a closed-form expression, which makes the RCS-Detector and 
+
+BCS-Detector implementations based on this CS computationally feasible. 
+
+Heuristics. In many cases, the Hoeffding CS can be wider than state-of-the-art methods, such as the betting CSs of Waudby-Smith & Ramdas (2023), which are computationally more expensive. As a result, the RCS-Detector and 
+
+BCS-Detector instances based on Hoeffding CS can be very conservative when there is no change (i.e., their actual ARL can be much larger than 1/α ). To address this, in our ARL experiments, we shrunk the width of the CS by a multiplicative factor less than one; we made the same changes in both RCS-Detector and BCS-Detector to allow for comparison. To further reduce the computational cost of estimating their ARLs, we also checked the stopping conditions of 
+
+RCS-Detector and BCS-Detector at intervals (i.e., every 10 steps, or 20 steps, etc.), instead of checking it ev-ery round. This allowed us to run the ARL experiments for longer horizons. 
+
+Cusum. Both the RCS-Detector and BCS-Detector schemes require minimal information about the pre- and post-change data distributions. This generality, however, comes at the cost of weaker detection-delay performance in 14 Reducing sequential change detection to sequential estimation 
+
+situations where additional information is known about the distributions. As an extreme case, if the pre- and post-change distributions are known exactly, then a simpler change detection scheme, such as CuSum , is more appropriate. Recall that CuSum strategy proceeds as follows: 
+
+τC = inf {n ≥ 1 : Wn ≥ cα}, where W0 = 0 , Wn = max 
+
+
+
+0, W n−1 + log 
+
+ dP 1
+
+dP 0
+
+(Xn)
+
+ 
+
+,
+
+and cα is an appropriately chosen threshold to control the ARL at 1/α if T = ∞. This scheme requires the precise knowledge of the likelihood ratio of the post- and pre-change distributions, and hence its performance is significantly better than RCS-Detector when such information is available, as illustrated in Figure 3. 
+
+Non-independent data. Since the RCS-Detector only uses forward CSs, it can work with certain types of dependent data-streams, where BCS-Detector cannot be applied. As a simple example, let P0a, P 0b denote two distributions on 
+
+[0 , 1] with mean μ0, and (P1a, P 1b) be two distributions with mean μ1̸ = μ0. Let X1 ∼ P0a, and for n ≥ 2:• If Xn−1 < 0.5 and n ≤ T , we have Xn ∼ P0a.• If Xn−1 ≥ 0.5 and n ≤ T , we have Xn ∼ P0b.• If Xn−1 < 0.5 and n > T , we have Xn ∼ P1a.• If Xn−1 ≥ 0.5 and n > T , we have Xn ∼ P1b.Because of this dependence structure, we cannot construct Backward Confidence Sequences for this data stream, and thus 
+
+BCS-Detector is not applicable to this problem. However, the RCS-Detector is still applicable, and its detection performance is plotted in Figure 3. • Fix Figure 3 + caption + color of RCS + title of the figure 15

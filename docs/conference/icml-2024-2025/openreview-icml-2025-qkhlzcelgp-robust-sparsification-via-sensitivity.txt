@@ -1,0 +1,1967 @@
+Title: Robust Sparsification via Sensitivity
+
+URL Source: https://openreview.net/pdf?id=qKHLzCELGP
+
+Number of Pages: 18
+
+Markdown Content:
+# Robust Sparsification via Sensitivity 
+
+Chansophea Wathanak In 1 Yi Li 1 2 David P. Woodruff 3 Xuan Wu 1
+
+## Abstract 
+
+Robustness to outliers is important in machine learning. Many classical problems, including subspace embedding, clustering, and low-rank approximation, lack scalable, outlier-resilient al-gorithms. This paper considers machine learn-ing problems of the form min x∈Rd F (x), where 
+
+F (x) = Pni=1 Fi(x), and their robust coun-terparts min x∈Rd F (m)(x), where F (m)(x) de-notes the sum of all but the m largest Fi(x) val-ues. We develop a general framework for con-structing ε-coresets for such robust problems, where an ε-coreset is a weighted subset of func-tions {F1(x), . . . , F n(x)} that provides a (1 + ε)-approximation to F (x). Specifically, if the origi-nal problem F has total sensitivity T and admits a vanilla ε-coreset of size S, our algorithm con-structs an ε-coreset of size ˜O( mT ε ) + S for the robust objective F (m). This coreset size can be shown to be near-tight for ℓ2 subspace embed-dings. Our coreset algorithm has scalable running time and, by employing a sensitivity flattening argument, leads to new or improved algorithms for robust optimization problems, including re-gression and PCA. Finally, empirical evaluations demonstrate that our coresets outperform uniform sampling on real-world data sets. 
+
+## 1. Introduction 
+
+Outliers, which can occur frequently in real-world data, pose significant challenges to many machine learning problems. For instance, in the classic regression problem, a small num-ber of contaminated data points can drastically skew the solution. This issue has driven the development of robust        
+
+> The authors are listed in alphabetical order. 1School of Physical and Mathematical Sciences, Nanyang Technological University, Singapore 2College of Computing and Data Sciences, Nanyang Technological University, Singapore 3Department of Computer Science, Carnegie Mellon University, USA. Correspondence to: Yi Li <yili@ntu.edu.sg >.
+> Proceedings of the 42 nd International Conference on Machine Learning , Vancouver, Canada. PMLR 267, 2025. Copyright 2025 by the author(s).
+
+regression methods since the 1960s (see, e.g., (Andersen, 2008) for a comprehensive survey), and it remains an active area of research today. In this paper, we present a frame-work to address the issue of outliers for a large family of optimization problems, including regression, by reducing their scale through the construction of coresets. A natural and popular approach for handling outliers is to consider robust versions of the original optimization for-mulations. Specifically, consider an optimization problem of the form min x∈Rd F (x), where F (x) = Pni=1 Fi(x).The robust version of F (x), denoted by F (m)(x), aggre-gates all but the largest m values over Fi(x) (i = 1 , . . . , n ). Formally, for each x ∈ Rd, the values F1(x), . . . , F n(x)
+
+are sorted in increasing order as Fi1 (x) ≥ Fi2 (x) ≥· · · ≥ Fin (x), and F (m)(x) is then defined as F (m)(x) = Pn−mj=1 Fij (x). This robust formulation coincides with the least trimmed regression (Rousseeuw, 1985) and was first considered in algorithmic machine learning by (Charikar et al., 2001) in the context of facility location. More recently, it has been studied in several important machine learning problems, including PCA (Simonov et al., 2019) and cluster-ing (Chen, 2008; Krishnaswamy et al., 2018). However, all those algorithms have high-order polynomial running times, making them neither scalable nor even practical. In the case of no outliers (which will be referred to as the 
+
+vanilla case), a popular scalable solution is to sparsify the input by constructing a coreset. A (strong) ε-coreset is a weighted subset of the dataset such that the loss of every candidate solution on this subset approximates the original loss within a relative error of ε. In the past 20 years, core-sets have been extensively studied for a variety of machine learning problems (Har-Peled & Mazumdar, 2004; Feldman & Langberg, 2011; Munteanu et al., 2018; Chhaya et al., 2020; Jubran et al., 2021; Huang et al., 2021; Braverman et al., 2022). In the robust case, early coresets have either an exponential size (Feldman & Schulman, 2012) or a weaker bi-criteria ap-proximation guarantee (Feldman & Langberg, 2011; Huang et al., 2018). Recently, in the context of clustering with outliers, Huang et al. (Huang et al., 2023a) construct the first strong coreset with a similar size to the vanilla case. Inspired by their work, more strong robust coresets for clus-tering have been developed (Huang et al., 2025; Jiang & 1Robust Sparsification via Sensitivity 
+
+Lou, 2025). Beyond clustering, Wang et al. (Wang et al., 2021) constructed local robust coresets for continuous and bounded functions. These coresets preserve F (x) only for 
+
+x within a specific ball, which means that they do not satisfy the requirements of a strong coreset. This naturally leads to the following question. 
+
+Question 1.1. Consider an optimization problem of the form min x∈Rd F (x), where F (x) = F1(x) + · · · + Fn(x).Under what conditions can an efficient construction of a strong ε-coreset of small size be achieved for the robust version F (m)(x)?
+
+Our answer to Question 1.1 is perhaps surprising. We show that two simple conditions are sufficient for the existence of a small coreset for F (m): F (x) has a small vanilla coreset and has bounded total sensitivity. The first condition is natural, as the robust coreset extends the concept of a vanilla coreset. The second condition, based on the existence of small vanilla coresets, is a mild condition, since a majority of current vanilla coreset constructions rely on bounded total sensitivity. We remark that the total sensitivity is a widely used complexity measure in sparsification problems and has been a crucial quantity in establishing theoretical guarantees for coreset sizes across many classical machine learning problems, including subspace embeddings, regression, PCA, clustering, and projective clustering (Drineas et al., 2006; Woodruff, 2014; Feldman & Langberg, 2011; Braverman et al., 2021a; Woodruff & Yasuda, 2023). 
+
+1.1. Problem Definition 
+
+Suppose that F = {(f, ω f )} is a finite weighted set of functions, where each f : Rd → R≥0 is associated with a weight ωf ≥ 0. The loss function for F is L(F; x) = P  
+
+> (f,ω f)∈F
+
+ωf · f (x) and the robust version of the loss func-tion with m outliers is defined as 
+
+L(m)(F; x) = min 
+
+> F′⊆F |F\F ′|≤ m
+
+X 
+
+> (f,ω f)∈F ′
+
+ωf · f (x).
+
+The associated optimization problem is to solve 
+
+min x∈Rd L(m)(F; x).When ωf = 1 for all f ∈ F , we also say that F is un-weighted and write F = {f }.
+
+Coresets Suppose that ˜F is a weighted (multi-) subset of 
+
+F; that is, each function in ˜F is also in F and each function 
+
+f in ˜F is associated with a weight ωf ≥ 0 (for some f ∈ F ,multiple f with different weights may appear in ˜F). We say ˜F is an (ε, m )-robust coreset (or simply, an (ε, m )-coreset) of F if ˜F is a weighted subset of F and it holds for every x ∈ Rd and every t = 0 , 1, . . . , m that 
+
+(1 − ε) L(t)(F; x) ≤ L (t)( ˜F; x) ≤ (1 + ε) L(t)(F; x).
+
+An (ε, 0) -coreset is also referred to as a (vanilla) ε-coreset. The typical way to reduce the scale of the problem is to solve, instead of the original min x∈Rd L(m)(F; x), the core-set version min x∈Rd L(m)( ˜F; x) if ˜F is an (ε, m )-coreset of F. The following is a folklore result on the guarantee of the optimal solution of the coreset version. 
+
+Lemma 1.2. Suppose that ˜F is an (ε, m )-robust coreset of F and ε ∈ (0 , 1) . Let ˆx = arg min x∈Rd L(m)( ˜F; x)
+
+and x∗ = arg min x∈Rd L(m)(F; x). It holds that 
+
+L(m)(F; ˆ x) ≤ 1+ ε 
+
+> 1−ε
+
+L(m)(F; x∗).
+
+Below we describe how two classical problems, computing a subspace embedding and computing a clustering, fit in our framework. 
+
+Subspace Embedding Let p ≥ 1. For a matrix A ∈ Rn×d
+
+(n ≫ d), we say a matrix B ∈ Rm×d with m ≪ n is an 
+
+ℓp-subspace embedding for A with distortion parameter ε
+
+if (1 − ε)∥Ax ∥pp ≤ ∥ Bx ∥pp ≤ (1 + ε)∥Ax ∥pp holds simulta-neously for all x ∈ Rd. A typical construction of B is sam-pling rows of A by Lewis weights and rescaling the samples. This can be viewed within our sparsification framework by defining fi(x) = |⟨ ai, x ⟩| p and F = {f1, . . . , f n}, where 
+
+ai denotes the i-th row of A, so that L(F; x) = ∥Ax ∥pp.Suppose that ˜F = {(fij , w ij )} is an ε-coreset of F, where 
+
+i1, . . . , i m ∈ [n] denote the indices of sampled rows, then one can take the j-th row of B to be bj = aij · w1/p ij . Then the ε-coreset property gives exactly that B is an ℓp-subspace embedding for A with distortion parameter ε.
+
+k-Median Coresets Suppose that X = {x1, . . . , x n} are 
+
+n points in Rd. Define a set of k centers C = {c1, . . . , c k},where ci ∈ Rd. The clustering cost of X with respect to C
+
+is defined to be Pni=1 min ℓ∥xi − cℓ∥2. The coreset for the 
+
+k-median problem is to find a subset X′ = {xi1 , . . . , x im }
+
+with weights w1, . . . , w m ≥ 0 such that the weighted clus-tering cost of X′ approximates the clustering cost of X
+
+for every choice of C; that is, Pmj=1 wj min ℓ∥xij − cℓ∥2 =(1 ±ε) Pni=1 min ℓ∥xi −cℓ∥2 for all subsets of C ⊂ Rd with 
+
+|C| = k. This again can be viewed within our sparsification framework by defining fi(c1, . . . , c k) = min j ∥xi − cj ∥2
+
+and F = {f1, . . . , f n}. An ε-coreset of the k-median prob-lem is exactly an ε-coreset of F.
+
+1.2. Related Works 
+
+Coresets for clustering have been a rich and extensively stud-ied research area for over 20 years. Stemming from (Har-Peled & Mazumdar, 2004; Har-Peled & Kushal, 2007), early coreset algorithms rely on ad-hoc geometric constructions, giving size bounds that are exponential in the dimension 
+
+d. Chen (2009); Langberg & Schulman (2010); Feldman & Langberg (2011) initiated the use of sampling algorithms in constructing coresets for clustering, achieving size bounds 2Robust Sparsification via Sensitivity 
+
+polynomial in d. Recently, coresets with size independent of d have been constructed by employing modern dimension reduction techniques for clustering and new group sampling methods (Feldman et al., 2020; Sohler & Woodruff, 2018; Huang & Vishnoi, 2020; Cohen-Addad et al., 2021; 2022; Cohen-Addad et al., 2022; Huang et al., 2024). Beyond robustness, coresets have also been explored in var-ious other settings to address new challenges in machine learning. For instance, Bachem et al. (2018); Braverman et al. (2019) give simultaneous coresets to handle multi-ple objectives, Braverman et al. (2021b) design coresets for datasets with missing values, Huang et al. (2021) con-struct coresets for time series data, and Huang et al. (2019); Bandyapadhyay et al. (2021); Braverman et al. (2022) con-sider the setting with fairness constraints. 
+
+## 2. Preliminaries 
+
+Notation In this paper, we always assume that the function set is finite. We use [n] to denote the set {1, . . . , n }. The notations f ≲ g and f ≳ g indicate f ≤ Cg and f ≥ Cg ,respectively, for some constant C > 0.For a matrix A, its Frobenius norm is denoted by 
+
+∥A∥F := ( P 
+
+> i,j
+
+a2 
+
+> ij
+
+)1/2 and its operator norm by ∥A∥op := sup x̸=0 ∥Ax ∥2/∥x∥2.For a random variable X, we write X ∼ D to indicate that 
+
+X follows the probability distribution D. For a finite set S,we denote by Unif( S) the uniform distribution on S. We denote by Geometric( p) the geometric distribution with expected value 1/p .
+
+Sensitivities For a weighted set F = {(f, w f )}, the sensi-tivity of f ∈ F is defined as 
+
+σF (f ) = sup 
+
+> x∈Rd
+
+wf f (x)
+
+P  
+
+> (g,w g)∈F
+
+wg g(x) .
+
+The sensitivity of F is defined as 
+
+σF = X 
+
+> f∈F
+
+σF (f ).
+
+We say that F has total sensitivity T if σF′ ≤ T for every 
+
+F′ ⊆ F .We note that it may be difficult to compute the precise values of sensitivities σF (f ). In fact, it suffices to com-pute an upper bound ˜σF (f ) ≥ σF (f ) such that ˜σF =P  
+
+> f∈F
+
+˜σF (f ) = O(σF ). To simplify the presentation, we also refer to ˜σF (f ) as sensitivities. For ℓ2-subspace embeddings, the sensitivity is a classic quantity called the leverage score. Constant-factor approx-imation of the leverage scores of a matrix A ∈ Rn×d can be found in time O(nd + poly( d)) (see, e.g., (Drineas et al., 2006; Woodruff, 2014)). 
+
+## 3. Our Results and Technical Overview 
+
+Our main result is the following robust coreset construction algorithm. 
+
+Theorem 3.1 (Informal statement of Theorem 4.1) . There exists an algorithm, for every loss function F (x) =P  
+
+> f∈F
+
+f (x) such that F has total sensitivity T and admits a vanilla coreset of size Q, constructs with probability at least 
+
+0.99 an (ε, m )-coreset for F with size O( T m ε ·log T m ε )+ Q.
+
+When applied to ℓ2 subspace embeddings, this theorem gives a coreset size of ˜O( md ε log md ε ) + Q. We show in Section D that a size of Ω( md ε ) is necessary for an (ε, m )-coreset. Note that an (ε, m )-coreset must also be a vanilla 
+
+ε-coreset, which shows that Q is also necessary. Thus our bound is nearly tight for ℓ2 subspace embeddings. Building upon our coresets, we develop new algorithms for robust optimization tasks. For example, we design algo-rithms for robust regression (Theorem 5.1) and robust PCA (Theorem 5.3) with a runtime of dO(m)eO(m/ε ) + O(nd ),using a sensitivity flattening technique. Additionally, our coresets can be used to improve existing algorithms, such as (Simonov et al., 2019). Furthermore, Theorem 3.1 yields a new coreset for robust k-median. Detailed discussions can be found in Section 5. We remark that our coreset construc-tion also extends to another popular setting that removes a total weight of m instead of exactly m functions of F; see Appendix C. In Section 6, we conduct experiments on real-word datasets to demonstrate that our coreset constructions are effective in approximating the loss function and considerably reduce the running time for robust regression problems while main-taining a good approximation of the objective function. 
+
+3.1. Technical Overview 
+
+Our coreset construction algorithm contains two stages. In the first stage, we identify a small set S ⊂ F containing “contributing” functions and include S in the coreset with unit weights. In the second stage, we compute a vanilla core-set for F \ S and apply a refinement process (Algorithm 2) to adapt it for robust objectives. We begin with the construction of S. A function f ∈ A
+
+is called contributing if for some x ∈ Rd, f (x) ≥ εm ·L(m)(A; x). Our goal is to include all contributing functions in S, since this will ensure that removing any m functions from F \ S incurs at most m · εm = ε relative error. To do this, we sample each f ∈ F with probability 1 
+
+> m
+
+and then include in S the functions of Ω( ε) sensitivity within the sample. We can repeat this procedure sufficiently many times to ensure that all contributing functions are included. We need to (i) show for one round that each contributing f
+
+will, with a good probability, survive the sampling and have 3Robust Sparsification via Sensitivity 
+
+Ω( ε) sensitivity within the sample; and (ii) bound the total number of contributing functions. We first establish (i). Consider an event E that f survives the sampling while all outliers of L(m)(A; x) except f do not. Then Pr( E) ≥ (1 − 1 
+
+> m
+
+)m · 1 
+
+> m
+
+= Ω( 1 
+
+> m
+
+). By Markov’s inequality, we know that conditioned on E, with constant probability, the aggregation of the sample on x is at most 
+
+O( 1 
+
+> m
+
+)·L (m)(A; x), so the sensitivity of f within the sample is at least εm /O ( 1 
+
+> m
+
+) = Ω( ε). We have therefore established (i) with the “good probability” being Ω( 1 
+
+> m
+
+).Next we examine (ii). Since the total sensitivity of F is at most T , there are O( Tε ) functions with sensitivity at least Ω( ε), which implies that each round returns O( Tε )
+
+functions. If the number of contributing functions is N ,then by a union bound, we need O(m log N ) rounds of sampling to ensure with constant probability that all con-tributing functions are included. This implies that N ≤|S| = O( T m ε log N ). Solving this inequality for N gives that N = O( T m ε log T m ε ).Now, consider the second stage. We begin by constructing a vanilla ε-coreset D of F \ S, where |D| = Q. A potential issue is that the weight of a function in D may be too large and its removal could result in a violation of the coreset property. To resolve this, we “split” functions in D into multiple copies, each with a smaller weight. Specifically, we split each f into ⌈ mε · σD (f )⌉ functions. The resulting size of the modified coreset is at most P  
+
+> f∈D mε
+
+· σD (f ) + 1 ≤ 
+
+> T m ε
+
++Q, which is still affordable. Moreover, by the property of sensitivity and the guarantee of the first stage that S
+
+contains all contributing functions, we know that removing any m split functions will incur a total error at most mm/ε ·L(D; x) ≤ O(ε) · L (F \ S; x) ≤ O(ε) · L (m)(F; x).
+
+## 4. Coreset Construction 
+
+Our main result is the following theorem. 
+
+Theorem 4.1. Consider a sparsification problem for 
+
+F (x) = P  
+
+> f∈F
+
+f (x) and ε ∈ (0 , 12 ). Suppose that F
+
+has total sensitivity T and there exists an algorithm that computes a vanilla ε-coreset for F of size Q. Then, Al-gorithm 3 computes an (ε, m )-robust coreset for F of size O( T m ε · log T m ε ) + Q, with probability at least 0.99 .Moreover, if the vanilla coreset algorithm runs in time 
+
+t0(n, ε ) on n input points and the sensitivity oracle com-putes the sensitivities of n points in time t1(n), then Al-gorithm 3, with probability at least 0.99 , runs in time 
+
+O(t0(|F| , ε )) + t1( nm + O(
+
+q nm log mT ε )) · m log( mT ε ).
+
+Algorithm 1 Uniform( A, ε, m )
+
+Input: A set A of functions, parameters ε and m
+
+Output: A subset D ⊆ A 
+
+> 1:
+
+B ← ∅  
+
+> 2:
+
+for each f ∈ A, with probability 1 
+
+> m
+
+, add f to B 
+
+> 3:
+
+for each f ∈ B, compute the sensitivity σB (f ) 
+
+> 4:
+
+D ← { f ∈ B : σB (f ) ≥ ε 
+
+> 4
+
+} 
+
+> 5:
+
+Return D
+
+Algorithm 2 Refine( D, ε, m )
+
+Input: A coreset D, parameters ε and m
+
+Output: A refined subset ˜D adapted for the robust opti-mization problem  
+
+> 1:
+
+˜D ← ∅  
+
+> 2:
+
+for (f, ω f ) ∈ D do  
+
+> 3:
+
+compute the sensitivity σD (f ) 
+
+> 4:
+
+nf ← ⌈ mε · σD (f )⌉ 
+
+> 5:
+
+Add nf copies of (f, ωf 
+
+> nf
+
+) to ˜D 
+
+> 6:
+
+end for  
+
+> 7:
+
+Return ˜D
+
+4.1. Analysis of Algorithm 3 
+
+Let A be a set of functions f : Rd → R≥0. We need the following definition in our analysis. 
+
+Definition 4.2. A function f ∈ A is called contributing if there exists x ∈ Rd such that f (x) ≥ εm · L (m)(A; x).
+
+The following lemma shows that a fixed contributing func-tion will be added to D with probability Θ(1 /m ) in each repetition of Algorithm 1. 
+
+Lemma 4.3. Assume that f is contributing, then with prob-ability at least 15m , the set returned by Uniform( A, ε, m )
+
+contains f .Proof. By definition, there exists x ∈ Rd such that f (x) ≥ 
+
+> εm
+
+· L (m)(A; x). Fix this x. Let L ⊂ A denote the set of outliers excluded by L(m)(A; x); namely, L consists of the 
+
+m functions f in A with largest values of f (x).Let L′ = L \ { f } so |L′| ≤ m. Consider the event E where 
+
+f ∈ B while L′ ∩ B = ∅. Then Pr[ E] = (1 − 1 
+
+> m
+
+)|L′| · 1 
+
+> m
+
+≤ 
+
+> 1
+> em
+
+. Observe that 
+
+E
+
+"X
+
+> h∈B
+
+h(x) E
+
+#
+
+= f (x) + 1
+
+m
+
+X 
+
+> h∈A\(L∪{ f})
+
+hh (x)
+
+≤ f (x) + 1
+
+m · F (m)(x)
+
+≤ (1 + 1
+
+ε ) · f (x)
+
+≤ 2
+
+ε · f (x).
+
+4Robust Sparsification via Sensitivity 
+
+Algorithm 3 Coreset( A, ε, m )
+
+Input: A set A of functions, parameters ε and m, and an algorithm Vanilla( A) to construct an ε-coreset for A
+
+Output: An (ε, m )-robust coreset for A
+
+1: S ← ∅ 
+
+2: R ← Θ( m log T m ε )
+
+3: for i = 1 , 2, · · · , R do 
+
+4: D ← Uniform( A, ε, m )
+
+5: S ← S ∪ D
+
+6: end for 
+
+7: V ← Vanilla( A \ S)
+
+8: ˜S ← { (f, 1) : f ∈ S}
+
+9: Return ˜S ∪ Refine( V, ε, m ).By Markov’s inequality, with probability at least 12 · 1 
+
+> em
+
+≥ 
+
+> 15m
+
+, the event E happens and P 
+
+> h∈B
+
+h(x) ≤ 4 
+
+> ε
+
+· f (x). This implies that σB (f ) ≥ f (x)P  
+
+> h∈Bh(x)
+
+≥ ε 
+
+> 4
+
+. Therefore, f is added to D with probability at least 15m .
+
+Lemma 4.4. The number of contributing functions in A is 
+
+O( T m ε · log T m ε ).Proof. Define a sequence a0 = n, ai = 20 T m ε · log(2 ai−1)
+
+for i ≥ 1. We prove by induction that the number of con-tributing functions is upper bounded by ai for every i ≥ 0.The statement is trivial for i = 0 , since the total number of functions is always bounded by n. Now, assume the number of contributing functions is bounded by ai, we prove that the number is also bounded by 
+
+ai+1 = 20 T m ε · log(2 ai). (1) To see this, we remark that for an contributing f ∈ A, a single repetition of Algorithm 1 returns f with probability at least 15m . Now consider 5m log(2 ai) independent repeti-tions of Uniform( F, ε, m ). By a union bound, we see that with probability 
+
+1 − ai · (1 − 15m )5m log(2 ai) ≥ 1 − ai · 12ai
+
+= 12 ,
+
+all contributing functions will be found. Since the total sensitivity is bounded by T , there are at most 4Tε func-tions added into D in each repetition, which implies that the number of total contributing functions is bounded by 
+
+5m log(2 ai) · 4Tε = 20 T m ε · log(2 ai). This establishes (1). We may continue iterating as long as ai+1 ≤ ai; otherwise, we have ai 
+
+> log(2 ai)
+
+≤ 20 T m ε and so ai = O( T m ε log T m ε ) as desired. If the process does not terminate, the sequence 
+
+{ai} is a monotone decreasing and positive sequence, thus converging to a unique limit lim i→∞ ai = a. Letting i →∞ on both sides of (1), we obtain that a 
+
+> log(2 a)
+
+= 20 T m ε ,which also implies a = O( T m ε log T m ε ), as desired. We are ready to prove Theorem 4.1. 
+
+Proof of Theorem 4.1. Let P denote the return of 
+
+Coreset( A, ε, m ). We first bound |P |. Since the total sensitivity of F is at most T , at most 4Tε functions in A
+
+are added into S in each repetition of Algorithm 1. Thus, 
+
+|S| = O( T m ε log T m ε ). It remains to bound the set returned by Algorithm 2. Observe that 
+
+| ˜D| ≤ X 
+
+> (f,ω f)∈D
+
+nf = X 
+
+> (f,ω f)∈D
+
+l mε · σD (f )
+
+m
+
+≤ X 
+
+> (f,ω f)∈D
+
+ mε · σD (f ) + 1 
+
+
+
+≤ T m ε + Q. 
+
+The coreset size is hence bounded by O( T m ε log T m ε ) + Q.Next, we prove that P is indeed an (ε, m )-coreset. We shall show that for every x ∈ Rd and t = 0 , . . . , m , L(t)(P ; x) ∈
+
+(1 ± Cε ) · L (t)(F ; x) for some absolute constant C. The proof will be completed by rescaling ε.We first prove that L(t)(P ; x) ≤ (1 + Cε ) L(t)(A; x). It suffices to remove at most t items from P and show that the weighted sum of the remaining items is at most (1 + 
+
+Cε ) L(t)(A; x).Let Lx denote the set of outliers excluded by L(t)(P ; x),then |Lx| ≤ t ≤ m. By Lemma 4.3 and Lemma 4.4, we know that with constant probability, every contributing Fj
+
+has been added into S. Conditioning on this event, 
+
+X 
+
+> f∈Lx\S
+
+f (x) ≤ | Lx| · εm · L (m)(A; x) ≤ ε · L (m)(P ; x)
+
+≤ ε · L (t)(A; x).
+
+Let L′ 
+
+> x
+
+= {(f, 1) | f ∈ Lx ∩ S} to be removed from P .Clearly |L′
+
+> x
+
+| ≤ t. Since L′ 
+
+> x
+
+⊆ S and Refine( V, F, ε, m )
+
+returns an ε-coreset for A \ S, we have 
+
+X  
+
+> (f,ω f)∈P\L′
+> x
+
+ωf · f (x)
+
+≤ X
+
+> g∈S\Lx
+
+g(x) + (1 + ε) · X
+
+> g∈A\S
+
+g(x)
+
+≤ (1 + ε) X
+
+> g∈A\(Lx∩S)
+
+g(x)
+
+≤ (1 + ε)
+
+ X
+
+> g∈A\Lx
+
+g(x) + X
+
+> g∈Lx\L′
+> x
+
+g(x)
+
+
+
+≤ (1 + 2 ε) L(t)(A; x).
+
+We have estalished that L(t)(P ; x) ≤ (1 + Cε ) L(t)(A; x).It remains to prove that L(t)(P ; x) ≥ (1 − Cε ) L(t)(A; x).It suffices to ensure that, after removing at most t items 5Robust Sparsification via Sensitivity 
+
+from A, the sum of the remaining items is at most (1 + 
+
+Cε ) L(t)(P ; x) (where C could be different). Let Gx denote the set of outliers excluded by L(t)(P ; x).Let ˜Gx = {f | (f, 1) ∈ ˜S ∩ Gx} to be removed from A.Clearly | ˜Gx| ≤ t. We shall show that 
+
+X  
+
+> f∈A\˜Gx
+
+f (x) ≤ (1 + Cε ) L(t)(P ; x).
+
+Note that 
+
+L(t)(P ; x) = X  
+
+> (f, 1) ∈˜S\˜Gx
+
+f (x) + X   
+
+> f∈P\( ˜Gx∪˜S)
+
+ωf · f (x)= X 
+
+> f∈S\Gx
+
+f (x) + X   
+
+> (f,ω f)∈P\˜S
+
+ωf · f (x) − X  
+
+> (f,ω f)∈Gx\˜S
+
+ωf · f (x)
+
+≥ X 
+
+> f∈S\Gx
+
+f (x) + 11−ε
+
+X 
+
+> f∈A\S
+
+f (x) − X  
+
+> (f,ω f)∈Gx\˜S
+
+ωf · f (x),
+
+where we used the fact that P \ S is an ε-coreset of A \ S.We need to upper bound P   
+
+> (f,ω f)∈Gx\˜S
+
+ωf · f (x). Suppose that there are n′ 
+
+> f
+
+copies of the same f in Gx \ ˜S. Then 
+
+X  
+
+> (f,ω f)∈Gx\˜S
+
+ωf · f (x) = X  
+
+> f∈Gx\S
+> (f,ω f)∈V
+
+ωf n′
+
+> f
+
+⌈ mε σA\S (f )⌉ f (x)
+
+≤ X  
+
+> f∈Gx\S
+> (f,ω f)∈V
+
+n′ 
+
+> f
+
+εm · ωf · f (x)
+
+σA\S (f )
+
+≤ εm · X  
+
+> f∈Gx\S
+> (f,ω f)∈V
+
+n′ 
+
+> f
+
+· X 
+
+> (ωg,g )∈V
+
+ωg · g(x)
+
+≤ ε · (1 + ε) X 
+
+> f∈A\S
+
+f (x).
+
+It follows that 
+
+L(t)(P ; x) ≥ X 
+
+> f∈S\Gx
+
+f (x) + 
+
+ 11−ε − ε(1+ ε)
+
+ X 
+
+> f∈A\S
+
+f (x)
+
+≥ X 
+
+> f∈S\Gx
+
+f (x) + X 
+
+> f∈A\S
+
+f (x) ≥ X  
+
+> f∈A\˜Gx
+
+f (x).
+
+We have completed the proof of the correctness of the core-set. Next we analyse the runtime. We begin by analyzing Algorithm 1. Line 1 can be im-plemented by indexing functions f ∈ A as 1, 2, . . . , n =
+
+|A|, generating independent Geometric(1 /m ) variables 
+
+Z1, Z 2, . . . and selecting functions at indices Z1, Z1 + Z2,
+
+Z1 +Z2 +Z3, and so on. Thus, Line 1 takes O(|B|) time, as-suming O(1) time to generate a geometric random variable. Lines 1 and 1 take t1(|B|) and O(|B|) time, respectively. Hence, the overall runtime of Algorithm 1 is O(t1(|B|)) .By a Chernoff bound, we see that |B| ≤ nm + O(
+
+q nm log 1 
+
+> δ
+
+)
+
+with probability at least 1 − δ.Algorithm 2 runs in time O(P  
+
+> (f,ω f)∈D
+
+nf + |D|) =
+
+O(mT /ε + |D|).Back to Algorithm 3. By the analysis above, with prob-ability at least 0.99 , the invocation of Uniform in ev-ery iteration of the for-loop generates a set B of size 
+
+|B| ≤ nm + O(p nm log R). In total, the for-loop runs in time R · t1( nm + O(p nm log R)) . Line 3 runs in time 
+
+t0(n, ε ), Line 3 in time O(n) = O(t0(n, ε )) and Line 3 in time O(mT /ε + n). The overall runtime is therefore 
+
+O(t0(n, ε )) + R · t1( nm + O(p nm log R)) .
+
+## 5. Applications 
+
+Robust Regression The standard ℓ2-regression problem is to solve min x∈Rd ∥Ax − b∥2, for which a standard approach to reduce the dimension is to solve instead min x∈Rd ∥SAx −
+
+Sb ∥2, where S is an ℓ2-subspace embedding matrix for the concatenated matrix  A b. Regarding ℓ2-subspace embeddings, the total sensitivity T = d and the vanilla coreset size can be made Q = O( dε2 ) using a poly( n)
+
+time algorithm (Batson et al., 2012) or Q = O( d log dε2 )
+
+using classical leverage score sampling that runs in time 
+
+O(nd + poly( d) (see, e.g., (Drineas et al., 2006; Woodruff, 2014)). In the interest of runtime, we shall use leverage score sampling and thus, by Theorem 4.1, the (ε, m )-coreset size is O( md ε · log md ε + d log dε2 ). Based on our coreset con-struction, we present Algorithm 4 for robust ℓ2-regression with m outliers, which is to solve min x∈Rd F (m)(Ax − b),where F (m)(u) denotes the sum of u2 
+
+> i
+
+except the m largest coordinates (in absolute values). 
+
+Theorem 5.1. Suppose that ε ∈ (0 , 14 ). Algorithm 4 returns an ˜x which satisfies with probability at least 0.9 that 
+
+F (m)(A˜x − b) ≤ (1 + 14 ε) min 
+
+> x∈Rd
+
+F (m)(Ax − b)
+
+The algorithm runs in time dO(m)eO(m/ε ) + O(nd ).
+
+We need the following lemma, whose proof is deferred to Appendix A. 
+
+Lemma 5.2. Suppose that A ∈ Rn×d and b ∈ Rn, where the leverage scores of A are bounded by 1/r . Let S ∈
+
+Rn×n be a random diagonal matrix, where Sii = √2 with probability 1/2 and Sii = 0 with probability 1/2. Let x∗ =arg min x∈Rn ∥Ax − b∥2 and ˜x = arg min x∈Rn ∥SAx −
+
+Sb ∥2. When r ≳ d log d + 1 /ε , it holds with probability at least 0.98 that ∥A˜x − b∥2 ≤ (1 + ε)∥Ax ∗ − b∥2.
+
+Now we are ready to prove Theorem 5.1. 
+
+Proof of Theorem 5.1. Let x∗ = arg min x∈Rd F (m)(Ax −
+
+6Robust Sparsification via Sensitivity 
+
+Algorithm 4 RobustRegression( A, b, ε, m )
+
+Input: A ∈ Rn×d and b ∈ Rn, parameters ε and m
+
+Output: (1 + ε)-approx. solution to min x F (m)(Ax − b)
+
+1: (D, {wi}) ← Coreset(( A b ), ε, m ) {Each row Di, ∗ ∈
+
+Rd+1 is associated with weight wi}
+
+2: Rescale each row of D as Di, ∗ ← √wiDi, ∗
+
+3: r ← O(log d + 1 /ε )
+
+4: Duplicate each row of D by r times and rescale by 1√r ,yielding D′ = ( H′ y′) {H′ ∈ Rrn ×d and y′ ∈ Rrn }
+
+5: L ← 2O(rm )
+
+6: X ← ∅ 
+
+7: for i = 1 , 2, . . . , L do 
+
+8: Generate a diagonal matrix S with i.i.d. diagonal entries Sii ∼ Unif( {0, √2})
+
+9: Compute x′ = arg min x∈Rd ∥SH ′x − Sy ′∥2
+
+10: X ← X ∪ { x′}
+
+11: end for 
+
+12: Compute ˜x ← argmin x∈X F (rm )∥H′x − y′∥2
+
+13: Return ˜xb) and D = ( H y ) (after executing Line 2). Let J denote the set of the indices of the largest m coordinates of Hx ♯ −y,where x♯ = arg min x∈Rd F (m)(Hx − y), and J′ denote the 
+
+rm indices in H′x♯ − y′ that correspond to the indices in J.Consider the event E that SH ′ contains none of the rows of indices in J. This event happens with probability 2−rm in one trial of Line 4, hence it will happen in at least one trial among L = 2 O(rm ) trials with probability at least 0.99 .Consider the trial in which E happens. In this case, let 
+
+(H′′ y′′ ) be the rows of (H′ y′) whose indices are outside 
+
+J′. It is clear that the leverage scores of H′′ are at most 1/r .By Lemma 5.2 and our choice of r, we have with probability at least 0.98 that 
+
+∥H′′ x′ − y′′ ∥22 ≤ (1 + ε)2 min 
+
+> x∈Rd
+
+∥H′′ x − y′′ ∥22
+
+= (1 + ε)2∥H′′ x♯ − y′′ ∥22 = (1 + ε)2F (rm )(H′x♯ − y′).
+
+It follows that 
+
+F (m)(H ˜x−y) = F (rm )(H′ ˜x−y′) ≤ F (rm )(H′x′ −y′)
+
+≤ ∥ H′′ x′ − y′′ ∥22 ≤ (1 + ε)2F (rm )(H′x♯ − y′)= (1 + ε)2F (m)(Hx ♯ − y).
+
+Using the coreset properties and Lemma 1.2, we then have 
+
+F (m)(A˜x − b) ≤ 11 − ε F (m)(H ˜x − y)
+
+≤ (1 + ε)2
+
+1 − ε F (m)(Hx ♯ − y)
+
+≤ (1 + ε)3
+
+1 − ε F (m)(Ax ♯ − b)
+
+≤ (1 + ε)3
+
+1 − ε · 1 + ε
+
+1 − ε F (m)(Ax ∗ − b)
+
+≤ (1 + 14 ε)F (m)(Ax ∗ − b).
+
+This completes the proof of correctness. The overall failure probability is 0.01 + 0 .02 = 0 .03 , which come from the event E and Lemma 5.2. By Theorem 4.1, coreset D has size N = ˜O(ε−1md ) + 
+
+O(ε−2d log d) and thus D′ has size rN . Each iteration of the for-loop from Line 4 to Line 4 takes time O(( rN )3) = 
+
+O(poly( md/ε )) . The whole for-loop takes the time L ·
+
+poly( md/ε ) = dO(m)2O(m/ε ), which dominates the run-time after Line 1. For Line 1, we have t0(n, ε ) = O(nd +poly( d/ε )) and t1(n) = O(nd + poly( d)) and thus Line 1 takes time O(nd +n log md ε +poly( md/ε )) with probability at least 0.99 . The claimed overall runtime follows. 
+
+Robust PCA Given A ∈ Rn×d, the rank-k PCA of A
+
+is given by AU U ⊤, where U ∈ Rd×k has the top-k right singular vectors of A as columns. This U can also be viewed as the minimizer to min U ∈U ∥A − AU U ⊤∥F , where U =
+
+{U ∈ Rn×k : U has orthonormal columns }. In the robust setting, we let F (m)(X) to denote the sum of ∥xi∥22 (where 
+
+xi denotes the i-th row of X) except the m largest rows. The task is to solve min U ∈U F (m)(A − AU U ⊤). Analogously to Theorem 5.1, we have 
+
+Theorem 5.3. Suppose that ε ∈ (0 , 14 ). There is an algo-rithm with runtime dO(m)eO(m/ε ) + O(nd ) which outputs an ˜U satisfying with probability at least 0.9 that 
+
+F (m)(A ˜U ˜U ⊤ − A) ≤ (1 + 14 ε) min   
+
+> U∈U
+
+F (m)(AU U ⊤ − A).
+
+The proof is highly similar to that of Theorem 5.1 and is therefore postponed to Appendix B. A popular application of coreset is to be employed as a pre-processing subroutine to accelerate the existing algorithm. For example, Simonov et al. (2019) give an nO(d2) time for PCA with m outliers for any m. For fixed m, we can first run Algorithm 3 to construct an (ε, m )-coreset S for robust PCA. So |S| = ˜O(dmε −1 + dε −2). Then we run the algorithm of (Simonov et al., 2019) on S to obtain a 
+
+(1 + ε)-approximation with running time (dmε −1)O(d2) +˜O(nd log( mε −1)) .We remark that Simonov et al. (2019) also prove a lower bound that rules out any constant-factor approximation in time f (d)no(d), assuming the ETH. At first glance, this appears to contradict the two algorithms given above. How-ever, this lower bound assumes that m can be as large as 
+
+Θ( n), in which case our algorithms would also run in time 
+
+dn, consistent with the lower bound. 
+
+Robust k-median For the k-median problem, the total sen-sitivity is O(k) (Langberg & Schulman, 2010; Feldman & 7Robust Sparsification via Sensitivity 
+
+1400 1500 2000 2100 
+
+0.1
+
+0.2
+
+0.3 Energy dataset 
+
+coreset size 
+
+> empirical distortion parameter
+
+1400 1500 2000 2100 
+
+0.05 
+
+0.1 
+
+0.15 
+
+0.2 Emission dataset 
+
+coreset size 
+
+> empirical distortion parameter
+
+Figure 1: Results of subspace embedding coresets with 
+
+m = 10 and ε = 0 .25 . Blue plots correspond to our coreset algorithm and the red plots to uniform sampling. Langberg, 2011) and Q = O( kε2 · min( k1/3, ε −1)) (Cohen-Addad et al., 2022; Huang et al., 2024). Hence, the coreset size is O  mk ε · log mk ε + kε2 · min( k1/3, ε −1). In Section C, we compare our results with existing robust coresets for clustering (Huang et al., 2023a; 2025). 
+
+## 6. Experiments 
+
+We conduct the experiment on two real-world datasets from the UCI Machine Learning Repository: Appliances En-ergy Prediction 1 (referred to as Energy ) and Gas Turbine Emission 2 (Emission ). The Energy dataset has dimension 
+
+19735 × 28 and the Emission dataset 36733 × 11 .
+
+Coreset Verification We verify that Algorithm 3 produces an effective coreset for subspace embedding with p = 2 .Recall that for a matrix A ∈ Rn×d, the function set 
+
+F consists fi(x) = |⟨ ai, x ⟩| 2, where ai is the i-th row of A. Fixing parameters ε and m, we indepedently run Algorithm 3 1000 times. Each run produces a coreset 
+
+Dj and we compute its empirical distortion parameter 
+
+˜εj = max x∈X |L (m)(Dj ; x)/ L(m)(F; x) − 1|, where X ⊂
+
+Rd consists of 5000 samples drawn independently from 
+
+N (0 , I d). The size of Dj is random and is rounded up to nj ,the smallest integer multiple of 100, and report ˜εj as the dis-tortion parameter for the specified coreset size nj (we could pad Dj with arbitrary unselected f ∈ F to achieve size nj ,which would only reduce distortion). Finally, we plot the mean and standard deviation of the distortion parameter for 
+
+> 1https://archive.ics.uci.edu/dataset/374/ appliances+energy+prediction
+> 2https://archive.ics.uci.edu/dataset/551/ gas+turbine+co+and+nox+emission+data+set
+
+Table 1: Runtimes (in seconds) for robust regression on our coresets and the whole dataset, with m = 10 , for the Energy dataset (top) and the Emission dataset (bottom). Coreset size Mean Standard deviation 1400 1.542 0.207 1500 1.602 0.214 1600 1.625 0.237 1700 1.673 0.250 1800 1.699 0.225 1900 1.781 0.301 2000 1.805 0.307 2100 1.860 0.317 19734 (whole dataset) 13.981 0.249 Coreset size Mean Standard deviation 650 0.280 0.025 700 0.284 0.024 750 0.289 0.024 800 0.299 0.023 850 0.303 0.023 900 0.315 0.035 950 0.352 0.043 1000 0.396 0.022 36733 (whole dataset) 7.543 0.054 different coreset sizes using all (nj , ˜εj ) pairs. These results are compared with uniform sampling, which, given a specified size n, uniformly sample n rows of A
+
+to form a coreset B. For each n, we run 100 independent trials, calculating the empirical distortion parameter ˜ε =max x∈X |∥ Bx ∥22/∥Ax ∥22 − 1| as before. The mean and standard deviation of ˜ε for each n are then plotted. The results are shown in Figures 1. For the energy dataset, our coresets consistently achieve a much smaller distortion than the preset value of ε = 0 .25 . Additionally, the distor-tion is significantly lower than that of uniform sampling, with the mean approximately 40%–50% smaller and also about one standard deviation smaller. About 10% of the rows suffice to yield a subspace embedding with a distortion parameter of at most 0.15 . For the Emission dataset, we see again that the distortion is much lower than the preset value of ε = 0 .25 . The mean distortion is about one standard deviation smaller than that of uniform sampling. About 5% 
+
+of the rows achieve a distortion parameter of at most 0.1.
+
+Solving Optimization Problem Now we apply our coresets to robust regression. Recall that, given A ∈ Rn×d and b ∈
+
+Rn, robust regression seeks to solve min x∈Rd F (m)(Ax −
+
+b), where F (u) is the sum of u2 
+
+> i
+
+, excluding the m largest coordinates (in absolute value). To the best of our knowledge, the only algorithms for ro-8Robust Sparsification via Sensitivity 
+
+1400 2100 
+
+0.01 
+
+0.02 
+
+1400 2100 
+
+0.2
+
+0.3
+
+0.4
+
+0.5
+
+1400 2100 
+
+0.2
+
+0.3
+
+0.4
+
+0.5
+
+Figure 2: Robust regression on the Energy dataset with m = 10 . Subplots show the relative error of the following quantities. Left: robust loss function F (m), Middle: ℓ∞-norm, Right: ℓ2-norm. 650 1000 0.01 0.02 0.03 0.04 0.05 650 1000 0.01 0.02 0.03 0.04 0.05 650 1000 0.01 0.02 0.03 0.04 0.05 Figure 3: Robust regression on the Emission dataset with m = 10 . Subplots show the relative error of the following quantities. Left: robust loss function F (m), Middle: ℓ∞-norm, Right: ℓ2-norm. bust ℓ2-regression with theoretical runtime guarantees that are substantially better than   nm
+
+ are that of Simonov et al. (2019) and our Algorithm 4. However, both remain computa-tionally expensive, with runtimes exponential in d2 and m/ε ,respectively. The robust ℓ2-regression problem, also known as the least trimmed squares, has a long history of research. A popular heuristic approach is FastLTS 3 (Rousseeuw & van Driessen, 2006), which, for example, is implemented in Maple’s statistics package (MapleSoft). We use FastLTS in our experiments. We perform 1000 trials with different coresets, solving the regression problem using FastLTS for each coreset, yielding solutions ˜xj for j = 1 , . . . , 1000 . We also solve the original regression problem on the full data matrix using FastLTS to obtain a solution ˆx. Next, we evaluate the approximation of the objective function |F (m)(A˜xj − b)/F (m)(Aˆx − b) − 1|
+
+as well as the approximation of the solution in ℓ2 and ℓ∞
+
+norms: ∥˜xj − ˆx∥2/∥ˆx∥2 and ∥˜xj − ˆx∥∞/∥ˆx∥∞. Finally, we plot these quantities against the size of the coresets (rounded to the nearest multiple of 100 for the Energy dataset and the nearest multiple of 50 for the Emission dataset) and compare with the results using uniform sampling. We also report the runtimes 4 on our coresets of different sizes (including computing the coresets) as well as for the entire dataset. The runtime for the entire dataset is averaged over 10 trials. The results for the Energy dataset are presented in Figure 2 
+
+> 3FastLTS is theoretically guaranteed to converge to the optimal solution but the convergence rate not understood. In practice, the parameters are chosen heuristically.
+> 4All experiments were run on a machine with an Intel i5-1165G7 @ 2.80GHz CPU and 16 GB memory using Python ver-sion 3.12.8.
+
+and Table 1. We observe that the runtimes on coresets are substantially smaller. Additionally, our coresets signif-icantly outperform uniform sampling in terms of the ob-jective function, achieving lower mean relative errors and smaller standard deviations. Our coresets achieve a mean relative error of the objective function value in the range of 
+
+0.01 and 0.02 with coreset sizes of only 7.1% to 10 .6% of the full dataset, significantly outperforming uniform sam-pling by at least one standard deviation. While the objective function is well-approximated, the solution approximation shows a larger relative error of approximately 0.25–0.3. We hypothesize that this is partly due to the large condition number of the data matrix ( ≈ 2878 ). The results for robust regression on the Emission dataset are presented in Figure 3 and Table 1. As with the Energy dataset, we observe a substantial reduction in runtimes when using coresets. Once again, our coresets significantly out-perform uniform sampling in terms of the objective function. The mean relative error of the objective function decreases from 0.02 to 0.01 as the coreset size increases from 2% 
+
+to 2.7% of the data size. The solution error in both ℓ∞
+
+and ℓ2 norms are similar for both our coresets and uniform sampling, with mean relative errors around 0.03 . We hy-pothesize that this is partly due to ˆx having predominantly small coordinates except for one, making it relatively easy to approximate. However, small differences in the approxi-mation can result in much larger differences in the objective function value. 9Robust Sparsification via Sensitivity 
+
+## Acknowledgements 
+
+The authors would like to thank the anonymous reviewers for their helpful suggestions, particularly regarding the ex-panded discussion on related work. C.W. In is supported by an NTU research scholarship. Y. Li is supported in part by, and X. Xuan is supported by, Singapore Ministry of Education AcRF Tier 2 grant MOE-T2EP20122-0001. D.P. Woodruff is supported in part by a Simons Investigator Award and Office of Naval Research (ONR) award number N000142112647. 
+
+## Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+## References 
+
+Andersen, R. Modern Methods for Robust Regression . Quan-titative Applications in the Social Sciences. SAGE Publi-cations, Inc., 2008. Bachem, O., Lucic, M., and Lattanzi, S. One-shot coresets: The case of k-clustering. In AISTATS , volume 84 of 
+
+Proceedings of Machine Learning Research , pp. 784–792. PMLR, 2018. Bandyapadhyay, S., Fomin, F. V., and Simonov, K. On coresets for fair clustering in metric and euclidean spaces and their applications. In ICALP , volume 198 of LIPIcs ,pp. 23:1–23:15. Schloss Dagstuhl - Leibniz-Zentrum f ¨ur Informatik, 2021. Batson, J., Spielman, D. A., and Srivastava, N. Twice-ramanujan sparsifiers. SIAM Journal on Computing , 41 (6):1704–1721, 2012. doi: 10.1137/090772873. Braverman, V., Jiang, S. H., Krauthgamer, R., and Wu, X. Coresets for ordered weighted clustering. In ICML ,volume 97 of Proceedings of Machine Learning Research ,pp. 744–753. PMLR, 2019. Braverman, V., Feldman, D., Lang, H., Statman, A., and Zhou, S. Efficient coreset constructions via sensitiv-ity sampling. In Balasubramanian, V. N. and Tsang, I. (eds.), Proceedings of The 13th Asian Conference on Machine Learning , volume 157 of Proceedings of Machine Learning Research , pp. 948–963. PMLR, 17– 19 Nov 2021a. URL https://proceedings.mlr. press/v157/braverman21a.html .Braverman, V., Jiang, S., Krauthgamer, R., and Wu, X. Core-sets for clustering with missing values. In Ranzato, M., Beygelzimer, A., Dauphin, Y., Liang, P., and Vaughan, J. W. (eds.), Advances in Neural Information Processing Systems , volume 34, pp. 17360–17372. Curran Asso-ciates, Inc., 2021b. URL https://proceedings. neurips.cc/paper/2021/file/ 90fd4f88f588ae64038134f1eeaa023f-Paper. pdf .Braverman, V., Cohen-Addad, V., Jiang, S., Krauthgamer, R., Schwiegelshohn, C., Toftrup, M. B., and Wu, X. The power of uniform sampling for coresets. In 62nd IEEE Annual Symposium on Foundations of Computer Science, FOCS 2022 . IEEE Computer Society, 2022. Charikar, M., Khuller, S., Mount, D. M., and Narasimhan, G. Algorithms for facility location problems with outliers. In SODA , volume 1, pp. 642–651. Citeseer, 2001. Chen, K. A constant factor approximation algorithm for k-median clustering with outliers. In Proceedings of the nineteenth annual ACM-SIAM symposium on Discrete algorithms , pp. 826–835, 2008. Chen, K. On coresets for k-median and k-means clustering in metric and euclidean spaces and their applications. 
+
+SIAM Journal on Computing , 39(3):923–947, 2009. Chhaya, R., Dasgupta, A., and Shit, S. On coresets for regularized regression. In International conference on machine learning , pp. 1866–1876. PMLR, 2020. Cohen-Addad, V., Saulpic, D., and Schwiegelshohn, C. A new coreset framework for clustering. In STOC , pp. 169– 182. ACM, 2021. Cohen-Addad, V., Green Larsen, K., Saulpic, D., Schwiegelshohn, C., and Sheikh-Omar, O. A. Improved coresets for Euclidean k-means. Advances in Neural Information Processing Systems , 35:2679–2694, 2022. Cohen-Addad, V., Larsen, K. G., Saulpic, D., and Schwiegelshohn, C. Towards optimal lower bounds for k-median and k-means coresets. In STOC , pp. 1038–1051. ACM, 2022. Drineas, P., Mahoney, M. W., and Muthukrishnan, S. Sam-pling algorithms for l2 regression and applications. In Pro-ceedings of the Seventeenth Annual ACM-SIAM Sympo-sium on Discrete Algorithm , SODA ’06, pp. 1127–1136, USA, 2006. Society for Industrial and Applied Mathe-matics. ISBN 0898716055. Feldman, D. and Langberg, M. A unified framework for approximating and clustering data. In STOC , pp. 569–578. ACM, 2011. https://arxiv.org/abs/ 1106.1379 .10 Robust Sparsification via Sensitivity 
+
+Feldman, D. and Schulman, L. J. Data reduction for weighted and outlier-resistant clustering. In Proceed-ings of the twenty-third annual ACM-SIAM symposium on Discrete Algorithms , pp. 1343–1354. SIAM, 2012. Feldman, D., Schmidt, M., and Sohler, C. Turning big data into tiny data: Constant-size coresets for k-means, pca, and projective clustering. SIAM J. Comput. , 49(3): 601–657, 2020. Har-Peled, S. and Kushal, A. Smaller coresets for k-median and k-means clustering. Discret. Comput. Geom. , 37(1): 3–19, 2007. Har-Peled, S. and Mazumdar, S. On coresets for k-means and k-median clustering. In STOC , pp. 291–300. ACM, 2004. https://arxiv.org/abs/1810.12826 .Huang, L. and Vishnoi, N. K. Coresets for clustering in Euclidean spaces: importance sampling is nearly optimal. In STOC , pp. 1416–1429. ACM, 2020. Huang, L., Jiang, S. H., Li, J., and Wu, X. Epsilon-coresets for clustering (with outliers) in doubling metrics. In 
+
+FOCS , pp. 814–825. IEEE Computer Society, 2018. Huang, L., Jiang, S. H., and Vishnoi, N. K. Coresets for clustering with fairness constraints. In NeurIPS , pp. 7587– 7598, 2019. Huang, L., Sudhir, K., and Vishnoi, N. Coresets for time series clustering. In Ranzato, M., Beygelzimer, A., Dauphin, Y., Liang, P., and Vaughan, J. W. (eds.), 
+
+Advances in Neural Information Processing Systems ,volume 34, pp. 22849–22862. Curran Associates, Inc., 2021. URL https://proceedings. neurips.cc/paper/2021/file/ c115ba9e04ab27fbbb664f932112246d-Paper. pdf .Huang, L., Jiang, S. H., Lou, J., and Wu, X. Near-optimal coresets for robust clustering. ICLR , 2023a. Huang, L., Jiang, S. H.-C., Lou, J., and Wu, X. Near-optimal coresets for robust clustering. In The Eleventh International Conference on Learning Representations ,2023b. URL https://openreview.net/forum? id=Nc1ZkRW8Vde .Huang, L., Li, J., and Wu, X. On optimal coreset construc-tion for euclidean (k, z )-clustering. In Proceedings of the 56th Annual ACM Symposium on Theory of Computing ,pp. 1594–1604, 2024. Huang, L., Li, J., Lu, P., and Wu, X. Coresets for constrained clustering: General assignment constraints and improved size bounds. In SODA , 2025. Jiang, S. H.-C. and Lou, J. Coresets for robust clustering via black-box reductions to vanilla case. ICALP , 2025. Jubran, I., Sanches Shayda, E. E., Newman, I. I., and Feld-man, D. Coresets for decision trees of signals. Advances in Neural Information Processing Systems , 34:30352– 30364, 2021. Krishnaswamy, R., Li, S., and Sandeep, S. Constant ap-proximation for k-median and k-means with outliers via iterative rounding. In Proceedings of the 50th annual ACM SIGACT symposium on theory of computing , pp. 646–659, 2018. Langberg, M. and Schulman, L. J. Universal epsilon-approximators for integrals. In SODA , pp. 598–607. SIAM, 2010. MapleSoft. Least trimmed squares. https: //www.maplesoft.com/support/help/ maple/view.aspx?path=Statistics% 2FLeastTrimmedSquares#references . Last accessed: 25 Jan 2025. Munteanu, A., Schwiegelshohn, C., Sohler, C., and Woodruff, D. On coresets for logistic regression. Ad-vances in Neural Information Processing Systems , 31, 2018. Rousseeuw, P. J. Regression techniques with high break-down point. In Mathematical Statistics and Applications ,pp. 283–297. Springer Dordrecht, 1985. Rousseeuw, P. J. and van Driessen, K. Computing LTS regression for large data sets. Data Min. Knowl. Discov. ,12(1):29–45, 2006. doi: 10.1007/S10618-005-0024-4. Simonov, K., Fomin, F., Golovach, P., and Panolan, F. Refined complexity of PCA with outliers. In Chaud-huri, K. and Salakhutdinov, R. (eds.), Proceedings of the 36th International Conference on Machine Learn-ing , volume 97 of Proceedings of Machine Learning Research , pp. 5818–5826. PMLR, 09–15 Jun 2019. URL https://proceedings.mlr.press/v97/ simonov19a.html .Sohler, C. and Woodruff, D. P. Strong coresets for k-median and subspace approximation: Goodbye dimension. In 
+
+FOCS , pp. 802–813. IEEE Computer Society, 2018. Wang, Z., Guo, Y., and Ding, H. Robust and fully-dynamic coreset for continuous-and-bounded learning (with out-liers) problems. Advances in Neural Information Process-ing Systems , 34:14319–14331, 2021. Woodruff, D. and Yasuda, T. Sharper bounds for ℓp sensi-tivity sampling. In Krause, A., Brunskill, E., Cho, K., 11 Robust Sparsification via Sensitivity 
+
+Engelhardt, B., Sabato, S., and Scarlett, J. (eds.), Pro-ceedings of the 40th International Conference on Ma-chine Learning , volume 202 of Proceedings of Machine Learning Research , pp. 37238–37272. PMLR, 23–29 Jul 2023. URL https://proceedings.mlr.press/ v202/woodruff23a.html .Woodruff, D. P. Sketching as a tool for numerical linear algebra. Foundations and Trends in Theoretical Computer Science , 10(1–2):1–157, 2014. 12 Robust Sparsification via Sensitivity 
+
+## A. Proof of Lemma 5.2 
+
+Without loss of generality, we may assume that A has orthonormal columns. By the stardard proof for approximate regression such as that of Theorem 2.16 in (Woodruff, 2014), it suffices to assume that A has orthonormal columns and show that with probability at least 0.98 , (i) ∥A⊤S⊤SA − I∥op ≤ 1/2 and (ii) ∥A⊤S⊤Sv ∥2 ≤ √ε∥v∥2 for a specific vector v ∈ Rn such that A⊤v = 0 .We first show (i). Let ai denote the i-th row of A (viewed as a column vector), then 
+
+A⊤S⊤SH − I = A⊤S⊤SH − A⊤A =
+
+> n
+
+X
+
+> i=1
+
+ξiaia⊤ 
+
+> i
+
+,
+
+where ξi’s are i.i.d. Rademacher variables. We also have ∥aia⊤ 
+
+> i
+
+∥op = ∥ai∥22 ≤ 1/r and ∥P
+
+> i
+
+(aia⊤ 
+
+> i
+
+)2∥op =
+
+∥P 
+
+> i
+
+ai(a⊤ 
+
+> i
+
+ai)a⊤ 
+
+> i
+
+∥op ≤ (1 /r )∥P 
+
+> i
+
+aia⊤ 
+
+> i
+
+∥op = (1 /r )∥I∥op = 1 /r . It follows from matrix Bernstein inequality that 
+
+Pr 
+
+
+
+∥A⊤S⊤SH − I∥op > 12
+
+
+
+≤ 2de −cr ≤ 0.01 
+
+(where c > 0 is an absolute constant), provided that r ≳ log d.Next we show (ii). Let {ηi} be i.i.d. uniform variables on {0, 1}. We can then write 
+
+∥A⊤S⊤Sv ∥22 =
+
+> d
+
+X
+
+> i=1
+
+X
+
+> j
+
+2ηj aji vj
+
+
+
+> 2
+
+= 4 X
+
+> i
+
+X
+
+> j,ℓ
+
+ηj ηℓaji aℓi vj vℓ
+
+= 4 X
+
+> j,ℓ
+
+ηj ηℓ⟨aj , a ℓ⟩vj vℓ
+
+= 4 X
+
+> j,ℓ
+
+ξj + 1 2 · ξℓ + 1 2 · ⟨ aj , a ℓ⟩vj vℓ
+
+= X
+
+> j,ℓ
+
+ξj ξℓ⟨aj , a ℓ⟩vj vℓ + X
+
+> j
+
+ξj
+
+*
+
+aj vj , X
+
+> ℓ
+
+aℓvℓ
+
++
+
++ X
+
+> ℓ
+
+ξℓ
+
+*X
+
+> j
+
+aj vj , a ℓvℓ
+
++
+
++
+
+*X
+
+> j
+
+aj vj , X
+
+> ℓ
+
+aℓvℓ
+
++
+
+.
+
+Since AT v = 0 , we know that P 
+
+> j
+
+aj vj = 0 and so 
+
+∥A⊤S⊤Sv ∥22 = X
+
+> j,ℓ
+
+ξj ξℓ⟨aj , a ℓ⟩vj vℓ,
+
+which is a quadratic form w.r.t. Rademacher variables ξi and 
+
+E∥A⊤S⊤Sv ∥22 = X
+
+> j,ℓ
+
+E(ξj ξℓ)⟨aj , a ℓ⟩vj vℓ = X
+
+> j
+
+⟨aj , a j ⟩v2 
+
+> j
+
+≤ ∥v∥22
+
+r
+
+Let G be a matrix with Gj,ℓ = ⟨aj , a ℓ⟩vj vℓ. We can calculate 
+
+∥G∥2 
+
+> F
+
+= X
+
+> j,ℓ
+
+⟨aj , a ℓ⟩2v2 
+
+> j
+
+v2 
+
+> ℓ
+
+≤ X
+
+> j,ℓ
+
+∥aj ∥2∥aℓ∥2v2 
+
+> j
+
+v2 
+
+> ℓ
+
+≤ 1
+
+r2
+
+X
+
+> j
+
+v2
+
+> j
+
+
+
+> 2
+
+= 1
+
+r2 ∥v∥42
+
+and 
+
+∥G∥op = ∥A⊤(diag( v)) 2A∥op = sup 
+
+> ∥x∥2=1
+
+∥diag( v)Ax ∥22
+
+13 Robust Sparsification via Sensitivity 
+
+≤ ∥ v∥22 sup 
+
+> ∥x∥2=1
+
+max  
+
+> i
+
+⟨ai, x ⟩2
+
+≤ ∥ v∥22 sup 
+
+> ∥x∥2=1
+
+max  
+
+> i
+
+∥ai∥22∥x∥22
+
+≤ 1
+
+r ∥v∥22
+
+It follows from Hanson-Wright inequality that 
+
+Pr  ∥A⊤S⊤Sv ∥22 − E∥A⊤S⊤Sv ∥22 ≥ t ≤ 2 exp 
+
+
+
+−c min 
+
+ t2
+
+∥v∥42/r 2 , t
+
+∥v∥22/r 
+
+ 
+
+Setting t = C∥v∥22/r (where C is some absolute constant), we see that with probability at least 0.99 ,
+
+∥A⊤S⊤Sv ∥22 ≤ ∥v∥22
+
+r + C∥v∥22
+
+r ≤ ε∥v∥22,
+
+provided that r ≥ (C + 1) /ε , establishing (ii). 
+
+## B. Proof of Theorem 5.3 
+
+We present the algorithm in Algorithm 5. 
+
+Algorithm 5 RobustPCA( A, ε, m )
+
+Input: A ∈ Rn×d, parameters ε and m
+
+Output: (1 + ε)-approx. solution to min U ∈U F (m)(AU U ⊤ − A)
+
+1: (D, {wi}) ← Coreset( A, ε, m ) {Each row Di, ∗ ∈ Rd is associated with weight wi}
+
+2: Rescale each row of D as Di, ∗ ← √wiDi, ∗ and set all weights to be 1
+
+3: r ← O(log d + 1 /ε )
+
+4: Duplicate each row of D by r times and rescale by 1√r , yielding D′
+
+5: L ← 2O(rm )
+
+6: X ← ∅ 
+
+7: for i = 1 , 2, . . . , L do 
+
+8: S ← random diagonal matrix with i.i.d. diagonal elements such that Sii is uniform on {0, √2}
+
+9: Compute U ′ = arg min U ∈U ∥SD ′U U ⊤ − SD ′∥F
+
+10: X ← X ∪ { U ′}
+
+11: end for 
+
+12: Compute ˜U ← arg min U ∈X F (rm )(D′U U ⊤ − D′)
+
+13: Return ˜U
+
+To begin, we can write ∥AX − A∥2 
+
+> F
+
+as 
+
+∥AX − A∥2 
+
+> F
+
+=
+
+> n
+
+X
+
+> i=1
+
+∥aiX − ai∥22 =: 
+
+> n
+
+X
+
+> i=1
+
+fi(X)
+
+where ai denotes the i-th row of A. We first show that the sensitivities for fi(X) is the i-th leverage score of A. Let 
+
+A = QR be the QR decomposition, where Q ∈ Rn×d has orthonormal columns and R is invertible, then 
+
+σfi = sup  
+
+> X:AX ̸=0
+
+∥e⊤ 
+
+> i
+
+QRX ∥22
+
+∥QRX ∥2
+
+> F
+
+= sup  
+
+> X:QX ̸=0
+
+∥e⊤ 
+
+> i
+
+QX ∥22
+
+∥QX ∥2
+
+> F
+
+.
+
+Since Q has orthonormal columns, we know that ∥QX ∥2 
+
+> F
+
+= ∥X∥2 
+
+> F
+
+. Also, ∥e⊤ 
+
+> i
+
+QX ∥22 ≤ ∥ e⊤ 
+
+> i
+
+Q∥22∥X∥22, thus 
+
+σfi ≤ ∥ e⊤ 
+
+> i
+
+Q∥22,
+
+14 Robust Sparsification via Sensitivity 
+
+where the equality is attained when X =  Q⊤ei Q⊤ei · · · Q⊤ei
+
+. Therefore, σfi = ∥e⊤ 
+
+> i
+
+Q∥22, which is exactly the 
+
+i-th leverage score of A. This justifies Line 1 of the algorithm. We also need to show an analogy of Lemma 5.2 for approximate PCA, which we state formally below. 
+
+Lemma B.1. Suppose that A ∈ Rn×d and its leverage scores are bounded by 1/r . Let S ∈ Rn×n be a random diagonal matrix, where Sii = √2 with probability 1/2 and Sii = 0 with probability 1/2. Let U ∗ = arg min U ∈U ∥AU U ⊤ − A∥F
+
+and ˜U = arg min U ∈U ∥SAU U ⊤ − SU ∥2.When r ≳ d log d + 1 /ε , it holds with probability at least 0.98 that 
+
+∥A ˜U ˜U ⊤ − A∥F ≤ (1 + ε)∥AU ∗(U ∗)⊤ − A∥F .
+
+Proof. The proof is nearly identical to that of Lemma 5.2 except that we need now to verify that ∥A⊤S⊤SV ∥F ≤ √ε∥V ∥F
+
+for a specific matrix V ∈ Rn×d such that A⊤V = 0 . Write V =  v1 v2 · · · vd
+
+, we have ∥A⊤S⊤SV ∥2 
+
+> F
+
+=
+
+Pdi=1 ∥A⊤S⊤Sv i∥22. It follows from the calculations in the proof of Lemma 5.2 that 
+
+∥A⊤S⊤SV ∥2 
+
+> F
+
+= X
+
+> j,ℓ
+
+ξj ξℓ⟨aj , a ℓ⟩ X
+
+> i
+
+(vi)j (vi)ℓ.
+
+Thus, 
+
+E∥A⊤S⊤SV ∥2 
+
+> F
+
+≤ X
+
+> i
+
+∥vi∥22
+
+r = ∥V ∥2
+
+> F
+
+r .
+
+Now we can write G = P 
+
+> i
+
+Gi, where (Gi)j,ℓ = ⟨aj , a ℓ⟩(vi)j (vi)ℓ and so 
+
+∥G∥2 
+
+> F
+
+≤ 1
+
+r2
+
+X
+
+> i
+
+X
+
+> j
+
+(vi)2
+
+> j
+
+
+
+> 2
+
+≤ 1
+
+r2
+
+X
+
+> i
+
+X
+
+> j
+
+(vi)2
+
+> j
+
+
+
+> 2
+
+= 1
+
+r2 ∥V ∥4
+
+> F
+
+∥G∥op ≤ X
+
+> i
+
+∥Gi∥op ≤ 1
+
+r
+
+X
+
+> i
+
+∥vi∥22 = 1
+
+r ∥V ∥2 
+
+> F
+
+.
+
+The desired result follows from Hanson-Wright inequality as in the proof of Lemma 5.2. The remainder of the proof is nearly identical to that of Theorem 5.1, so we just give a sketch below. Let 
+
+U ∗ = min   
+
+> U∈U
+
+F (m)(AU U ⊤ − A), U ♯ = min   
+
+> U∈U
+
+F (m)(DU U ⊤ − D).
+
+Define J to be the set of indices of the largest m rows (in ℓ2 norm) of DU U ⊤ − D and J′ to be the rm indices in 
+
+D′U U ⊤ − D′ that correspond to the indices in J.Consider the event E that SD ′ contains none of the rows of indices in J′. With probability at least 0.99 , this event happens in at least one of the L trials. Consider the trial in which E happens. Let D′′ be the resulting matrix from D′ after removing rows of indices in J′. By the preceding lemma and our choice of r, it holds with probability at least 0.98 that 
+
+∥D′′ U ′(U ′)⊤ − D′′ ∥2 
+
+> F
+
+≤ (1 + ε)2F (rm )(D′U ♯(U ♯)⊤ − D′).
+
+It follows that 
+
+F (m)(D ˜U ˜U ⊤ − D) = F (rm )(D′ ˜U ˜U ⊤ − D′) ≤ (1 + ε)2F (rm )(D′U ♯(U ♯)⊤ − D′) = (1 + ε)2F (m)(DU ♯(U ♯)⊤ − D).
+
+Using the coreset properties, we have 
+
+F (m)(A ˜U ˜U ⊤ − A) ≤ 11 − ε F (m)(D ˜U ˜U ⊤ − D) ≤ (1 + ε)2
+
+1 − ε F (m)(DU ♯(U ♯)⊤ − D)
+
+≤ (1 + ε)2
+
+1 − ε F (m)(DU ∗(U ∗)⊤ − D)
+
+15 Robust Sparsification via Sensitivity 
+
+≤ (1 + ε)3
+
+1 − ε F (m)(AU ∗(U ∗)⊤ − A)
+
+≤ (1 + 7 ε)F (m)(AU ∗(U ∗)⊤ − A)
+
+This completes the proof of correctness. The analysis of the failure probability and the runtime is identical to the proof of Theorem 5.1, where we compute the SVD of SD ′ to find U ′.
+
+## C. Partial Removal Model 
+
+In our definition, the robust loss function removes m functions regardless of their weights, which we will refer to as the full removal model. In clustering (Huang et al., 2023b; 2025), an alternative definition has been used, which allows partial removal. Instead of removing exactly m functions, this definition removes a total weight of m. Formally, let 
+
+F = {(fi, ω i) | i ∈ [n]} be a weighted set of functions. The robust loss function is then defined as 
+
+L(m)(F; x) = min 
+
+> w′:0≤w′≤w,
+> ∥w−w′∥1≤mn
+
+X
+
+> i=1
+
+w′
+
+> i
+
+fi(x).
+
+Here, we write w′ ≤ w for two vectors w, w ′ ∈ Rn to mean w′ 
+
+> i
+
+≤ wi for every i ∈ [n].Our main result is the following theorem, which shows that our coreset algorithm also works under this partial removal model. 
+
+Theorem C.1. For every ε ∈ (0 , 14 ) and m ∈ [n], the output of Algorithm 3 is also an (ε, m )-coreset for F under partial removal model with constant probability. Proof. As in the proof of Theorem 4.1, we condition on the event that all contributing functions are in S, which happens with constant probability. Let P denote the output of Coreset( F, ε, m ). We shall show that P is an (ε, m )-coreset under the partial removal model; that is, for every x ∈ Rd and t ∈ { 0, · · · , m }, it holds that L(t)(P ; x) ∈ (1 ± Cε ) · L (t)(A; x) for some absolute constant 
+
+C > 0.We first prove that L(t)(P ; x) ≤ (1 + Cε ) · L (t)(A; x). Let Lx denote the set of outliers 5 excluded by L(t)(A; x), then 
+
+|Lx| ≤ t. Let ˜Lx = {(f, 1) | f ∈ Lx}. We claim that it suffices to prove that 
+
+X  
+
+> (f, 1) ∈˜S\˜Lx
+
+f (x) + X   
+
+> (f,ω f)∈P\˜S
+
+ωf · f (x) ≤ (1 + 3 ε) L(t)(A; x). (2) To see this, notice that the total weight of ˜Lx is at most 1 · | Lx| ≤ t, thus the left-hand-side of (2) is at least L(t)(P ; x).To prove (2), we begin by noting that X  
+
+> (f, 1) ∈˜S\˜Lx
+
+f (x) = X 
+
+> f∈S\Lx
+
+f (x). (3) Next, it remains to show that X   
+
+> (f,ω f)∈P\˜S
+
+ωf · f (x) ≤ (1 + ε) X 
+
+> f∈(A\S)\Lx
+
+f (x) + 2 ε L(t)(A; x), (4) which, when combined with (3), will give exactly (2). To prove (4), we note that P \ ˜S is an ε-coreset of A \ S by construction, so 
+
+X   
+
+> (f,ω f)∈P\˜S
+
+ωf · f (x)
+
+> 5
+
+Since all functions in A have unit weights, we can assume without loss of generality that no outlier is partially removed. 
+
+16 Robust Sparsification via Sensitivity 
+
+≤ (1 + ε) X 
+
+> f∈A\S
+
+f (x) (5) 
+
+= (1 + ε) X 
+
+> f∈(A\S)\Lx
+
+f (x) + (1 + ε) X 
+
+> f∈Lx∩(A\S)
+
+f (x) (6) 
+
+≤ (1 + ε) X 
+
+> f∈(A\S)\Lx
+
+f (x) + (1 + ε) · t · εm L(t)(A; x) (7) 
+
+≤ (1 + ε) X 
+
+> f∈(A\S)\Lx
+
+f (x) + 2 ε L(t)(A; x). (8) Here, (5) follows from the coreset property, (6) from the relationship of sets, (7) from the definition of interesting functions and the conditioning on the event that all contributing functions have been added into S, and (8) from the fact that ε ≤ 14 < 1.It remains to prove that L(t)(A; x) ≤ (1 + Cε ) · L (t)(P ; x) for some absolute constant C > 0. Let ω′ ∈ R|P | denote the weight vector induced by L(t)(P ; x), namely L(t)(P ; x) = P  
+
+> (f,ω ′
+> f)∈P
+
+ω′ 
+
+> f
+
+· f , 0 ≤ ω′ ≤ ω, and ∥ω − ω′∥1 ≤ t.Let ω′′  
+
+> f
+
+= ω′ 
+
+> f
+
+for each f ∈ S and ω′′  
+
+> f
+
+= 1 for each f ∈ A \ S. We note that 0 ≤ ω′′ ≤ 1 and ∥1 − ω′′ ∥1 = P  
+
+> f∈S
+
+(1 − ω′ 
+
+> f
+
+) ≤∥ω − ω′∥1 ≤ t. This means that ω′′ is a valid weight vector for L(t)(A; x) and we can proceed as 
+
+L(t)(A; x) ≤ X 
+
+> f∈A
+
+ω′′  
+
+> f
+
+· f (x)= X 
+
+> f∈S
+
+ω′′  
+
+> f
+
+· f (x) + X 
+
+> f∈A\S
+
+ω′′  
+
+> f
+
+· f (x)
+
+≤ X 
+
+> (f, 1) ∈˜S
+
+ω′ 
+
+> f
+
+· f (x) + X 
+
+> f∈A\S
+
+f (x)
+
+≤ X 
+
+> (f, 1) ∈˜S
+
+ω′ 
+
+> f
+
+· f (x) + (1 + 2 ε) X   
+
+> (f,ω f)∈P\˜S
+
+ωf · f (x).
+
+We claim that X   
+
+> (f,ω f)∈P\˜S
+
+ωf · f (x) ≤ X   
+
+> (f,ω f)∈P\˜S
+
+ω′ 
+
+> f
+
+· f (x) + ε L(t)(A; x). (9) It then follows that 
+
+L(t)(A; x) ≤ (1 + 2 ε) X 
+
+> (f,ω f)∈P
+
+ω′ 
+
+> f
+
+· f (x) + ε(1 + 2 ε) L(t)(A; x),
+
+which implies that (recalling that ε ∈ (0 , 1/4) )
+
+L(t)(A; x) ≤ 1 + 2 ε
+
+1 − ε(1 + 2 ε) L(t)(P ; x)
+
+≤ (1 + 6 ε) L(t)(P ; x).
+
+Now we prove our claim (9). We have that 
+
+X   
+
+> (f,ω f)∈P\˜S
+
+ωf · f (x)
+
+≤ X   
+
+> (f,ω f)∈P\˜S
+
+ω′ 
+
+> f
+
+· f (x) + ∥ω − ω′∥1 · sup    
+
+> (f,ω f)∈P\˜S
+
+f (x)
+
+≤ X   
+
+> (f,ω f)∈P\˜S
+
+ω′ 
+
+> f
+
+· f (x) + t · εm · L (t)(A; x)
+
+≤ X   
+
+> (f,ω f)∈P\˜S
+
+ω′ 
+
+> f
+
+· f (x) + ε · L (t)(A; x).
+
+The proof is now complete. 17 Robust Sparsification via Sensitivity 
+
+As a corollary of the theorem, we obtain an improved coreset size for robust k-median under the partial removal model when the number of outliers is small. The current state-of-the-art (ε, m )-coreset under this model has size m + ˜O(k2ε−4) (Huang et al., 2025). In the preceding section, we demonstrated that for robust k-median a coreset size under the full removal model, the coreset size is O  mk ε log mk ε + kε2 · min( k1/3, ε −1). By Theorem C.1, this result also holds for the partial removal model. This improves upon the result in (Huang et al., 2025) when m = o(kε −3).
+
+## D. Lower Bound for Subspace Embedding 
+
+We prove a lower bound on the size of the robust coreset for subspace embedding. Let t = ⌊ mε ⌋. We define a(k−1) d+i = ei
+
+for every k ∈ [t] and i ∈ [d]. Suppose that the matrix A has rows a1, a 2, . . . , a td and we let Fi(x) = |⟨ ai, x ⟩| 2. Our main result is the following theorem. 
+
+Theorem D.1. Any (ε, m )-coreset for F (x) = Ptd i=1 Fi(x) has size at least md  
+
+> 4ε
+
+.Proof. Let D be an (ε, m )-coreset for F . Define Di = {(ωf , f ) ∈ D | f (x) = |⟨ ei, x ⟩| 2}, i ∈ [d]. So D = Sdi=1 Di. Let 
+
+˜F (x) = P   
+
+> (ωf,f )∈D
+
+ωf · f (x).Since F (ei) = t and P   
+
+> (ωf,f )∈D
+
+f (ei) = P   
+
+> (ωf,f )∈Di
+
+ωf , by the coreset property ˜F (x) ≤ (1 + ε) · F (x), we have that, 
+
+X  
+
+> (ωf,f )∈Di
+
+ωf ≤ (1 + ε) · t. 
+
+If |Di| ≤ m 
+
+> 4ε
+
+, we know that 
+
+˜F (m)(ei) ≤ |D| − m
+
+|D| · X  
+
+> (ωf,f )∈Di
+
+ωf
+
+≤ 
+
+> m
+> 4ε
+
+− m
+
+> m
+> 4ε
+
+· (1 + ε) · t
+
+≤ (1 − 3ε) · t
+
+= (1 − 3ε) · tt − m · (t − m)
+
+≤ (1 − 3ε) · 
+
+> mεmε
+
+− m · (t − m)= 1 − 3ε
+
+1 − ε · F (m)(ei)
+
+≤ (1 − 2ε) · F (m)(ei).
+
+But the coreset property asserts that ˜F (m)(ei) ≥ (1 − ε) · F (m)(ei), which is a contradiction. So |Di| > m 
+
+> 4ε
+
+and 
+
+|D| = Pdi=1 |Di| ≥ md  
+
+> 4ε
+
+.18

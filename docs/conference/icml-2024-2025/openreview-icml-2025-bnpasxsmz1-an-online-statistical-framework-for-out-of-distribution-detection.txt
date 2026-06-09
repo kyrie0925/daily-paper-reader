@@ -1,0 +1,1275 @@
+Title: An Online Statistical Framework for Out-of-Distribution Detection
+
+URL Source: https://openreview.net/pdf?id=BnPaSXSmz1
+
+Number of Pages: 16
+
+Markdown Content:
+# An Online Statistical Framework for Out-of-Distribution Detection 
+
+Xinsong Ma 1 Xin Zou 1 Weiwei Liu 1
+
+## Abstract 
+
+Out-of-distribution (OOD) detection task is sig-nificant in reliable and safety-critical applications. Existing approaches primarily focus on develop-ing the powerful score function, but overlook the design of decision-making rules based on these score function. In contrast to prior studies, we re-think the OOD detection task from an perspective of online multiple hypothesis testing. We then propose a novel generalized LOND (g-LOND) algorithm to solve the above problem. Theoret-ically, the g-LOND algorithm controls false dis-covery rate (FDR) at pre-specified level without the consideration for the dependence between the p-values. Furthermore, we prove that the false positive rate (FPR) of the g-LOND algorithm con-verges to zero in probability based on the general-ized Gaussian-like distribution family. Finally, the extensive experimental results verify the effective-ness of g-LOND algorithm for OOD detection. 
+
+## 1. Introduction 
+
+The ability to detect Out-of-Distribution (OOD) inputs is a fundamental requirement for deploying deep learning models in safety-critical applications (Liang et al., 2018; Sastry & Oore, 2020; Ma et al., 2022). Although DNNs have demonstrated impressive capabilities across a range of complex tasks, such as speech recognition and machine translation (He et al., 2016; Amodei et al., 2016; Dankers et al., 2022), they are inherently vulnerable to OOD exam-ples that deviate from the distribution of training data ( i.e., in-distribution (ID) data ). This vulnerability can lead to overconfident yet incorrect predictions, which is particularly problematic in domains such as computer vision (Sun et al., 2022; Wei et al., 2022).     
+
+> 1School of Computer Science, National Engineering Research Center for Multimedia Software, Institute of Artificial Intelligence and Hubei Key Laboratory of Multimedia and Network Communi-cation Engineering, Wuhan University, Wuhan, China. Correspon-dence to: Weiwei Liu <liuweiwei863@gmail.com >.
+> Proceedings of the 42 nd International Conference on Machine Learning , Vancouver, Canada. PMLR 267, 2025. Copyright 2025 by the author(s).
+
+OOD detection has garnered considerable attention recently and an extensive collection of literature has been developed to tackle this issue (Liu et al., 2020; Yang et al., 2021; Wang et al., 2022; Liu et al., 2023), which mainly devote to ob-taining a powerful score function. However, these methods neglect to design a decision rule based on their score func-tion, and directly use traditional threshold-based decision rule, where the threshold is determined such that the true positive rate (TPR) on ID validation set is 95% before test-ing (Sun et al., 2022; Wei et al., 2022). But the traditional decision rule is empirical and thus its outputs lack rigorous statistical guarantee. Consequently, a natural question arise: 
+
+How to design an OOD detection method with rigorous the-oretical guarantee and well empirical performance? This paper aims to systematically study this question. Different from previous OOD detection literature, we in-vestigate the OOD detection problem from statistical per-spective. Note that in some sensitive applications such as financial transactions ( ¨Ozbayoglu et al., 2020) and self-driving (Huang et al., 2020), the testing examples arrive sequentially in a stream, and the machine learning model must make decisions in time. Hence, we frame the OOD detection task as an online multiple hypothesis testing prob-lem. (Javanmard & Montanari, 2015) proposes the LOND algorithm to address this testing problem, which has been heavily studied in various applications (Javanmard & Mon-tanari, 2015; Robertson & Wason, 2018; Robertson et al., 2022; Liou et al., 2023). Theoretically, to control the false discovery rate (FDR) 2, the LOND algorithm demands that the p-values corresponding to different null hypotheses are mutually independent, which easily leads to a contradic-tion to real-world applications. We then propose a novel generalized LOND (g-LOND) algorithm to eliminate these restrictions on p-values for FDR control. Moreover, we de-rive the asymptotic false positive rate (FPR) of the g-LOND algorithm based on the generalized Gaussian-like distribu-tion family. Finally, extensive experiments demonstrate the promising performance of the g-LOND algorithm on OOD detection. We summarize our contributions below: (1) We frame the OOD detection task as an online multi- 
+
+> 2FDR is related to the concept of Precision , and can be con-sidered as the generalization of type-I error for single hypothesis testing. See the motivation of controlling FDR in Section 3.2.
+
+1An Online Statistical Framework for Out-of-Distribution Detection 
+
+ple hypothesis testing problem and propose a novel g-LOND algorithm to solve it. Our method is distribution-free, and does not rely on the extra information of OOD data. (2) Theoretically, the g-LOND algorithm enables to control the FDR at a pre-specified level. Besides, we demon-strate that the FPR for the g-LOND algorithm converges to zero in probability based on the generalized Gaussian-like distribution family. (3) Finally, we conduct extensive experiments to demon-strate the effectiveness of the g-LOND algorithm for OOD detection. The results show that our method en-ables to achieve a better tradeoff between TPR and FPR compared with previous methods. 
+
+## 2. Related Work 
+
+OOD Detection. Existing efforts on OOD detection mainly focus on classification-based methods, density-based meth-ods and distance-based methods. The classification-based methods directly obtain confidence from the classifier which integrates some specific modifications for loss functions or classifier architectures (Lee et al., 2018; Liu et al., 2020; Huang et al., 2021; Liu et al., 2023; Djurisic et al., 2023) with some beneficial design to OOD detection. These de-signs mainly focus on the loss function (Liu et al., 2020; Huang et al., 2021; Liu et al., 2023), classifier architecture (Lee et al., 2018; Djurisic et al., 2023), and some post-hoc processing techniques (Hendrycks & Gimpel, 2017; Liang et al., 2018). The density-based methods characterize the in-distribution distribution using probabilistic models (Abati et al., 2019; Ren et al., 2019). The distance-based methods usually compute distance in the high-dimension space such as feature space and gradient space to distinguish ID and OOD example (Hendrycks et al., 2022; Sun et al., 2022). Ad-ditionally, minor methods involve introducing some OOD samples to train the new networks (Yang et al., 2021; Ming et al., 2022). The above methods focus on designing or training a powerful score function and then apply empirical decision rule to identify the OOD examples directly. How-ever, this decision rule is empirical, thus the outputs of it lack rigorous theoretical guarantee. This paper aims to solve this problem. 
+
+FDR Control Similar to control type-I error in single hypothesis testing, how to control FDR is the core prob-lem for multiple hypothesis testing algorithms (Benjamini & Hochberg, 1995; Blanchard & Roquain, 2008; Yu et al., 2023; Ma et al., 2024; 2025). Online multiple hypothesis testing is first introduced by (Foster & Stine, 2008), who propose a alpha investing method to control mFDR for the streamed variable selection problem in high dimensional space. Many following researches (Aharoni & Rosset, 2014; Javanmard & Montanari, 2018) develop this work and make this type of methods more powerful. (Javanmard & Mon-tanari, 2015) propose the LOND and LORD algorithms to control FDR and mFDR. The LOND algorithm has been heavily studied in various applications (Javanmard & Mon-tanari, 2015; Robertson & Wason, 2018; Robertson et al., 2022; Liou et al., 2023). Note that these works mainly focus on the situation where p-values are mutually independent or satisfy the special dependence such as conditional superuni-formity. Unlike these literature, this paper aims to propose a novel algorithm to control FDR without the consideration of dependence between p-values. 
+
+## 3. Preliminaries 
+
+3.1. Out-of-Distribution Detection 
+
+We donote by X ⊆ Rd the feature space and Y =
+
+{1, 2, 3, . . . , K } the label space with the joint distribution 
+
+D on Z = X × Y . Besides, X has marginal distribution 
+
+Din . Let (x, y ) be the feature-label pair, where instance 
+
+x ∈ X and label y ∈ Y . We denote the transpose of vec-tor/matrix by the superscript ′. Denote by fθ : X → Y the classifier (or hypothesis) which is parameterized by θ ∈ Θ,where Θ is the parameter space and maps x to a certain label 
+
+y. In addition, we denote by L(fθ (x), y ) the certain loss function. In the canonical classification setting, the primary goal is to maximize the standard accuracy of models on the unseen examples from the underlying distribution Dx. Concretely, we hope to find the classifier ˆf (·) with the smallest risk: 
+
+R( ˆf ) = min  
+
+> θ∈Θ
+
+E(x,y )∼D L(fθ (x), y ).
+
+During the prediction phase, the test examples are usually assumed to come from the same distribution Din as the training set. Nevertheless, practical situations may introduce some inputs from unfamiliar distributions, with label space potentially lacking any intersection with Y. These inputs are referred to as the OOD data and should not be predicted. The goal of OOD detection is to identify the OOD examples in testing set. In the previous literature, the OOD detection task is formulated as the following binary decision problem: 
+
+ϕ(x) = 
+
+(
+
+ID, if s(x) ≥ s∗
+
+OOD, if s(x) < s ∗ (1) where s(·) denotes the score function and the threshold s∗
+
+is empirically selected so that the ture positive rate (TPR) on ID validation set is 95% before testing (Sun et al., 2022; Wei et al., 2022). The previous studies about OOD detection mainly devote to obtaining a powerful score function which captures the 2An Online Statistical Framework for Out-of-Distribution Detection 
+
+discriminative information in ID data (Hendrycks & Gimpel, 2017; Liu et al., 2020; Djurisic et al., 2023; Liu et al., 2023). However, the question of how to make decisions based the score functions is under-explored for online OOD detection. In contrast to the previous literature, we investigate the OOD detection problem starting from the decision rule. 
+
+3.2. A Statistical Framework for OOD detection 
+
+Unlike the existing literature, we provide a new insight for the OOD detection problem from an online hypothesis testing perspective . Specifically, for a testing set T test =
+
+{Xtest  
+
+> 1
+
+, X test  
+
+> 2
+
+, · · · } , OOD detection task is formulated as the following hypothesis testing problem: 
+
+H1;0 : Xtest  
+
+> 1
+
+∼ D in , H1;1 : Xtest  
+
+> 1
+
+≁ Din 
+
+H2;0 : Xtest  
+
+> 2
+
+∼ D in , H2;1 : Xtest  
+
+> 2
+
+≁ Din 
+
+...
+
+Hn;0 : Xtest n ∼ D in Hn;1 : Xtest n ≁ Din 
+
+...(2) where Hi;0 and Hi;1 are called null hypothesis and alternative/non-null hypothesis, respectively. If Hi, 0 is re-jected, we declare that Xtest i is OOD. To support or reject the claim in null hypothesis, commonly we use the concept of p-value as the measure of statistical significance. Its definition is as follows. 
+
+Definition 3.1. [p-value (Casella & Berger, 2001)] Given a sample eX 3. A statistic p( eX) is called p-value correspond-ing to the null hypothesis H0, if p( eX) satisfies 
+
+P[p( eX) ≤ t|H0] ≤ t (3) for every 0 ≤ t ≤ 1.Obviously, if p( eX) follows the uniform distribution on 
+
+(0 , 1) under the null hypothesis, then p( eX) is a valid p-value. A small p-value usually provides strong evidence against the null hypothesis. It is noteworthy that the p-value has clear statistical interpretation. For example, suppose the p-value of a OOD testing example Xtest i is 0.01 . This means that for any coming testing example Xtest j , the prob-ability that Xtest j is more similar to OOD data than Xtest i
+
+is 0.01. In other words, it is extremely difficult to find a example that is less like OOD data than Xtest i . Hence, we are highly confident that Xtest i is OOD. 
+
+Remark 3.2 . In statistics, the following terminology char-acterizes the distribution of null p-values: if P[p( eX) ≤
+
+t|H0] = t, the p-value p( eX) is called exact or uniform; if 
+
+P[p( eX) ≤ t|H0] < t , p( eX) is called conservative. Com-pared to an exact p-value, a conservative one tends to under-state the evidence against the null Hypothesis. 
+
+> 3A sample means a sequence of examples.
+
+In single hypothesis testing, if the p-value is below a pre-scribed significance level α, then the null hypothesis is rejected. While this ritual enables to control the probability of type-I error, in the case of multiple hypotheses testing we need to adjust the significance levels to control other metrics, in which false discovery rate (FDR) proposed by (Benjamini & Hochberg, 1995) is widely used. The sta-tistical advantages of FDR have been detailedly discussed in (Benjamini & Hochberg, 1995; Benjamini & Yekutieli, 2001). Given a sequence of the null hypotheses {Hi;0 }i≥1, we let R(n) be the set of indices of the rejected hypothe-ses for the first n null hypotheses {H1;0 , H 2;0 , · · · , H n;0 }.Similarly, denote by H0(n) and H1(n) the set of indices for the true null hypotheses and false null hypothesis for 
+
+{H1;0 , H 2;0 , · · · , H n;0 }, respectively. Let n0 = |H 0(n)|
+
+be the number of true null hypotheses. In statistics, if one null hypothesis is rejected, it is said to make a discovery. FDR is the expected proportion of false discoveries among the rejected hypotheses. 
+
+Definition 3.3 (FDR(Benjamini & Hochberg, 1995)) . Let 
+
+V denote the number of true null hypotheses rejected; more-over, let R be the number of rejected hypotheses, the false discovery proportion (FDP) for the first n null hypotheses is defined as: 
+
+FDP( n) = 
+
+(V /R, if R > 0,
+
+0, otherwise .
+
+The expectation of FDP( n) is called the FDR, namely 
+
+FDR( n) = E(FDP( n)) = E
+
+ |R (n) ∩ H 0(n)|
+
+max {1, |R (n)|} 
+
+
+
+.
+
+The FDR can be considered as the generalization of the probability of type-I error for multiple hypothesis testing. Therefore, multiple testing algorithms should control its FDR first. According to Ma et al. (2024), the FDP is closely related with the concept of Precision . Denote by Rc(n)
+
+the complement of set R(n). Using the confusion matrix notations 4, the FDP can be also expressed as 
+
+FDP( n) = F N F N + T N .
+
+The Precision is defined as 
+
+Precision = T P T P + F P = |R c(n) ∩ H 0(n)|
+
+max {|R c(n)|, 1} .
+
+Thus, the FDP is the “dual” concept of the Precision .                   
+
+> 4Based on the notations of R(n),H0(n)and H1(n), we have the following relations: T P =|R c(n)∩H 0(n)|,F N =|R (n)∩H0(n)|,F P =|R c(n)∩ H 1(n)|and T N =|R (n)∩ H 1(n)|.
+
+3An Online Statistical Framework for Out-of-Distribution Detection 
+
+3.3. LOND Algorithm 
+
+To control FDR for the testing problem in (2), a direct idea is to apply the LOND algorithm, which has been heavily studied in various applications (Javanmard & Montanari, 2015; Robertson & Wason, 2018; Robertson et al., 2022; Liou et al., 2023). 
+
+Definition 3.4 (LOND (Javanmard & Montanari, 2015)) .
+
+Given a sequence of null hypotheses H1,0, H 2,0, · · · which arrive sequentially in a stream, with corresponding p-values 
+
+p1, p 2, · · · . For a prescribed level α , choose any sequence of positive numbers γ = {γi}∞ 
+
+> i=1
+
+such that P∞ 
+
+> i=1
+
+γi = 1 
+
+and define 
+
+αi = αγ i(D(i − 1) + 1) ,
+
+where D(0) = 0 and D(i) = Pik=1 1(pk ≤ αk). Then, the null hypothesis Hi, 0 is rejected if its corresponding p-value 
+
+pi satisfies pi ≤ αi.In statistics, α is commonly specified as 0.05 . Similar to the type-I error, in multiple hypothesis testing, a testing algorithm for problem 2 should make as many discoveries as possible (low FPR ) while maintaining the FDR at a prescribed level. Javanmard & Montanari (2015) prove that if p-values corresponding to all null hypotheses are available and mutually independent, then LOND algorithm controls FDR at pre-specified level. In most multiple hypothesis testing literature (Benjamini & Hochberg, 1995; Benjamini & Yekutieli, 2001; Blanchard & Roquain, 2008; Delattre & Roquain, 2015; Cao et al., 2022), the p-values or the distribution of the testing statistic are assumed to be known. Denote by F (·) the cumulative dis-tribution function of s(X) where s(·) is the score function and X ∼ D x. Then, for a given example Xtest , its p-value can be expressed as 
+
+p(Xtest ) = PX∼D x (s(X) ≤ s(Xtest )) = F (s(Xtest )) . (4) According to the Definition 2, under the H0 (Xtest is the ID data), we have 
+
+P  F (s(Xtest )) ≤ x = P  s(Xtest ) ≤ F −1(x)
+
+= F (F −1(x)) = x, 
+
+where F −1(·) is the inverse function of F (·). Therefore, the random variable F (s(Xtest )) follows the uniform distribu-tion on (0 , 1) , namely, p(Xtest ) is a valid p-value and is exact. Obviously, small score s(Xtest ) leads to a small p-value, consistent with the classical setting of OOD detection in Eq.(1) and the meaning of the p-value. However, in the context of the OOD detection, often we have litle prior information about underlying distribution F (·).Hence, the empirical p-value is often used in real-world applications, which is a nonparametric estimation method for the p-value p(Xtest ). In statistics, let X1, X 2, · · · , X m
+
+be a sample of observations (i.e., random variable). For testing example X, the empirical p-value of X is defined as 
+
+ˆp(X) = 
+
+Pmj=1 1(Xj ≤ X) + 1 
+
+m + 1 .
+
+Note that X is one-dimensional random variable. Never-theless, in OOD detection, the inputs are high-dimensional images. Therefore, utilizing the score function designed for OOD detection, we reduce each high-dimensional im-ages to the univariate score, and then compute the empir-ical p-values. Specifically, given a calibrated set T cal =
+
+{Xcal  
+
+> 1
+
+, X cal  
+
+> 2
+
+, . . . , X cal m } consisting of ID data, for a testing example Xtest i , the empirical p-value pi corresponding to null hypothesis Hi;0 is expressed as 
+
+pi = p(Xtest i ) = |{ j ∈ [m] : ˆ s(Xcal j ) ≤ ˆs(Xtest i )}| + 1 
+
+m + 1 ,
+
+(5) where ˆs(·) is a certain score function. According to (Arlot et al., 2010), we can easily verify that empirical p-value in Eq. (5) satisfies Definition 3.1. Note that the empirical p-values for different testing examples are not independent since they rely on a common calibrated set T cal . Hence, we cannot directly apply LOND algorithm with empirical p-values to control FDR. 
+
+3.4. Generalized LOND Algorithm 
+
+To control FDR, we modify the LOND algorithm and then propose a novel generalized LOND (g-LOND) algorithm to remove the constraints on the dependence between p-values. We denote f+(0) = lim x→0+ f (x), and define two function classes: 
+
+F1 = {f (x) : f+(0) = 0 , f ′(x) ≥ 1},
+
+F2 = {f (x) : f+(0) = 0 , f ′(x) > 0,
+
+Z 10
+
+1
+
+f (x) dx ≤ 1}
+
+for x ∈ (0 , 1) . It is easy to verify that −1log x ∈ F 2. The g-LOND algorithm is defined as follows. 
+
+Definition 3.5 (g-LOND) . Given a sequence of null hy-potheses H1,0, H 2,0, · · · which arrive sequentially in a stream, with corresponding p-values p1, p 2, · · · . For a pre-scribed level α , choose a function f (·) ∈ F 1 ∪ F 2 and a sequence of positive numbers γ = {γi}∞ 
+
+> i=1
+
+such that P∞ 
+
+> i=1
+
+γi = 1 , define 
+
+αi = αγ i(D(i − 1) + 1) ,
+
+where D(0) = 0 and D(i) = Pik=1 1(f (pk) ≤ αk). Then, the null hypothesis Hi, 0 is rejected if its corresponding p-value pi satisfies f (pi) ≤ αi.4An Online Statistical Framework for Out-of-Distribution Detection 
+
+Algorithm 1 Practical g-LOND Algorithm  
+
+> 1:
+
+Input : Training set T , calibrated set 
+
+T cal = {Xcal  
+
+> 1
+
+, X cal  
+
+> 2
+
+, . . . , X cal m } testing set 
+
+T test = {Xtest  
+
+> 1
+
+, X test  
+
+> 2
+
+, . . . , X test n , · · · } , prescribed level α ∈ (0 , 1) and sequence {γi}∞
+
+> i=1
+
+. 
+
+> 2:
+
+Train the score function on T :
+
+ˆs(x) = max 
+
+> i∈[K]
+
+fi
+
+∥f ∥ ,
+
+where f is the logit Output.  
+
+> 3:
+
+Calculate the p-value corresponding to Xtest i :
+
+pi = |{ j ∈ [m] : ˆ s(Xcal j ) ≤ ˆs(Xtest i )}| + 1 
+
+m + 1 . 
+
+> 4:
+
+Compute the significance level corresponding to Xtest i :
+
+αi = αγ i(D(i − 1) + 1) , 
+
+> 5:
+
+Output: Declare that Xtest i is OOD if f (pi) ≤ αi.The practical g-LOND algorithm with empirical p-values is presented in Algorithm 3.4. Inspired by (Hendrycks et al., 2022), we use maximum normalied logit ˆs(x) = max i∈[K] gi 
+
+> ∥g∥
+
+as our score function. 
+
+## 4. FDR Control of g-LOND Algorithm 
+
+We first investigate the theoretical properties of the g-LOND algorithm about FDR. It is well known that if p-values p1, p 2, . . . , p n are mutually independent or PRDS, the BH procedure can control FDR at level α (Benjamini & Hochberg, 1995; Benjamini & Yekutieli, 2001). Factually, the g-LOND algorithm also enjoys this theoretical result. We begin with the following definitions. 
+
+Definition 4.1 (Increasing Set ). A subset A ⊂ Rn is said to be increasing if for all x ∈ A , x ≤ y implies y ∈ A ,
+
+where the comparison of x and y is component-wise. Then, PRDS property is defined as follows. 
+
+Definition 4.2 (PRDS (Benjamini & Yekutieli, 2001)) . Afamily of random variables {X1, X 2, . . . , X n} is said to be PRDS on a subset I0 ⊂ { 1, 2, . . . , n } if for all i ∈
+
+I0, the function P(( X1, X 2, . . . , X n) ∈ D| Xi = x) is an increasing function in x for any increasing subset A.To derive our theoretical results, we first introduce the fol-lowing lemma. 
+
+Lemma 4.3. ((Ma et al., 2024)) Suppose that the p-values 
+
+p1, p 2, . . . , p n are PRDS on H0(n).1. Denote p∗ 
+
+> i
+
+:= f (pi) for all i ∈ {1, 2, . . . , n }
+
+where f (·) is strictly increasing or decreasing. Then 
+
+{p∗
+
+> 1
+
+, p ∗
+
+> 2
+
+, . . . , p ∗
+
+> n
+
+} is PRDS on H0(n) as well. 2. For any i ∈ H 0(n), the function 
+
+P(( p1, p 2, . . . , p n) ∈ A | pi ≤ x)
+
+is increasing in x for any increasing set A.
+
+Lemme 4.3 indicates that the PRDS is invariant for mono-tonic transformation. Then, our core theorem is presented as follows. 
+
+Theorem 4.4. Given a prescribed level α ∈ (0 , 1) ,a sequence of p-values p1, p 2, · · · corresponding to 
+
+H1,0, H 2,0, · · · and f (·) ∈ F 1. If p1, p 2, . . . , p n are mu-tually independent or PRDS, then the FDR of g-LOND al-gorithm satisfies 
+
+FDR g−LON D ≤ α. 
+
+The proof of Theorem 4.4 is presented in Appendix A.1. Ob-viously, the empirical p-values are not independent, since they depend on the same trained socre function and cali-brated set. (Yu et al., 2023) demonstrates that the empirical p-values are conditionally PRDS under some assumptions. This paper aims to conduct an in-depth study of the g-LOND algorithm under weaker conditions for FDR control. Then, we have following theoretical result. 
+
+Theorem 4.5. Given a prescribed level α ∈ (0 , 1) , a se-quence of empirical p-values p1, p 2, · · · corresponding to 
+
+H1,0, H 2,0, · · · and f (·) ∈ F 2. Then the FDR of g-LOND algorithm satisfies 
+
+FDR g−LON D ≤ α. 
+
+The proof of Theorem 4.5 is presented at Appendix A.2. Theorem 4.5 indicates that the g-LOND algorithm controls FDR at a prescribed level regardless of the dependence be-tween the empirical p-values. Obviously, such a argument is invalid for many popular methods such as LOND algorithm and LORD algorithm. which broadens the applicability scope of the g-LOND algorithm. 
+
+Remark 4.6 . Motivated by (Benjamini & Yekutieli, 2001), (Javanmard & Montanari, 2015) show that the LOND al-gorithm can also control FDR for dependent p-values by choosing special sequence ˆγ where 
+
+ˆγi = γi
+
+Pik=1 1
+
+> k
+
+.
+
+Obviously, such a algorithm is too conservative and almost accepts all null hypotheses for large i 5, resulting in a high FPR.                 
+
+> 5Note that Pik=1 1
+> kis monotonically increasing w.r.t. iand tends to ∞as i→ ∞ .Therefore, for large i, we have ˆαi=
+> αˆγi(D(i−1) + 1) →0.
+
+5An Online Statistical Framework for Out-of-Distribution Detection 
+
+## 5. Asymptotic FPR of g-LOND Algorithm 
+
+False positive rate (FPR) is a significant evaluation criterion for OOD detection. Using the notations R and H1, the FPR can be expressed as 
+
+FPR = F P F P + T N = |R c(n) ∩ H 1(n)||H 1(n)| .
+
+Although FDR control has been widely studied, relatively little is known about the theoretical properties of FPR. In this section, we investigate the asymptotic behavior of FPR for the g-LOND algorithm. Our analytical framework is similar to that of (Donoho & Jin, 2004; Neuvial & Roquain, 2012). 
+
+5.1. Analytical Framework 
+
+In the field of multiple hypothesis testing, many theoreti-cal studies (Javanmard & Montanari, 2015; 2018) assume that p-values are available, equivalently, the distribution of test statistic for each hypothesis is known. In this case, p-values can be expressed as pi = Ψ( Ti), where Ψ( ·) is the survival function of test statistic and Ti is the observation of test statistic corresponding to Hi. For mathematical con-venience, we impose that T1, T 2, . . . , T n are independent continuous random variables. Reasonably, working with p-values p1, p 2, . . . , p n is equivalent to working with obser-vations T1, T 2, . . . , T n. We first define a function class as follows. 
+
+F =
+
+
+
+Ψ( t) : lim 
+
+> t→∞
+
+− log Ψ( t)
+
+tλ = 1
+
+λ , λ > 1
+
+
+
+.
+
+In this section, we describe the distribution of the obser-vation Ti in terms of the generalized Gaussian-like family, which is a variant of the generalized Gaussian distribution. 
+
+Definition 5.1 (Generalized Gaussian-like Distribution Fam-ily) . A random variable X is said to follow the generalized Gaussian-like distribution family with the location μ and the degree λ, denote X ∼ G(μ, λ ), if the survival function 
+
+Ψ( ·) of X satisfies Ψ( t − μ) ∈ F .It is easy to verify that the popular Gaussian distribution and Laplace distribution belong to the generalized Gaussian-like distribution family, which are often used in the theoretical analysis. Our inspiration for considering the tail generalized Gaussian distribution comes from the previous works (Donoho & Jin, 2004; Ingster & Suslina, 2012) on global testing. In terms of the notation G(μ, λ ), we assume that the observation Ti
+
+is distributed as 
+
+Ti ∼
+
+(
+
+G(0 , λ ) if i ∈ H 0(n)
+
+G(μ, λ ) if i ∈ H 1(n), (6) where μ > 0 is allowed to vary with the number of hy-potheses n. Eq. (6) shows that the non-null hypothesis is distinguished frome null hypothesis by a positive mean shift 
+
+μ. In (Donoho & Jin, 2004), μ is set to p2r log( n). In this section, μ is parameterized as 
+
+μ =  λr log n1/λ (7) where r > 0. Following (Donoho & Jin, 2004; 2006; Jin & Ke, 2016), we focus on the sparse region in which the number of true null hypothesis is larger than that of the true alternative hypothesis. In this case, we have 
+
+n1 = |H 1(n)| = n1−β ,
+
+where β < r < 1. Besides, we denote 
+
+ϵ = n1
+
+n = n−β .
+
+5.2. Asymptotic Property of FPR for g-LOND Algorithm 
+
+For simplicity, let γi = Civ for v > 1, where 
+
+1
+
+C =
+
+> ∞
+
+X
+
+> i=1
+
+1
+
+iv .
+
+Denote τk as the time of k-th rejection (with τ0 = 0 ). Based on the analytical framework in Section 5.1, we first establish the upper bound of τk expectation 6.
+
+Theorem 5.2. Given the first n hypotheses 
+
+H1, H 2, · · · , H n, and suppose that the correspond-ing observations T1, T 2, . . . , T n satisfy the condition (6) .Then, the expectation of τk ∧ n1 satisfies 
+
+E(τk ∧ n1) ≤ 3k · nβ 
+
+> 1
+
+for all 0 < k < n, 
+
+where n1 = |H 1|.
+
+The proof of Theorem 5.2 is presented at Appendix A.3. Theorem 5.2 shows that the number of rejections is impacted by the sequence {γi}∞ 
+
+> i=1
+
+and the parameter β. For example, small β leads to small E(τk ∧n1), meaning that the g-LOND algorithm tends to make more rejections. Based on Theorem 5.2, we obtain the following core result. 
+
+Theorem 5.3. Given the first n hypotheses 
+
+H1, H 2, · · · , H n, and suppose that the correspond-ing observations T1, T 2, . . . , T n satisfy the condition (6) 
+
+with Ψ(0) = 12 . If β < 12 and r > β + + v − 1, then the FPR of g-LOND algorithm satisfies 
+
+F P F P + T N → 0 in probability .
+
+The proof of Theorem 5.3 is presented at Appendix A.4. Theorems 4.5 and 5.3 show that the FPR of g-LOND algo-rithm tends to zero in probability while maintaining its FDR at the prescribed level.     
+
+> 6a∧bmeans min {a, b }.
+
+6An Online Statistical Framework for Out-of-Distribution Detection 
+
+Table 1. The experimental results on CIFAR-100 as ID data. We use ResNet18 as the backbone for each method. The best results are highlighted in bold .Data CIFAR-10 TinyImageNet SVHN Texture Place365 Practical TPR FPR F1 TPR FPR F1 TPR FPR F1 TPR FPR F1 TPR FPR F1 ASH 94.46 78.38 67.10 94.46 73.92 76.16 94.46 63.47 50.07 94.46 72.40 78.78 94.46 77.58 38.91 Cider 93.27 86.80 64.39 93.27 74.16 75.51 93.27 42.80 61.00 93.27 70.30 78.60 93.27 76.63 38.79 Energy 94.52 78.83 67.01 94.52 72.15 76.58 94.52 74.79 46.06 94.52 78.85 77.50 94.52 78.83 38.56 KLM 80.56 56.06 65.53 80.56 57.54 71.55 80.56 43.77 52.53 80.56 53.57 77.51 80.56 45.63 42.85 MSP 94.68 79.28 66.96 94.68 73.58 76.34 94.68 78.69 44.84 94.68 80.24 77.30 94.68 78.69 38.65 RankFeat 95.15 95.26 63.23 95.15 91.77 72.72 95.15 92.94 41.02 95.15 89.87 75.68 95.15 94.00 34.73 SHE 94.38 78.23 67.10 94.38 76.37 75.58 94.38 69.00 48.07 94.38 80.04 77.19 94.38 80.40 38.05 VIM 94.15 85.82 65.04 94.15 81.77 74.30 94.15 71.29 47.26 94.15 57.50 81.80 94.15 81.84 37.57 DICE 93.95 77.78 67.02 93.95 75.55 75.54 93.95 64.88 49.33 93.95 76.43 77.70 93.95 78.92 38.35 PALM 94.55 78.29 67.17 94.55 72.23 76.58 94.55 75.10 45.94 94.55 79.20 77.44 94.55 77.52 38.96 Gram 94.61 96.67 62.65 94.61 93.23 72.16 94.61 35.54 63.71 94.61 70.47 79.25 94.61 96.32 34.03 KNN 94.61 79.32 66.92 94.61 71.67 76.74 94.61 63.47 50.05 94.61 64.64 77.48 94.61 76.02 39.43 ODIN 94.65 80.20 66.71 94.65 74.17 76.20 94.65 86.16 42.65 94.65 74.37 78.46 94.65 77.79 38.91 g-LOND 92.4 44.19 68.08 91.95 53.77 78.36 92.08 29.76 69.94 91.69 44.82 81.8 92.83 30.62 52.87                                                                                                                                                                                                                                  
+
+> Classical FPR95 AUC AUPR FPR95 AUC AUPR FPR95 AUC AUPR FPR95 AUC AUPR FPR95 AUC AUPR ASH 80.06 76.48 75.66 75.80 79.92 84.69 65.89 85.60 75.89 74.36 80.72 87.10 79.42 78.76 56.57 Cider 90.49 65.68 63.26 80.32 77.26 83.43 65.52 72.91 64.34 74.70 78.23 86.45 81.84 73.37 49.24 Energy 80.40 79.05 79.75 74.09 82.76 87.96 76.66 82.03 69.84 80.14 78.35 85.79 80.46 79.52 60.62 KLM 84.26 73.91 68.97 77.80 79.22 83.02 78.43 79.34 66.69 76.28 75.77 81.21 77.35 75.70 42.46 MSP 80.36 78.47 79.60 74.63 82.07 87.81 79.66 78.42 64.92 81.26 77.32 85.42 79.64 79.22 61.13 RankFeat 95.01 58.04 60.17 91.37 65.72 74.57 92.50 72.14 62.89 89.64 69.40 81.18 93.76 63.82 40.54 SHE 80.60 78.15 78.98 78.97 79.74 85.71 71.54 80.97 65.99 82.00 73.64 81.42 82.63 76.30 54.20 VIM 87.70 72.21 72.88 83.85 77.76 85.21 74.28 83.14 74.22 60.00 85.91 91.22 83.89 75.85 56.35 DICE 81.36 78.04 78.74 79.69 80.72 86.65 69.35 84.22 72.94 79.44 77.63 85.07 82.52 78.33 59.08 PALM 79.97 79.38 80.09 74.18 83.25 88.47 76.98 81.41 68.64 80.74 78.74 86.25 79.15 80.28 62.10 Gram 96.99 49.41 49.19 93.71 53.91 62.23 22.92 95.55 90.06 71.16 70.79 74.62 96.60 46.38 20.21 KNN 80.68 77.02 74.63 73.23 82.54 88.39 64.91 84.15 72.22 66.02 83.66 89.46 77.27 79.43 58.57 ODIN 81.31 78.18 78.88 75.61 81.63 86.89 87.16 74.54 58.41 75.59 79.33 86.23 79.05 79.45 59.24 g-LOND 72.1 78.92 80.18 66.61 83.29 88.86 54.74 84.12 76.77 56.29 84.29 89.7 68.21 81.59 65.67
+
+## 6. Experiment 
+
+In this section, we aim to validate the effectiveness of our proposed g-LOND algorithm. The evaluation criteria in-clude the practical metrics TPR, FPR and F1-score, and the classical metrics FPR95, AUROC and AUPR. Exten-sive experimental results demonstrate the superiority of our method. 
+
+6.1. Experimental Settings 
+
+We mainly follow the experimental settings in (Yang et al., 2022; Zhang et al., 2023b), and our codes are based on (Zhang et al., 2023b). We next introduce some necessary settings in our experiments. 
+
+Baselines. We choose some popular OOD detection meth-ods as our baselines, including MSP (Hendrycks & Gimpel, 2017), ODIN (Liang et al., 2018), Gram (Sastry & Oore, 2020), Energy (Liu et al., 2020), VIM (Wang et al., 2022), KNN (Sun et al., 2022), KLM (Hendrycks et al., 2022), RankFeat (Song et al., 2022), DICE (Sun & Li, 2022), ASH (Djurisic et al., 2023), Cider (Ming et al., 2023), SHE (Zhang et al., 2023a) and PALM (Lu et al., 2024). 
+
+Benchmarks. We use CIFAR-100 (Krizhevsky, 2009) and ImageNet-200 (Deng et al., 2009) as ID data. For CIFAR-100, we use CIFAR-10, TinyImageNet (Krizhevsky et al., 2017), SVHN (Netzer et al., 2011), Texture (Kylberg, 2011), and Places365 (Zhou et al., 2018) as OOD data. For ImageNet-200, we use SSB-hard (Vaze et al., 2022; Zhang et al., 2023b), NINCO (Bitterwolf et al., 2023), iNatural-ist (Horn et al., 2018), Textures (Cimpoi et al., 2014), and OpenImage-O (Wang et al., 2022) as OOD data. 
+
+Metrics. In this paper, we report the practical and classical metrics. The practical metrics include TPR, FPR and F1-score. The classical metrics include FPR95, AUROC and AUPR. In this paper, we regard ID as positive 7.
+
+Model . When the CIFAR-100 is used as the ID data, we use the ResNet10 as the backbone for each method. When ImageNet200 is used as ID data, we use the ResNet50 as the backbone for each method. We follow the experimental implementation in Yang et al. (2022); Zhang et al. (2023b). More details can be found in Yang et al. (2022); Zhang et al. (2023b). 
+
+6.2. Experimental Results 
+
+The experimental results on CIFAR-100 as ID data are pre-sented in Tables 1 and the Results on ImageNet200 ad the ID data are presented in Table 2. We first analyze the ex-perimental Results of the g-LOND algorithm in terms of the practical metrics. As the Table 1 shown, the g-LOND dramatically improves the detection performance in terms 
+
+> 7
+
+In the code of (Zhang et al., 2023b), OOD is set to be positive. 
+
+7An Online Statistical Framework for Out-of-Distribution Detection 
+
+Table 2. The experimental results on ImageNet200 as ID data. We use ResNet50 as the backbone for each method. The best results are highlighted in bold .Data SSB hard NINCO iNaturalist OpenImage O Texture Practical TPR FPR F1 TPR FPR F1 TPR FPR F1 TPR FPR F1 TPR FPR F1 ASH 95.53 86.71 28.62 95.53 83.21 76.46 95.53 58.04 73.53 95.53 49.53 85.33 95.53 68.36 60.48 Cider 95.06 78.43 30.56 95.06 62.92 80.50 95.06 26.16 84.82 95.06 22.58 90.40 95.06 43.81 69.81 Energy 95.54 72.07 32.50 95.54 59.36 77.43 95.54 45.69 77.58 95.54 41.83 80.04 95.54 54.43 65.55 KLM 93.28 67.06 37.87 93.28 53.44 75.94 93.28 41.49 78.13 93.28 39.86 86.73 93.28 49.53 67.63 MSP 95.36 70.78 32.84 95.36 62.35 80.78 95.36 40.85 79.22 95.36 47.69 85.64 95.36 53.66 65.77 RankFeat 94.68 71.07 27.42 94.68 70.54 74.60 94.68 50.85 64.06 94.68 55.59 75.91 94.68 56.70 54.50 SHE 95.44 70.71 32.89 95.44 65.94 80.03 95.44 45.46 77.62 95.44 41.57 87.05 95.44 55.60 65.04 VIM 94.75 80.27 29.99 94.75 66.44 79.57 94.75 33.47 81.71 94.75 32.15 83.94 94.75 47.30 68.13 DICE 94.80 72.11 32.28 94.80 64.34 80.06 94.80 45.36 77.35 94.80 35.21 88.19 94.80 53.80 65.46 PALM 95.69 71.90 32.60 95.69 63.13 80.77 95.69 38.36 80.31 95.69 45.50 86.29 95.69 53.83 65.86 Gram 94.11 87.20 28.14 94.11 76.93 77.03 94.11 87.76 64.55 94.11 53.69 83.70 94.11 79.58 56.28 KNN 94.79 70.14 32.88 94.79 57.09 81.69 94.79 25.59 84.93 94.79 24.73 90.19 94.79 42.82 70.14 ODIN 95.00 76.77 31.00 95.00 63.91 80.25 95.00 33.19 81.94 95.00 30.56 87.11 95.00 50.18 67.02 g-LOND(ours) 92.48 53.72 49.31 92.89 45.28 85.56 93.07 20.38 86.73 93.29 17.38 91.26 93.76 39.16 74.86                                                                                                                                                                                                                                  
+
+> Classical FPR95 AUC AUPR FPR95 AUC AUPR FPR95 AUC AUPR FPR95 AUC AUPR FPR95 AUC AUPR ASH 68.86 79.52 42.16 67.52 85.24 89.10 29.53 95.10 94.79 34.74 91.77 95.61 40.95 91.02 87.79 Cider 79.52 77.94 39.06 68.48 86.10 91.32 45.99 92.87 93.81 35.20 92.36 95.21 56.57 90.22 87.9 Energy 73.01 79.83 43.78 65.70 85.17 90.08 44.31 92.55 93.28 41.06 90.79 93.78 56.64 89.23 85.91 KLM 74.61 77.56 37.28 71.11 83.96 88.70 46.65 91.80 91.90 67.66 86.13 90.46 64.37 87.66 82.42 MSP 72.88 80.38 46.66 64.48 86.29 91.26 41.94 92.8 93.44 49.94 88.36 92.36 56.98 89.24 86.19 RankFeat 91.50 58.74 20.52 92.07 55.10 64.34 98.26 33.08 37.49 97.67 29.10 50.19 92.44 52.48 37.26 SHE 71.07 78.30 41.10 67.47 82.07 87.40 42.95 91.43 91.51 38.20 90.51 93.41 55.58 87.49 82.39 VIM 85.44 74.04 39.39 75.67 83.32 89.81 56.03 90.96 92.49 38.85 92.61 96.94 64.64 88.20 86.32 DICE 72.89 79.06 42.6 65.29 84.49 89.53 46.53 91.81 92.42 35.89 91.53 94.11 54.75 89.06 85.32 PALM 72.57 80.75 44.19 64.25 86.38 91.03 39.21 93.7 94.38 43.18 90.25 93.41 55.34 90.13 87.38 Gram 89.25 65.95 26.50 79.45 69.40 74.67 89.88 65.30 62.30 57.01 80.54 83.35 81.78 67.72 51.52 KNN 77.09 77.03 38.57 63.83 86.10 91.07 34.01 93.99 94.45 39.44 91.29 92.19 52.35 90.19 87.54 ODIN 76.84 77.19 39.81 63.90 83.34 88.02 33.33 94.37 94.7 40.35 90.65 93.78 50.33 90.11 86.18 g-LOND(ours) 63.49 80.61 43.27 54.43 86.59 91.59 20.88 96.72 95.44 33.97 92.83 94.89 37.98 91.88 88.69
+
+of FPR and F1-score for all OOD data, despite a slight decrease in TPR. For example, using CIFAR-100 as ID data and Place365 as OOD data, our proposed method re-duces the FPR from 45 .63% to 30 .62% , and improves the F1-score from 42 .85% to 52 .87% compared with the best baseline, a direct improvement of 15.01% and 10.02% at the cost of less than 3% decrease in TPR. Moreover, this improvement still exists in Table 2 in terms of the FPR and F1-score. For instance, using ImageNet200 as ID data and SSB hard as OOD data, our proposed method reduces the FPR from 67 .06% to 53 .72% , and improves the F1-score from 37 .87% to 49 .31% compared with the best baseline, a direct improvement of 13.34% and 11.44% at the cost of 
+
+3.21% decrease in TPR. These experimental results indicate that the g-LOND tends to classify more testing example as OOD while controlling the number of falsely classify-ing the ID as the OOD. Hence, our method achieves the smaller FPR and the larger F1-score than baselines. The above analysis indicates that our method achieves a better tradeoff between TPR and FPR, which is consistent with our motivation of controlling FDR. Then, we analyze the results of our method in terms of the classical metrics. From the Tables 2, we find that compared to the baselines, the AUROC and AUPR of the g-LOND algorithm achieve a certain degree of improvement. What’s even more exciting, the FPR95 of g-LOND is reduced obvi-ously. For example, using the ImageNet200 as the ID data and the NINCO as the OOD data, our proposed g-LOND outperforms the best baseline by 9.4% in terms of FPR95 and by 0.21% in terms of AUROC. This conclusion still holds for the different OOD data in Table 1. Overall, our proposed g-LOND algorithm achieves promising OOD de-tection performance. 
+
+## 7. Conclusion 
+
+In this paper, we systematically investigate OOD detection problem from statistical perspective. Concretely, we formu-late the OOD detection task as a online multiple hypothesis testing problem and propose a novel g-LOND algorithm to solve it. Theoretically, the g-LOND algorithm controls FDR for dependent p-values. Besides, we derive the asymp-totic FPR of the g-LOND algorithm under the generalized Gaussian-like distribution family, indicating that the FPR of g-LOND tends to 0 in probability. Finally, the exten-sive experiments demonstrate the effectiveness of g-LOND algorithm. 
+
+## Acknowledgment 
+
+This work is supported by the National Natural Science Foundation of China under Grant 624B2106, the Key R &DProgram of Hubei Province under Grant 2024BAB038, the National Key R &D Program of China under Grant 2023YFC3604702, the Fundamental Research Funds for 8An Online Statistical Framework for Out-of-Distribution Detection 
+
+the Central Universities under Grant 2042025kf0045. 
+
+## Impact Statement 
+
+To our best knowledge, this work has no negative social im-pact. This work mainly provides a solid theoretical support for the field of the OOD detection. Hence, our work may promote the development of the related applications. 
+
+## References 
+
+Abati, D., Porrello, A., Calderara, S., and Cucchiara, R. Latent space autoregression for novelty detection. In 
+
+CVPR , pp. 481–490, 2019. Aharoni, E. and Rosset, S. Generalized α-investing: def-initions, optimality results and application to public databases. Journal of the Royal Statistical Society Se-ries B: Statistical Methodology , 76(4):771–794, 2014. Amodei, D., Ananthanarayanan, S., Anubhai, R., Bai, J., Battenberg, E., Case, C., Casper, J., Catanzaro, B., Chen, J., Chrzanowski, M., Coates, A., Diamos, G., Elsen, E., Engel, J. H., Fan, L., Fougner, C., Hannun, A. Y., Jun, B., Han, T., LeGresley, P., Li, X., Lin, L., Narang, S., Ng, A. Y., Ozair, S., Prenger, R., Qian, S., Raiman, J., Satheesh, S., Seetapun, D., Sengupta, S., Wang, C., Wang, Y., Wang, Z., Xiao, B., Xie, Y., Yogatama, D., Zhan, J., and Zhu, Z. Deep speech 2 : End-to-end speech recognition in english and mandarin. In ICML , volume 48, pp. 173–182, 2016. Arlot, S., Blanchard, G., and Roquain, E. Some nonasymp-totic results on resampling in high dimension, ii: Multiple tests. The Annals of Statistics , pp. 83–99, 2010. Benjamini, Y. and Hochberg, Y. Controlling the false dis-covery rate: a practical and powerful approach to multiple testing. Journal of the Royal statistical society: series B (Methodological) , 57(1):289–300, 1995. Benjamini, Y. and Yekutieli, D. The control of the false dis-covery rate in multiple testing under dependency. Annals of statistics , pp. 1165–1188, 2001. Bitterwolf, J., M ¨uller, M., and Hein, M. In or out? fixing im-agenet out-of-distribution detection evaluation. In ICML ,volume 202, pp. 2471–2506, 2023. Blanchard, G. and Roquain, E. Two simple sufficient condi-tions for fdr control. Electronic Journal of Statistics , 2: 963–992, 2008. Cao, H., Chen, J., and Zhang, X. Optimal false discovery rate control for large scale multiple testing with auxiliary information. Annals of statistics , 50(2):807, 2022. Casella, G. and Berger, R. L. Statistical inference . Cengage Learning, 2001. Chen, Y. and Liu, W. A theory of transfer-based black-box attacks: Explanation and implications. In NeurIPS , 2023. Cimpoi, M., Maji, S., Kokkinos, I., Mohamed, S., and Vedaldi, A. Describing textures in the wild. In CVPR , pp. 3606–3613, 2014. Dankers, V., Bruni, E., and Hupkes, D. The paradox of the compositionality of natural language: A neural machine translation case study. In Muresan, S., Nakov, P., and Villavicencio, A. (eds.), ACL , pp. 4154–4175, 2022. Delattre, S. and Roquain, E. New procedures controlling the false discovery proportion via romano-wolf’s heuristic. 
+
+Annals of Statistics , 43(3):1141–1177, 2015. Deng, J., Dong, W., Socher, R., Li, L., Li, K., and Fei-Fei, L. Imagenet: A large-scale hierarchical image database. In CVPR , pp. 248–255, 2009. Djurisic, A., Bozanic, N., Ashok, A., and Liu, R. Extremely simple activation shaping for out-of-distribution detection. In ICLR , 2023. Donoho, D. and Jin, J. Higher criticism for detecting sparse heterogeneous mixtures. Annals of statistics , 32(3):962– 994, 2004. Donoho, D. and Jin, J. Asymptotic minimaxity of false discovery rate thresholding for sparse exponential data. 
+
+Annals of Statistics , pp. 2980–3018, 2006. Foster, D. P. and Stine, R. A. α-investing: a procedure for sequential control of expected false discoveries. Jour-nal of the Royal Statistical Society Series B: Statistical Methodology , 70(2):429–444, 2008. Gong, X., Yuan, D., and Bao, W. Understanding partial multi-label learning via mutual information. In Ran-zato, M., Beygelzimer, A., Dauphin, Y. N., Liang, P., and Vaughan, J. W. (eds.), NeurIPS , pp. 4147–4156, 2021. Gong, X., Yuan, D., and Bao, W. Partial label learning via label influence function. In ICML , volume 162, pp. 7665–7678, 2022. Gong, X., Yuan, D., and Bao, W. Discriminative metric learning for partial label learning. IEEE Transactions on Neural Networks and Learning Systems , 34(8):4428– 4439, 2023a. Gong, X., Yuan, D., Bao, W., and Luo, F. A unifying probabilistic framework for partially labeled data learn-ing. IEEE Transactions on Pattern Analysis and Machine Intelligence , 45(7):8036–8048, 2023b. 9An Online Statistical Framework for Out-of-Distribution Detection 
+
+He, K., Zhang, X., Ren, S., and Sun, J. Deep residual learning for image recognition. In CVPR , pp. 770–778, 2016. Hendrycks, D. and Gimpel, K. A baseline for detecting misclassified and out-of-distribution examples in neural networks. In ICLR , 2017. Hendrycks, D., Basart, S., Mazeika, M., Zou, A., Kwon, J., Mostajabi, M., Steinhardt, J., and Song, D. Scaling out-of-distribution detection for real-world settings. In 
+
+ICML , volume 162, pp. 8759–8773, 2022. Horn, G. V., Aodha, O. M., Song, Y., Cui, Y., Sun, C., Shepard, A., Adam, H., Perona, P., and Belongie, S. J. The inaturalist species classification and detection dataset. In CVPR , pp. 8769–8778, 2018. Huang, R., Geng, A., and Li, Y. On the importance of gradients for detecting distributional shifts in the wild. In 
+
+NeurIPS , pp. 677–689, 2021. Huang, X., Kroening, D., Ruan, W., Sharp, J., Sun, Y., Thamo, E., Wu, M., and Yi, X. A survey of safety and trustworthiness of deep neural networks: Verification, testing, adversarial attack and defence, and interpretabil-ity. Computer Science Review , 37:100270, 2020. Ingster, Y. and Suslina, I. A. Nonparametric goodness-of-fit testing under Gaussian models , volume 169. Springer Science & Business Media, 2012. Javanmard, A. and Montanari, A. On online control of false discovery rate. arXiv preprint arXiv:1502.06197 , 2015. Javanmard, A. and Montanari, A. Online rules for control of false discovery rate and false discovery exceedance. 
+
+The Annals of Statistics , 46(2):526–554, 2018. Jin, J. and Ke, Z. T. Rare and weak effects in large-scale inference: methods and phase diagrams. Statistica Sinica ,pp. 1–34, 2016. Krizhevsky, A. Learning multiple layers of features from tiny images. Master’s thesis, University of Tront , 2009. Krizhevsky, A., Sutskever, I., and Hinton, G. E. Imagenet classification with deep convolutional neural networks. 
+
+Commun. ACM , 60(6):84–90, 2017. Kylberg, G. Kylberg texture dataset v. 1.0 . Centre for Image Analysis, Swedish University of Agricultural Sciences, 2011. Lee, K., Lee, K., Lee, H., and Shin, J. A simple unified framework for detecting out-of-distribution samples and adversarial attacks. In NeurIPS , pp. 7167–7177, 2018. Liang, S., Li, Y., and Srikant, R. Enhancing the reliability of out-of-distribution image detection in neural networks. In ICLR , 2018. Liou, L., Hornburg, M., and Robertson, D. S. Global fdr con-trol across multiple rnaseq experiments. Bioinformatics ,39(1):btac718, 2023. Liu, W., Shen, X., Du, B., Tsang, I. W., Zhang, W., and Lin, X. Hyperspectral imagery classification via stochastic hhsvms. IEEE Transactions on Image Processing , 28(2): 577–588, 2019. Liu, W., Wang, X., Owens, J. D., and Li, Y. Energy-based out-of-distribution detection. In NeurIPS , 2020. Liu, X., Lochman, Y., and Zach, C. GEN: pushing the limits of softmax-based out-of-distribution detection. In CVPR ,pp. 23946–23955, 2023. Lu, H., Gong, D., Wang, S., Xue, J., Yao, L., and Moore, K. Learning with mixture of prototypes for out-of-distribution detection. In ICLR , 2024. Ma, X., Wang, Z., and Liu, W. On the tradeoff between robustness and fairness. In NeurIPS , 2022. Ma, X., Zou, X., and Liu, W. A provable decision rule for out-of-distribution detection. In ICML , 2024. Ma, X., Wu, J., and Liu, W. SAC-BL: A hypothesis testing framework for unsupervised visual anomaly detection and location. Neural Networks , 185:107147, 2025. Ming, Y., Fan, Y., and Li, Y. POEM: out-of-distribution detection with posterior sampling. In ICML , volume 162, pp. 15650–15665, 2022. Ming, Y., Sun, Y., Dia, O., and Li, Y. How to exploit hyper-spherical embeddings for out-of-distribution detection? In ICLR , 2023. Netzer, Y., Wang, T., Coates, A., Bissacco, A., Wu, B., and Ng, A. Y. Reading digits in natural images with unsupervised feature learning. 2011. Neuvial, P. and Roquain, E. On false discovery rate thresh-olding for classification under sparsity. Annals of Statis-tics , 40(5):2572–2600, 2012. ¨Ozbayoglu, A. M., Gudelek, M. U., and Sezer, O. B. Deep learning for financial applications : A survey. Applied Soft Computing , 93:106384, 2020. Ren, J., Liu, P. J., Fertig, E., Snoek, J., Poplin, R., DePristo, M. A., Dillon, J. V., and Lakshminarayanan, B. Likeli-hood ratios for out-of-distribution detection. In NeurIPS ,2019. 10 An Online Statistical Framework for Out-of-Distribution Detection 
+
+Robertson, D. S. and Wason, J. Online control of the false discovery rate in biomedical research. arXiv preprint arXiv:1809.07292 , 2018. Robertson, D. S., Wason, J., K ¨onig, F., Posch, M., and Jaki, T. Online error control for platform trials. arXiv preprint arXiv:2202.03838 , 2022. Sastry, C. S. and Oore, S. Detecting out-of-distribution examples with Gram matrices. In ICML , volume 119, pp. 8491–8501, 2020. Song, Y., Sebe, N., and Wang, W. Rankfeat: Rank-1 feature removal for out-of-distribution detection. In NeurIPS ,2022. Sun, Y. and Li, Y. DICE: leveraging sparsification for out-of-distribution detection. In ECCV , volume 13684, pp. 691–708, 2022. Sun, Y., Ming, Y., Zhu, X., and Li, Y. Out-of-distribution detection with deep nearest neighbors. In ICML , volume 162, pp. 20827–20840, 2022. Vaze, S., Han, K., Vedaldi, A., and Zisserman, A. Open-set recognition: A good closed-set classifier is all you need. In ICLR , 2022. Wang, H., Li, Z., Feng, L., and Zhang, W. Vim: Out-of-distribution with virtual-logit matching. In CVPR , pp. 4911–4920, 2022. Wei, H., Xie, R., Cheng, H., Feng, L., An, B., and Li, Y. Mitigating neural network overconfidence with logit normalization. In ICML , volume 162, pp. 23631–23644, 2022. Xu, J. and Liu, W. On robust multiclass learnability. In 
+
+NeurIPS , 2022. Yang, J., Wang, H., Feng, L., Yan, X., Zheng, H., Zhang, W., and Liu, Z. Semantically coherent out-of-distribution detection. In ICCV , pp. 8281–8289, 2021. Yang, J., Wang, P., Zou, D., Zhou, Z., Ding, K., Peng, W., Wang, H., Chen, G., Li, B., Sun, Y., Du, X., Zhou, K., Zhang, W., Hendrycks, D., Li, Y., and Liu, Z. Openood: Benchmarking generalized out-of-distribution detection. In NeurIPS , 2022. Yu, C., Ma, X., and Liu, W. Delving into noisy label detec-tion with clean data. In ICML , volume 202, pp. 40290– 40305, 2023. Zhang, J., Fu, Q., Chen, X., Du, L., Li, Z., Wang, G., Liu, X., Han, S., and Zhang, D. Out-of-distribution detection based on in-distribution data patterns memorization with modern hopfield energy. In ICLR , 2023a. Zhang, J., Yang, J., Wang, P., Wang, H., Lin, Y., Zhang, H., Sun, Y., Du, X., Zhou, K., Zhang, W., Li, Y., Liu, Z., Chen, Y., and Li, H. Openood v1.5: Enhanced benchmark for out-of-distribution detection. CoRR , abs/2306.09301, 2023b. Zhang, S., Zhou, C., Zhang, P., Liu, Y., Li, Z., and Chen, H. Multiple hypothesis testing for anomaly detection in multi-type event sequences. In ICDM , pp. 808–817, 2023c. Zhang, S., Zhou, C., Liu, Y., Zhang, P., Lin, X., and Pan, S. Conformal anomaly detection in event sequences. In 
+
+ICML , 2025. Zhou, B., Lapedriza, `A., Khosla, A., Oliva, A., and Torralba, A. Places: A 10 million image database for scene recog-nition. IEEE Trans. Pattern Anal. Mach. Intell. , 40(6): 1452–1464, 2018. Zou, X. and Liu, W. On the adversarial robustness of out-of-distribution generalization models. In NeurIPS , 2023a. Zou, X. and Liu, W. Generalization bounds for adversar-ial contrastive learning. Journal of Machine Learning Research , 24:114:1–114:54, 2023b. 11 An Online Statistical Framework for Out-of-Distribution Detection 
+
+## A. Proofs 
+
+A.1. Proof of Theorems 4.4 
+
+Proof. We will prove these two theorems in three cases. 
+
+Case 1: p-values are mutually independent. Note that 
+
+FDR( n) = E
+
+ |R (n) ∩ H 0(n)|
+
+max {1, |R (n)|} 
+
+
+
+= E
+
+" nX
+
+> i=1
+
+1(f (pi) ≤ αi, i ∈ H 0)max {D(n), 1}
+
+#
+
+=
+
+> n
+
+X
+
+> i=1
+
+E
+
+ 1(f (pi) ≤ αi, i ∈ H 0)
+
+αi
+
+· αi
+
+max {D(n), 1} .
+
+
+
+According to the definition of D(n), max {D(n), 1} ≥ D(i) for i ∈ [n]. Then, we obtain 
+
+α
+
+max {D(n), 1} ≤ αi
+
+D(i − 1) + 1 = αγ i(D(i − 1) + 1) 
+
+D(i − 1) + 1 = αγ i.
+
+If f (·) ∈ F 1, then for any p-value pi ≤ f (pi). Hence, we have 
+
+E(1(f (pi) ≤ αi, i ∈ H 0)|D(i − 1)) ≤ E(1(pi ≤ αi, i ∈ H 0)|D(i − 1)) 
+
+≤ E(αi|D(i − 1)) = αi.
+
+It follows that 
+
+E
+
+ 1(f (pi) ≤ αi, i ∈ H 0)
+
+αi
+
+
+
+= E
+
+
+
+E
+
+ 1(pi ≤ αi, i ∈ H 0)
+
+αi
+
+|D(i − 1) 
+
+ 
+
+≤ E(1 |D(i − 1)) = 1 .
+
+The above analysis demonstrates that 
+
+FDR( n) ≤
+
+> n
+
+X
+
+> i=1
+
+E(1 · αγ i) ≤ α ·
+
+> ∞
+
+X
+
+> i=1
+
+γi = α. 
+
+Case 2: p-values are PRDS. Recall that f (·) is strictly increasing. By Lemma 4.3, we know that f (p1), f (p2), · · · , f (pn) are PRDS. The proof in case 1 shows that 
+
+FDR( n) ≤ X
+
+> i∈H 0(n)
+
+αγ i · E
+
+ 1(f (pi) ≤ αi)
+
+αi
+
+
+
+.
+
+Without loss of generality, we assume αi ∈ (0 , 1) . For a positive number ϵ ∈ (0 , 1) , we choose a positive integer m such that αi > ϵ m. Denote sj = ϵm+1 −j for j ∈ [m + 1] . Note that 
+
+P (f (pi) ≤ αi) = P  f (pi) ≤ αi, α i ∈ ∪ mj=1 (sj , s j+1 ] .
+
+12 An Online Statistical Framework for Out-of-Distribution Detection 
+
+Then, for i ∈ H 0, the following chain of inequities hold: 
+
+E
+
+ 1(f (pi) ≤ αi)
+
+αi
+
+
+
+≤
+
+> m
+
+X
+
+> j=1
+
+P(f (pi) ≤ sj+1 , α i ∈ (sj , s j+1 ]) 
+
+sj
+
+=
+
+> m
+
+X
+
+> j=1
+
+P(f (pi) ≤ sj+1 ) · P(αi ∈ (sj , s j+1 ]|f (pi) ≤ sj+1 )
+
+P(f (pi) ≤ sj+1 ) · P(f (pi) ≤ sj+1 )
+
+sj
+
+≤
+
+> m
+
+X
+
+> j=1
+
+P (αi ∈ (sj , s j+1 ]|f (pi) ≤ sj+1 ) · sj+1 
+
+sj
+
+≤ ϵ−1
+
+> m
+
+X
+
+> j=1
+
+(P(αi ≤ sj+1 |f (pi) ≤ sj+1 ) − P(αi ≤ sj |f (pi) ≤ sj+1 )) = ϵ−1
+
+> m−1
+
+X
+
+> j=1
+
+(P(αi ≤ sj+1 |f (pi) ≤ sj+1 ) − P(αi ≤ sj+1 |f (pi) ≤ sj+2 )) + ϵ−1 (P(αi ≤ sm+1 |f (pi) ≤ sm+1 ) − P(αi ≤ s1|f (pi) ≤ s2)) 
+
+≤ ϵ−1 · P(αi ≤ sm+1 |f (pi) ≤ sm+1 ) (by Lemma 4.3) 
+
+≤ ϵ−1.
+
+Letting ϵ → 1 and applying the monotone convergence theorem, we have 
+
+E
+
+ 1(f (pi) ≤ αi)
+
+αi
+
+
+
+≤ 1.
+
+It follows that 
+
+FDR( n) ≤ X
+
+> i∈H 0(n)
+
+αγ i · 1 ≤ α. 
+
+A.2. Prrof of Theore 4.5 
+
+Proof. Note that D(n) ≥ D(i − 1) + 1(f (pi) ≤ αi) and 
+
+1(f (pi) ≤ αi) = 1
+
+
+
+1 ≤ αi
+
+f (pi)
+
+
+
+≤ αi
+
+f (pi) .
+
+Then, we have 
+
+FDR( n) ≤ X
+
+> i≤n,i ∈H 0
+
+E
+
+ 1(f (pi) ≤ αi)max {D(n), 1}
+
+
+
+= X
+
+> i≤n,i ∈H 0
+
+E
+
+ 1(f (pi) ≤ αi)max {D(n), 1} · 1(f (pi) ≤ αi)
+
+
+
+≤ X
+
+> i≤n,i ∈H 0
+
+E
+
+ αi/f (pi)max {D(n), 1} · 1(D(n) ≥ D(i − 1) + 1) 
+
+
+
+≤ X
+
+> i≤n,i ∈H 0
+
+E
+
+ αi/f (pi)
+
+D(i − 1) + 1 · 1(D(n) ≥ D(i − 1) + 1) 
+
+
+
+= X
+
+> i≤n,i ∈H 0
+
+E
+
+ αγ i(D(i − 1) + 1) (D(i − 1) + 1) f (pi) · 1(D(n) ≥ D(i − 1) + 1) 
+
+
+
+≤ X
+
+> i≤n,i ∈H 0
+
+E
+
+ αγ i
+
+f (pi)
+
+
+
+.
+
+13 An Online Statistical Framework for Out-of-Distribution Detection 
+
+Let random variable U be uniformly distributed on (0 , 1) . For any t ∈ (0 , 1) , we have 
+
+P(pi ≤ t) ≤ t = P(U ≤ t).
+
+If t ≥ 1, then P(pi ≤ t) = P(U ≤ t) = 1 . Hence, P(pi ≤ t) ≤ P(U ≤ t) for any t ≥ 0. Since f (·) is positive and strictly increasing, it follows that 
+
+P( 1
+
+f (pi) ≥ x) = P(pi ≤ f −1( 1
+
+x )) ≤ P(U ≤ f −1( 1
+
+x )) = P( 1
+
+f (U ) ≥ x)
+
+for any x ≥ 0. According to the following property of expectation: 
+
+E(X) = 
+
+Z ∞
+
+> 0
+
+xf (x) dx =
+
+Z ∞
+
+> 0
+
+P(X ≥ x) dx (8) for any non-negative random variable X, then we obtain 
+
+E( 1
+
+f (pi) ) = 
+
+Z ∞
+
+> 0
+
+P( 1
+
+f (pi) ≥ t) dt ≤
+
+Z ∞
+
+> 0
+
+P( 1
+
+f (U ) ≥ t) dt 
+
+= E( 1
+
+f (U ) ) = 
+
+Z 10
+
+1
+
+f (u) · 1 du ≤ 1.
+
+Therefore, we obtain 
+
+FDR( n) ≤ X
+
+> i≤n,i ∈H 0
+
+E
+
+ αγ i
+
+f (pi)
+
+
+
+≤ X
+
+> i≤n,i ∈H 0
+
+αγ i · E( 1
+
+f (pi) )
+
+≤ X
+
+> i≤n,i ∈H 0
+
+αγ i ≤ α. 
+
+A.3. Proof of Theorem 5.2 
+
+Proof. For notational convenience, we denote by Xtest  
+
+> 1
+
+, X test  
+
+> 2
+
+, · · · , X test n1 the OOD examples in testing set. For f in the g-LOND algorithm, we have f (x) ≥ x and f −1(x) ≤ x. Besides, denote by Φ = 1 − Ψ the cumulative distribution function (CDF) of testing statistic T under the null hypothesis. For simplicity, we assume Φ(0) = 1 /2. Denote by F1(t) the CDF of the p-values under alternative hypothesis. Then, F (t) can be expressed as 
+
+F1(t) = Ψ( μ − Φ−1(1 − t)) 
+
+where Φ−1 is the inverse function of Φ. Under the null hypothesis, the CDF of the p-value F0(t) = t. Then the CDF of the p-values can be expressed as 
+
+F (t) = (1 − ε)F0 + εF 1(t) = (1 − ε)t + εΨ( μ − Φ−1(1 − t)) .
+
+Denote ¯Ψ = 1 − F1 and κ := Φ −1(1 − t). Because Ψ ∈ F , we have 
+
+κ = Φ −1(1 − t) ∼ (λ log(1 /t )) 1/λ .
+
+According to the definition of g-LOND algorithm, for k ≥ 0, and m ≥ τk + 1 , we have 
+
+P(τk+1 > m | τk) = 
+
+> m
+
+Y 
+
+> i=τk+1
+
+P (f (pi) > (k + 1) γi) = 
+
+> m
+
+Y 
+
+> i=τk+1
+
+(1 − F (f −1(( k + 1) γi))) 
+
+≤ exp {− 
+
+> m
+
+X 
+
+> i=τk+1
+
+F (f −1(( k + 1) γi)) }.
+
+14 An Online Statistical Framework for Out-of-Distribution Detection 
+
+Denote ˜τk = τk ∧ n1. For τk < n 1, we have 
+
+E(˜ τk+1 | ˜τk) = τk + 1 + 
+
+> n1
+
+X 
+
+> m=τk+1
+
+P(τk+1 > m | τk)
+
+≤ τk + 1 + 
+
+> n1
+
+X 
+
+> m=τk+1
+
+exp {− 
+
+> m
+
+X 
+
+> i=τk+1
+
+F (f −1(( k + 1) γi)) }
+
+= ˜ τk + 1 + 
+
+> n1
+
+X 
+
+> m=˜ τk+1
+
+exp {− 
+
+> m
+
+X 
+
+> i=˜ τk+1
+
+F (f −1(( k + 1) γi)) }.
+
+(9) Define t∗ satisfying Φ−1(1 − f −1(t∗)) = μ. Note that Ψ ∈ F . Then, for t ≥ t∗, we have 
+
+F1(t) = Ψ( μ − Φ−1(1 − f −1(t))) ≥ Ψ( μ − Φ−1(1 − f −1(t∗))) = 1 /2.
+
+Define M1 := ⌊(( k + 1) C/t ∗)1/v ⌋. If i ≤ M1, we have F1(f −1(( k + 1) γi)) ≥ 1/2.Without loss of generality, we assume M1 ≥ n. Since ˜τk < n 1 ≤ M1, we have that 
+
+> n1
+
+X 
+
+> m=˜ τk+1
+
+exp {− 
+
+> m
+
+X 
+
+> i=˜ τk+1
+
+F (f −1(( k + 1) γi)) } ≤ 
+
+> n1
+
+X 
+
+> m=˜ τk+1
+
+exp {− (m − ˜τk)ε/ 2}≤
+
+> n1−˜τk
+
+X
+
+> m=1
+
+exp {− mε/ 2} < 2
+
+ε = 2 nβ 
+
+> 1
+
+.
+
+It follows that 
+
+E(˜ τk+1 | ˜τk) ≤ ˜τk + 1 + 2 nβ 
+
+> 1
+
+,
+
+Therefore, we have 
+
+E(τk ∧ n1) ≤ 3kn β 
+
+> 1
+
+, (10) which completes the proof of Theorem 5.2 
+
+A.4. Proof of Theorem 5.3 
+
+Proof. For any δ > 0, define M2 := ⌈nβ /δ ⌉. Since 0 < β < 12 , for large n, we have M2 
+
+> n1
+
+< δ where n1 = |H 1(n)| = n1−β .For M2 ≤ i ≤ n1, define θi := i δ n −β 
+
+> 1
+
+, we get 
+
+P(D(i) < θ i) = P(τ⌈θi⌉ > i ) ≤ P(τ⌈θi⌉ ∧ n1 ≥ i)
+
+≤ 3 · ⌈θi⌉nβ
+
+> 1
+
+i < 3 · (θi + 1) nβ
+
+> 1
+
+i
+
+= 3 δ + 3 nβ
+
+> 1
+
+i < 6δ. 
+
+According to the definition of g-LOND algorithm, we have 
+
+E[ ¯Ψ( f −1(αi))] = E[ ¯Ψ( f −1(γi(D(i − 1) + 1)))] ≤ E[ ¯Ψ( f −1(γiD(i)))] ,
+
+Hence, the expectation of FPR for g-LOND satisfies 
+
+E(FPR) = 1
+
+n1
+
+X
+
+> i∈H 1(n)
+
+E[ ¯Ψ( f −1(αi))] ≤ 1
+
+n1
+
+X
+
+> i∈H 1(n)
+
+E[ ¯Ψ( f −1(γiD(i)))] . (11) For 1 ≤ i ≤ M2,
+
+1
+
+n1
+
+X
+
+> i≤N2,i ∈H 1(n)
+
+E[ ¯Ψ( f −1(γiD(i)))] ≤ M2
+
+n1
+
+.
+
+15 An Online Statistical Framework for Out-of-Distribution Detection 
+
+For M2 + 1 ≤ i ≤ n1 < n ,
+
+E[ ¯Ψ( f −1(γiD(i)))] = E[ ¯Ψf −1(( γiD(i))) · 1(D(i) < θ i)] + E[ ¯Ψf −1(( γiD(i))) · 1(D(i) ≥ θi)] 
+
+≤ 6δ + ¯Ψ( f −1(γiθi)) ≤ 6δ + ¯Ψ( f −1(γnθn)) .
+
+It follows that 
+
+1
+
+n1
+
+X
+
+> i∈H 1(n)
+
+E[ ¯Ψf −1(( γiD(i)))] ≤ M2
+
+n1
+
++ n1 − M2
+
+n1
+
+(6 δ + ¯Ψ( f −1(γnθn))) 
+
+≤ 7δ + ¯Ψ( f −1(γnθn)) = 7 δ + Ψ( μ − κn),
+
+where κn = Φ −1(1 − f −1(γnθn)) . Since ν + β − 1 < r and f −1(γnθn) ≤ γnθn, as n → ∞ , then we have 
+
+μ − κn ≥ (r1/λ − (ν + β − 1) 1/λ )( λ log n)1/λ → ∞ 
+
+and further Ψ( μ − κn) → 0 as n → ∞ . Then, we have 
+
+lim sup 
+
+> n→∞
+
+E(FPR) ≤ 7δ. (12) Note that Eq. (12) holds for any δ > 0, thus E(FPR) → 0 as n → ∞ . By Markov’s inequality, for any t > 0, we have 
+
+P(FPR g−LON D ≥ t) ≤ E(FPR g−LON D )
+
+t → 0
+
+Hence, we conclude that 
+
+FPR g−LON D → 0 in probability ,
+
+16

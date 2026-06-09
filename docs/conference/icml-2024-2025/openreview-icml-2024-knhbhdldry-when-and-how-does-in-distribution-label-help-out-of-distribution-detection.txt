@@ -1,0 +1,6358 @@
+Title: When and How Does In-Distribution Label Help Out-of-Distribution Detection?
+
+URL Source: https://openreview.net/pdf?id=knhbhDLdry
+
+Number of Pages: 35
+
+Markdown Content:
+# When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Xuefeng Du 1 Yiyou Sun 1 Yixuan Li 1
+
+## Abstract 
+
+Detecting data points deviating from the train-ing distribution is pivotal for ensuring reliable machine learning. Extensive research has been dedicated to the challenge, spanning classical anomaly detection techniques to contemporary out-of-distribution (OOD) detection approaches. While OOD detection commonly relies on super-vised learning from a labeled in-distribution (ID) dataset, anomaly detection may treat the entire ID data as a single class and disregard ID labels. This fundamental distinction raises a significant question that has yet to be rigorously explored: 
+
+when and how does ID label help OOD detection? 
+
+This paper bridges this gap by offering a formal understanding to theoretically delineate the im-pact of ID labels on OOD detection. We employ a graph-theoretic approach, rigorously analyzing the separability of ID data from OOD data in a closed-form manner. Key to our approach is the characterization of data representations through spectral decomposition on the graph. Leverag-ing these representations, we establish a provable error bound that compares the OOD detection per-formance with and without ID labels, unveiling conditions for achieving enhanced OOD detec-tion. Lastly, we present empirical results on both simulated and real datasets, validating theoretical guarantees and reinforcing our insights. Code is publicly available at https://github.com/ deeplearning-wisc/id_label .
+
+## 1. Introduction 
+
+When deployed in the real world, machine learning models often encounter unfamiliar data points that fall outside the distribution of the observed data. This problem has been studied extensively, dating from the classical anomaly detec-    
+
+> 1Department of Computer Sciences, UW-Madison. Correspon-dence to: Yixuan Li <sharonli@cs.wisc.edu >.
+> Proceedings of the 41 st International Conference on Machine Learning , Vienna, Austria. PMLR 235, 2024. Copyright 2024 by the author(s).
+
+tion methods (Chandola et al., 2009; Ahmed & Courville, 2020; Han et al., 2022) to contemporary out-of-distribution (OOD) approaches (Liu et al., 2020b; Yang et al., 2021b; Fang et al., 2022). While both anomaly detection and OOD detection share the goal of identifying test-time input that deviates from the training distribution, a crucial distinction lies in the usage of in-distribution (ID) labels in training time . Specifically, classical anomaly detection may disregard ID labels (Yang et al., 2021b), treating the entire ID dataset as a single class. In contrast, OOD detection commonly relies on supervised learning from a labeled ID dataset. It is reasonable to hy-pothesize that incorporating ID labels during training might influence the resulting feature representations, potentially leading to distinct capabilities in separating ID from OOD samples during test time. This raises a significant question that has yet to be rigorously explored in the field: 
+
+RQ: When and how does ID label help OOD detection? 
+
+Answering this question offers the fundamental key to under-standing and bridging two highly related fields of anomaly detection and OOD detection. In pursuit of this objective, we provide a formal understanding to theoretically delin-eate the influence of ID labels on OOD detection. We base our analysis on a graph-theoretic approach by modeling the ID data via a graph, where the vertices are all the data points and edges encode the similarity among data. This analytical framework is well-suited for our investigation, as data points’ representation similarity can differ between the self-supervised and supervised learning setting, contingent upon the availability of ID labels. For instance, when ID labels are present, the supervisory signal facilitates connect-ing points belonging to the same class, resulting in each class manifesting as a distinct connected sub-graph. In both cases (with or without ID labels), the sub-structures can be revealed by performing spectral decomposition on the graph and can be expressed equivalently as a contrastive learning objective on neural net representations (expounded further in Section 3). Importantly, these learned feature representa-tions allow us to rigorously analyze the separability of ID data from OOD data in a closed-form manner. Based on the analytical framework, we provide a formal error bound in Theorem 1, comparing the OOD detection performance with and without the inclusion of ID labels. 1When and How Does In-Distribution Label Help Out-of-Distribution Detection? Ragdoll   
+
+> Sphynx
+> Scottish Fold (OOD) Ragdoll
+> Sphynx
+> Scottish Fold
+> (OOD)
+> (a) Near OOD scenario
+> ID label
+> Ragdoll
+> Sphynx
+> Dog (OOD) Ragdoll
+> Sphynx
+> (b) Far OOD scenario
+> ID label
+> Dog (OOD)
+
+Figure 1: Intuitive example on the ID labels’ impact on OOD detection. (a) In the near OOD scenario where the OOD data connects densely with the ID data, without ID labels, the neural network produces indistinguishable embeddings for the ID (Ragdoll and Sphynx class) and OOD data (Scottish Fold class). By harnessing the power of the ID labeling information, the model learns more distinguishable embeddings that help ID vs. OOD separation. (b) In the far OOD scenario (Dog class), ID labels can be less beneficial because the representations learned in an unsupervised manner can already be separable between ID vs OOD. 
+
+This theorem reveals sufficient conditions for achieving improved OOD detection performance by leveraging ID labels. To establish the error bound, we first calculate the closed-form solution of the ID and OOD representations based on the graph factorization and then quantify the OOD detection performance by linear probing error. As a result, Theorem 1 demonstrates that the difference in the OOD detection performance with and without ID labels can be lower bounded by a function of the adjacency matrix of ID data as well as the OOD-ID connectivity. Furthermore, we offer intuitive interpretations in Theorem 2, and show that the ID labels are the most beneficial when either: (i) the OOD data is relatively close to the ID data, which is also known as the near OOD scenario; (ii) the ID data are connected sparsely without ID labels; and (iii) the semantic connection between each ID data to the labeled ID data from different ID classes is sufficiently large. To help readers understand the key insights of our theory, we provide a simple intuitive example in Figure 1, which demonstrates how adding ID labels in the near OOD scenario can lead to a greater benefit compared to the far OOD scenario. Lastly, we provide empirical verifications to support our theory. In particular, we compare the OOD detection perfor-mance with and without ID labels using both simulated data and real-world datasets (Section 5). The result aligns with our theoretical guarantee, showcasing the benefits of the ID label information under proper conditions. For example, the OOD detection result can be improved by 12.3% (AUROC) in the near OOD scenario compared to 6.06% in the far OOD scenario on C IFAR 100, validating our theory. Our main contributions are summarized as follows: • We study an important but underexplored problem: when and how in-distribution labels can help OOD detection. Our exposition has fundamental value in un-derstanding and bridging the two highly related fields of anomaly detection and OOD detection. • We provide an analytical framework based on graph formulation to characterize the ID and OOD represen-tations. Based on that, we analyze the error bound for ID vs. OOD separation with and without ID labels and investigate the necessary conditions for which the labeling information can bring the most benefits. • We present empirical analysis on both simulated and real-world datasets to verify and support our theory. The observation in practice echoes and reinforces our theoretical insights. 
+
+## 2. Problem Setup 
+
+Let X be the input space, and Y = {1, ..., c } be the la-bel space for ID data. Given an unknown ID joint dis-tribution PX Y defined over X × Y , the labeled ID data 
+
+S(l)id = {(x1, y 1), ..., (xN , y N )} are drawn independently and identically from PX Y . Alternatively, the unlabeled ID data S(u)id = {x1, ..., xN } is drawn from Pid , which is the marginal distribution of PX Y on X . Furthermore, we denote 
+
+Pli the distribution of labeled data with label i ∈ Y .
+
+Definition 1 (Out-of-Distribution Detection w/ ID Labels) .
+
+Given labeled ID data S(l)id , the aim is to learn a predictor 
+
+g : X → Y ∪ { ood } such that for any test data x: 1) if x
+
+is drawn from Pid , then the model classifies x into one of ID classes Y, and 2) if x is drawn from another distribution 
+
+Pood with unknown OOD class, then g can detect x as OOD data (Fang et al., 2022). 
+
+Definition 2 (Out-of-Distribution Detection w/o ID Labels) .
+
+The definition is similar to above, except that we are us-ing unlabeled ID data S(u)id = {x1, ..., xN } to learn the binary predictor g. This is in accordance with the classical anomaly detection problem (Chandola et al., 2009). 
+
+2When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+## 3. Analysis Framework 
+
+Overview of rationale. In this section, we introduce our analytical framework, which allows us to formalize and understand the OOD detection performance in two cases: 
+
+(1) learning without ID labels, and (2) learning with ID labels, respectively. Our analytical framework models the ID data via a graph, where the vertices are all the data points, and edges encode the similarity among data (Section 3.1). The similarity can be defined in either a self-supervised or supervised manner, contingent on the availability of the ID labels. For example, when ID labels are present, the supervision signal can help connect points belonging to the same class, so that each class emerges clearly as a connected sub-graph. In both cases, the sub-structures can be revealed by performing spectral decomposition on the graph and can be expressed equivalently as a contrastive learning objective on neural net representations (Section 3.2). Importantly, these learned feature representations allow us to rigorously analyze the separability of ID data from OOD data in a closed form. Since the features learned can be directly impacted by the presence or absence of ID labels, the OOD detection performance can vary accordingly. 
+
+3.1. Graph Formulation 
+
+We start by formally defining the graph and adjacency ma-trix. For notation clarity, we use ¯x to indicate the natural sample (raw inputs without augmentation). Given an ¯x, we use T (x|¯x) to denote the probability of x being augmented from ¯x. For instance, when ¯x represents an image, T (·| ¯x)
+
+can be the distribution of common augmentations (Chen et al., 2020) such as Gaussian blur, color distortion, and random cropping. The augmentation allows us to define a general population space Xid , which contains all the original ID data points along with their augmentations. We denote the cardinality of the population space with |X id | = N .We define the graph G(Xid , ζ ) over the finite vertex set Xid 
+
+with edge weights ζ. To define edge weights ζ, we consider two cases: (1) self-supervised connectivity ζ(u) by treating all points in Xid as entirely unlabeled, and (2) supervised connectivity ζ(l) by utilizing labeling information of ID data. 
+
+Definition 3 (Unlabeled case (u)) . When all ID points are unlabeled, two samples ( x, x+) are considered a posi-tive pair if x and x+ are augmented from the same image 
+
+¯x ∼ Pid . For any two augmented data x, x′ ∈ X id , the edge weight ζ(u) 
+
+> xx ′
+
+is defined as the marginal probability of generating the pair (HaoChen et al., 2021): 
+
+ζ(u) 
+
+> xx ′
+
+≜ E¯x∼Pid T (x|¯x)T (x′|¯x) . (1) The magnitude of ζ(u) 
+
+> xx ′
+
+indicates the “positiveness” or simi-larity between x and x′.Alternatively, when having access to the labeling informa-tion for ID data, we can define the edge weight by adding additional supervised connectivity to the graph. 
+
+Definition 4 (Labeled case (l)) . When all ID points are labeled, two samples ( x, x+) are considered a positive pair 
+
+if x and x+ are augmented from two labeled samples ¯xl
+
+and ¯x′ 
+
+> l
+
+with the same ID class i. The overall edge weight for any pair of data (x, x′) is given by:              
+
+> ζ(l)
+> xx ′=ϕu·ζ(u)
+> xx ′+ϕl·X
+> i∈Y
+> E¯xl∼PliE¯x′
+> l∼PliT(x|¯xl)T x′|¯x′
+> l
+> ,
+
+where ϕu, ϕ l are the weight coefficients. Compared to the unlabeled case, the second term strengthens the connectivity for points belonging to the same class. 
+
+Definition 5 (Adjacency matrix for unlabeled ID data) . We define the adjacency matrix A(u) with entry value ζ(u) 
+
+> xx ′
+
+for each (x, x′) pair . Further, ζ(u) 
+
+> x
+
+= P 
+
+> x′∈X
+
+ζ(u) 
+
+> xx ′
+
+denotes the total edge weights connected to a vertex x.
+
+Definition 6 (Adjacency matrix for labeled ID data) . Sim-ilarly, we define the adjacency matrix for labeled ID data 
+
+A(l) with entry value ζ(l) 
+
+> xx ′
+
+for each (x, x′) pair and ζ(l) 
+
+> x
+
+=
+
+P 
+
+> x′∈X
+
+ζ(l) 
+
+> xx ′
+
+.
+
+As a standard technique in graph theory (Chung, 1997), we use the normalized adjacency matrix of G(Xid , ζ ):
+
+˜A ≜ D− 12 AD − 12 , (2) where A can be instantiated by either A(u) or A(l) defined above. D ∈ RN ×N is the corresponding diagonal matrix with Dxx = ζ(u) 
+
+> x
+
+for unlabeled case and Dxx = ζ(l) 
+
+> x
+
+for labeled case. The normalization balances the degree of each node, reducing the influence of vertices with very large degrees. The normalized adjacency matrix allows us to perform spectral decomposition as we show next. 
+
+3.2. Learning Representations Based on Graph Spectral 
+
+In this section, we perform spectral decomposition or spec-tral clustering (Ng et al., 2001)—a classical approach to graph partitioning—to the adjacency matrices defined above. This process forms a matrix where the top-k eigenvectors are the columns and each row of the matrix can be viewed as a k-dimensional representation of an example . The result-ing feature representations enable us to rigorously analyze the separability of ID data from OOD data in a closed form, and formally compare the OOD detection error under two scenarios either with and without ID labels (in Section 4). Specifically, taking the labeled case as an example, we con-sider the following optimization, which performs low-rank matrix approximation on the adjacency matrix ˜A(l):
+
+min  
+
+> F(l)∈RN×k
+
+L(F(l), A(l)) ≜ ˜A(l) − F(l)F(l)⊤ 2
+
+> F
+
+, (3) 3When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+where ∥·∥ F denotes the matrix Frobenious norm. According to the Eckart–Young–Mirsky theorem (Eckart & Young, 1936), the minimizer of this loss function is F(l) 
+
+> k
+
+∈ RN ×k
+
+such that F(l) 
+
+> k
+
+F(l)⊤ 
+
+> k
+
+contains the top-k components of ˜A(l)’s eigen decomposition. 
+
+A surrogate objective. In practice, directly solving objec-tive 3 can be computationally expensive for an extremely large matrix. To circumvent this, the feature representations can be equivalently recovered by minimizing the following contrastive learning objective (Sun et al., 2023a;b) as shown in Lemma 1, which can be efficiently trained end-to-end using a neural net parameterized by w:
+
+Llabeled (hw) ≜ −2ϕlL1(hw) − 2ϕuL2(hw)+ 
+
+ϕ2 
+
+> l
+
+L3(hw) + 2 ϕlϕuL4(hw) + ϕ2
+
+> u
+
+L5(hw),
+
+(4) where hw : Xid 7 → Rk denotes the feature representation, 
+
+L1(hw) = X
+
+> i∈Y
+
+E    
+
+> ¯xl∼Pli,¯x′
+> l∼Pli,
+> x∼T (·| ¯xl),x+∼T (·| ¯x′
+> l)
+
+hw(x)⊤hw
+
+ x+ ,
+
+L2(hw) = E  
+
+> ¯xu∼Pid ,
+> x∼T (·| ¯xu),x+∼T (·| ¯xu)
+
+hw(x)⊤hw
+
+ x+ ,
+
+L3(hw) = X
+
+> i,j ∈Y
+
+E    
+
+> ¯xl∼Pli,¯x′
+> l∼Plj,
+> x∼T (·| ¯xl),x−∼T (·| ¯x′
+> l)
+
+h hw(x)⊤hw
+
+ x− 2i
+
+,
+
+L4(hw) = X
+
+> i∈Y
+
+E   
+
+> ¯xl∼Pli,¯xu∼Pid ,
+> x∼T (·| ¯xl),x−∼T (·| ¯xu)
+
+h hw(x)⊤hw
+
+ x− 2i
+
+,
+
+L5(hw) = E  
+
+> ¯xu∼Pid ,¯x′
+> u∼Pid ,
+> x∼T (·| ¯xu),x−∼T (·| ¯x′
+> u)
+
+h hw(x)⊤hw
+
+ x− 2i
+
+.
+
+Interpretation. At a high level, L1, L2 push embeddings of positive pairs to be closer while L3, L4 and L5 pull away embeddings of negative pairs . Particularly, L1 samples two random augmentation views of two images from labeled data with the same label. L2 samples two views from the same image in Xid . For negative pairs, L3 uses two augmen-tation views from two labeled samples in Xl with any label. 
+
+L4 uses two views of one sample in Xl and another one in 
+
+Xid . L5 uses two views from two random samples in Xid .Importantly, the contrastive loss allows drawing a theoret-ical equivalence between learned representations and the top-k singular vectors of ˜A(l), and facilitates theoretical understanding of the OOD detection on the data represented by ˜A(l). We formalize the equivalence below. 
+
+Lemma 1 (Theoretical equivalence between two objectives) .
+
+We define each row f ⊤ 
+
+> x
+
+of F(l) as a scaled version of learned feature representation hw, with fx = √ζxhw(x). Then minimizing the loss function L(F(l), A(l)) in Equation 3 is equivalent to minimizing the surrogate loss in Equation 4. Full proof is in Appendix Section D.1. 
+
+Remark 1. We can extend the contrastive learning objective in Equation 4 to the unlabeled case by setting the coefficient 
+
+ϕl to 0 and keeping the remaining parts: 
+
+Lunlabeled (hw) ≜ −2ϕuL2(hw) + ϕ2
+
+> u
+
+L5(hw). (5) The loss has been employed in prior works on spectral contrastive learning (Sun et al., 2023a;b), which analyzed problems such as novel category discovery and open-world semi-supervised learning. However, our paper focuses on the problem of OOD detection, which has fundamentally different learning goals. Accordingly, we derive novel theo-retical analyses uniquely tailored to our problem focus (i.e., the impact of the ID label information), which we present next. 
+
+## 4. Theoretical Results 
+
+Based on the analytical framework, we now provide theo-retical insights to the core question: when and how does ID label information help OOD detection? To answer this question, we start by deriving the closed-form solution of the representations for both ID and OOD data (Section 4.1), and then quantify the OOD detection performance by measuring the linear probing error (Section 4.2). Finally, we provide a formal bound contrasting the OOD detection performance with and without ID labels (Section 4.3). 
+
+4.1. Representation for ID and OOD Data ID representations. We first derive the ID representations for the labeled case, which can be similarly derived for the unlabeled case. Specifically, one can train the neural net-work hw : Xid → Rk using the surrogate objective in Equa-tion 4. Minimizing the loss yields representation Z(l) ∈
+
+RN ×k, where each row vector zi = hw(xi). According to Lemma 1, the closed-form solution for the representations is equivalent to performing spectral decomposition of the adjacency matrix. Thus, we have F(l) 
+
+> k
+
+= [ D(l)] 12 Z(l), where 
+
+F(l) 
+
+> k
+
+F(l)⊤ 
+
+> k
+
+contains the top-k components of ˜A(l)’s SVD de-composition. We further denote the top-k singular vectors of ˜A(l) as V(l) 
+
+> k
+
+∈ RN ×k, so we have F(l) 
+
+> k
+
+= V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+] 12 ,where Σ(l) 
+
+> k
+
+is a diagonal matrix of the top-k singular values of ˜A(l). By equalizing the two forms of F(l) 
+
+> k
+
+, the closed-formed solution of the learned feature space is given by 
+
+Z(l) = [ D(l)]− 12 V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+] 12 . (6) 
+
+OOD representations. In post hoc OOD detection, the learning algorithm can only observe ID data in Xid and the corresponding adjacency matrix. Hence, a key challenge in 4When and How Does In-Distribution Label Help Out-of-Distribution Detection? (b) Unlabeled ID adjacency matrix        
+
+> ID cls 1
+> ID cls 2
+> ID cls 3
+> (a) Labeled ID adjacency matrix (c) OOD-ID adjacency matrix in the Near OOD scenario
+> Decision boundary
+> Decision boundary
+> Decision boundary Decision boundary
+> ID cls 1
+> ID cls 2
+> ID cls 3
+> (d) OOD-ID adjacency matrix in the Far OOD scenario (f) OOD and ID representations in the Far OOD scenario
+> (e) OOD and ID representations in the Near OOD scenario
+
+Figure 2: Example showcasing the contrast between adjacency matrices and representations w/ (l) and w/o (u) ID labels. (a) The ID adjacency matrix in the labeled case A(l). (b) The ID adjacency matrix in the unlabeled case A(u). Here darker color indicates denser connectivity. The contrast of the OOD-ID adjacency matrix ˜AOI w/ and w/o ID labels in the near OOD and far OOD scenario is shown in (c) and (d), where the adjacency matrices have a larger Frobenius norm, i.e., ∥ ˜A(u)OI ∥F = 60 in the near OOD scenario and smaller norm in the far OOD scenario, i.e., ∥ ˜A(u)OI ∥F = 24 . (e) Learned representations in the near OOD scenario, where the OOD representations are overlapped in the unlabeled case but become linearly separable from the ID representations in the labeled case. (d) Representations in the far OOD scenario. The ID and OOD representations can already be separable in the unlabeled case. The benefit of ID labels is marginal. 
+
+our framework is how to derive the OOD representations based on ID and OOD data connectivity in the input space. Unlike previous literature (Lee et al., 2018b), we refrain from making simplified assumptions in the feature repre-sentation space (although that makes analysis much easier). More realistically, we characterize OOD data directly in the input space by the adjacency matrix ˜A(l)OI ∈ RM ×N , where 
+
+M is the number of OOD data points. Each row in the matrix indicates the similarity between an OOD data w.r.t. all the ID samples. Depending on the characteristics of the OOD data, this matrix may be sparse if OOD data is far away from all the ID samples (e.g., far OOD), or can have dense entries if it is close to some ID classes (e.g., near OOD). Our characterization is thus general enough to enable analysis under different scenarios. Now a question remains: how do we go from this matrix 
+
+˜A(l)OI to a k-dimensional embedding for each OOD data? While a naive solution is to perform spectral decomposition on the stack of two matrices ˜A(l)OI and ˜A(l), this violates the principle of post hoc OOD detection as it incurs retraining. Instead, we derive the embeddings of OOD vertices using existing ID embeddings F(l) and the OOD-ID similarity. This can be achieved by solving the following optimization: 
+
+min  
+
+> F(l)ood ∈RM×k
+
+˜A(l)OI − F(l)ood F(l)⊤ 2 
+
+> F
+
+, (7) where F(l)ood denotes the OOD embeddings. Intuitively, the objective distills the similarity in the input space into the representation space. For instance, it searches for an OOD representation, aligning it closely with ID representations when there is a dense connectivity between OOD and ID data in the adjacency matrix, and vice versa. Similar to the ID case, we have Z(l)ood = [ D(l)ood ]− 12 F(l)ood , where D(l)ood 
+
+can be calculated in the same way as D(l) based on ˜A(l)OI .Therefore, the analytic form of the OOD representations from the neural network can be derived as 
+
+Z(l)ood = [ D(l)ood ]− 12 ˜A(l)OI V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+]− 12 . (8) Detailed proof and the design rationale are in Appendix D.2. 
+
+Representation in the unlabeled case. For the unlabeled case, we can get the representations for ID and OOD data by replacing the matrices V(l) 
+
+> k
+
+, Σ(l) 
+
+> k
+
+, D(l), D(l)ood and ˜A(l)OI in Equations 6 and 8 with the unlabeled version. We will show how the labeled and unlabeled representations are rigorously related in Appendix C.1. 
+
+An illustrative example. To contrast the adjacency matri-ces and the corresponding representations for the unlabeled and labeled cases, we simulate an example in Figure 2. The simulation is constructed with simplicity in mind, to facilitate understanding. Evaluations on complex high-dimensional data will be provided in Section 5. In particular, we base our analysis on the ID adjacency matrix as depicted in Figure 2 (a) and (b), which consists of three ID classes and 40 data points for each class. In the labeled case, the ID adjacency matrix has a denser connectivity pattern, espe-cially for data that belongs to the same ID label. In Figure 2 5When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+(c) and (d), we compare the OOD-ID adjacency matrices with and without ID labels in two scenarios, i.e., near OOD where there are dense connections in ˜AOI and far OOD where the connectivity in ˜AOI is sparse. Based on the graph, we further visualize in Figures 2 (e) and (f) the 2D data representations ( k = 2 , calculated by Equations 6 and 8) for the near OOD and far OOD scenarios. We observe that having different adjacency matrices can lead to significantly different data representations. We will provide theory to rigorously analyze the OOD detection performance and contrast between the labeled and unlabeled cases (Section 4.3). Details of the illustrative example are included in Appendix F. 
+
+4.2. Evaluation Target 
+
+With the closed-form representations for both ID and OOD, we evaluate OOD detection by linear probing error. The strategy is commonly used in representation learning (Chen et al., 2020). Specifically, the weight of a linear classifier is denoted as θ ∈ Rk×2. The class prediction (ID vs. OOD) is given by gθ (z) = argmax i∈{ +,−} (hw(x)θ)i. Denote the set of ID and OOD features as Zall ∈ R(N +M )×k =[Z⊤, Z⊤
+
+> ood
+
+]⊤ (either labeled (u) or unlabeled (l)), the lin-ear probing error R(Zall ) is given by the least error of all possible linear classifiers: 
+
+R(Zall ) ≜ min 
+
+> θ∈Rk×2
+
+Ez∈Zall 1[y(z)̸ = gθ (z)] , (9) where y(z) denotes indicates the ground-truth class of fea-ture z (ID or OOD). With the definition, we can bound the linear probing error R(Zall ) by the residual of the regression error as shown in Lemma 2 with proof in Appendix D.3. 
+
+Lemma 2. Denote y ∈ R(N +M )×2 as a matrix where each row contains the one-hot label for features in Zall . We have: 
+
+R(Zall ) ≤ 2
+
+N + M Tr 
+
+ 
+
+I − Zall Z†
+
+> all
+
+
+
+yy ⊤
+
+. (10) Here Tr ( ·) denotes the trace operator. Z† 
+
+> all
+
+is the Moore-Penrose inverse of matrix Zall . We denote this upper bound as R(Zall ), which is more tractable to analyze and behaves similarly to R(Zall ) as shown in Appendix D.3. Therefore our subsequent analysis revolves around it. 
+
+4.3. Error Bound on OOD Detection Performance 
+
+With the evaluation target defined above, we now present the formal error bound on OOD detection performance by contrasting the labeled and unlabeled cases. As an overview, Theorem 1 will present the lower bound of linear probing error difference between the unlabeled and label case, along with an intuitive version in Theorem 2. We specify several mild assumptions and necessary notations for our theorems in Appendix A. Due to space limitation, we omit unimpor-tant constants and simplify the statements of our theorems. We defer the full formal statements in Appendix B. All proofs can be found in Appendix C. 
+
+Error difference between unlabeled and labeled cases. 
+
+Formally, we investigate the following linear probing error difference between the unlabeled and labeled case: 
+
+G = R(Z(u)all ) − R(Z(l)all ), (11) where a larger error difference indicates that labeled ID data benefits OOD detection more substantially, and vice versa. The lower bound on G is given by the following theorem. 
+
+Theorem 1 (Lower bound of the linear probing error differ-ence w/ and w/o ID labels) . (Informal.) Suppose we have adjacency matrices ˜A(u), ˜A(l) ∈ RN ×N and ˜A(u)OI , ˜A(l)OI ∈
+
+RM ×N for both the labeled and unlabeled cases. Under mild conditions, given positive constants ϕl, C , the error difference G in Equation 11 is lower bounded by 
+
+G ≥ Cϕ l
+
+N + M ϵ(p, q, ˜A(u), ˜A(u)OI ), (12) 
+
+where q ∈ RN ×c with each column defined as (qi)x =
+
+E¯xl∼Pli T (x|¯xl), x ∈ X id . Similarly, p ∈ RM ×c is defined as (pi)x = E¯xl∼Pli T (x|¯xl), x ∈ X ood . Semantically, each entry in q means the connection magnitude from x to all ID data while each entry in p is the connection from x to OOD data. Furthermore, 
+
+ϵ(p, q, ˜A(u), ˜A(u)OI ) = 2 
+
+> c
+
+X
+
+> i=1
+
+Tr 
+
+
+
+piq⊤ 
+
+> i
+
+· ˜A(u)⊤
+
+> OI
+
+
+
++
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++
+
+r2
+
+
+
+∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+2( τ − k)
+
+τ − 1 − 2
+
+
+
+·
+
+> c
+
+X
+
+> i=1
+
+∥qi∥1,
+
+where τ is a constant that measures the k-th spectral gap of matrix ˜A(u), i.e., λ(u) 
+
+> k
+
+≥ τ λ(u) 
+
+> k+1
+
+and λ(u) 
+
+> k
+
+is the k-th largest singular value of ˜A(u). r is the maximum l2 norm of the ID representations, i.e., r = max z∈Z(u) ∥z∥2.
+
+Theorem 1 is a general characterization of the error differ-ence in the labeled and unlabeled cases. To gain a better insight, we introduce Theorem 2 which provides intuition interpretations. 6When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+OOD category OOD dataset ID labels FPR95 ↓ AUROC ↑ LP error ↓ FPR95 ↓ AUROC ↑ LP error ↓
+
+Ptest ood = PLP ood Ptest ood ̸ = PLP ood 
+
+FAR OOD SVHN - 0.09 ±0.02 99.96 ±0.01 0.02 ±0.00 75.62 ±4.74 77.09 ±2.17 0.52 ±0.21 
+
++ 0.07 ±0.00 99.97 ±0.03 0.02 ±0.00 68.73 ±5.03 82.97 ±1.87 0.48 ±0.28 
+
+TEXTURES - 0.37 ±0.20 99.80 ±0.15 0.02 ±0.00 86.35 ±2.47 70.94 ±3.77 1.05 ±0.17 
+
++ 0.24 ±0.19 99.86 ±0.11 0.01 ±0.00 86.44 ±0.58 75.15 ±3.36 0.95 ±0.10 
+
+PLACES 365 - 0.68 ±0.10 99.98 ±0.00 0.02 ±0.01 75.35 ±2.78 79.85 ±1.85 0.83 ±0.27 
+
++ 0.44 ±0.06 99.99 ±0.01 0.02 ±0.01 66.60 ±1.61 85.03 ±3.19 0.74 ±0.09 
+
+LSUN -R ESIZE - 0.24 ±0.03 99.95 ±0.03 0.02 ±0.00 83.57 ±2.89 77.57 ±5.21 0.84 ±0.21 
+
++ 0.24 ±0.01 99.91 ±0.07 0.02 ±0.01 74.13 ±4.95 82.71 ±1.64 0.75 ±0.14 
+
+LSUN -C - 1.68 ±0.36 99.20 ±0.17 0.05 ±0.01 63.42 ±6.16 83.43 ±3.48 0.82 ±0.38 
+
++ 1.04 ±0.41 99.35 ±0.08 0.04 ±0.02 51.36 ±2.26 89.49 ±1.91 0.72 ±0.41 
+
+NEAR OOD CIFAR 10 - 62.20 ±3.49 85.93 ±1.72 0.27 ±0.11 94.54 ±0.79 55.42 ±1.64 0.97 ±0.18 
+
++ 58.28 ±2.90 89.01 ±0.98 0.19 ±0.05 91.07 ±3.28 67.72 ±0.97 0.85 ±0.32 
+
+Table 1: OOD detection results w/ and w/o ID labels (C IFAR 100 as ID). Mean and std are estimated on three different runs. Better results are highlighted in bold. “+,-” denotes the labeled and unlabeled case. “LP error” denotes the error of linear probing. ↑ indicates larger values are better, and ↓ indicates smaller values are better. The table shows that (1) the ID labeling information helps OOD detection, especially in the near OOD scenario and when Ptest ood = PLP ood ; Moreover, our observations can generalize to the case where the OOD distribution in linear probing is not the same as that in actual testing ( Ptest ood ̸ = PLP ood ), showcasing the generality of our theory. 
+
+Theorem 2 (Intuitive version of Theorem 1) . Under the same conditions in Theorem 1, assume the k-th spectral gap of ˜A(u) is sufficiently large, i.e., τ > k ,then the main error component ϵ(p, q, ˜A(u), ˜A(u)OI )
+
+in Equation 12 satisfies 
+
+ϵ(p, q, ˜A(u), ˜A(u)OI ) ≥
+
+h
+
+1 + ∥ ˜A(u)OI ∥2
+
+> F
+
+
+
+2N 2 − ∥ ˜A(u)∥2
+
+> F
+
+i 
+
+∥q∥2 
+
+> F
+
+.
+
+Interpretation and key insights. Theorem 2 shows that the optimal scenarios for achieving the greatest reduction in linear probing error—signifying the most significant benefit by incorporating the ID labels, are when 1. The ID data are connected sparsely in the unlabeled case (i.e., ∥ ˜A(u)∥2 
+
+> F
+
+< 2N 2), which always holds be-cause ∥ ˜A(u)∥∞ < N ;2. The OOD data is closely connected to the ID data (near OOD, i.e., ∥ ˜A(u)OI ∥2 
+
+> F
+
+is relatively large); 3. The semantic connection between each ID data to the labeled ID data from different ID classes is sufficiently large (i.e., ∥q∥2 
+
+> F
+
+is large). Moreover, the simplified bound also enables us to interpret the relationship of each key component with the error re-duction G. For example, 1) the bound will monotonically increase when the connection within ID data in the unla-beled case becomes sparser (i.e., ∥ ˜A(u)∥2 
+
+> F
+
+↓); 2) Since 
+
+∥ ˜A(u)∥2 
+
+> F
+
+is smaller than 2N 2, strengthening the semantic connection from each ID data to the labeled data from dif-ferent ID classes (i.e., ∥q∥2 
+
+> F
+
+↑) is always helpful. Intuitively, a larger ∥q∥2 
+
+> F
+
+means one ID data point is more likely to be augmented from another ID data; 3) If the ID and OOD data are closer ( ∥ ˜A(u)OI ∥2 
+
+> F
+
+↑), the value of the bound will increase given the same q and ˜A(u).
+
+Verification of bound on the illustrative example. Our theoretical guarantee aligns well with the empirical results. For example, in Figure 2 (e) where the OOD data is densely connected to the ID data (near OOD case), the ID labels can better shape the ID and OOD representations compared to the unlabeled case, rendering them linearly separable. As a result, the linear probing error is reduced from 0.09 in the unlabeled case to 0 in the labeled case. In contrast, when the OOD data is far from the ID data (Figure 2 (f)), the representations for ID and OOD are already well separated in the unlabeled case, and thus the benefit of ID labels is relatively marginal. As a verification, the linear probing error remains 0 both with and without ID labels. Therefore, these observations align with our key insight on the effect of OOD-ID connection ˜A(u)OI on the error difference for linear probing. Moreover, we provide additional visualization results on changing the Frobenius norm of the ID adjacency matrix ˜A(u) and the semantic connection q in Appendix G. 
+
+## 5. Experiments on Real Datasets 
+
+In this section, we verify our theoretical results using real-world OOD detection benchmarks. 
+
+Experimental setup. For ID datasets, we use C IFAR 10 and C IFAR 100 (Krizhevsky et al., 2009). We first train the neural network on the ID data for 200 epochs with a ResNet-18 (He et al., 2016), using objective Lunlabeled and 
+
+Llabeled for the unlabeled and labeled case, respectively. The 7When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+penultimate layer embedding dimension k = 512 . We then extract the embeddings for the ID and OOD data and per-form linear probing (50 epochs). We explore two different scenarios depending on whether the OOD in linear prob-ing ( PLP ood ) is the same as the test OOD ( Ptest ood ). In the first scenario ( Ptest ood = PLP ood ), we use 75% of the OOD dataset for linear probing and the remaining for testing. Specifi-cally, for far OOD test datasets, we use a suite of natural image datasets including T EXTURES (Cimpoi et al., 2014), SVHN (Netzer et al., 2011), P LACES 365 (Zhou et al., 2017), and L SUN (Yu et al., 2015). For near OOD, we evaluate on C IFAR 10 when C IFAR 100 is ID and vice versa. In the second scenario ( Ptest ood ̸ = PLP ood ), we use 300K R ANDOM 
+
+IMAGES (Hendrycks et al., 2019) for linear probing and the other OOD datasets for evaluation. More experiment details are in Appendix H. 
+
+Evaluation metrics. We report the following metrics: (1) the false positive rate (FPR95 ↓) of OOD samples when the true positive rate of ID samples is 95%, (2) the area under the receiver operating characteristic curve (AUROC ↑), and (3) the linear probing error (LP error ↓). 
+
+Experiment results. The results are shown in Table 1, which demonstrate that: (1) the ID labeling information helps OOD detection, especially in the near OOD scenario and when Ptest ood = PLP ood . For example, the AUROC is improved by 3.08% on C IFAR 10 compared to 0.02% on SVHN , echoing our theoretical insights; (2) Our observa-tions can generalize to the case where the OOD distribution in linear probing is not the same as that in actual testing (Ptest ood ̸ = PLP ood ), where the AUROC increases by 12.3% com-pared to the unsupervised counterpart on C IFAR 10, show-casing the flexibility and generality of our theory. Additional results on C IFAR 10 as the ID dataset and the evaluation us-ing post-hoc OOD detection score are shown in Appendix I. 
+
+Verification of bound. We verify the error difference G
+
+and its relationship to the Frobenius norm of the adjacency matrices ˜A(u) and ˜A(u)OI . Firstly, to verify how the value of 
+
+G will change given a larger Frobenius norm of ˜A(u)OI , we compare the linear probing error on S VHN and C IFAR 10 in Table 2 with and without ID labels, where the error dif-ference on C IFAR 10 (near OOD, with larger ∥ ˜A(u)OI ∥F ) is consistently larger than that on S VHN (far OOD).             
+
+> OOD dataset SVHN C10
+> FAR OOD NEAR OOD
+> ∥˜A(u)OI ∥F↑2334 2739
+> G ↑ 0.00 0.08
+
+Table 2: Verification with different    
+
+> ∥˜A(u)OI ∥F(C IFAR 100 as ID).
+
+In addition, we ver-ify the relationship of 
+
+∥ ˜A(u)∥F and the error difference (C IFAR 10 as OOD) in Table 3. Specifically, we calcu-late the norm of the ID adjacency matrix from                     
+
+> Epochs 40 80 120 160 200 240
+> ∥˜A(u)∥F↓20191 19549 18939 16073 15509 14810
+> G ↑ 0.01 0.03 0.06 0.06 0.08 0.09
+
+Table 3: Verification with different ∥ ˜A(u)∥F (C IFAR 100 as ID). 
+
+different training epochs and observe that the difference in linear probing error tends to increase with decreasing 
+
+∥ ˜A(u)∥F , which aligns with Theorem 2. Additional results and details are included in Appendix E. We further analyze the tightness of our bound in Appendix J. 
+
+## 6. Related Work 
+
+OOD detection has attracted a surge of interest in recent years (Fort et al., 2021; Yang et al., 2021b; Fang et al., 2022; Zhu et al., 2022; Ming et al., 2022a;c; Yang et al., 2022; Wang et al., 2022b; Galil et al., 2023; Djurisic et al., 2023; Zheng et al., 2023; Wang et al., 2022a; 2023b; Narasimhan et al., 2023; Yang et al., 2023; Uppaal et al., 2023; Zhu et al., 2023b;a; Ming & Li, 2023; Zhang et al., 2023; Ghosal et al., 2024). One line of work performs OOD detection by devising scoring functions, including confidence-based methods (Bendale & Boult, 2016; Hendrycks & Gimpel, 2017; Liang et al., 2018), energy-based score (Liu et al., 2020b; Wang et al., 2021; Wu et al., 2023), distance-based approaches (Lee et al., 2018b; Tack et al., 2020; Ren et al., 2021; Sehwag et al., 2021a; Sun et al., 2022; Du et al., 2022a; Ming et al., 2023; Ren et al., 2023), gradient-based score (Huang et al., 2021), and Bayesian approaches (Gal & Ghahramani, 2016; Lakshminarayanan et al., 2017; Mad-dox et al., 2019; Malinin & Gales, 2019; Wen et al., 2020; Kristiadi et al., 2020). Another line of work addressed OOD detection by training-time regularization (Bevandi ´c et al., 2018; Malinin & Gales, 2018; Geifman & El-Yaniv, 2019; Hein et al., 2019; Meinke & Hein, 2020; Jeong & Kim, 2020; Liu et al., 2020a; van Amersfoort et al., 2020; Yang et al., 2021a; Wei et al., 2022; Du et al., 2022b; 2023; Wang et al., 2023a). For example, the model is regularized to produce lower confidence (Lee et al., 2018a) or higher en-ergy (Liu et al., 2020b; Du et al., 2022c) on a set of clean OOD data (Hendrycks et al., 2019; Ming et al., 2022b), wild data (Zhou et al., 2021; Katz-Samuels et al., 2022; He et al., 2023; Bai et al., 2023; Du et al., 2024) and syn-thetic outliers (Du et al., 2023; Tao et al., 2023; Park et al., 2023). Additionally, a similar topic in a different domain, i.e., anomaly detection, often restricts the ID (normality) to be with a single class and with a different definition of the outliers (Chandola et al., 2009; Han et al., 2022). Most OOD detection methods rely on the supervision of ID labels, and there have been prior works, such as (Tack et al., 2020; Sehwag et al., 2021b; Sun et al., 2022) that empiri-cally verified that training with the ID labels can achieve a 8When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+much better OOD detection performance compared to the unsupervised version, but a provable analysis of their impact is critical yet missing in the field. 
+
+OOD detection theory. Recent studies have begun to focus on the theoretical understanding of OOD detection. Fang et al. (2022) studied the generalization of OOD detec-tion by PAC learning and they found a necessary condition for the learnability of OOD detection. Morteza & Li (2022) derived a novel OOD score and provided a provable under-standing of the OOD detection result using that score. Du et al. (2024) theoretically studied the impact of unlabeled data for OOD detection. In contrast, we formally analyze the impact of ID labels on OOD detection, which has not been studied in the past. 
+
+Spectral graph theory is a classical research prob-lem (Von Luxburg, 2007; Chung, 1997; Cheeger, 2015; Kan-nan et al., 2004; Lee et al., 2014; McSherry, 2001), which aims to partition the graph by studying the eigenspace of the adjacency matrix. Recently, it has been applied in different applications in machine learning (Ng et al., 2001; Shi & Malik, 2000; Blum, 2001; Zhu et al., 2003; Argyriou et al., 2005; Shaham et al., 2018). HaoChen et al. (2021) derived the spectral contrastive learning from the factorization of the graph’s adjacency matrix, and provably understand un-supervised domain adaptation (Shen et al., 2022; HaoChen et al., 2022). Sun et al. (2023a;b) expanded the spectral contrastive learning approach to novel class discovery and open-world semi-supervised learning. Our focus is on the OOD detection problem, which differs from prior literature. 
+
+## 7. Conclusion 
+
+In this paper, we propose a novel analytical framework that studies the impact of ID labels on OOD detection. Our framework takes a graph-theoretic approach by modeling the ID data via a graph, which allows us to characterize the feature representations by performing spectral decomposi-tion on the graph that can be expressed equivalently as a contrastive learning objective on neural net representation. Leveraging these representations, we establish a provable error bound that compares the OOD detection performance with and without ID labels, which reveals sufficient condi-tions for achieving improved OOD detection performance. Empirical observations further support our theoretical con-clusions, showcasing the benefits of ID labeling information under proper conditions. We hope our work will inspire future research on the theoretical understanding of OOD detection. One promising direction is to analyze the setting where there is access to OOD samples, which belongs to an important branch of work in OOD detection literature. 
+
+## Acknowledgement 
+
+We thank Hyeong Kyu (Froilan) Choi and Shawn Im for their valuable suggestions on the draft. The authors would also like to thank ICML anonymous reviewers for their helpful feedback. Du is supported by the Jane Street Grad-uate Research Fellowship. Li gratefully acknowledges the support from the AFOSR Young Investigator Program un-der award number FA9550-23-1-0184, National Science Foundation (NSF) Award No. IIS-2237037 & IIS-2331669, Office of Naval Research under grant number N00014-23-1-2643, Philanthropic Fund from SFF, and faculty research awards/gifts from Google and Meta. 
+
+## Impact Statement 
+
+Our paper aims to improve the reliability and safety of mod-ern machine learning models. From the theoretical perspec-tive, our analysis can facilitate and deepen the understanding of the effect of in-distribution labels for OOD detection. In Appendix E and Section 5 of the main paper, we properly verify the necessary conditions and the value of our bound using real-world datasets. Hence, we believe our theoretical framework has a broad utility and significance. From the practical side, our study can lead to direct bene-fits and societal impacts by deploying OOD detection tech-niques, particularly when practitioners need to determine how to better leverage the in-distribution labels, such as in safety-critical applications i.e., autonomous driving and healthcare data analysis. Our study does not involve any human subjects or violation of legal compliance. We do not anticipate any potentially harmful consequences to our work. Through our study and releasing our code, we hope to raise stronger research and societal awareness on the safe handling of out-of-distribution data in real-world settings. 
+
+## References 
+
+Ahmed, F. and Courville, A. Detecting semantic anoma-lies. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 34, pp. 3154–3162, 2020. Argyriou, A., Herbster, M., and Pontil, M. Combining graph laplacians for semi–supervised learning. Advances in Neural Information Processing Systems , 18, 2005. Bai, H., Canal, G., Du, X., Kwon, J., Nowak, R. D., and Li, Y. Feed two birds with one scone: Exploiting wild data for both out-of-distribution generalization and detection. In International Conference on Machine Learning , 2023. Baksalary, J. K. and Puntanen, S. An inequality for the trace of matrix product. IEEE transactions on automatic control , 37(2):239–240, 1992. 9When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Belkin, M. and Niyogi, P. Laplacian eigenmaps for di-mensionality reduction and data representation. Neural computation , 15(6):1373–1396, 2003. Belkin, M., Niyogi, P., and Sindhwani, V. Manifold regular-ization: A geometric framework for learning from labeled and unlabeled examples. Journal of Machine Learning Research , 7(85):2399–2434, 2006. Bendale, A. and Boult, T. E. Towards open set deep net-works. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 1563– 1572, 2016. Bengio, Y., Paiement, J.-f., Vincent, P., Delalleau, O., Roux, N., and Ouimet, M. Out-of-sample extensions for lle, isomap, mds, eigenmaps, and spectral clustering. Ad-vances in neural information processing systems , 16, 2003. Bevandi ´c, P., Kre ˇso, I., Or ˇsi ´c, M., and ˇSegvi ´c, S. Discrimi-native out-of-distribution detection for semantic segmen-tation. arXiv preprint arXiv:1808.07703 , 2018. Blum, A. Learning form labeled and unlabeled data using graph mincuts. In Proc. 18th International Conference on Machine Learning, 2001 , 2001. Chandola, V., Banerjee, A., and Kumar, V. Anomaly detec-tion: A survey. ACM computing surveys (CSUR) , 41(3): 1–58, 2009. Cheeger, J. A lower bound for the smallest eigenvalue of the laplacian. In Problems in analysis , pp. 195–200. Princeton University Press, 2015. Chen, T., Kornblith, S., Norouzi, M., and Hinton, G. Asimple framework for contrastive learning of visual rep-resentations. In International conference on machine learning , pp. 1597–1607. PMLR, 2020. Chen, X. and He, K. Exploring simple siamese represen-tation learning. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition , pp. 15750–15758, 2021. Chung, F. R. Spectral graph theory , volume 92. American Mathematical Soc., 1997. Cimpoi, M., Maji, S., Kokkinos, I., Mohamed, S., and Vedaldi, A. Describing textures in the wild. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 3606–3613, 2014. Djurisic, A., Bozanic, N., Ashok, A., and Liu, R. Extremely simple activation shaping for out-of-distribution detection. In International Conference on Learning Representations ,2023. Du, X., Gozum, G., Ming, Y., and Li, Y. Siren: Shaping representations for detecting out-of-distribution objects. In Advances in Neural Information Processing Systems ,2022a. Du, X., Wang, X., Gozum, G., and Li, Y. Unknown-aware object detection: Learning what you don’t know from videos in the wild. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022b. Du, X., Wang, Z., Cai, M., and Li, Y. Vos: Learning what you don’t know by virtual outlier synthesis. In Proceed-ings of the International Conference on Learning Repre-sentations , 2022c. Du, X., Sun, Y., Zhu, X., and Li, Y. Dream the impossible: Outlier imagination with diffusion models. In Advances in Neural Information Processing Systems , 2023. Du, X., Fang, Z., Diakonikolas, I., and Li, Y. How does unlabeled data provably help out-of-distribution detec-tion? In Proceedings of the International Conference on Learning Representations , 2024. Eckart, C. and Young, G. The approximation of one matrix by another of lower rank. Psychometrika , 1(3):211–218, 1936. Fang, Y., Loparo, K., and Feng, X. Inequalities for the trace of matrix product. IEEE Transactions on Automatic Control , 39(12):2489–2490, 1994. Fang, Z., Li, Y., Lu, J., Dong, J., Han, B., and Liu, F. Is out-of-distribution detection learnable? In Advances in Neural Information Processing Systems , 2022. Fort, S., Ren, J., and Lakshminarayanan, B. Exploring the limits of out-of-distribution detection. Advances in Neural Information Processing Systems , 34:7068–7081, 2021. Gal, Y. and Ghahramani, Z. Dropout as a bayesian ap-proximation: Representing model uncertainty in deep learning. In Proceedings of the International Conference on Machine Learning , pp. 1050–1059, 2016. Galil, I., Dabbah, M., and El-Yaniv, R. A framework for benchmarking class-out-of-distribution detection and its application to imagenet. In International Conference on Learning Representations , 2023. Geifman, Y. and El-Yaniv, R. Selectivenet: A deep neural network with an integrated reject option. In Proceedings of the International Conference on Machine Learning , pp. 2151–2159, 2019. 10 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Ghosal, S. S., Sun, Y., and Li, Y. How to overcome curse-of-dimensionality for ood detection? In Proceedings of the AAAI Conference on Artificial Intelligence , 2024. Greenbaum, A., Li, R.-c., and Overton, M. L. First-order perturbation theory for eigenvalues and eigenvectors. 
+
+SIAM review , 62(2):463–482, 2020. Han, S., Hu, X., Huang, H., Jiang, M., and Zhao, Y. Ad-bench: Anomaly detection benchmark. Advances in Neu-ral Information Processing Systems , 35:32142–32159, 2022. HaoChen, J. Z., Wei, C., Gaidon, A., and Ma, T. Provable guarantees for self-supervised deep learning with spec-tral contrastive loss. Advances in Neural Information Processing Systems , 34:5000–5011, 2021. HaoChen, J. Z., Wei, C., Kumar, A., and Ma, T. Beyond separability: Analyzing the linear transferability of con-trastive representations to related subpopulations. Ad-vances in Neural Information Processing Systems , 2022. He, K., Zhang, X., Ren, S., and Sun, J. Deep residual learn-ing for image recognition. In Proceedings of the IEEE conference on computer vision and pattern recognition ,pp. 770–778, 2016. He, R., Li, R., Han, Z., Yang, X., and Yin, Y. Topo-logical structure learning for weakly-supervised out-of-distribution detection. In Proceedings of the 31st ACM International Conference on Multimedia , pp. 4858–4866, 2023. Hein, M., Andriushchenko, M., and Bitterwolf, J. Why relu networks yield high-confidence predictions far away from the training data and how to mitigate the problem. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 41–50, 2019. Hendrycks, D. and Gimpel, K. A baseline for detecting misclassified and out-of-distribution examples in neural networks. Proceedings of the International Conference on Learning Representations , 2017. Hendrycks, D., Mazeika, M., and Dietterich, T. Deep anomaly detection with outlier exposure. In Proceedings of the International Conference on Learning Representa-tions , 2019. Huang, R., Geng, A., and Li, Y. On the importance of gradients for detecting distributional shifts in the wild. In Advances in Neural Information Processing Systems ,2021. Jansen, A., Sell, G., and Lyzinski, V. Scalable out-of-sample extension of graph embeddings using deep neural net-works. arXiv preprint arXiv:1508.04422 , 2015. Jeong, T. and Kim, H. Ood-maml: Meta-learning for few-shot out-of-distribution detection and classification. Ad-vances in Neural Information Processing Systems , 33: 3907–3916, 2020. Kannan, R., Vempala, S., and Vetta, A. On clusterings: Good, bad and spectral. Journal of the ACM (JACM) , 51 (3):497–515, 2004. Katz-Samuels, J., Nakhleh, J., Nowak, R., and Li, Y. Train-ing ood detectors in their natural habitats. In International Conference on Machine Learning , 2022. Kristiadi, A., Hein, M., and Hennig, P. Being bayesian, even just a bit, fixes overconfidence in relu networks. In 
+
+International conference on machine learning , pp. 5436– 5446, 2020. Krizhevsky, A., Hinton, G., et al. Learning multiple layers of features from tiny images. 2009. Lakshminarayanan, B., Pritzel, A., and Blundell, C. Simple and scalable predictive uncertainty estimation using deep ensembles. In Advances in Neural Information Process-ing Systems , volume 30, pp. 6402–6413, 2017. Lee, J. R., Gharan, S. O., and Trevisan, L. Multiway spec-tral partitioning and higher-order cheeger inequalities. 
+
+Journal of the ACM (JACM) , 61(6):1–30, 2014. Lee, K., Lee, H., Lee, K., and Shin, J. Training confidence-calibrated classifiers for detecting out-of-distribution sam-ples. In Proceedings of the International Conference on Learning Representations , 2018a. Lee, K., Lee, K., Lee, H., and Shin, J. A simple unified framework for detecting out-of-distribution samples and adversarial attacks. Advances in Neural Information Pro-cessing Systems , 31, 2018b. Levin, K., Roosta, F., Mahoney, M., and Priebe, C. Out-of-sample extension of graph adjacency spectral embedding. In International Conference on Machine Learning , pp. 2975–2984. PMLR, 2018. Liang, S., Li, Y., and Srikant, R. Enhancing the reliability of out-of-distribution image detection in neural networks. In 
+
+Proceedings of the International Conference on Learning Representations , 2018. Liu, J., Lin, Z., Padhy, S., Tran, D., Bedrax Weiss, T., and Lakshminarayanan, B. Simple and principled uncertainty estimation with deterministic deep learning via distance awareness. Advances in Neural Information Processing Systems , 33:7498–7512, 2020a. Liu, W., Wang, X., Owens, J., and Li, Y. Energy-based out-of-distribution detection. Advances in Neural Information Processing Systems , 33:21464–21475, 2020b. 11 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Maddox, W. J., Izmailov, P., Garipov, T., Vetrov, D. P., and Wilson, A. G. A simple baseline for bayesian uncer-tainty in deep learning. Advances in Neural Information Processing Systems , 32:13153–13164, 2019. Malinin, A. and Gales, M. Predictive uncertainty estima-tion via prior networks. Advances in Neural Information Processing Systems , 31, 2018. Malinin, A. and Gales, M. Reverse kl-divergence training of prior networks: Improved uncertainty and adversarial ro-bustness. In Advances in Neural Information Processing Systems , 2019. McSherry, F. Spectral partitioning of random graphs. In 
+
+Proceedings 42nd IEEE Symposium on Foundations of Computer Science , pp. 529–537. IEEE, 2001. Meinke, A. and Hein, M. Towards neural networks that prov-ably know when they don’t know. In Proceedings of the International Conference on Learning Representations ,2020. Ming, Y. and Li, Y. How does fine-tuning impact out-of-distribution detection for vision-language models? Inter-national Journal of Computer Vision , 2023. Ming, Y., Cai, Z., Gu, J., Sun, Y., Li, W., and Li, Y. Delving into out-of-distribution detection with vision-language representations. In Advances in Neural Information Pro-cessing Systems , 2022a. Ming, Y., Fan, Y., and Li, Y. POEM: out-of-distribution detection with posterior sampling. In Proceedings of the International Conference on Machine Learning , pp. 15650–15665, 2022b. Ming, Y., Yin, H., and Li, Y. On the impact of spurious cor-relation for out-of-distribution detection. In Proceedings of the AAAI Conference on Artificial Intelligence , 2022c. Ming, Y., Sun, Y., Dia, O., and Li, Y. How to exploit hyperspherical embeddings for out-of-distribution detec-tion? In Proceedings of the International Conference on Learning Representations , 2023. Morteza, P. and Li, Y. Provable guarantees for understand-ing out-of-distribution detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 36, pp. 7831–7840, 2022. Narasimhan, H., Menon, A. K., Jitkrittum, W., and Kumar, S. Learning to reject meets ood detection: Are all absten-tions created equal? arXiv preprint arXiv:2301.12386 ,2023. Netzer, Y., Wang, T., Coates, A., Bissacco, A., Wu, B., and Ng, A. Y. Reading digits in natural images with unsupervised feature learning. 2011. Ng, A., Jordan, M., and Weiss, Y. On spectral clustering: Analysis and an algorithm. Advances in neural informa-tion processing systems , 14, 2001. Park, S., Mok, J., Jung, D., Lee, S., and Yoon, S. On the powerfulness of textual outlier exposure for visual ood detection. arXiv preprint arXiv:2310.16492 , 2023. Quispe, A. M., Petitjean, C., and Heutte, L. Extreme learn-ing machine for out-of-sample extension in laplacian eigenmaps. Pattern Recognition Letters , 74:68–73, 2016. Ren, J., Fort, S., Liu, J., Roy, A. G., Padhy, S., and Lakshmi-narayanan, B. A simple fix to mahalanobis distance for improving near-ood detection. CoRR , abs/2106.09022, 2021. Ren, J., Luo, J., Zhao, Y., Krishna, K., Saleh, M., Lakshmi-narayanan, B., and Liu, P. J. Out-of-distribution detection and selective generation for conditional language models. In International Conference on Learning Representations ,2023. Sehwag, V., Chiang, M., and Mittal, P. Ssd: A unified framework for self-supervised outlier detection. In Inter-national Conference on Learning Representations , 2021a. Sehwag, V., Chiang, M., and Mittal, P. Ssd: A unified framework for self-supervised outlier detection. In Pro-ceedings of the International Conference on Learning Representations , 2021b. Shaham, U., Stanton, K., Li, H., Nadler, B., Basri, R., and Kluger, Y. Spectralnet: Spectral clustering using deep neural networks. In 6th International Conference on Learning Representations, ICLR 2018 , 2018. Shen, K., Jones, R. M., Kumar, A., Xie, S. M., HaoChen, J. Z., Ma, T., and Liang, P. Connect, not collapse: Explain-ing contrastive learning for unsupervised domain adapta-tion. In International Conference on Machine Learning ,pp. 19847–19878, 2022. Shi, J. and Malik, J. Normalized cuts and image segmenta-tion. IEEE Transactions on pattern analysis and machine intelligence , 22(8):888–905, 2000. Sun, Y., Ming, Y., Zhu, X., and Li, Y. Out-of-distribution detection with deep nearest neighbors. In Proceedings of the International Conference on Machine Learning , pp. 20827–20840, 2022. Sun, Y., Shi, Z., and Li, Y. A graph-theoretic framework for understanding open-world representation learning. In Ad-vances in Neural Information Processing Systems , 2023a. Sun, Y., Shi, Z., Liang, Y., and Li, Y. When and how does known class help discover unknown ones? provable 12 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+understandings through spectral analysis. In International Conference on Machine Learning , 2023b. Sussman, D. L., Tang, M., Fishkind, D. E., and Priebe, C. E. A consistent adjacency spectral embedding for stochastic blockmodel graphs. Journal of the American Statistical Association , 107(499):1119–1128, 2012. Tack, J., Mo, S., Jeong, J., and Shin, J. Csi: Novelty de-tection via contrastive learning on distributionally shifted instances. In Advances in Neural Information Processing Systems , 2020. Tang, M., Sussman, D. L., and Priebe, C. E. Universally consistent vertex classification for latent positions graphs. 
+
+The Annals of Statistics , 41(3):1406–1430, 2013. Tao, L., Du, X., Zhu, X., and Li, Y. Non-parametric outlier synthesis. In Proceedings of the International Conference on Learning Representations , 2023. Trosset, M. W. and Priebe, C. E. The out-of-sample problem for classical multidimensional scaling. Computational statistics & data analysis , 52(10):4635–4642, 2008. Uppaal, R., Hu, J., and Li, Y. Is fine-tuning needed? pre-trained language models are near perfect for out-of-domain detection. In Annual Meeting of the Association for Computational Linguistics , 2023. van Amersfoort, J., Smith, L., Teh, Y. W., and Gal, Y. Uncer-tainty estimation using a single deep deterministic neural network. In Proceedings of the International Conference on Machine Learning , pp. 9690–9700, 2020. Von Luxburg, U. A tutorial on spectral clustering. Statistics and computing , 17(4):395–416, 2007. Wang, H., Liu, W., Bocchieri, A., and Li, Y. Can multi-label classification networks know what they don’t know? 
+
+Proceedings of the Advances in Neural Information Pro-cessing Systems , 2021. Wang, Q., Liu, F., Zhang, Y., Zhang, J., Gong, C., Liu, T., and Han, B. Watermarking for out-of-distribution detection. Advances in Neural Information Processing Systems , 35:15545–15557, 2022a. Wang, Q., Fang, Z., Zhang, Y., Liu, F., Li, Y., and Han, B. Learning to augment distributions for out-of-distribution detection. Advances in Neural Information Processing Systems , 2023a. Wang, Q., Ye, J., Liu, F., Dai, Q., Kalander, M., Liu, T., HAO, J., and Han, B. Out-of-distribution detection with implicit outlier transformation. In International Confer-ence on Learning Representations , 2023b. Wang, Y., Zou, J., Lin, J., Ling, Q., Pan, Y., Yao, T., and Mei, T. Out-of-distribution detection via conditional kernel independence model. In Advances in Neural Information Processing Systems , 2022b. Wei, H., Xie, R., Cheng, H., Feng, L., An, B., and Li, Y. Mitigating neural network overconfidence with logit normalization. In Proceedings of the International Con-ference on Machine Learning , pp. 23631–23644, 2022. Wen, Y., Tran, D., and Ba, J. Batchensemble: an alternative approach to efficient ensemble and lifelong learning. In 
+
+International Conference on Learning Representations ,2020. Wu, Q., Chen, Y., Yang, C., and Yan, J. Energy-based out-of-distribution detection for graph neural networks. In 
+
+International Conference on Learning Representations ,2023. Yang, J., Wang, H., Feng, L., Yan, X., Zheng, H., Zhang, W., and Liu, Z. Semantically coherent out-of-distribution detection. In Proceedings of the International Conference on Computer Vision , pp. 8281–8289, 2021a. Yang, J., Zhou, K., Li, Y., and Liu, Z. Generalized out-of-distribution detection: A survey. arXiv preprint arXiv:2110.11334 , 2021b. Yang, J., Wang, P., Zou, D., Zhou, Z., Ding, K., PENG, W., Wang, H., Chen, G., Li, B., Sun, Y., Du, X., Zhou, K., Zhang, W., Hendrycks, D., Li, Y., and Liu, Z. OpenOOD: Benchmarking generalized out-of-distribution detection. In Advances on Neural Information Processing Systems, Datasets and Benchmarks Track , 2022. Yang, P., Liang, J., Cao, J., and He, R. Auto: Adaptive outlier optimization for online test-time ood detection. 
+
+arXiv preprint arXiv:2303.12267 , 2023. Yu, F., Seff, A., Zhang, Y., Song, S., Funkhouser, T., and Xiao, J. Lsun: Construction of a large-scale image dataset using deep learning with humans in the loop. arXiv preprint arXiv:1506.03365 , 2015. Zhang, J., Yang, J., Wang, P., Wang, H., Lin, Y., Zhang, H., Sun, Y., Du, X., Zhou, K., Zhang, W., et al. Openood v1. 5: Enhanced benchmark for out-of-distribution detection. 
+
+arXiv preprint arXiv:2306.09301 , 2023. Zheng, H., Wang, Q., Fang, Z., Xia, X., Liu, F., Liu, T., and Han, B. Out-of-distribution detection learning with unreliable out-of-distribution sources. arXiv preprint arXiv:2311.03236 , 2023. Zhou, B., Lapedriza, A., Khosla, A., Oliva, A., and Tor-ralba, A. Places: A 10 million image database for scene recognition. IEEE transactions on pattern analysis and machine intelligence , 40(6):1452–1464, 2017. 13 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Zhou, Z., Guo, L.-Z., Cheng, Z., Li, Y.-F., and Pu, S. STEP: Out-of-distribution detection in the presence of limited in-distribution labeled data. In Advances in Neural Infor-mation Processing Systems , 2021. Zhu, J., Li, H., Yao, J., Liu, T., Xu, J., and Han, B. Un-leashing mask: Explore the intrinsic out-of-distribution detection capability. arXiv preprint arXiv:2306.03715 ,2023a. Zhu, J., Yu, G., Yao, J., Liu, T., Niu, G., Sugiyama, M., and Han, B. Diversified outlier exposure for out-of-distribution detection via informative extrapolation. arXiv preprint arXiv:2310.13923 , 2023b. Zhu, X., Ghahramani, Z., and Lafferty, J. D. Semi-supervised learning using gaussian fields and harmonic functions. In Proceedings of the 20th International con-ference on Machine learning (ICML-03) , pp. 912–919, 2003. Zhu, Y., Chen, Y., Xie, C., Li, X., Zhang, R., Xue’, H., Tian, X., bolun zheng, and Chen, Y. Boosting out-of-distribution detection with typical features. In Advances in Neural Information Processing Systems , 2022. 14 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+# When and How Does In-Distribution Label Help Out-of-Distribution Detection? (Appendix) 
+
+## A. Notations, Assumptions and Important Constants 
+
+Here we summarize the important notations and constants in Table 4, and restate necessary definitions and assumptions in Section A.2. 
+
+A.1. Notations 
+
+Please see Table 4 for detailed notations. Table 4: Main notations and their descriptions. Notation Description Spaces 
+
+X , Z, Y the input, representation space and the label space. Distributions 
+
+Pid , Pood data distribution for ID data and OOD data 
+
+PX Y the joint data distribution for ID data. Data and Models 
+
+x input to the neural network 
+
+˜A(u)OI and ˜A(l)OI adjacency matrix between OOD and ID data in the labeled and unlabeled case 
+
+A(u) and A(l) adjacency matrix for ID data in the labeled and unlabeled case 
+
+˜A(u) and ˜A(l) normalized adjacency matrix for ID data in the labeled and unlabeled case 
+
+D(u) and D(l) ID diagonal matrix with the diagonal elements being the row sum of A(u) and A(l).
+
+D(u)ood and D(l)ood OOD diagonal matrix with the diagonal elements being the row sum of ˜A(u)OI and ˜A(l)OI .
+
+T augmentation graph 
+
+w, θ weight of the ID feature extractor and the linear probing layer 
+
+hw and gθ feature extractor on ID data and linear probing layer for OOD detection 
+
+y, y binary label for linear probing, vectorized one-hot label for y
+
+z feature for single input xZ(u) and Z(l) representation matrix for ID data in the labeled and unlabeled case 
+
+Z(u)ood and Z(l)ood representation matrix for OOD data in the labeled and unlabeled case 
+
+Z(u)all and Z(l)all representation matrix for both ID and OOD data in the labeled and unlabeled case 
+
+q and p semantic connection from each ID/OOD data to the labeled ID data. 
+
+N , M size of Z, size of Zood 
+
+λ eigenvalue vector of ˜Avj the j-th eigenvector of ˜AVk, V∅ the first k eigenvectors of ˜A/the latter N − k eigenvectors of ˜A (null space of Vk)Distances 
+
+∥ · ∥ 1, ∥ · ∥ 2, ∥ · ∥ F ℓ1, ℓ 2 norm and Frobenius norm Loss and Risk 
+
+Lunlabeled (·), Llabeled (·) ID loss function in the unlabeled and labeled case 
+
+R(Zall ) the empirical risk w.r.t. linear probing module over feature set Zall 
+
+R(Zall ) the upper bound of R(Zall )
+
+G linear probing error difference with and without ID labels Constants 
+
+ϕu, ϕ l weight coefficients for the unlabeled and labeled case. 
+
+k dimension of the feature representation 
+
+τ the parameter that measures the eigengap of ˜A(u)
+
+r the maximum ℓ2 norm of the ID features, i.e., r = max z∈Z(u) ∥z∥2
+
+C constants in Theorem 1 15 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+A.2. Assumptions Assumption 1 (Property of ID adjacency matrix) . We assume the adjacency matrix ˜A(u) has the following property: There exists a positive constant k ≤ N such that the k-th eigengap of ˜A(u) satisfies that λ(u) 
+
+> k
+
+≥ τ λ(u)
+
+> k+1
+
+, τ > k , where λ(u) 
+
+> k
+
+is the 
+
+k-th largest eigenvalue of matrix ˜A(u).
+
+Remark 1. We have empirically verified our assumption using both simulated and real-world datasets in Section E. 
+
+Assumption 2 (Property of vectors that depict the semantic connection between each ID/OOD data to the labeled ID data) .
+
+Similar to (Sun et al., 2023a), we assume each row of the matrix q lies in the linear span of V(u) 
+
+> k
+
+and V(u) 
+
+> k
+
+[Σ(u) 
+
+> k
+
+]− 12 , i.e., 
+
+V(u)⊤ 
+
+> ∅
+
+qi = 0 , V(u) 
+
+> k
+
+V(u)⊤ 
+
+> k
+
+qi = qi and V(u) 
+
+> k
+
+[Σ(u) 
+
+> k
+
+]−1V(u)⊤ 
+
+> k
+
+qi = qi.
+
+Remark 2. Following the assumptions made in the existing literature (Sun et al., 2023a), the assumption is used to simplify 
+
+V(u) 
+
+> k
+
+V(u)⊤ 
+
+> k
+
+qiq⊤ 
+
+> i
+
+V(u) 
+
+> ∅
+
+V(u)⊤ 
+
+> ∅
+
++ V(u) 
+
+> k
+
+V(u)⊤ 
+
+> k
+
+qiq⊤ 
+
+> i
+
+to qiq⊤ 
+
+> i
+
+and simplify V(u) 
+
+> k
+
+[Σ(u) 
+
+> k
+
+]−1V(u)⊤ 
+
+> k
+
+qi to qi.
+
+## B. Main Theorems 
+
+In this section, we provide a detailed and formal version of our main theorems with a complete description of the constant terms and other additional details that are omitted in the main paper. 
+
+Theorem 1 (Lower bound of the error difference between unlabeled and labeled cases, recap of Theorem 1 in the main paper) . Suppose we have adjacency matrices ˜A(u), ˜A(l) ∈ RN ×N and ˜A(u)OI , ˜A(l)OI ∈ RM ×N for both the labeled and unlabeled cases. If Assumption 2 holds, given positive constants ϕl, C , the error difference G in Equation 11 is bounded by 
+
+G ≥ Cϕ l
+
+N + M ϵ(p, q, ˜A(u), ˜A(u)OI ), (13) 
+
+where q ∈ Rc×N with each row being defined as (qi)x = E¯xl∼Pli T (x|¯xl), x ∈ X id . Similarly, we have p ∈ Rc×M and 
+
+(pi)x = E¯xl∼Pli T (x|¯xl), x ∈ X ood . Furthermore, 
+
+ϵ(p, q, ˜A(u), ˜A(u)OI ) = 2 
+
+> c
+
+X
+
+> i=1
+
+Tr 
+
+
+
+piq⊤ 
+
+> i
+
+· ˜A(u)⊤
+
+> OI
+
+
+
++
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++
+
+r2
+
+
+
+∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+2( τ − k)
+
+τ − 1 − 2
+
+
+
+·
+
+> c
+
+X
+
+> i=1
+
+∥qi∥1,
+
+(14) 
+
+where τ is a constant that measures the k-th spectral gap of matrix ˜A(u), i.e., λ(u) 
+
+> k
+
+≥ τ λ(u) 
+
+> k+1
+
+and λ(u) 
+
+> k
+
+is the k-th largest singular value of ˜A(u). r is the maximum l2 norm of the ID representations, i.e., r = max z∈Z(u) ∥z∥2.
+
+Theorem 2 (Simplified version of Theorem 1, recap of Theorem 2 in the main paper) . Under the same conditions in Theorem 1, if the number of ID and OOD samples N and M is sufficiently large, assume the k-th spectral gap of ˜A(u)
+
+satisfies τ > k (Assumption 1 holds), then the main error component ϵ(p, q, ˜A(u), ˜A(u)OI ) in Equation 14 satisfies 
+
+ϵ(p, q, ˜A(u), ˜A(u)OI ) ≥
+
+h
+
+1 + ∥ ˜A(u)OI ∥2
+
+> F
+
+
+
+2N 2 − ∥ ˜A(u)∥2
+
+> F
+
+i cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
+. (15) 
+
+16 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+## C. Proofs of Main Theorems 
+
+C.1. Proof of Theorem 1 
+
+Before proving Theorem 1, we first explain the framework introduced in Section 4 of the main paper to analyze the difference in the adjacency matrices and the corresponding feature representations between the unlabeled and labeled cases. Specifically, we proposed to analyze the adjacency matrix in the labeled case by perturbation analysis. 
+
+Matrix perturbation in the labeled case. Recall that we define in Definition 4 that the adjacency matrix in the labeled case (l) is the unlabeled one (u) plus connectivity incurred by the ID labels, which can be regarded as the perturbation of the labeling information. Therefore, for the ID adjacency matrix with ID labels, we have the perturbation on A(u) as follows: 
+
+A(l) = ϕuA(u) + ϕl∆A, (16) where ∆A ∈ RN ×N can be calculated based on the augmentation graph T according to Definition 4. Following (Sun et al., 2023a), we study the perturbation from two aspects: (1) The direction of the perturbation which is given by ∆A, (2) The perturbation magnitude ϕl. We first consider the perturbation direction ∆A and recall that we defined the concrete form in Definition 4: 
+
+[∆ A]xx ′ ≜ X
+
+> i∈Y
+
+E¯xl∼Pli E¯x′ 
+
+> l∼Pli
+
+T (x | ¯xl) T (x′ | ¯x′
+
+> l
+
+) , x, x′ ∈ X id (17) where T is the augmentation graph. In our theory, we consider ∥Y∥ = c, and then we observe that ∆A is the sum of c
+
+rank-1 matrices, which can be written as: 
+
+∆A =
+
+> c
+
+X
+
+> i=1
+
+qiq⊤ 
+
+> i
+
+, (18) where q ∈ RN ×c with each column defined as (qi)x = E¯xl∼Pli T (x | ¯xl) , x ∈ X id and ¯xl is the labeled ID data with label 
+
+i. And following (Sun et al., 2023a), we define the diagonal matrix D(l) as follows: 
+
+D(l) = ϕu · D(u) +
+
+> c
+
+X
+
+> i=1
+
+ϕl · diag( qi). (19) Without losing the generality, we let ϕu · diag( 1⊤ 
+
+> N
+
+A(u)) = IN ×N , which means the ID nodes have equal degree in the unlabeled case. We then have: 
+
+D(l) ≜ diag 
+
+
+
+1⊤ 
+
+> N
+
+A(l)
+
+= IN ×N + ϕl ·
+
+> c
+
+X
+
+> i=1
+
+diag( qi). (20) 
+
+The perturbation function of representation. We then consider a more generalized form for the ID adjacency matrix A:
+
+A(ϕl) = ϕuA(u) + ϕl ·
+
+> c
+
+X
+
+> i=1
+
+qiq⊤ 
+
+> i
+
+. (21) For the perturbation on the OOD-ID adjacency matrix ˜AOI , we define p ∈ RM ×c with each column defined as (pi)x =
+
+E¯xl∼Pli T (x | ¯xl) , x ∼ X ood and ¯xl is the labeled ID data with label li. Similar to Equation 17, we can define the concrete perturbation formula for ˜AOI as follows: 
+
+[∆ ˜AOI ]xx ′ ≜ X
+
+> i∈Y
+
+E¯xl∼Pli E¯x′ 
+
+> l∼Pli
+
+T (x | ¯xl) T (x′ | ¯x′
+
+> l
+
+) , x′ ∼ X id , x ∼ X ood . (22) And we have: 
+
+˜AOI (ϕl) = ϕu ˜A(u)OI + ϕl ·
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+. (23) 17 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Similarly, for the ID diagonal matrix D, we have that: 
+
+D(ϕl) = IN ×N + ϕl ·
+
+> c
+
+X
+
+> i=1
+
+diag( qi). (24) In Equations 21 and 23, we treat the adjacency matrix as a function of the “labeling perturbation” magnitude ϕl. It is clear that A(0) = ϕuA(u) and ˜AOI (0) = ϕu ˜A(u)OI which are the scaled adjacency matrices in the unlabeled case. When we let the adjacency matrix be a function of ϕl, the normalized form, and the derived feature representation should also be the function of ϕl. We proceed by defining these terms. The normalized ID adjacency matrix is given by: 
+
+˜A(ϕl) = D(ϕl)− 12 A(ϕl)D(ϕl)− 12 , (25) In addition, for in-distribution feature representation Z(ϕl), it is derived from the top-k eigen components of ˜A(ϕl).Specifically, we have: 
+
+Z(ϕl)Z(ϕl)⊤ = D(ϕl)− 12 ˜Ak(ϕl)D(ϕl)− 12 = D(ϕl)− 12
+
+> k
+
+X
+
+> j=1
+
+λj (ϕl)Φj (ϕl)D(ϕl)− 12 , (26) where ˜Ak(ϕl) is the top-k SVD components of ˜A(ϕl) and can be written as ˜Ak(ϕl) = Pkj=1 λj (ϕl)Φj (ϕl). Here λj (ϕl)
+
+and Φj (ϕl) = vj (ϕl)v⊤ 
+
+> j
+
+(ϕl) are the j-th eigenvalue and eigen projector of matrix ˜A(ϕl). For simplicity, when ϕl = 0 , we remove the suffix (0) and give the following definitions: 
+
+˜A(0) = ˜A(u), Z(0) = Z(u), Zood (0) = Z(u)ood , Zall (0) = Z(u)all , λj (0) = λ(u) 
+
+> j
+
+, vj (0) = v(u) 
+
+> j
+
+, Φj (0) = Φ(u) 
+
+> j
+
+. (27) We proceed to provide the five concrete steps to prove Theorem 1. 
+
+Step 1 . Recall that our analysis is based on the upper bound of the linear probing loss, and focuses on the error difference between the labeled and the unlabeled case, which is formulated in Equation 11 of the main paper. In the context of perturbation analysis, we can reformulate the error difference G as a function of ϕl as follows: 
+
+G(ϕl) = R(Zall (0)) − R(Zall (ϕl)) . (28) By the definition of the derivative, we can rewrite Equation 28: 
+
+G(ϕl) = − dR (Zall (ϕl)) dϕl ϕl=0 
+
+· ϕl (29) With Lemma 3, we can get the lower bound of G(ϕl) as follows: 
+
+G(ϕl) ≥ 23( N + M ) ϕl · max λ  Zall (ϕl)⊤Zall (ϕl) · Tr 
+
+ Zall (ϕl)Zall (ϕl)⊤′ yy ⊤
+
+> ϕl=0
+
+(30) According to Lemma 4, max λ  Zall (ϕl)⊤Zall (ϕl) 
+
+> ϕl=0
+
+> 0 is a positive constant. Here max λ  Zall (ϕl)⊤Zall (ϕl)
+
+means the maximum eigenvalue of the matrix Zall (ϕl)⊤Zall (ϕl). We then proceed to analyze the key component 
+
+Tr 
+
+ Zall (ϕl)Zall (ϕl)⊤′ yy ⊤
+
+
+
+> ϕl=0
+
+.Next, according to Lemma 3.1 in (HaoChen et al., 2021), which implies that multiplying any invertible matrix by the features of the linear probing module does not change the linear probing performance. Therefore, we simplify the mathematical representation of the ID and OOD features in the Equations 6 and 8 in the main paper as follows by removing the terms 
+
+D(ϕl) and Dood (ϕl):
+
+Z(l) = V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+] 12 , Z(l)ood = ˜A(l)OI V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+]− 12 , (31) 18 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+which simplifies the notation and will be used in our later analysis. 
+
+Step 2 . Recall that the input feature for linear probing Z(ϕl) is defined as: 
+
+Zall (ϕl) = 
+
+ Z(ϕl)
+
+Zood (ϕl)
+
+
+
+= Vk(ϕl)pΣk(ϕl)˜AOI (ϕl)Vk(ϕl)pΣk(ϕl)−1
+
+!
+
+(32) Therefore, it is natural to have that:              
+
+> Tr(( Zall (ϕl)Zall (ϕl)⊤)′yy ⊤)
+> ϕl=0
+> = Tr Vk(ϕl)pΣk(ϕl)˜AOI (ϕl)Vk(ϕl)pΣk(ϕl)−1
+> !
+> ·
+> pΣk(ϕl)Vk(ϕl)⊤pΣk(ϕl)−1Vk(ϕl)⊤˜Ak
+> OI (ϕl)⊤!′
+> yy ⊤
+> !
+> ϕl=0
+> ≥Tr
+
+Vk (ϕl)Σk (ϕl)Vk (ϕl)⊤ Vk (ϕl)Vk (ϕl)⊤ ˜AOI (ϕl)˜AOI (ϕl)Vk (ϕl)Vk (ϕl)⊤ ˜AOI (ϕl)Vk (ϕl)Σk (ϕl)−1Vk (ϕl)⊤ ˜AOI (ϕl)⊤          
+
+> !′!
+> ϕl=0
+> ·Tr( yy ⊤)=Tr
+> 
+> Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+> + Tr
+>  ˜AOI (ϕl)Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤˜AOI (ϕl)⊤′
+> ϕl=0
+> !
+> · ∥ y∥2
+> F
+> (33)
+
+In the following steps, we focus on the lower bounds of the two separate terms, i.e., 
+
+Tr 
+
+ ˜AOI (ϕl)Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤ ˜AOI (ϕl)⊤
+
+′
+
+ϕl=0 and Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+ϕl=0 , respectively. 
+
+Step 3 . As in Lemma 5, we provide the lower bound for the first term Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+ϕl=0 as follows: 
+
+Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+ϕl=0 
+
+≥
+
+cX
+
+i=1 
+
+∥qi∥2
+
+F − 2r2
+
+cX
+
+i=1 
+
+∥qi∥1, (34) where r denotes the maximum ℓ2 norm of the ID features, i.e., r = max z∈Z(u) ∥z∥2, and q ∈ RN ×c with each column defined as (qi)x = E¯xl∼Pli T (x|¯xl), x ∈ X id .
+
+Step 4 . We provide the lower bound for second term Tr 
+
+ ˜AOI (ϕl)Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤ ˜AOI (ϕl)⊤
+
+′
+
+ϕl=0 as in Lemma 6 as follows: 
+
+Tr 
+
+ ˜AOI (ϕl)Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤ ˜AOI (ϕl)⊤′
+
+ϕl=0 
+
+≥ 2
+
+cX
+
+i=1 
+
+Tr 
+
+
+
+piq⊤
+
+i · ˜A(u)⊤
+
+OI 
+
+
+
+− ∥ ˜A(u)OI ∥2
+
+F ∥ ˜A(u)∥2
+
+F · (
+
+cX
+
+i=1 
+
+∥qi∥2
+
+F − 2r2(τ − k)
+
+τ − 1 )
+
+cX
+
+i=1 
+
+∥qi∥1),
+
+(35) where p ∈ RM ×c is defined as (pi)x = E¯xl∼Pli T (x|¯xl), x ∈ X ood .
+
+Step 5. Putting the result in Equations 34 and 35 together, if we denote C = 23 ∥y∥2
+
+F · max λ  Zall (0) ⊤Zall (0) , we can get: 
+
+G(ϕl) ≥ Cϕ l
+
+N + M · Tr 
+
+ 
+
+Zall (ϕl)Zall (ϕl)⊤′
+
+> ϕl=0
+
+≥ Cϕ l
+
+N + M
+
+
+
+2
+
+> c
+
+X
+
+> i=1
+
+Tr 
+
+
+
+piq⊤ 
+
+> i
+
+· ˜A(u)⊤
+
+> OI
+
+
+
++
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+· ∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
+− r2
+
+
+
+2 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+· ∥ ˜A(u)∥2
+
+> F
+
+2( τ − k)
+
+τ − 1
+
+
+
+·
+
+> c
+
+X
+
+> i=1
+
+∥qi∥1
+
+
+
+.
+
+(36) 
+
+We have completed the proof of Theorem 1. 19 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+C.2. Proof of Theorem 2 
+
+As in Assumption 1, we can find a k such that τ > k . Based on this condition, we can get the following 
+
+τ > k = 1 + k − 1= 1 + ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2 
+
+> F
+
+− 1 (k − 1) − O( k − 1
+
+∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2 
+
+> F
+
+− 1 ). (37) When we have a sufficient number of ID or OOD data, ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2 
+
+> F
+
+will be large such that we can omit the term 
+
+O( k−1      
+
+> ∥˜A(u)OI ∥2
+> F∥˜A(u)∥2
+> F−1
+
+) because k ≤ N . Therefore, we will have the inequality of 
+
+τ > 1 + ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2 
+
+> F
+
+− 1 (k − 1) . (38) Simply the above inequality, we can get that 
+
+∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2 
+
+> F
+
+> τ − 1
+
+τ − k . (39) Therefore we have 
+
+−r2
+
+
+
+2 − ˜A(u)OI 
+
+> 2
+> F
+
+˜A(u) 2
+
+> F
+
+2 ( τ − k)
+
+τ − 1
+
+
+
+·
+
+> c
+
+X
+
+> i=1
+
+∥qi∥1 > 0, (40) Under this condition, the main error term ϵ(p, q, ˜A(u), ˜A(u)OI ) in Theorem 1 can be further bounded by: 
+
+ϵ(p, q, ˜A(u), ˜A(u)OI ) ≥ 2
+
+> c
+
+X
+
+> i=1
+
+Tr 
+
+
+
+piq⊤ 
+
+> i
+
+· ˜A(u)⊤
+
+> OI
+
+
+
++
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
+, (41) Following the same analysis approach in literature (See Section 4.1 of (HaoChen et al., 2021)), we decompose the vectors p and q into numbers in each dimension instead of using the vectorized form for calculation. Specifically, we let T (x|¯x) = κ, x, ¯x ∼ X ood and T (x|¯x) = γ, x, ¯x ∼ X id Based on the adjacency matrix and its relationship with the augmentation graph (Equation 1), we can prove that the following result holds: 
+
+˜A(u)OI =
+
+> c
+
+X
+
+> i=1
+
+ϕu
+
+γN M + N · [pi, ..., pi] + O(κ) = 
+
+> c
+
+X
+
+> i=1
+
+1
+
+N 3γ · [pi, ..., pi] + O(κ), (42) where ϕu = M +NN 4γ2 . Then, we obtain that: 
+
+Tr 
+
+
+
+piq⊤ 
+
+> i
+
+· ˜A(u)⊤
+
+> OI
+
+
+
+= Tr 
+
+
+
+q⊤ 
+
+> i
+
+· ˜A(u)⊤ 
+
+> OI
+
+· pi
+
+
+
+=
+
+> c
+
+X
+
+> i=1
+
+γN 2∥ ˜A(u)OI ∥2 
+
+> F
+
+∥qi∥1 + O(κ). (43) After that, we can get: 
+
+ϵ(p, q, ˜A(u), ˜A(u)OI ) ≥
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++ 2 γN 2∥ ˜A(u)OI ∥2
+
+> Fc
+
+X
+
+> i=1
+
+∥qi∥1 + O(κ), (44) 20 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Further simplify the right-hand side of the above inequality, we can get: 
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++ 2 γN 2∥ ˜A(u)OI ∥2
+
+> Fc
+
+X
+
+> i=1
+
+∥qi∥1 + O(κ)=
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++ 2 cγN 2∥ ˜A(u)OI ∥2 
+
+> F
+
+N γ + O(κ)=
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++ 2 N 2∥ ˜A(u)OI ∥2 
+
+> F
+
+·
+
+> c
+
+X
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++ O(κ)=
+
+
+
+1 − ∥ ˜A(u)OI ∥2 
+
+> F
+
+∥ ˜A(u)∥2 
+
+> F
+
++ 2 N 2∥ ˜A(u)OI ∥2
+
+> F
+
+ cX
+
+> i=1
+
+∥qi∥2 
+
+> F
+
++ O(κ)
+
+(45) We have completed the proof of Theorem 2. 21 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+## D. Necessary Lemmas 
+
+D.1. Details for Spectral Contrastive Learning Lemma 1. (Recap of Lemma 1 in the main paper) We define fx = √ζxhw(x) for some function hw. Recall ϕu, ϕ l are two weight coefficients given in Definition 4, then minimizing the loss function L(F(l), A(l)) in Equation 3 is equivalent to minimizing the surrogate loss in Equation 46. 
+
+Llabeled (hw) ≜ −2ϕlL1(hw) − 2ϕuL2(hw)+ 
+
+ϕ2 
+
+> l
+
+L3(hw) + 2 ϕlϕuL4(hw) + ϕ2
+
+> u
+
+L5(hw), (46) 
+
+where 
+
+L1(hw) = X
+
+> i∈Y
+
+E    
+
+> ¯xl∼Pli,¯x′
+> l∼Pli,
+> x∼T (·| ¯xl),x+∼T (·| ¯x′
+> l)
+
+hw(x)⊤hw
+
+ x+ ,
+
+L2(hw) = E  
+
+> ¯xu∼Pid ,
+> x∼T (·| ¯xu),x+∼T (·| ¯xu)
+
+hw(x)⊤hw
+
+ x+ ,
+
+L3(hw) = X
+
+> i,j ∈Y
+
+E    
+
+> ¯xl∼Pli,¯x′
+> l∼Plj,
+> x∼T (·| ¯xl),x−∼T (·| ¯x′
+> l)
+
+h hw(x)⊤hw
+
+ x− 2i
+
+,
+
+L4(hw) = X
+
+> i∈Y
+
+E   
+
+> ¯xl∼Pli,¯xu∼Pid ,
+> x∼T (·| ¯xl),x−∼T (·| ¯xu)
+
+h hw(x)⊤hw
+
+ x− 2i
+
+,
+
+L5(hw) = E  
+
+> ¯xu∼Pid ,¯x′
+> u∼Pid ,
+> x∼T (·| ¯xu),x−∼T (·| ¯x′
+> u)
+
+h hw(x)⊤hw
+
+ x− 2i
+
+.
+
+(47) 
+
+Proof. We can expand Llabeled (hw) and obtain 
+
+Llabeled (hw ) = X
+
+> x,x′∈X id
+
+ ζxx ′
+
+√ζxζx′
+
+− f ⊤ 
+
+> x
+
+fx′
+
+2
+
+=const + X
+
+> x,x′∈X id
+
+
+
+−2ζxx ′ hw (x)⊤hw
+
+ x′ + ζxζx′
+
+
+
+hw (x)⊤hw
+
+ x′2
+
+,
+
+(48) 
+
+where fx = √ζxhw(x) is a re-scaled version of hw(x). At a high level, we follow the proof in (HaoChen et al., 2021), while the specific form of loss varies with the different definitions of positive/negative pairs. The form of Llabeled (hw) is derived from plugging ζxx ′ and ζx.Recall that ζxx ′ is defined by 
+
+ζxx ′ = ϕl
+
+X
+
+> i∈Y
+
+E¯xl∼Pli E¯x′ 
+
+> l∼Pli
+
+T (x|¯xl)T (x′|¯x′
+
+> l
+
+) + ϕuE¯xu∼Pid T (x|¯xu)T (x′|¯xu) ,
+
+and ζx is given by 
+
+ζx = X
+
+> x′
+
+ζxx ′
+
+= ϕl
+
+X
+
+> i∈Y
+
+E¯xl∼Pli E¯x′ 
+
+> l∼Pli
+
+T (x|¯xl) X
+
+> x′
+
+T (x′|¯x′
+
+> l
+
+) + ϕuE¯xu∼Pid T (x|¯xu) X
+
+> x′
+
+T (x′|¯xu)= ϕl
+
+X
+
+> i∈Y
+
+E¯xl∼Pli T (x|¯xl) + ϕuE¯xu∼Pid T (x|¯xu).
+
+22 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Plugging in ζxx ′ we have, 
+
+− 2 X
+
+x,x′∈X id 
+
+ζxx ′ hw(x)⊤hw (x′)= − 2 X
+
+x,x+∈X id 
+
+ζxx + hw(x)⊤hw
+
+ x+
+
+= − 2ϕl
+
+X
+
+i∈Y 
+
+E¯xl∼Pli E¯x′
+
+> l
+
+∼Pli
+
+X
+
+x,x′∈X id 
+
+T (x|¯xl)T (x′|¯x′
+
+l) hw(x)⊤hw (x′)
+
+− 2ϕuE¯xu∼Pid 
+
+X
+
+x,x′
+
+T (x|¯xu)T (x′|¯xu) hw(x)⊤hw (x′)= − 2ϕl
+
+X
+
+i∈Y 
+
+E
+
+¯xl∼Pli ,¯x′
+
+> l
+
+∼Pli ,
+
+x∼T (·| ¯xl),x+∼T (·| ¯x′
+
+> l
+
+)
+
+hw(x)⊤hw
+
+ x+ 
+
+− 2ϕu E
+
+¯xu∼Pid ,
+
+x∼T (·| ¯xu),x+∼T (·| ¯xu)
+
+hw(x)⊤hw
+
+ x+ 
+
+= − 2ϕlL1(hw) − 2ϕuL2(hw).
+
+Plugging ζx and ζx′ we have, 
+
+X
+
+x,x′∈X id 
+
+ζxζx′
+
+ hw(x)⊤hw (x′)2
+
+= X
+
+x,x−∈X id 
+
+ζxζx−
+
+ hw(x)⊤hw
+
+ x− 2
+
+= X
+
+x,x′∈X id 
+
+ϕl
+
+X
+
+i∈Y 
+
+E¯xl∼Pli T (x|¯xl) + ϕuE¯xu∼Pid T (x|¯xu)
+
+!
+
+·
+
+ϕl
+
+X
+
+j∈Y 
+
+E¯x′
+
+> l
+
+∼Plj T (x−|¯x′
+
+l) + ϕuE¯x′
+
+> u
+
+∼Pid T (x−|¯x′
+
+u)
+
+  hw(x)⊤hw
+
+ x− 2
+
+=ϕ2
+
+l
+
+X
+
+x,x−∈X id 
+
+X
+
+i∈Y 
+
+E¯xl∼Pli T (x|¯xl) X
+
+j∈Y 
+
+E¯x′
+
+> l
+
+∼Plj T (x−|¯x′
+
+l)  hw(x)⊤hw
+
+ x− 2
+
++ 2 ϕuϕl
+
+X
+
+x,x−∈X id 
+
+X
+
+i∈Y 
+
+E¯xl∼Pli T (x|¯xl)E¯xu∼Pid T (x−|¯xu)  hw(x)⊤hw
+
+ x− 2
+
++ ϕ2
+
+u
+
+X
+
+x,x−∈X id 
+
+E¯xu∼Pid T (x|¯xu)E¯x′
+
+> u
+
+∼Pid T (x−|¯x′
+
+u)  hw(x)⊤hw
+
+ x− 2
+
+=ϕ2
+
+l
+
+X
+
+i∈Y 
+
+X
+
+j∈Y 
+
+E
+
+¯xl∼Pli ,¯x′
+
+> l
+
+∼Plj ,
+
+x∼T (·| ¯xl),x−∼T (·| ¯x′
+
+> l
+
+)
+
+h hw(x)⊤hw
+
+ x− 2i
+
++ 2 ϕuϕl
+
+X
+
+i∈Y 
+
+E
+
+¯xl∼Pli ,¯xu∼Pid ,
+
+x∼T (·| ¯xl),x−∼T (·| ¯xu)
+
+h hw(x)⊤f  x− 2i
+
++ ϕ2
+
+u E
+
+¯xu∼Pid ,¯x′
+
+> u
+
+∼Pid ,
+
+x∼T (·| ¯xu),x−∼T (·| ¯x′
+
+> u
+
+)
+
+h hw(x)⊤f  x− 2i
+
+=ϕ2
+
+l L3(hw) + 2 ϕuϕlL4(hw) + ϕ2
+
+uL5(hw).
+
+We complete this proof. 23 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+D.2. Derivation of the Data Representations 
+
+For the ID representations, we have the following equation. 
+
+Z(l) = [ D(l)]− 12 V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+] 12 . (49) It is easy to see that the following equation holds because of the Eckart–Young–Mirsky theorem (Eckart & Young, 1936) as we use the top-k SVD components of the matrix A(l) to approximate it (low-rank approximation). For OOD representations, we have the following equation. 
+
+Z(l)ood = [ D(l)ood ]− 12 ˜A(l)OI V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+]− 12 . (50) The above result can be obtained by the condition that the optimization problem in Equation 7 is solved perfectly, i.e., 
+
+˜A(l)OI = F(l)ood F(l)⊤. Note that it is easy to check that F(l) = V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+] 12 , if we multiply V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+]− 12 to both sides of the equation ˜A(l)OI = F(l)ood F(l)⊤, we can get: 
+
+˜A(l)OI V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+]− 12 = F(l)ood [Σ(l) 
+
+> k
+
+] 12 V(l)⊤ 
+
+> k
+
+V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+]− 12 = F(l)ood . (51) Note that F(l)ood = [ D(l)ood ] 12 Z(l)ood and thus we can get Z(l)ood = [ D(l)ood ]− 12 ˜A(l)OI V(l) 
+
+> k
+
+[Σ(l) 
+
+> k
+
+]− 12 . Therefore we have completed the proof. 
+
+Design Rationale. Here we explain the design rationale of the optimization problem in Equation 7 to get the OOD representation F(l)ood and Z(l)ood , which is inspired by the literature in out-of-sample extension. The out-of-sample extension is a statistical approach that computes the embeddings of new vertices in a graph with the existing in-sample embeddings and the similarity measurements (Bengio et al., 2003; Levin et al., 2018). The goal is to avoid the repeated computational cost of embedding calculations on a large graph when a new vertex emerges. Most of the current works focused on graph Laplacian embedding (Belkin & Niyogi, 2003; Trosset & Priebe, 2008; Belkin et al., 2006; Quispe et al., 2016; Jansen et al., 2015), while a few works relied on the adjacency spectral embedding (Sussman et al., 2012; Tang et al., 2013) for embedding extension. Our framework is similar to the least-squares optimization approach in out-of-sample extension, which derives the out-of-sample embeddings using the adjacency matrix between the in-sample and out-of-sample data (Please refer to Section 3.1 of (Levin et al., 2018) for detailed derivation). 
+
+D.3. Upper Bound of the Linear Probing Loss Lemma 2 (Recap of Lemma 2 in the main paper) . Denote the y ∈ R(N +M )×2 as a matrix contains the one-hot labels for ID and OOD features in Zall . We have: 
+
+R(Zall ) ≤ 2
+
+N + M Tr 
+
+ 
+
+I − Zall Z†
+
+> all
+
+
+
+yy ⊤
+
+. (52) 
+
+Proof. Recall the definition of the linear probing loss is defined as follows: 
+
+R(Zall ) ≜ min 
+
+> θ∈Rk×2
+
+Ez∈Zall 1[y(z)̸ = gθ (z)] . (53) According to Lemma 5.1 in (Sun et al., 2023b), we can get the upper bound of R(Zall ) as follows: 
+
+R(Zall ) ≤ 2
+
+N + M min 
+
+> θ∈Rk×2
+
+∥y − Zall θ∥2 
+
+> F
+
+. (54) Given the fact that the closed-form solution of the above minimization problem is Z†
+
+> all
+
+y where Z† 
+
+> all
+
+denotes the Moore-Penrose inverse of the feature matrix Zall , we can rewrite the right side of the above inequality as follows: 
+
+min 
+
+> θ∈Rk×2
+
+∥y − Zall θ∥2 
+
+> F
+
+= ∥y − Zall Z†
+
+> all
+
+y∥2 
+
+> F
+
+. (55) Simplify it further, we have 
+
+∥y − Zall Z†
+
+> all
+
+y∥2 
+
+> F
+
+= ∥(I − Zall Z†
+
+> all
+
+)y∥2 
+
+> F
+
+= Tr 
+
+ 
+
+I − Zall Z†
+
+> all
+
+
+
+yy ⊤
+
+. (56) Therefore we finished the proof. 24 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+D.4. Necessary Lemmas for Theorem 1 Lemma 3. Following the definitions in Equations 10 and 28, the error difference for linear probing between the unlabeled and labeled case (with a perturbation magnitude ϕl) is upper bounded by the following term: 
+
+G(ϕl) ≥ 23( N + M ) ϕl · max λ  Zall (ϕl)⊤Zall (ϕl) · Tr 
+
+ Zall (ϕl)Zall (ϕl)⊤′ yy ⊤
+
+ϕl=0 
+
+, (57) 
+
+where max λ  Zall (ϕl)⊤Zall (ϕl) means the maximum eigenvalue of the matrix Zall (ϕl)⊤Zall (ϕl).Proof of Lemma 3. From the definition of the derivative, we know that G(ϕl) = − dR(Zall (ϕl)) dϕl ϕl=0 
+
+· ϕl, we then investigate the key component − dR(Zall (ϕl)) dϕl ϕl=0 
+
+as follows. Recall that we have 
+
+− dR(Zall (ϕl)) dϕl ϕl=0 
+
+= Tr 
+
+ dZall (ϕl)Zall (ϕl)†
+
+dϕl
+
+yy ⊤
+
+
+
+> ϕl=0
+
+· 2ϕl
+
+N + M
+
+= 2ϕl
+
+N + M · Tr 
+
+ 
+
+Z′
+
+> all
+
+(ϕl)Zall (ϕl)† + Zall (ϕl)
+
+
+
+−
+
+
+
+Zall (ϕl)⊤Zall (ϕl)
+
+−1 
+
+Z′
+
+> all
+
+(ϕl)⊤Zall (ϕl)+ Zall (ϕl)⊤Z′
+
+> all
+
+(ϕl)
+
+ 
+
+Zall (ϕl)⊤Zall (ϕl)
+
+−1
+
+Zall (ϕl)⊤ +
+
+
+
+Zall (ϕl)⊤Zall (ϕl)
+
+−1
+
+Z′
+
+> all
+
+(ϕl)⊤
+
+ 
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+N + M Tr 
+
+ 
+
+Z′
+
+> all
+
+(ϕl)Zall (ϕl)† −
+
+
+
+Zall (ϕl)†⊤
+
+Z′
+
+> all
+
+(ϕl)⊤Zall (ϕl)Zall (ϕl)†
+
+−
+
+
+
+Zall (ϕl)†⊤
+
+Zall (ϕl)⊤Z′
+
+> all
+
+(ϕl)Zall (ϕl)† +
+
+
+
+Zall (ϕl)†⊤
+
+Z′
+
+> all
+
+(ϕl)⊤
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+N + M Tr 
+
+ 
+
+Z′
+
+> all
+
+(ϕl)Zall (ϕl)† −
+
+
+
+Zall (ϕl)†⊤
+
+Z′
+
+> all
+
+(ϕl)⊤Zall (ϕl)Zall (ϕl)†
+
+− (Zall (ϕl)Zall (ϕl)†)⊤Z′
+
+> all
+
+(ϕl)Zall (ϕl)† +
+
+
+
+Zall (ϕl)†⊤
+
+Z′
+
+> all
+
+(ϕl)⊤
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+N + M Tr 
+
+ 
+
+(I − Zall (ϕl)Zall (ϕl)†)⊤Z′
+
+> all
+
+(ϕl)Zall (ϕl)† +
+
+
+
+Zall (ϕl)†⊤
+
+Z′
+
+> all
+
+(ϕl)⊤(I − Zall (ϕl)Zall (ϕl)†)
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+N + M Tr 
+
+ 
+
+(I − Zall (ϕl)Zall (ϕl)†)Z′
+
+> all
+
+(ϕl)Zall (ϕl)† +
+
+
+
+Zall (ϕl)†⊤
+
+Z′
+
+> all
+
+(ϕl)⊤(I − Zall (ϕl)Zall (ϕl)†)⊤
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+N + M Tr 
+
+ 
+
+(I − Zall (ϕl)Zall (ϕl)†)Z′
+
+> all
+
+(ϕl)Zall (ϕl)† +
+
+h
+
+(I − Zall (ϕl)Zall (ϕl)†)Z′
+
+> all
+
+(ϕl)Zall (ϕl)†i⊤ 
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+N + M Tr 
+
+
+
+(I − Zall (ϕl)Zall (ϕl)†) ·
+
+
+
+Z′
+
+> all
+
+(ϕl)Zall (ϕl)† + ( Z′
+
+> all
+
+(ϕl)Zall (ϕl)†)⊤
+
+yy ⊤
+
+> ϕl=0
+
+≥ 2ϕl
+
+N + M Tr 
+
+
+
+( 23 I − Zall (ϕl)Zall (ϕl)†) ·
+
+
+
+Z′
+
+> all
+
+(ϕl)Zall (ϕl)† + ( Z′
+
+> all
+
+(ϕl)Zall (ϕl)†)⊤
+
+yy ⊤
+
+
+
+> ϕl=0
+
+≥ 2ϕl
+
+N + M
+
+
+
+ν( 23 I − Zall (ϕl)Zall (ϕl)†) + π( 23 I − Zall (ϕl)Zall (ϕl)†)
+
+
+
+·
+
+Tr 
+
+ 
+
+Z′
+
+> all
+
+(ϕl)( Zall (ϕl)⊤Zall (ϕl)) −1Zall (ϕl)⊤ + Zall (ϕl)( Zall (ϕl)⊤Zall (ϕl)) −1Z′
+
+> all
+
+(ϕl)⊤
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+N + M
+
+13 · Tr 
+
+ 
+
+(Zall (ϕl)⊤Zall (ϕl)) −1Zall (ϕl)⊤Z′
+
+> all
+
+(ϕl) + ( Zall (ϕl)⊤Zall (ϕl)) −1Z′
+
+> all
+
+(ϕl)⊤Zall (ϕl)
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+≥ 2ϕl
+
+N + M
+
+13 min λ(( Zall (ϕl)⊤Zall (ϕl)) −1) · Tr 
+
+ 
+
+Zall (ϕl)⊤Z′
+
+> all
+
+(ϕl) + Z′
+
+> all
+
+(ϕl)⊤Zall (ϕl)
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+= 2ϕl
+
+3( N + M ) max λ(Zall (ϕl)⊤Zall (ϕl)) · Tr 
+
+ 
+
+(Zall (ϕl)Zall (ϕl)⊤)′
+
+
+
+yy ⊤
+
+
+
+> ϕl=0
+
+(58) 
+
+where ν( 23 I − Zall (ϕl)Zall (ϕl)†) and π( 23 I − Zall (ϕl)Zall (ϕl)†) denote the smallest negative eigenvalues and the smallest 25 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+positive eigenvalues 1 of the matrix 23 I − Zall (ϕl)Zall (ϕl)†.The first seven equations calculate the derivative w.r.t. the perturbation magnitude ϕl and use the cyclic property of the trace operator. The first inequality is true because we have           
+
+> 13 Tr(( Z′
+> all (ϕl)Zall (ϕl)†+ ( Z′
+> all (ϕl)Zall (ϕl)†)⊤)yy ⊤)ϕl=0 ≥13 max λ(Zall (ϕl)⊤Zall (ϕl)) max λ(yy ⊤)·Tr(( Zall (ϕl)Zall (ϕl)⊤)′)ϕl=0 .(59)
+
+Since we know max λ(Zall (ϕl)⊤Zall (ϕl)) ϕl=0 > 0 (Lemma 4) and max λ(yy ⊤) > 0, and Tr(( Zall (ϕl)Zall (ϕl)⊤)′) ϕl=0 
+
+is lower bounded and can be large than 0 (Lemmas 5 and 6). The second inequality holds because of the main theorem in (Baksalary & Puntanen, 1992). The third inequality holds because the inequality for the trace of matrix product of two square matrices (Fang et al., 1994), i.e., Tr( HM ) ≥ min λ(H) · Tr( M).
+
+Lemma 4. Suppose the perturbation magnitude ϕl is 0, denote the input feature of linear probing as Zall (0) , then we have that: 
+
+max λ  Zall (ϕl)⊤Zall (ϕl)
+
+> ϕl=0
+
+> 0, (60) 
+
+here max λ  Zall (ϕl)⊤Zall (ϕl) means the maximum eigenvalue of the matrix Zall (ϕl)⊤Zall (ϕl).Proof of Lemma 4. Since we know that the column rank of the ID feature matrix Z(0) ∈ RN ×k is k, then when adding 
+
+M rows of OOD features Zood (0) to get Zall (0) will not increase the column rank. Therefore, the rank of matrix Zall (0) 
+
+is equal to k, which means Zall (0) has a full column rank. Thus, the matrix Zall (0) ⊤Zall (0) is positive definite 2, which means the eigenvalues of Zall (0) ⊤Zall (0) are all greater than 0 and the lemma is proved. 
+
+Lemma 5. If Assumption 2 holds, the lower bound for Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+> ϕl=0
+
+is given as follows: 
+
+Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+> ϕl=0
+
+≥
+
+> c
+
+X
+
+> i=1
+
+∥qi∥2 
+
+> F
+
+− 2r2
+
+> c
+
+X
+
+> i=1
+
+∥qi∥1, (61) 
+
+where q ∈ RN ×c with each column defined as (qi)x = E¯xl∼Pli T (x|¯xl), x ∈ X id , and r is the maximum l2 norm of the ID representations, i.e., r = max z∈Z(u) ∥z∥2.Proof of Lemma 5. As Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤ denotes the top-k SVD components of the matrix ˜A(ϕl), according to Equation 26, we rewrite it using the eigenvalues and the eigen projectors as follows.                      
+
+> Tr
+> 
+> Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+> ϕl=0
+> =
+> kX
+> j=1
+> Tr
+> 
+> [D(ϕl)−12λj(ϕl)Φj(ϕl)D(ϕl)−12]′
+> 
+> ϕl=0
+> =
+> kX
+> j=1
+> Tr
+> 
+> D(ϕl)−12
+> ′
+> λ(u)
+> jΦ(u)
+> j+λ(u)
+> jΦ(u)
+> j
+> 
+> D(ϕl)−12
+> ′
+> +λj(ϕl)′Φ(u)
+> j+λ(u)
+> j
+> Φj(ϕl)′
+> 
+> ϕl=0
+> ,
+> (62)
+
+where λ(u) 
+
+> j
+
+and Φ(u) 
+
+> j
+
+are the j-th eigenvalue and eigen projector of matrix ˜A(ϕl) when ϕl = 0 . Moreover, assume ˜A(u) to be the normalized adjacency matrix when ϕl = 0 , recall D(ϕl) = IN ×N + ϕlDl where Dl = Pci=1 diag( qi) (Equation 24), we have the following calculation for the derivatives: 
+
+h
+
+D(ϕl)− 12
+
+i′
+
+= − 12 Dl. (63) 
+
+> 1
+
+The value of the two terms are 23 and − 13 according to https://math.stackexchange.com/questions/188129 
+
+> 2
+
+Proof idea is shown here https://math.stackexchange.com/questions/2202242 
+
+26 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+[ ˜A(ϕl)] ′
+
+ϕl=0 
+
+=
+
+h
+
+D(ϕl)− 12 A(ϕl)D(ϕl)− 12
+
+i′
+
+ϕl=0 
+
+=
+
+h
+
+D(ϕl)− 12
+
+i′ ˜A(u) + [ A(ϕl)] ′ + ˜A(u) h
+
+D(ϕl)− 12
+
+i′
+
+= − 12 Dl ˜A(u) +
+
+cX
+
+i=1 
+
+qiqi⊤ − 12 ˜A(u)Dl
+
+(64) To get the derivative of the eigenvalues, according to Equation 3 in (Greenbaum et al., 2020), 
+
+[λj (ϕl)] ′
+
+ϕl=0 = Tr 
+
+
+
+Φ(u)
+
+j [ ˜A(ϕl)] ′
+
+ϕl=0 
+
+= Tr Φ(u)
+
+j − 12 Dl ˜A(u) +
+
+cX
+
+i=1 
+
+qiqi⊤ − 12 ˜A(u)Dl
+
+!! 
+
+= Tr − λ(u)
+
+j
+
+2 DlΦ(u)
+
+j + Φ(u)
+
+jcX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j
+
+2 Φ(u)
+
+j Dl
+
+!
+
+= Tr Φ(u)
+
+j
+
+cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j Dl
+
+!! 
+
+.
+
+(65) To get the derivative of the eigenvectors, according to Equation 10 in (Greenbaum et al., 2020), 
+
+[Φj (ϕl)] ′ 
+
+> ϕl=0
+
+=
+
+
+
+λ(u) 
+
+> j
+
+IN − ˜A(u)†
+
+[ ˜A(ϕl)] ′Φ(u) 
+
+> j
+
++ Φ(u) 
+
+> j
+
+[ ˜A(ϕl)] ′ 
+
+λ(u) 
+
+> j
+
+IN − ˜A(u)†
+
+=
+
+> N
+
+X 
+
+> i̸=j
+
+1
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> i
+
+[ ˜A(ϕl)] ′Φ(u) 
+
+> j
+
++ Φ(u) 
+
+> j
+
+[ ˜A(ϕl)] ′Φ(u)
+
+> i
+
+
+
+=
+
+> N
+
+X 
+
+> i̸=j
+
+1
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+Φ(u) 
+
+> i
+
+− 12 Dl ˜A(u) +
+
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − 12 ˜A(u)Dl
+
+!
+
+Φ(u) 
+
+> j
+
++ Φ(u) 
+
+> j
+
+(. . . )Φ(u)
+
+> i
+
+!
+
+=
+
+> N
+
+X 
+
+> i̸=j
+
+1
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+Φ(u)
+
+> i
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!
+
+Φ(u) 
+
+> j
+
++ Φ(u)
+
+> j
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!
+
+Φ(u)
+
+> i
+
+!
+
+.
+
+(66) 
+
+Put them together in Equation 62, we can get 
+
+Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+ϕl=0 
+
+=
+
+kX
+
+j=1 
+
+Tr − 12 Dlλ(u)
+
+j Φ(u)
+
+j − 12 λ(u)
+
+j Φ(u)
+
+j Dl + Tr Φ(u)
+
+j
+
+cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j Dl
+
+!! 
+
+Φ(u)
+
+j + λ(u)
+
+j [Φj (ϕl)] ′
+
+!
+
+ϕl=0 
+
+=
+
+
+
+kX
+
+j=1 
+
+− λ(u)
+
+j
+
+2 Tr 
+
+
+
+DlΦ(u)
+
+j + Φ(u)
+
+j Dl
+
+
+
++ Tr Φ(u)
+
+j
+
+cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j Dl
+
+!! 
+
+Tr 
+
+
+
+Φ(u)
+
+j
+
+
+
++ Tr 
+
+
+
+λ(u)
+
+j [Φj (ϕl)] ′
+
+ϕl=0 
+
+(67) For Tr 
+
+
+
+Φ(u)
+
+j
+
+Pci=1 qiqi⊤ − λ(u)
+
+j Dl
+
+ 
+
+Tr 
+
+
+
+Φ(u)
+
+j
+
+
+
+, we have the following: 
+
+kX
+
+j=1 
+
+Tr Φ(u)
+
+j
+
+cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j Dl
+
+!! 
+
+Tr 
+
+
+
+Φ(u)
+
+j
+
+
+
+=
+
+kX
+
+j=1 
+
+Tr 
+
+cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j Dl
+
+!
+
+Φ(u)
+
+j Φ(u)
+
+j
+
+!
+
+(68) 27 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+For Tr 
+
+
+
+λ(u)
+
+j [Φj (ϕl)] ′
+
+, we have the following: 
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+
+
+λ(u) 
+
+> j
+
+[Φj (ϕl)] ′
+
+=
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+
+
+> N
+
+X 
+
+> i̸=j
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+Φ(u)
+
+> i
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!
+
+Φ(u) 
+
+> j
+
++ Φ(u)
+
+> j
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!
+
+Φ(u)
+
+> i
+
+!
+
+=
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+
+
+> N
+
+X 
+
+> i̸=j
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!! 
+
+=
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+ X
+
+> i̸=j,i ≤k
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!! 
+
++
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+> N
+
+X
+
+> i=k+1
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!!! 
+
+=
+
+> k
+
+X
+
+> j=1
+
+Tr X
+
+> i<j
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
++ λ(u)
+
+> i
+
+λ(u) 
+
+> i
+
+− λ(u)
+
+> j
+
+! 
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!!! 
+
++
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+> N
+
+X
+
+> i=k+1
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!!! 
+
+=
+
+> k
+
+X
+
+> j=1
+
+Tr X
+
+> i<j
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!!! 
+
++
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+> N
+
+X
+
+> i=k+1
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!!! 
+
+=
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+ X
+
+> i̸=j,i ≤k
+
+12
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!! 
+
++
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+> N
+
+X
+
+> i=k+1
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+!!! 
+
+(69) 
+
+If we put the result in Equations 68 and 69 together, we can get: 
+
+kX
+
+j=1 
+
+Tr 
+
+cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j Dl
+
+!
+
+Φ(u)
+
+j Φ(u)
+
+j
+
+!
+
++
+
+kX
+
+j=1 
+
+Tr 
+
+
+
+λ(u)
+
+j [Φj (ϕl)] ′
+
+=
+
+kX
+
+j=1 
+
+Tr Φ(u)
+
+j Φ(u)
+
+j + Φ(u)
+
+j Φ(u)
+
+j
+
+2
+
+cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j + λ(u)
+
+j
+
+2 Dl
+
+!! 
+
++
+
+kX
+
+j=1 
+
+Tr 
+
+
+
+λ(u)
+
+j [Φj (ϕl)] ′
+
+=
+
+kX
+
+j=1 
+
+Tr 
+
+X
+
+i≤k
+
+12
+
+
+
+Φ(u)
+
+j Φ(u)
+
+i + Φ(u)
+
+i Φ(u)
+
+j
+
+ cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j + λ(u)
+
+i
+
+2 Dl
+
+!! 
+
++
+
+kX
+
+j=1 
+
+Tr 
+
+NX
+
+i=k+1 
+
+λ(u)
+
+j
+
+λ(u)
+
+j − λ(u)
+
+i
+
+
+
+Φ(u)
+
+j Φ(u)
+
+i + Φ(u)
+
+i Φ(u)
+
+j
+
+ cX
+
+i=1 
+
+qiqi⊤ − λ(u)
+
+j + λ(u)
+
+i
+
+2 Dl
+
+!!! 
+
+(70) 28 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+For the term − λ(u)
+
+> j
+
+2
+
+Pkj=1 Tr 
+
+
+
+DlΦ(u)
+
+j + Φ(u)
+
+j Dl
+
+
+
+, we can have the following equation: 
+
+− λ(u)
+
+j
+
+2
+
+kX
+
+j=1 
+
+Tr 
+
+
+
+DlΦ(u)
+
+j + Φ(u)
+
+j Dl
+
+
+
+= −
+
+kX
+
+j=1 
+
+λ(u)
+
+j
+
+2 Tr 
+
+
+
+DlΦ(u)
+
+j + Φ(u)
+
+j Dl
+
+
+
+= −
+
+kX
+
+j=1 
+
+λ(u)
+
+j
+
+2 Tr 
+
+
+
+(Φ(u)
+
+j + Φ(u)
+
+j )Dl
+
+
+
+= −
+
+kX
+
+j=1 
+
+λ(u)
+
+j
+
+2 Tr 
+
+
+
+(Φ(u)
+
+j I + IΦ (u)
+
+j )Dl
+
+
+
+= −
+
+kX
+
+j=1 
+
+λ(u)
+
+j
+
+2 Tr (Φ(u)
+
+jNX
+
+i=1 
+
+Φ(u)
+
+i +
+
+NX
+
+i=1 
+
+Φ(u)
+
+i Φ(u)
+
+j )Dl
+
+!
+
+= −
+
+kX
+
+j=1 
+
+Tr 
+
+NX
+
+i=1 
+
+λ(u)
+
+j
+
+2 (Φ(u)
+
+j Φ(u)
+
+i + Φ(u)
+
+i Φ(u)
+
+j )Dl
+
+!
+
+(71) Therefore, we can get the following result for Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+ϕl=0 
+
+:
+
+Tr 
+
+ 
+
+Vk (ϕl)Σk (ϕl)Vk (ϕl)⊤′
+
+> ϕl=0
+
+=
+
+ kX
+
+> j=1
+
+Tr 
+
+
+
+> k
+
+X
+
+> i=1
+
+12
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ 
+
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − 3λ(u) 
+
+> j
+
++ λ(u)
+
+> i
+
+2 Dl
+
+
+
++
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+
+
+> N
+
+X
+
+> i=k+1
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
+Dl
+
+!! 
+
+=
+
+ kX
+
+> j=1
+
+Tr 
+
+> k
+
+X
+
+> i=1
+
+12
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − 2λ(u) 
+
+> j
+
+Dl
+
+!!! 
+
++
+
+> k
+
+X
+
+> j=1
+
+Tr 
+
+
+
+> N
+
+X
+
+> i=k+1
+
+λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+
+
+Φ(u) 
+
+> j
+
+Φ(u) 
+
+> i
+
++ Φ(u) 
+
+> i
+
+Φ(u)
+
+> j
+
+ cX
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
+Dl
+
+!! 
+
+=
+
+ kX
+
+> j=1
+> k
+
+X
+
+> i=1
+
+Tr v(u)⊤ 
+
+> j
+
+v(u) 
+
+> i
+
+· v(u)⊤
+
+> i
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − 2λ(u) 
+
+> j
+
+Dl
+
+!
+
+v(u)
+
+> j
+
+!
+
++
+
+> k
+
+X
+
+> j=1
+> N
+
+X
+
+> i=k+1
+
+Tr 
+
+ 2λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+− λ(u)
+
+> i
+
+v(u)⊤ 
+
+> j
+
+v(u) 
+
+> i
+
+· v(u)⊤
+
+> i
+> c
+
+X
+
+> i=1
+
+qiqi⊤ − λ(u) 
+
+> j
+
+Dl
+
+!
+
+v(u)
+
+> j
+
+
+
+.
+
+(72) 
+
+Since ˜A(u) has all positive eigenvalues, then we can get λ(u)
+
+> j
+
+λ(u) 
+
+> j
+
+−λ(u)
+
+> i
+
+≥ 1. Denote V(u)
+
+k and Σ(u)
+
+k as the matrix of the first 
+
+k eigenvectors and eigenvalues of ˜A(u) when ϕl = 0 , if we rewrite the above formula in the matrix form, we can get the 29 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+following: 
+
+Tr 
+
+ 
+
+Vk (ϕl)Σk (ϕl)Vk (ϕl)⊤′
+
+> ϕl=0
+
+≥
+
+
+
+Tr( V(u)⊤ 
+
+> k
+
+V(u) 
+
+> k
+
+· V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> k
+
+) − 2 Tr( V(u)⊤ 
+
+> k
+
+V(u) 
+
+> k
+
+· Σ(u) 
+
+> k
+
+V(u)⊤ 
+
+> k
+
+DlV(u) 
+
+> k
+
+)+ 2 Tr( V(u)⊤ 
+
+> ∅
+
+V(u) 
+
+> k
+
+· V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> ∅
+
+) − 2 Tr( V(u)⊤ 
+
+> ∅
+
+V(u) 
+
+> k
+
+· Σ(u) 
+
+> k
+
+V(u)⊤ 
+
+> k
+
+DlV(u) 
+
+> ∅
+
+)=
+
+
+
+Tr( V(u) 
+
+> k
+
+· V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> k
+
+V(u)⊤ 
+
+> k
+
+) − 2 Tr( ˜A(u) 
+
+> k
+
+DlV(u) 
+
+> k
+
+· V(u)⊤ 
+
+> k
+
+)+ 2 Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤ 
+
+IN − V(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+!
+
+− 2 Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+IN − V(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+ 
+
+=
+
+
+
+2 Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤
+
+!
+
+− 2 Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+− Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+! 
+
+=
+
+
+
+2 Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤ − ˜A(u) 
+
+> k
+
+Dl − 12 V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+! 
+
+=
+
+
+
+Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤ − 2 ˜A(u) 
+
+> k
+
+Dl + V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> ∅
+
+V(u)⊤
+
+> ∅
+
+! 
+
+.
+
+(73) 
+
+For Tr 
+
+
+
+V(u)
+
+k V(u)⊤
+
+k
+
+Pci=1 qiqi⊤ − 2 ˜A(u)
+
+k Dl + V(u)
+
+k V(u)⊤
+
+k
+
+Pci=1 qiqi⊤V(u)
+
+∅ V(u)⊤
+
+∅
+
+
+
+, given that we let Dl ≜
+
+Pci=1 diag( qi), and Assumption 2, i.e., q⊤
+
+i V(u)
+
+∅ =0, we have that: 
+
+Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+ϕl=0 
+
+≥ Tr 
+
+cX
+
+i=1 
+
+qiqi⊤ − 2 ˜A(u)
+
+k Dl
+
+!
+
+= Tr 
+
+cX
+
+i=1 
+
+qiqi⊤ − 2F(u)F(u)⊤Dl
+
+!
+
+=
+
+cX
+
+i=1 
+
+∥qi∥2
+
+F − 2F(u)⊤
+
+i F(u)
+
+icX
+
+i=1 
+
+∥qi∥1,
+
+(74) According to the definition of r, we have the upper bound of the ID features as F(u)⊤
+
+i F(u)
+
+i ≤ r2. Therefore, we have the following lower bound: 
+
+Tr 
+
+ Vk(ϕl)Σk(ϕl)Vk(ϕl)⊤′
+
+ϕl=0 
+
+≥
+
+cX
+
+i=1 
+
+∥qi∥2
+
+F − 2r2
+
+cX
+
+i=1 
+
+∥qi∥1. (75) 
+
+Lemma 6. Under same conditions in Lemma 5, the lower bound for Tr 
+
+ ˜AOI (ϕl)Vk (ϕl)Σk (ϕl)−1Vk (ϕl)⊤ ˜AOI (ϕl)⊤′
+
+> ϕl=0
+
+is given as follows: 
+
+Tr 
+
+ ˜AOI (ϕl)Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤ ˜AOI (ϕl)⊤′
+
+ϕl=0 
+
+≥ 2
+
+cX
+
+i=1 
+
+Tr 
+
+
+
+piq⊤
+
+i · ˜A(u)⊤
+
+OI 
+
+
+
+− ∥ ˜A(u)OI ∥2
+
+F ∥ ˜A(u)∥2
+
+F · (
+
+cX
+
+i=1 
+
+∥qi∥2
+
+F − 2r2(τ − k)
+
+τ − 1
+
+cX
+
+i=1 
+
+∥qi∥1),
+
+(76) 
+
+where p ∈ RM ×c is defined as (pi)x = E¯xl∼Pli T (x|¯xl), x ∈ X ood .
+
+30 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Proof of Lemma 6. Given the fact that ˜AOI (ϕl) = ϕu ˜A(u)OI + ϕl · Pci=1 piq⊤ 
+
+> i
+
+, we have the following: 
+
+Tr 
+
+ ˜AOI (ϕl)Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤ ˜AOI (ϕl)⊤′
+
+> ϕl=0
+
+= 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· V(u) 
+
+> k
+
+Σ(u)
+
+> k
+> −1
+
+V(u)⊤ 
+
+> k
+
+˜A(u)⊤
+
+> OI
+
+!
+
++ Tr 
+
+ ˜A(u)OI 
+
+ Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤′ ˜A(u)⊤
+
+> OI
+
+
+
+> ϕl=0
+
+= 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· ( ˜A(u))−1 ˜A(u)⊤
+
+> OI
+
+!
+
++ Tr 
+
+
+
+( ˜Ak(ϕl)−1)′ · ˜A(u)⊤ 
+
+> OI
+
+˜A(u)OI 
+
+
+
+> ϕl=0
+
+≥ 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· ( ˜A(u))−1 ˜A(u)⊤
+
+> OI
+
+!
+
++ min λ( ˜A(u)⊤ 
+
+> OI
+
+˜A(u)OI ) · Tr 
+
+
+
+( ˜Ak(ϕl)−1)′
+
+> ϕl=0
+
+= 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· ( ˜A(u))−1 ˜A(u)⊤
+
+> OI
+
+!
+
+− min λ( ˜A(u)⊤ 
+
+> OI
+
+˜A(u)OI ) · Tr 
+
+
+
+( ˜A(u))−2 · ( ˜Ak(ϕl)) ′
+
+> ϕl=0
+
+≥ 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· ( ˜A(u))−1 ˜A(u)⊤
+
+> OI
+
+!
+
+− min λ( ˜A(u)⊤ 
+
+> OI
+
+˜A(u)OI ) · max λ(( ˜A(u))−2) · Tr 
+
+
+
+( ˜Ak(ϕl)) ′
+
+> ϕl=0
+
+= 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· ( ˜A(u))−1 ˜A(u)⊤
+
+> OI
+
+!
+
+− min λ( ˜A(u)⊤ 
+
+> OI
+
+˜A(u)OI ) · (min λ( ˜A(u))) 2 · Tr 
+
+
+
+( ˜Ak(ϕl)) ′
+
+> ϕl=0
+
+≥ 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· ( ˜A(u))−1 ˜A(u)⊤
+
+> OI
+
+!
+
+− ∥ ˜A(u)OI ∥2 
+
+> F
+
+· (min λ( ˜A(u))) 2 · Tr 
+
+
+
+( ˜Ak(ϕl)) ′
+
+> ϕl=0
+
+≥ 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+· ( ˜A(u))−1 ˜A(u)⊤
+
+> OI
+
+!
+
+− ∥ ˜A(u)OI ∥2 
+
+> F
+
+· ∥ ˜A(u)∥2 
+
+> F
+
+· Tr 
+
+
+
+( ˜Ak(ϕl)) ′
+
+> ϕl=0
+
+= 2 Tr 
+
+> c
+
+X
+
+> i=1
+
+piq⊤ 
+
+> i
+
+˜A(u)⊤
+
+> OI
+
+!
+
+− ∥ ˜A(u)OI ∥2 
+
+> F
+
+· ∥ ˜A(u)∥2 
+
+> F
+
+· Tr 
+
+
+
+( ˜Ak(ϕl)) ′
+
+> ϕl=0
+
+(77) The first two inequalities are again the inequality for the trace of matrix product of two square matrices (Fang et al., 1994). The third inequality holds because: 
+
+min λ( ˜A(u)⊤ 
+
+> OI
+
+˜A(u)OI ) < Tr( ˜A(u)⊤ 
+
+> OI
+
+˜A(u)OI ) = ∥ ˜A(u)OI ∥2 
+
+> F
+
+. (78) The last inequality holds because: 
+
+(min λ( ˜A(u))) 2 = min λ( ˜A(u)2 ) = min λ( ˜A(u) · ˜A(u)⊤) ≤ ∥ ˜A(u)∥2 
+
+> F
+
+(79) Finally, the last equation holds true because of Assumption 2 where the perturbation vector qi lies in the linear span of the matrix V(u) 
+
+> k
+
+[Σ(u) 
+
+> k
+
+]− 12 :
+
+q⊤ 
+
+> i
+
+· ( ˜A(u))−1 = q⊤ 
+
+> i
+
+· V(u) 
+
+> k
+
+Σ(u)
+
+> k
+> −1
+
+V(u)⊤ 
+
+> k
+
+= q⊤ 
+
+> i
+
+. (80) For the key term Tr 
+
+ ˜Ak(ϕl)′
+
+
+
+> ϕl=0
+
+, it is easy to check that λ(u) 
+
+> j
+> λ(u)
+> j−λ(u)
+> i
+
+≤ ττ −1 , j ≤ k < k + 1 ≤ i because τ is a constant that measures the k-th spectral gap of matrix ˜A(u), i.e., λ(u) 
+
+> k
+
+≥ τ λ(u)
+
+> k+1
+
+, we can similarly get its upper bound to Equation 73 31 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+as follows: 
+
+Tr 
+
+ ˜Ak (ϕl)′
+
+> ϕl=0
+
+= Tr 
+
+ 
+
+Vk (ϕl)Σk (ϕl)Vk (ϕl)⊤′
+
+> ϕl=0
+
+≤
+
+
+
+Tr( V(u) 
+
+> k
+
+· V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> k
+
+V(u)⊤ 
+
+> k
+
+) − 2 Tr( ˜A(u) 
+
+> k
+
+DlV(u) 
+
+> k
+
+· V(u)⊤ 
+
+> k
+
+)+ 2 ττ − 1 Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤ 
+
+IN − V(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+!
+
+− 2 ττ − 1 Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+IN − V(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+ 
+
+= 2 ττ − 1 Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤
+
+!
+
+− τ + 1 
+
+τ − 1 Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤V(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+!
+
++ 2
+
+τ − 1 Tr 
+
+ ˜A(u) 
+
+> k
+
+DlV(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+
+
+− 2 ττ − 1 Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+= Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤
+
+!
+
++ 2
+
+τ − 1 Tr 
+
+ ˜A(u) 
+
+> k
+
+DlV(u) 
+
+> k
+
+V(u)⊤
+
+> k
+
+
+
+− 2 ττ − 1 Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+≤ Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤
+
+!
+
++ 2
+
+τ − 1 · ∥ V(u) 
+
+> k
+
+∥2 
+
+> F
+
+Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+− 2 ττ − 1 Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+≤ Tr V(u) 
+
+> k
+
+V(u)⊤
+
+> kc
+
+X
+
+> i=1
+
+qiqi⊤
+
+!
+
++ 2( k − τ )
+
+τ − 1 Tr 
+
+ ˜A(u) 
+
+> k
+
+Dl
+
+
+
+=
+
+> c
+
+X
+
+> i=1
+
+∥qi∥2 
+
+> F
+
+− 2F(u)⊤ 
+
+> i
+
+F(u) 
+
+> i
+
+(τ − k)
+
+τ − 1
+
+> c
+
+X
+
+> i=1
+
+∥qi∥1 =
+
+> c
+
+X
+
+> i=1
+
+∥qi∥2 
+
+> F
+
+− 2r2(τ − k)
+
+τ − 1
+
+> c
+
+X
+
+> i=1
+
+∥qi∥1
+
+(81) 
+
+Therefore, it is natural to obtain that: 
+
+Tr 
+
+ ˜AOI (ϕl)Vk(ϕl)Σk(ϕl)−1Vk(ϕl)⊤ ˜AOI (ϕl)⊤′
+
+ϕl=0 
+
+≥
+
+2
+
+cX
+
+i=1 
+
+Tr 
+
+
+
+piq⊤
+
+i · ˜A(u)⊤
+
+OI 
+
+
+
+− ∥ ˜A(u)OI ∥2
+
+F ∥ ˜A(u)∥2
+
+F · (
+
+cX
+
+i=1 
+
+∥qi∥2
+
+F − 2r2(τ − k)
+
+τ − 1
+
+cX
+
+i=1 
+
+∥qi∥1).
+
+(82) 32 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+## E. Empirical Verification of the Main Theorems 
+
+Verification of Theorems. We provide more verification results on C IFAR 10. Firstly, we verify how the value of G will change given a larger Frobenius norm of ˜A(u)OI .OOD dataset SVHN C100 
+
+FAR OOD NEAR OOD 
+
+∥ ˜A(u)OI ∥F ↑ 2583 2876 
+
+G ↑ 0.00 0.14 
+
+Table 5: Verification with different ∥ ˜A(u)OI ∥F (C IFAR 10 as ID). Next we verify the relationship of ∥ ˜A(u)∥F and the error difference (C IFAR 100 as OOD) in Table 6. Epochs 40 80 120 160 200 240 
+
+∥ ˜A(u)∥F ↓ 19873 19762 17539 16640 15982 15361 
+
+G ↑ 0.03 0.04 0.07 0.11 0.14 0.15 Table 6: Verification with different ∥ ˜A(u)∥F (C IFAR 10 dataset as ID). These two tables show a similar result as when the ID dataset is C IFAR 100, where the error difference on C IFAR 100 (near OOD, with larger ∥ ˜A(u)OI ∥F ) is consistently larger than that on S VHN (far OOD). Moreover, the difference in linear probing error G tends to increase with decreasing ∥ ˜A(u)∥F , which aligns with Theorem 2. 
+
+Verification of the assumptions. Here are the empirical verifications of the assumptions on real-world datasets, i.e., CIFAR 10 and C IFAR 100 datasets and simulated datasets as shown in Figure 2. For C IFAR 10 and C IFAR 100, we have checked the largest eigengap of matrix ˜A(u) and observed that τ = 7740 .92 for CIFAR 10 and τ = 8834 .78 for C IFAR 100, which are much larger than the feature dimension 512 . Therefore, we can always find a proper k such that τ > k is satisfied because k ≤ 512 .For the simulated datasets as shown in Figure 2, the largest eigengap of matrix ˜A(u) is 872.00. Therefore the condition 
+
+τ > k always holds because k = 2 in this case. We have provided more details about the matrix itself in Section F. 
+
+## F. Details of the Illustrative Example 
+
+For Figure 2 in the main paper, we generate the augmentation graph T as follows: 
+
+T =
+
+
+
+B1 B2 B2
+
+B2 B3 B2
+
+B2 B2 B4
+
+ , (83) where the block-wise matrices B1, B2, B3, B4 ∈ R40 ×40 are square matrices. Specifically, B1 has the following definition: 
+
+B1 = 140 ×40 · B1 + 12 ε1 + 12 ε⊤ 
+
+> 1
+
+,
+
+B2 = 140 ×40 · B2 + 12 ε2 + 12 ε⊤ 
+
+> 2
+
+,
+
+B3 = 140 ×40 · B3 + 12 ε3 + 12 ε⊤ 
+
+> 3
+
+,
+
+B4 = 140 ×40 · B4 + 12 ε4 + 12 ε⊤ 
+
+> 4
+
+,
+
+(84) here ε1, ε2, ε3, ε4 ∈ R40 ×40 are matrices where each element of them is sampled from a truncated normal distribution (lower bound is -0.1, upper bound is 0.1, mean is 0 and variance is 1). 140 ×40 is a matrix where each element in it is 1. Essentially, the matrix B1 measures the connectivity pattern between the data that belongs to the first ID class. We set 
+
+B1 = 0 .8.33 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+Similarly, B3 and B4 measure the connectivity pattern between the data that belongs to the second/third ID class, and we set B3 = 0 .75 , B 4 = 0 .7 respectively for B3 and B4. Moreover, the matrix B2 measures the connectivity pattern between the data that belongs to different ID classes and we set B2 = 0 .1 in this case. For the ID adjacency matrix A(u) and A(l),we can follow the definition in Definitions 3 and 4 of the main paper for calculation. In addition, we generate the OOD-ID adjacency matrix ˜A(u)OI by sampling from a truncated normal distribution where the lower bound is 0, the upper bound is 0.5, the mean is 0.5 and variance is 0.05 in the near OOD scenario. In the far OOD scenario, we set the lower bound to be 0, the upper bound to be 0.2, the mean to be 0.2, and the variance to be 0.05 for the truncated normal distribution. In the labeled case, the OOD-ID adjacency matrix ˜A(l)OI can be calculated according to Equation 23. Here q can be calculated based on the augmentation graph T and each element of p (that represents the connectivity probability between the OOD and ID data) is set to 0.1 because we let the connectivity probability be 0.1 when the data belongs to different classes in the augmentation graph T . Finally, we set ϕu = 1 and ϕl = 0 .5 for the calculation of all the adjacency matrices and the data representations. 
+
+## G. Additional Results on the Illustrative Example 
+
+In this section, we provide additional visualization results on changing the Frobenius norm of the ID adjacency matrix ˜A(u)
+
+and the semantic connection q in Figure 3. For all the examples, we visualize under the near OOD scenario (meaning that we use the same ˜AOI as in Section F). Please check the caption for a detailed explanation. (e) ID adj matrix w/ smaller      
+
+> ID cls 1
+> ID cls 2
+> ID cls 3
+> (a) ID adj matrix w/ larger
+> Decision boundary
+> Decision boundary
+> ID cls 1
+> ID cls 2
+> ID cls 3
+> (b) OOD and ID representations with larger (d) OOD and ID representations with smaller
+> Decision boundary
+> Decision boundary
+> ID cls 1
+> ID cls 2
+> ID cls 3
+> (g) ID adj matrix w/ larger
+> (c) ID adj matrix w/ smaller
+> Decision boundary
+> Decision boundary
+> (f) OOD and ID representations with smaller (h) OOD and ID representations with larger
+> Decision boundary
+> Decision boundary
+> ID cls 1
+> ID cls 2
+> ID cls 3
+
+Figure 3: Additional example showcasing the contrast between adjacency matrices and representations w/ (l) and w/o (u) ID labels. (a) The ID adjacency matrix in the unlabeled case A(u) with a larger ∥ ˜A(u)∥F (B1 = 0 .8, B 2 = 0 .1, B 3 = 0 .75 , B 4 = 0 .7). (b) The contrast of the learned representations in both labeled and unlabeled cases when ∥ ˜A(u)∥F = 1 .20 . (c) The ID adjacency matrix in the unlabeled case A(u) with a smaller ∥ ˜A(u)∥F (B1 = 0 .7, B 2 = 0 .1, B 3 = 0 .65 , B 4 = 0 .6). (d) The contrast of the learned representations in both labeled and unlabeled cases when ∥ ˜A(u)∥F = 1 .16 . Compared with (b) where the difference in the linear probing loss G is 0.09, the linear probing loss reduces from 0.16 to 0.02. (e) The ID adjacency matrix in the unlabeled case A(u) with a smaller ∥q∥F
+
+(B1 = 0 .7, B 2 = 0 .1, B 3 = 0 .65 , B 4 = 0 .6). (f) The contrast of the learned representations in both labeled and unlabeled cases when 
+
+∥q∥F = 7 .30 . (g) The ID adjacency matrix in the unlabeled case A(u) with a larger ∥q∥F (B1 = 0 .8, B 2 = 0 .2, B 3 = 0 .75 , B 4 = 0 .7). (h) The contrast of the learned representations in both labeled and unlabeled cases when ∥q∥F = 8 .79 . Compared with (f) where the difference in the linear probing loss G is 0.14, the linear probing loss reduces from 0.16 to 0.00. The visualization aligns with our theoretical reasoning as shown in Section 4.3. 
+
+## H. Additional Experimental Details 
+
+We provide more training details for both contrastive learning and linear probing. For contrastive training, we use the same data augmentation strategies as SimSiam (Chen & He, 2021). For C IFAR 10, we set ϕu = 0 .5, ϕ l = 0 .25 with training epoch 200, and we evaluate using features extracted from the layer preceding the projection. For C IFAR 100, we set ϕu = 3 , ϕ l = 0 .0225 with 200 training epochs and assess based on the projection layer’s features. We use SGD with momentum 0.9 as an optimizer with cosine annealing (lr=0.03), weight decay 5e-4, and batch size 512. For linear probing, we train a linear layer on the extracted features from the pretrained model by contrastive learning. We use SGD for 50 epochs with momentum 0.9 as an optimizer with a decayed learning rate in epoch 30 by 0.2 (The initial learning rate is 5), and batch size 512. 34 When and How Does In-Distribution Label Help Out-of-Distribution Detection? 
+
+## I. Additional Experimental Results 
+
+Results on C IFAR 10. We present the experimental results on C IFAR 10 in Table 7, where the effect of the ID labels is similar to the results on C IFAR 100. 
+
+OOD category OOD dataset ID labels FPR95 AUROC LP error FPR95 AUROC LP error 
+
+Ptest ood = PLP ood Ptest ood ̸ = PLP ood 
+
+FAR OOD SVHN - 0.05 ±0.01 99.98 ±0.00 0.01 ±0.00 36.60 ±2.84 91.71 ±1.90 0.33 ±0.11 
+
++ 0.03 ±0.00 99.98 ±0.01 0.00 ±0.00 8.62 ±1.12 98.43 ±0.47 0.25 ±0.19 
+
+TEXTURES - 0.21 ±0.03 99.96 ±0.01 0.01 ±0.00 10.16 ±0.72 98.13 ±2.03 0.52 ±0.10 
+
++ 0.57 ±0.06 99.80 ±0.10 0.01 ±0.00 13.87 ±0.82 97.60 ±1.39 0.58 ±0.18 
+
+PLACES 365 - 0.36 ±0.01 99.91 ±0.00 0.02 ±0.00 20.19 ±1.23 96.18 ±0.28 0.43 ±0.16 
+
++ 0.68 ±0.02 99.68 ±0.06 0.02 ±0.01 15.83 ±1.83 97.01 ±0.96 0.26 ±0.06 
+
+LSUN -R ESIZE - 0.68 ±0.01 99.78 ±0.18 0.03 ±0.00 18.21 ±1.71 96.87 ±3.28 0.42 ±0.21 
+
++ 0.56 ±0.23 99.78 ±0.10 0.01 ±0.01 10.83 ±1.18 97.94 ±0.23 0.39 ±0.03 
+
+LSUN -C - 0.68 ±0.12 99.80 ±0.05 0.04 ±0.02 11.10 ±1.78 97.93 ±1.89 0.42 ±0.07 
+
++ 0.32 ±0.16 99.65 ±0.05 0.02 ±0.02 7.95 ±1.92 98.44 ±0.21 0.40 ±0.19 
+
+NEAR OOD CIFAR 100 - 49.88 ±1.81 89.29 ±0.99 0.24 ±0.07 54.76 ±2.21 86.65 ±3.04 0.53 ±0.08 
+
++ 41.56 ±1.49 92.83 ±0.73 0.10 ±0.02 40.04 ±2.92 92.42 ±0.18 0.41 ±0.19 
+
+Table 7: OOD detection results w/ and w/o ID labels (C IFAR 10 as ID). Mean and std are estimated on three different runs. Better results are highlighted in bold. “+,-” denotes the labeled and unlabeled case. “LP error” denotes the error of linear probing. 
+
+Results on using post-hoc OOD detection scores. Instead of using linear probing to evaluate the OOD detection performance, we investigate another approach, which directly calculates the k-NN score (Sun et al., 2022) on top of the extracted representations for both the ID and OOD data and then computes the OOD detection metrics for comparison. The result is shown in Table 8, where the OOD detection performance is usually better in the labeled case. 
+
+OOD category OOD dataset ID labels FPR95 AUROC FPR95 AUROC CIFAR 10 as ID CIFAR 100 as ID FAR OOD SVHN - 37.35 ±3.12 88.08 ±2.91 27.27 ±0.88 93.85 ±2.16 
+
++ 14.97 ±1.81 97.82 ±0.96 55.39 ±4.78 86.31 ±1.12 
+
+TEXTURES - 63.91 ±2.16 78.29 ±3.06 77.87 ±1.97 61.68 ±1.68 
+
++ 44.91 ±2.90 92.89 ±0.95 67.19 ±2.08 81.11 ±2.89 
+
+PLACES 365 - 65.90 ±4.02 86.91 ±3.38 76.52 ±4.29 70.68 ±2.90 
+
++ 61.02 ±2.61 92.65 ±1.91 64.16 ±0.72 85.28 ±1.29 
+
+LSUN -R ESIZE - 68.91 ±2.17 85.89 ±0.90 90.00 ±1.38 57.91 ±3.96 
+
++ 56.81 ±0.61 92.81 ±1.74 67.40 ±3.19 85.89 ±3.77 
+
+LSUN -C - 26.08 ±1.48 93.21 ±0.27 62.57 ±0.97 75.50 ±1.98 
+
++ 36.32 ±2.20 94.97 ±1.88 57.10 ±2.93 83.23 ±2.26 
+
+NEAR OOD CIFAR 100/C IFAR 10 - 71.76 ±2.49 81.97 ±0.71 92.10 ±2.90 58.57 ±4.86 
+
++ 53.22 ±2.10 90.94 ±1.17 84.12 ±2.26 74.31 ±0.63 
+
+Table 8: OOD detection results measured by post-hoc k-NN score w/ and w/o ID labels (C IFAR 10 and C IFAR 100 as ID). Mean and std are estimated on three different runs. Better results are highlighted in bold. “+,-” denotes the labeled and unlabeled case and k is set to 25 for all the experiments. 
+
+## J. Tightness of the Bound 
+
+∥ ˜A(u)OI ∥F G Our bound 60 0.09 0.07 72 0.16 0.12 84 0.21 0.16 96 0.39 0.37 108 0.40 0.34 120 0.61 0.56 Table 9: Numerical results on the bound tightness. 
+
+We provide the evidence to verify the tightness of our bound. Specif-ically, we present numerical results on the illustrative example (Fig-ure 2) to show the proximity between the value of the error difference 
+
+G and the bound in our Theorem in Table 9. Specifically, we set a different value of ∥ ˜A(u)OI ∥F and observed our lower bound is suffi-ciently close to the error difference G (The details of the dataset used are the same as those described in Appendix Section F except for the Frobenius norm of the OOD-ID adjacency matrix). 35
