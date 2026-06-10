@@ -1,0 +1,501 @@
+Title: Disjoint or Overlapping? Inference Windowing for Reconstruction-Based Time Series Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2606.09874v1
+
+Published Time: Wed, 10 Jun 2026 06:20:55 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+> 1
+
+# Disjoint or Overlapping? Inference Windowing for Reconstruction-Based Time Series Anomaly Detection 
+
+Guillaume Coulaud, Reza Akbarinia, Florent Masseglia 
+
+Abstract —Reconstruction-based methods are widely used for time series anomaly detection, where models are trained to reconstruct subsequences, and anomalies are identified through reconstruction errors. However, reported results are often hard to compare due to heterogeneous evaluation practices and under-specified inference procedures. In this paper, we revisit reconstruction-based anomaly de-tection in the univariate offline setting and study the role of the inference stride, which controls whether subsequences are processed as disjoint windows or with overlap. We propose a unified training, tuning, and multi-seed evaluation protocol on the curated TSB-AD benchmark, and study how overlap-ping inference affects anomaly detection performance for arange of reconstruction models, including PCA-based baselines, DLinear, an AutoEncoder, TimesNet, and Transformer variants. The results show that across all models, overlapping windows yield consistent improvements, with average relative gain up to +28%, and can alter method rankings. We further analyze variability across datasets, random seeds, and hyperparameter configurations. Finally, we complement the benchmark study with an evaluation on the full UCR archive using localization criteria aligned with sliding-window reconstruction. Overall, our results highlight that reconstruction-based anomaly detec-tion performance depends not only on model architecture and training, but also on inference choices, motivating a clear and reproducible protocol. Our results show that reconstruction-based baselines achieve strong performance on both TSB-AD and UCR benchmarks, supporting them as competitive and practical approaches for univariate time series anomaly detection. 
+
+Index Terms —Time Series, Anomaly Detection, Deep Learning, Evaluation Methodology, Empirical Study, Benchmark 
+
+I. I NTRODUCTION 
+
+Time series anomaly detection (TSAD) plays a central role in many real-world applications, including industrial moni-toring [1], finance [2], and healthcare [3]. In recent years, reconstruction-based approaches have emerged as a strong paradigm [4], leveraging models such as autoencoder [5], recurrent neural network [6], and Transformer [7]. These methods rely on the assumption that a model trained on normal data can accurately reconstruct regular patterns, while anomalies lead to higher reconstruction errors. Reconstruction-based methods typically operate on fixed-size subsequences (or window) extracted from the original time 
+
+G. Coulaud is with the University of Montpellier, Inria, CNRS, LIRMM, Montpellier, France (email: guillaume.coulaud@inria.fr). R. Akbarinia is with Inria, University of Montpellier, CNRS, LIRMM, Montpellier, France (email: reza.akbarinia@inria.fr). F. Masseglia is with Inria, University of Montpellier, CNRS, LIRMM, Montpellier, France (email: florent.masseglia@inria.fr). 
+
+series. While the training procedure is generally standardized across the literature using sliding windows with a stride (or step) of 1, the inference strategy remains largely understudied. In particular, the inference stride determines whether subse-quences are processed using overlapping or disjoint windows, directly affecting how anomaly scores are reconstructed over time. Recent benchmarks and evaluation frameworks, including TAB [8], TSB-AD [9], and Time Series Library [10], consider only disjoint windows during inference, i.e. , a stride equal to the window length. This raises an important question: does the choice of inference stride, and more generally the use of overlapping versus disjoint windows, affect the anomaly detection performance of reconstruction-based methods? In this paper, our goal is to answer this question by assessing reconstruction-based methods under a controlled protocol. In particular, we study how the windowing strategy at inference affects anomaly detection performance in the case of univariate time series. Our contributions can be summarized as follows.  
+
+> •
+
+We conduct a controlled empirical study across a diverse collection of time series datasets (TSB-AD and the UCR archive), and provide both benchmark-level and dataset-level performance insights.  
+
+> •
+
+We investigate the effect of windowing strategy at infer-ence, discovering that the use of overlapping windows has a significant impact on anomaly detection performance, with average relative gain up to +28%.  
+
+> •
+
+We show that, under careful tuning and using over-lapping windows, simple reconstruction-based methods can achieve state-of-the-art performance on the TSB-AD benchmark.  
+
+> •
+
+We study the robustness of reconstruction methods to random initialization and hyperparameter selection, illus-trating the robustness issues of deep learning methods. The remainder of the paper is organized as follows. We present the related work in Section II. The problem is de-scribed in Section III. The experimental protocol is presented in Section IV. We analyze the results in Section V and provide complementary analysis in Section VI. We discuss results and takeaways in Section VII and conclude in Section VIII. II. R ELATED WORK 
+
+Anomaly detection in time series has been widely studied across data mining, machine learning, and statistics [11], [12], 
+
+> arXiv:2606.09874v1 [cs.LG] 2 Jun 2026 2
+
+[13], [14]. Existing approaches can be broadly grouped into distance-based, density-based, and prediction-based methods. Distance-based techniques detect anomalies by identifying subsequences that differ significantly from others, such as in the Matrix Profile [15], while density-based methods, such as Isolation Forest [16], focus on isolating rare observations. Prediction-based approaches rely on forecasting models, from statistical methods such as ARIMA [17] to deep learning models such as LSTM [18], and flag deviations between predicted and observed values. In recent years, reconstruction-based approaches have emerged as a prominent alternative. Rather than estimating similarity, density, or future values, these methods learn to reconstruct typical patterns and detect anomalies through re-construction errors. Due to their flexibility and compatibility with deep learning models, they have become a central focus of recent work. In the following, we concentrate on this family of methods. 
+
+a) Reconstruction-based Anomaly Detection: 
+
+Reconstruction-based methods are widely used for anomaly detection in time series. Early approaches rely on linear techniques such as Principal Component Analysis (PCA) [19], while more recent methods leverage deep learning models, including autoencoders, recurrent networks, and convolutional architectures. For example, EncDec-AD [20] introduces an LSTM encoder-decoder for sequence reconstruction, while LSTM-VAE [21] extends this idea using a variational autoencoder. Other works, such as MSCRED [22], combine convolutional and recurrent components to model spatio-temporal dependencies. TimesNet [23] models multi-periodicity by transforming one-dimensional signals into a two-dimensional representation based on frequency components estimated through a Fourier transform, then leverage 2d convolutions through inception blocks to reconstruct the input. More recently, Transformer-based architectures [7] have gained attention for time series analysis [24]. Models such as AutoFormer [25], FEDFormer [26] introduce decomposition-based designs that separate trend and seasonal components, typically using moving average filters. Additionally to the attention and decomposition mechanisms, AutoFormer add an autocorrelation mechanism while FEDFormer add frequency enhanced decomposition. These architectures aim to improve the modeling of long-range dependencies and structured tem-poral patterns. In this work, we focus exclusively on reconstruction-based models in order to assess their intrinsic anomaly detection capabilities. However, several extensions have been proposed to enhance reconstruction-based approaches. For instance, USAD [27] incorporates adversarial training to better isolate anomalies, while Anomaly Transformer [28] combines re-construction error with attention-based discrepancy measures. Other recent approaches explore contrastive learning strategies to improve the separation between normal and anomalous patterns [29]. 
+
+b) Anomaly Detection Evaluation: The evaluation of time series anomaly detection methods is challenging due to the ambiguity of anomalies and the diversity of application set-tings. Existing protocols can be broadly divided into threshold-based and score-based evaluation. In threshold-based evaluation, models produce anomaly scores that are converted into binary predictions using athresholding strategy. Metrics such as precision, recall, and F1-score are then computed, but they are highly sensitive to this choice and may not reflect the intrinsic quality of the scores. To avoid this dependency, score-based evaluation relies on threshold-independent metrics such as AUC-ROC [30] and AUC-PR [31], which assess the ranking quality of anomaly scores across all thresholds. However, these metrics treat each time step independently, ignoring the temporal structure of anomalies, which often occur as contiguous subsequences. To address this limitation, range-based [32] metrics intro-duce a tolerance around annotated anomalies by allowing partial scores within a buffer region. Extending this idea, the Volume Under the Surface (VUS) [33] aggregates performance over multiple buffer sizes, providing a more comprehensive evaluation across different tolerance levels at an increased computational cost. III. B ACKGROUND 
+
+A. Reconstruction Formulation 
+
+Let x = {xt0 , x t1 , . . . , x tn−1 } denote a univariate time series of length n, where xti is the observation at time ti.The goal is to assign an anomaly score sti to each time step. Reconstruction-based approaches learn a model fθ that re-constructs subsequences extracted from the time series. Given a window size w, a subsequence starting at index i is defined as 
+
+xi,w = {xti , x ti+1 , . . . , x ti+w−1 }.
+
+The model produces a reconstruction of the same dimen-sion: 
+
+ˆxi,w = fθ (xi,w ).
+
+Let s denote the inference stride. We extract windows of length w starting at indices 
+
+Js = { ks | k ∈ N, 0 ≤ ks ≤ n − w }.
+
+An index i is covered by the window starting at j if j ≤ i ≤
+
+j + w − 1. We therefore define the set of window start indices whose windows contain i as 
+
+Ii = { j ∈ J s | j ≤ i ≤ j + w − 1 }.
+
+For each j ∈ I i, let ˆx(j) 
+
+> ti
+
+denote the reconstruction of xti
+
+produced by the model when processing the window xj,w 
+
+(i.e., the value at the corresponding position in ˆxj,w ). The reconstruction error associated with this window is 
+
+e(j) 
+
+> ti
+
+=  xti − ˆx(j)
+
+> ti
+
+2.
+
+Finally, the anomaly score at time ti is obtained by aver-aging the reconstruction errors over all windows that contain 
+
+i:
+
+sti = 1
+
+|I i|
+
+X
+
+> j∈I i
+
+e(j) 
+
+> ti
+
+.3
+
+This formulation supports both overlapping and non-overlapping inference strategies. When the stride is set to 
+
+s = w, subsequences are disjoint, and each observation is evaluated exactly once. When s < w , subsequences overlap, and each observation is reconstructed multiple times under different local temporal contexts. Averaging the reconstruction errors reduces sensitivity to the position of the observation within a window and yields a more robust anomaly score. Let m denote the number of extracted subsequences, where 
+
+m = O(n/s ). Each subsequence of length w is processed once by the reconstruction model fθ , yielding a computational cost proportional to w per subsequence. The total inference cost is therefore O(mw ) = O   nw s
+
+.In the non-overlapping case ( s = w), the complexity reduces to O(n) up to a factor linear in the window size. In the fully overlapping case ( s = 1 ), the cost becomes O(nw ) due to maximal reuse of overlapping windows. 
+
+B. Evaluation Pipeline 
+
+The anomaly detection process can be decomposed into three stages: training, inference, and scoring. While training procedures are typically well specified, the inference stage is often treated as a fixed component of the pipeline. However, the anomaly score depends not only on the model but also on the inference parameters, in particular the stride s. This makes inference a critical component of the evaluation process. 
+
+1) Training: During training, the model learns to recon-struct subsequences extracted from the time series. Given a window size w, the objective is to minimize a reconstruction loss, typically the mean squared error (MSE), over the training data. During training, the stride is always set to s = 1
+
+(maximal overlap). The full training procedure, including hyperparameter optimization and model selection, is described in Section IV. 
+
+2) Inference: At inference time, the trained model is ap-plied to subsequences extracted from the time series using a given stride s. Reconstruction errors are computed for each subsequence and then concatenated to produce the final anomaly scores. In practice, most existing works adopt the disjoint setting, corresponding to s = w, where each point is evaluated only once. In this work, we explicitly consider both disjoint and overlapping strategies, and systematically analyze their impact on performance. Unless stated otherwise, we always set the stride to s = 1 for the overlapping inference. 
+
+3) Scoring: Once anomaly scores are obtained for each time step, performance is evaluated using standard metrics for anomaly detection using labeled data. IV. E XPERIMENTAL PROTOCOL 
+
+A. Datasets 
+
+We conducted the experiments using the TSB-AD bench-mark [9], a carefully curated aggregation of existing time series anomaly detection datasets designed to address common issues in prior benchmarks. The curation process includes the identification and removal of time series with labeling errors, dataset biases, or insufficient contextual information for effective anomaly detection. For the main evaluation, we use the originally proposed sub-sampled version of the benchmark, consisting of 350 univariate time series selected from the 870 available. This subsampling ensures a more balanced representation across source datasets, preventing larger datasets from disproportionately influencing the overall evaluation. In addition to aggregate performance metrics over this subset, we report results at the individual dataset level. This detailed analysis enables us to examine variability in model performance across different anomaly types, domains, and signal characteristics. To maintain comparability with prior studies, we also eval-uate our methods on the original UCR anomaly detection dataset without the curation applied in TSB-AD. Similar to [9], we apply per-series z-normalization as a preprocessing step. We adopt an offline detection setting where the complete time series is available prior to detection; hence, normalization statistics are computed over the entire series. Following the protocol of TSB-AD, models are trained using the benchmark-provided split, but anomaly scores are computed and evaluated for the full series. This setup differs from online anomaly detection, which is not the focus of this work. 
+
+B. Models Selection 
+
+We evaluate linear models, deep learning architectures, and PCA-based baselines. 
+
+1) PCA as a non-learning baseline: Interestingly, PCA-based approaches can be used in two different ways. The first is the sub-PCA approach, which achieves the best perfor-mance [9] on the TSB-AD benchmark. This method consists of computing the distance between each point and the principal components (see more details in [34]). The second approach formulates the problem as a basic reconstruction task [19]. Using a truncated SVD, subsequences are projected into a lower-dimensional space and then reconstructed back into the original space. The anomaly score is given by the reconstruc-tion error, which reflects the loss of information caused by the dimensionality reduction. To evaluate reconstruction-based methods in a way consistent with the deep learning approach, we apply truncated SVD to subsequences from the training set to construct a representative basis. This basis is then used to reconstruct the test set, and the reconstruction error is measured to assess anomalies. Prior to SVD, all subsequences are standardized using the mean and standard deviation of the training set; the same standardization parameters are applied to the test set. In our experiments, we use both approaches as baselines: the first for its strong empirical performance, and the second as a non-learning-based reconstruction method. To differentiate, we will denote the second approach as the Reconstruction-PCA (Rec-PCA). 
+
+2) DLinear Model as a Learning Baseline: To assess the actual benefits of more complex deep learning architectures, we use the DLinear model [35] as a simple baseline. In reconstruction-based anomaly detection, linear models could, in theory, converge to a trivial identity mapping. In other 4
+
+words, the model would simply reproduce the input, leading to near-zero reconstruction error and making anomaly detection ineffective. However, this behavior is not observed in practice under standard training conditions, because reaching such an identity mapping would require a large number of training epochs and very specific optimization dynamics. One of the main strengths of DLinear is its simplicity, resulting in fast training and inference. It also limits the number of hyperparameters that need to be tuned. The only architectural parameter we adjust is the kernel size of the moving average used in the decomposition step. Overall, DLinear serves as a simple and fast baseline, allowing us to evaluate whether the added complexity of more sophisticated models leads to meaningful improvements. 
+
+3) Deep Learning Models: We select a set of deep learning models that represent different reconstruction paradigms and inductive biases for time series modeling. First, we include a classical autoencoder as a fundamental baseline. This model consists of a feedforward encoder-decoder architecture trained to compress and reconstruct input subsequences. Despite its simplicity and the absence of explicit temporal modeling, it provides a useful reference point to assess whether more sophisticated architectures effectively exploit temporal depen-dencies. Second, we consider models specifically designed to cap-ture temporal structure. We include TimesNet [23], which is explicitly periodicity-aware and models temporal variations through a two-dimensional representation, enabling the capture of multi-periodic patterns in the time domain. In addition, we evaluate several Transformer-based architectures. First, we use the basic Transformer architecture. We further include advanced Transformer variants such as AutoFormer [25] and FEDFormer [26], which incorporate decomposition-based at-tention and, in the case of FEDformer, frequency-domain representations to improve the modeling of long-range depen-dencies. These models allow us to compare reconstruction-based anomaly detection performance across different induc-tive biases: compression-based representations (autoencoder), periodicity-aware modeling (TimesNet), frequency-domain modeling (FEDformer), and attention-based temporal model-ing (Transformer variants). This selection enables a controlled evaluation of whether increased architectural complexity and specialized temporal modeling lead to consistent improve-ments over simpler baselines. 
+
+C. Hyperparameter Tuning 
+
+We follow the evaluation protocol of the TSB-AD bench-mark, which reserves 15% of the time series for the hyper-parameter tuning. Details on the split can be found in [9]. In contrast to approaches that rely on default configurations, we perform a systematic hyperparameter optimization covering both architectural and training choices. This is motivated by two primary observations: 1) default configurations are often designed for multivariate settings and may be suboptimal for the univariate cases considered in this work; 2) hyperparameter selection significantly impacts performance and should be treated as an integral part of the evaluation protocol. To maintain a tractable search space, architectural param-eters are not tuned independently. Instead, each model is evaluated using three predefined architecture presets: small ,
+
+medium , and large . These presets group key structural param-eters, such as hidden dimensions, number of layers, and atten-tion sizes, enabling a controlled comparison across different model capacities without requiring an exhaustive search over all possible configurations. In addition to architectural choices, we consider two op-timization schemes: a constant learning rate and an adaptive schedule based on ReduceLROnPlateau . The latter adapts the learning rate based on validation performance with a patience of 5 epochs and a reduction factor of 0.5. The choice of tuning with a constant scheduler is motivated by prelimi-nary observations showing that inappropriate scheduling can hinder convergence and significantly degrade performance. Since the loss landscape and reconstruction requirements vary across models, we tune the number of training epochs per model among {10 , 20 , 30 , 50 }, and test initial learning rates of {10 −2, 10 −3, 10 −4}. Furthermore, we evaluate three subse-quence lengths: 32, 64, and 96. To account for stochastic variability, each configuration is evaluated using three random seeds ( 0, 1, 2), and then the results are averaged across runs. Model selection is performed by maximizing the AUC-PR on the validation split. To avoid over-interpreting marginal differences, AUC-PR values are rounded to two decimal places, and improvements below 1% are considered negligible. When multiple configurations achieve similar performance, we select the one with the lower computational cost, favoring smaller architecture presets or simpler optimization schemes. With two inference strategies, two learning rate schedulers, three initial learning rates, three subsequence lengths, and three architecture sizes, the search space results in 108 trials per model. The full hyperparameter search space, including the definition of architecture presets and training configurations for each model, is provided in the supplementary material (Tab. VII and Tab. IX). We always use the Adam optimizer with a batch size of 1024. For Rec-PCA, we perform the hyperparameter tuning using the same three subsequence lengths, and test with three different explained variance percentages {0.25 , 0.5, 0.75 } for the lower space dimension. 
+
+D. Model Evaluation 
+
+All models are evaluated using standard reconstruction-based anomaly detection metrics. For each time series, a model assigns an anomaly score at each time step based on recon-struction error. Performance is quantified primarily using the area under the precision-recall curve (AUC-PR), supplemented by the area under the receiver operating characteristic curve (AUC-ROC) and F1-score to provide a more complete picture of detection quality. We use the standard F1 score without any adjustment, such as the point adjustment, which is known to be biased [9]. To account for stochastic variability in model training, each experiment is repeated using five different random seeds 5
+
+(3, 4, 5, 6, 7) different from the one used for the hyperparam-eter tuning. Results are averaged across these five runs. Note that we do not to include range-based metrics such as volume under the surface [33], and this choice is motivated by their high execution time, which significantly increases the cost of the evaluation, especially in our context, where it is carried out on five seeds. V. R ESULTS 
+
+A. Setup 
+
+The experiments were implemented in Python, with all deep learning components developed using PyTorch. The deep learning models were adopted from the Time Series Library 1 [10]. For the evaluation of model performance, including the computation of relevant metrics, we used the TSB-AD package 2 [9]. All computations were made on a NVIDIA V100 GPU. The code of all experiments is available on GitHub 3.
+
+B. Impact of Windowing Strategy 
+
+We begin by quantifying how the windowing strategy in the inference phase affects reconstruction-based anomaly detection. Table I reports benchmark-level averages on the 350 evaluation time series of TSB-AD under two windowing strategies: disjoint ( s = w) and overlapping ( s = 1 ). Across all models and all three metrics (AUC-PR, AUC-ROC, and Standard-F1), overlapping inference yields higher scores, with AUC-PR absolute gains ranging from about +0.02 to +0.10 on average, and relative (percentage) gains up to 28%. The magnitude of this improvement, however, depends on the model family. Lightweight baselines and classical methods benefit the most in relative terms: TimesNet and DLinear im-prove AUC-PR by about +28% and +27%, respectively, while Rec-PCA gains roughly +19%. The AutoEncoder also shows a strong effect, with +27% AUC-PR and +24% Standard-F1, suggesting that disjoint segmentation can substantially deteriorate reconstruction errors. By contrast, Transformer-based variants (Transformer, FEDFormer, AutoFormer) ex-hibit more modest relative gains in AUC-PR (about +6% to +9%), and remain less competitive in absolute performance even under overlapping inference. Interestingly, with overlap enabled, Rec-PCA reaches a similar AUC-PR level (0.37) to FEDFormer (0.37) and comes close to Transformer (0.38), making it broadly comparable to these Transformer variants on this metric. To complement aggregated averages, Table II evaluates the strategy effect per time series. For each model and series, we compute the paired improvement ∆ = AUC -PR overlap −
+
+AUC -PR disjoint and summarize ∆ by its mean, median, and the fraction of series with ∆ > 0. Overlapping inference improves performance on a large majority of series for every model (e.g., 88.9% for AutoEncoder and 81.1% for TimesNet), and the improvements remain statistically significant under 
+
+> 1https://github.com/thuml/Time-Series-Library
+> 2https://github.com/thedatumorg/TSB-AD
+> 3https://github.com/GuillaumeCld/DeepTSAD eval
+
+a paired Wilcoxon signed-rank test with Holm correction (α = 0 .05 ) [36], [37]. The p-value of the tests are reported in the table. Finally, we examine the performance/runtime trade-off by sweeping the inference stride for the best AutoEncoder config-uration, therefore isolating the impact of the stride. Figure 1 shows that detection quality monotonically degrades as the stride increases from s = 1 (maximal overlap) to s = w (dis-joint windows), while execution time decreases accordingly. Notably, the AUC-PR and F1-score decrease by up to 10%, while the AUC-ROC decreases by up to 8%, consistent with the results reported in Table I. Overall, these results demonstrate that overlapping infer-ence provides an important and non-trivial performance boost across heterogeneous reconstruction models. In several cases, the gain from overlapping inference is comparable to (or larger than) the gap between model families under disjoint inference, highlighting that inference settings can meaningfully influence comparative conclusions. 1 12 24 36 48 60 72 84 96         
+
+> Stride ( s)
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> Score  AUC-PR
+> AUC-ROC
+> Standard-F1
+> (a) Average AUC-PR, AUC-ROC, F1-score 112 24 36 48 60 72 84 96
+
+Stride ( s)
+
+> 10 1
+> 10 2
+> Average time (ms)
+> (b) Average inference execution time (in ms)
+
+Fig. 1: Average performance/runtime tradeoff as a function of the stride s in inference for the best AutoEncoder configuration on the evaluation dataset. Since the overlapping window strategy consistently yields the best results, all subsequent analyses will be carried out using overlapping windows with s = 1 .
+
+C. Model Performance Comparison 
+
+We now turn to the comparison of model performance across the selected architectures. Table III summarizes the anomaly detection results obtained for each model using multiple evaluation metrics. To improve the robustness of 6
+
+TABLE I: Average performance under disjoint and overlapping inference on the 350 evaluation time series of TSB-AD. ∆% 
+
+denotes the relative change in percentage. Results are ordered by AUC-PR gains. 
+
+Model AUC-PR AUC-ROC Standard-F1 Disjoint Overlap ∆% Disjoint Overlap ∆% Disjoint Overlap ∆% 
+
+TimesNet 0.32 0.41 +28.1% 0.72 0.79 +9.7% 0.36 0.45 +25.0% DLinear 0.33 0.42 +27.3% 0.73 0.80 +9.6% 0.37 0.46 +24.3% AutoEncoder 0.37 0.47 +27.0% 0.78 0.86 +10.3% 0.41 0.51 +24.4% Rec-PCA 0.31 0.37 +19.4% 0.71 0.76 +7.0% 0.36 0.41 +13.9% FEDFormer 0.34 0.37 +8.8% 0.69 0.71 +2.9% 0.38 0.41 +7.9% AutoFormer 0.33 0.35 +6.1% 0.69 0.69 +0.0% 0.37 0.39 +5.4% Transformer 0.36 0.38 +5.6% 0.74 0.76 +2.7% 0.40 0.42 +5.0% 
+
+TABLE II: Per-series absolute AUC-PR gain ∆ from overlap-ping inference. Results are ordered by gains. 
+
+Model Mean ∆ Median ∆ % Improved p-value AutoEncoder 0.10 0.06 88.9 < 1e−4
+
+TimesNet 0.09 0.06 81.1 < 1e−4
+
+DLinear 0.09 0.03 71.1 < 1e−4
+
+Rec-PCA 0.06 0.02 80.6 < 1e−4
+
+FEDFormer 0.03 0.00 69.1 < 1e−4
+
+AutoFormer 0.02 0.00 67.1 < 1e−4
+
+Transformer 0.02 0.00 56.6 ≈ 1e−4
+
+the evaluation, every experiment was repeated five times with different random seeds. For each time series, we first computed the mean and standard deviation of the metrics across the five runs. The reported benchmark-level results correspond to the average of these per-series means, together with the average of the associated standard deviations, thereby reflecting the typical performance and stability of each model on the benchmark. Among all evaluated methods, the AutoEncoder achieves the strongest overall performance, obtaining the highest scores on all metrics with an AUC-PR of 0.47, an AUC-ROC of 0.86, and an F1-score of 0.51. Notably, it clearly outperforms both the original Sub-PCA baseline and the Rec-PCA im-plementation used in our experiments. DLinear also delivers competitive results, ranking second across all metrics despite its comparatively simple architecture. In contrast, more sophis-ticated transformer-based approaches such as FEDFormer and AutoFormer obtain weaker performances overall, suggesting that higher architectural complexity does not necessarily trans-late into better anomaly detection capability in the univariate setting. Most of the evaluated reconstruction pipelines achieve average performance comparable to or better than Sub-PCA, which was the top-performing method in the original bench-mark. This indicates that the reconstruction-based paradigm can be regarded as one of the most effective approaches for anomaly detection within the context of this benchmark. We are now looking at the significance of the difference. Figure 2 displays a critical difference diagram computed with the Friedman test followed by a post-hoc Wilcoxon test [36] as in [33]. AutoEncoder achieved the best average rank, while AutoFormer obtained the worst. However, the post-hoc Wilcoxon analysis indicates that many pairwise differences are not statistically significant, as shown by the connected groups TABLE III: Average anomaly detection performance. Each experiment is repeated five times; results report the average of per-series means and standard deviations across the five seeds in brackets.                                                    
+
+> Model AUC-PR AUC-ROC F1 Sub-PCA 0.37 (0.00) 0.71 (0.00) 0.42 (0.00)
+> Rec-PCA 0.37 (0.00) 0.76 (0.00) 0.41 (0.00)
+> DLinear 0.42 (0.01) 0.80 (0.00) 0.46 (0.01)
+> AutoEncoder 0.47 (0.02) 0.86 (0.01) 0.51 (0.02)
+> TimesNet 0.40 (0.04) 0.79 (0.03) 0.44 (0.04)
+> Transformer 0.38 (0.04) 0.76 (0.04) 0.42 (0.04)
+> FEDFormer 0.37 (0.02) 0.71 (0.02) 0.41 (0.02)
+> AutoFormer 0.35 (0.02) 0.69 (0.03) 0.39 (0.02)
+
+in the critical difference diagram. AutoEncoder is the top-ranked method and is significantly better than most alternatives 1234567
+
+> Autoformer
+> Rec-PCA
+> FEDformer
+> Transformer
+> DLinear
+> TimesNet
+> AutoEncoder
+
+Fig. 2: Critical difference diagram computed with the Fried-man test followed by a post-hoc Wilcoxon test (with α = 0 .05 )on the averaged AUC-PR of each of the 350 evaluation time series Overall, these results indicate that anomaly detection perfor-mance is not solely a function of model complexity. Efficient, lightweight architectures, such as DLinear, frequently match or even surpass more sophisticated models, underscoring the crit-ical importance of establishing strong baselines and adhering to rigorous evaluation protocols. Furthermore, high-capacity models, specifically Transformers and TimesNet, exhibit sig-nificant performance variability, with an average standard de-viation of 3 to 4% per series. This lack of robustness suggests difficulties in optimizing complex models using a static set of hyperparameters across a highly diverse range of time series. These findings emphasize: (i) the necessity of reporting results across multiple seeds to ensure fair comparative analysis, and (ii) the need for more robust approaches that guarantee reli-ability beyond controlled benchmarks. Crucially, these results highlight that simple reconstruction-based methods remain highly effective on this benchmark. 7
+
+When comparing our findings with the public TSB-AD ranking 4 reported in [9], we observe substantial performance gains obtained through careful hyperparameter tuning and the selection of appropriate inference strategies. For example, TimesNet improves from an AUC-PR of 0.18 to 0.40, an AUC-ROC of 0.61 to 0.79, and an F1-score of 0.24 to 0.44. These observations underline the importance of conducting controlled and systematic evaluations. By jointly exploring hyperparameters and inference procedures, our study provides a more comprehensive assessment of model capabilities and offers additional insights into the effectiveness of deep learning approaches for univariate anomaly detection. However, while the benchmark-level averages provide a useful global overview, they can also conceal substantial vari-ations in performance across individual datasets. In practice, some models exhibit markedly different behaviors depending on the characteristics of the underlying time series, such as anomaly type, temporal dynamics, or noise patterns. To better illustrate these discrepancies and move beyond aggregated results, we next examine model performance at the dataset level. 
+
+D. Dataset-Level Analysis 
+
+Model performance varies considerably across datasets, in-dicating that benchmark-level averages alone may mask impor-tant disparities. Some datasets consistently yield high detection scores for most methods, while others remain challenging regardless of the architecture considered. This highlights the importance of conducting analyses at the dataset level in addition to reporting aggregated metrics. Figure 3 presents a fine-grained visualization of anomaly detection performance across datasets and models using a polar heatmap representation. In contrast to aggregated statis-tics, this visualization exposes performance distributions at the individual time-series level, enabling a direct assessment of robustness, consistency, and variability across heterogeneous anomaly detection scenarios. Several important observations can be drawn from this figure. First, the heatmap highlights a strong dataset dependency. Some datasets, such as Stock, Exathlon, and partially YAHOO, exhibit consistently high AUC-PR values across most models, visible through large contiguous dark-red regions. In contrast, datasets such as UCR, MGAB, and MITDB contain predom-inantly low-intensity regions, indicating that these datasets remain challenging regardless of the selected architecture. Then, the figure emphasizes the substantial variability ob-served even within the same dataset. For instance, on the YAHOO dataset, the AutoEncoder model display many high values (above 0.8) and many low values (below 0.2), resulting in an average performance, while very few average values are observable. Providing more insights into the model per-formance. Finally, the heatmap also illustrates that simpler approaches remain highly competitive in several scenarios. Rec-PCA achieves strong performance on datasets such as Stock and 
+
+> 4Accessible online on https://thedatumorg.github.io/TSB-AD/ (consulted on 31/03/2026)
+
+TODS, demonstrating that increased architectural complexity does not systematically translate into better anomaly detection capability. Overall, these observations support the importance of comprehensive multi-dataset evaluations and carefully tuned baselines when assessing anomaly detection methods. YAHOO      
+
+> UCR
+> WSD
+> SMD
+> Exathlon
+> OPPORTUNITY
+> NAB
+> Stock
+> SVDB
+> SMAP
+> IOPS TODS
+> NEK
+> MGAB
+> LTDB
+> MSL
+> MITDB
+> DLinear
+> Rec-PCA
+> TimesNet
+> FEDFormer
+> Autoformer
+> Transformer
+> AutoEncoder
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> AUC-PR
+
+Fig. 3: Polar heatmap comparing anomaly detection perfor-mance (AUC-PR) across datasets and models. Each concentric ring corresponds to a model (inner to outer: DLinear, Rec-PCA, TimesNet, FEDFormer, AutoFormer, Transformer, Au-toEncoder), and each angular segment represents a time series instance grouped by dataset; warmer colors indicate higher AUC-PR. To support the analysis with values, Table IV reports the average AUC-PR obtained on each dataset by all methods. Overall, the AutoEncoder achieves the best average perfor-mance (0.48), outperforming DLinear (0.42), TimesNet (0.39), and Rec-PCA (0.36). However, despite this superior average score, the results do not reveal a universally dominant model. Indeed, DLinear achieves the best performance on several large and practically relevant datasets, including WSD and SMD. TimesNet performs particularly well on the YAHOO dataset, but such as DLinear. Conversely, Rec-PCA remains surprisingly competitive on datasets such as TODS. As visible in Figure 3, transformer-based architecture perform signifi-cantly better on the OPPORTUNITY dataset with score of 0.84 for both AutoFormer and FEDFormer. Another important observation is the substantial variability across datasets. Performance ranges from almost random de-tection on datasets such as MGAB to excellent detection on datasets such as Stock and Exathlon. This wide dispersion illustrates the intrinsic heterogeneity of anomaly detection benchmarks and further supports the necessity of broad multi-dataset evaluation protocols when assessing model effective-ness. 8                                                                                                                                                                
+
+> Dataset Cardinal Rec-PCA DLinear AE TimesNet Transformer AutoFormer FEDFormer YAHOO 254 0.81 0.91 0.47 0.91 0.61 0.47 0.49 UCR 222 0.04 0.10 0.21 0.13 0.03 0.04 0.05 WSD 106 0.37 0.47 0.36 0.43 0.32 0.24 0.24 SMD 33 0.61 0.69 0.70 0.62 0.48 0.40 0.42 Exathlon 30 0.70 0.89 0.90 0.79 0.90 0.85 0.93
+> OPPORTUNITY 27 0.10 0.20 0.40 0.05 0.69 0.84 0.84
+> NAB 23 0.24 0.27 0.27 0.28 0.23 0.20 0.22 Stock 18 0.77 0.82 0.99 0.73 0.93 0.87 0.80 SVDB 18 0.10 0.11 0.51 0.32 0.16 0.14 0.20 SMAP 17 0.63 0.58 0.48 0.66 0.43 0.31 0.33 IOPS 15 0.26 0.35 0.30 0.31 0.37 0.33 0.34 TODS 13 0.74 0.62 0.62 0.48 0.20 0.13 0.14 NEK 80.47 0.38 0.71 0.49 0.70 0.72 0.76
+> MGAB 80.01 0.00 0.14 0.03 0.00 0.01 0.00 LTDB 80.24 0.21 0.51 0.40 0.29 0.27 0.32 MSL 70.41 0.43 0.38 0.48 0.28 0.28 0.26 MITDB 70.06 0.12 0.27 0.14 0.12 0.12 0.15 Average -0.36 0.42 0.48 0.39 0.40 0.36 0.38 Standard deviation -0.29 0.30 0.26 0.25 0.30 0.31 0.30
+
+TABLE IV: Average AUC-PR per model per dataset of TSB-AD. 
+
+E. Zoom on the UCR Dataset 
+
+To provide more insights on reconstruction based anomaly detection, we now focus on the UCR dataset, an important benchmark given the number and diversity of time series. Each of the 250 time series is accompanied by detailed provenance information, which increases confidence in the reliability of the ground truth annotations. The datasets span a wide variety of domains, including cardiology, industrial systems, medicine, zoology, meteorology, and human behavior. To ensure a fair comparison between models and paradigms on this archive, we follow the evaluation protocol introduced by its creators and evaluate all 250 time series in their original form. In this setting, each dataset contains exactly one anomaly, represented by an anomalous interval [ts, t e], and the objective of an algorithm is to predict its location. Let 
+
+L = te − ts
+
+denote the anomaly length. Following the original protocol, a prediction ˆt is considered correct if it falls within a tolerance region extending by L samples before and after the anomalous interval, i.e., 
+
+ˆt ∈ [ts − L, t e + L].
+
+When L < 100 , the tolerance is set to 100 to avoid overly strict evaluation on short anomalies. This defines a relaxed localization criterion that rewards coarse anomaly localization. However, this evaluation protocol is not fully adapted to reconstruction-based anomaly detection methods operating on sliding subsequences, especially when the considered subse-quence lengths are less than L (at most 96 in this study). Thus, for a fair evaluation, the tolerance window length should not be greater than the considered subsequence length. To better reflect this setting, we introduce two additional localization criteria tailored to subsequence-based detection:  
+
+> •
+
+Semi-strict score: a prediction is considered correct if it falls within a tolerance region extending by w samples before and after the anomalous interval, i.e., 
+
+ˆt ∈ [ts − w, t e + w].
+
+This criterion accounts for detected points belonging to any reconstructed subsequences overlapping with the anomaly.  
+
+> •
+
+Strict score: a prediction is considered correct only if it lies inside the annotated anomalous interval itself, i.e., 
+
+ˆt ∈ [ts, t e].
+
+This criterion measures the ability of the method to precisely localize the anomaly without any additional tolerance outside the ground-truth anomalous region. Together, these three metrics provide complementary per-spectives on localization performance: the original score serves as a comparable baseline but might inflate the results, the semi-strict score evaluates localization at the subsequence resolution, and the strict score measures precise alignment with the annotated anomalous interval. For the sake of consistency, we keep the hyperparameters previously selected. It is to be noted that, among the 48 times series used for the hyperparameter tuning, six come from the UCR dataset. Therefore, the results are conservative relative to UCR-specific tuning reducing the risk of benchmark-specific overfitting. The results reported in Table V show that performance under this metric is generally higher than what is suggested by the AUC-PR values presented in Figure 3 and Table IV. This dif-ference stems from the nature of the evaluation protocol, which focuses on localizing a single anomaly rather than assessing the full ranking of anomaly scores over time. However, despite this apparent improvement, the results remain far from perfect, indicating that the task is still challenging. For comparison, Table VI reports the performance of additional methods from the literature, as presented in recent works [38], [39]. Overall, AutoEncoder and TimesNet achieve the strongest performance among all reconstruction approaches, with UCR scores of 53.1 and 52.3, respectively. These two models main-tain strong results under both semi-strict and strict evaluations, with only a moderate degradation under the strict setting (e.g., AutoEncoder drops from 53.1 to 43.0). 9
+
+TABLE V: Performance comparison on the full UCR archive using the strict and semi-strict score for the reconstruction models.                                                                   
+
+> Method UCR score Semi-strict Strict AutoEncoder 53.1 ±0.3 53.1 ±0.3 43.0 ±0.2
+> TimesNet 52.3 ±1.5 52.1 ±1.7 42.1 ±1.4
+> DLinear 38.3 ±0.5 38.3 ±0.5 25.0 ±0.4
+> Rec-PCA 25.2 ±0.0 25.2 ±0.0 18.4 ±0.0
+> Transformer 20.7 ±1.2 19.9 ±0.9 17.2 ±0.7
+> FEDFormer 18.2 ±0.9 17.4 ±0.5 13.8 ±1.0
+> AutoFormer 17.2 ±0.8 16.3 ±1.0 13.9 ±0.3
+
+DLinear follows as a competitive linear baseline, achieving 38.3 under the UCR score and 25.0 under the strict metric. In contrast, Transformer-based architectures (Transformer, FED-Former, and AutoFormer) perform substantially worse across all metrics, with UCR scores ranging from 17.2 to 20 .7.A notable observation is the consistent gap between the UCR and strict scores across all methods. This gap reflects the inherent difficulty of precisely identifying anomaly boundaries under stricter evaluation constraints, which penalize temporal misalignment more heavily. GDFlex achieves the highest overall UCR score (72.8), sig-nificantly outperforming all reconstruction-based approaches. Similarly, Matrix Profile-based approaches, C22 MP and DAMP also demonstrate strong performance, with scores above 55, but comparable with the bests reconstruction mod-els. Showing that the reconstruction paradigm can be compet-itive with the distance paradigm, while not being the state-of-the-art In contrast, traditional deep learning baselines such as USAD, LSTM-VAE, and TranAD achieve substantially lower scores, with values between 19.0 and 27.6. Our results show that deep learning results can be improved on this dataset, revisiting existing conclusion on the potential of deep learning. Finally, we can see that the semi-strict score can slightly deteriorate the performance of some models, up to -0.9 for AutoFormer and -0.8 for FEDFormer, illustrating the benefits of introducing a stricter score to avoid inflated performances and perform a fair comparison of approaches that might have different subsequence lengths. TABLE VI: Baselines performance on the full UCR archive using the UCR score, results taken from [38] and [39]          
+
+> Method UCR Score GDFlex [38] 72.8 C22 MP [39] 56.8 DAMP [40] 55.6 NORMA [41] 47.4 SCRIMP [42] 41.6 USAD [27] 27.6 LSTM-VAE [21] 19.8 TranAD [43] 19.0
+
+VI. C OMPLEMENTARY ANALYSIS 
+
+A. Execution time 
+
+We also present in Figure 4 the distribution of execution times for all methods evaluated on the TSB-AD benchmark. The reported execution time includes both training and infer-ence phases. As expected, execution time generally reflects model complexity: Rec-PCA exhibits the runtime with amedian execution time below one second, whereas TimesNet is slower by approximately two orders of magnitude in median runtime. The top-performing methods, notably AutoEncoder and DLinear, achieve median computation times of around one second, demonstrating that these lightweight approaches are computationally efficient despite requiring a training phase. Rec-PCA   
+
+> DLinear
+> AutoEncoder
+> Transformer
+> Autoformer
+> FEDformer
+> TimesNet
+> Models
+> 10 2
+> 10 1
+> 10 0
+> 10 1
+> 10 2
+> 10 3
+> Execution Time (s)
+
+Fig. 4: Distribution of the execution time (training+inference) of the reconstruction models on the TSB-AD benchmark. 
+
+B. Robustness Evaluation 
+
+We now evaluate sensitivity to hyperparameters and initial-ization, revealing substantial variability. 
+
+1) Seed sensitivity: We first evaluate the sensitivity to the seed on the evaluation test of the TSB-AD benchmark across the five evaluation seeds. Figure 5 displays for all models the distribution of standard deviation (Fig. 5a) and range (Fig. 5b) of the AUC-PR per time series. Aside from Rec-PCA, which is deterministic, DLinear achieves the smallest standard deviation range, indicating highly stable performance. In contrast, more complex architectures show progressively larger fluctuations. TimesNet consistently yields the highest standard deviations and range, followed by Transformer and AutoEncoder. In the worst case, TimesNet can have a difference of up to 30% in AUC-PR on two different seeds for the same time series, raising concerns about the architecture’s robustness. Surprisingly, FEDFormer and AutoFormer show a noticeably better robustness then the vanilla Transformer. These observations suggest that simpler or more constrained architectures tend to exhibit more consistent AUC-PR perfor-mance across seeds, whereas higher-capacity sequence models may be more sensitive to optimization dynamics and ini-tialization effects. These results highlight the importance of reporting seed-wise robustness when evaluating time-series anomaly detection models to account for model robustness. 
+
+2) Hyperparameter sensitivity: We now investigate the im-pact of the hyperparameters selection for the learning models. To simplify the analysis, we focus only on the overlapping inference strategy. Figure 6 displays the distribution of AUC-PR on the hyperparameter tuning dataset on the 54 hyper-parmeters sets with overlapping. Simpler methods (DLinear and AutoEncoder) show a broader variation in performance. While these methods perform well overall, there are param-eter settings that perform better than others. Particularly, the 10 Rec-PCA 
+
+> DLinear
+> FEDformer
+> Autoformer
+> AutoEncoder
+> Transformer
+> TimesNet
+> Models
+> 0.000
+> 0.025
+> 0.050
+> 0.075
+> 0.100
+> 0.125
+> Std of AUC-PR
+
+(a) Distribution of standard deviation across seeds Rec-PCA 
+
+> DLinear
+> FEDformer
+> Autoformer
+> AutoEncoder
+> Transformer
+> TimesNet
+> Models
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> Range of AUC-PR
+
+(b) Distribution of range across seeds 
+
+Fig. 5: Evaluation of the robustness to the seed of the recon-struction models on the TSB-AD evaluation benchmark. AutoEncoder shows a range of 20% between the best and the worst performing configuration, illustrating the sensitivity of the model to the set of hyperparameters and the need for tuning. Meanwhile, transformer-based models have a range of approximately 5%, highlighting a better robustness on the tuning dataset; however performing worse than the median of the other models. DLinear 
+
+> TimesNet
+> AutoEncoder
+> Transformer
+> FEDformer
+> Autoformer
+> Models
+> 0.30
+> 0.35
+> 0.40
+> 0.45
+> 0.50
+> AUC-PR
+
+Fig. 6: Distribution of AUC-PR across the different hyper-parameters set (overlapping only) on the tuning dataset from TSB-AD for all learning models. In Figure 7, we present the distribution of AUC-PR scores on the TSB-AD evaluation dataset. Due to computational constraints, we restrict the analysis to the AutoEncoder, as it achieved the best overall performance. The green vertical line denotes the best-performing AutoEncoder configuration, corresponding to the model discussed in the previous sections, while the black vertical line represents the Sub-PCA baseline. The performance of the 54 hyperparameter configurations on the evaluation dataset ranges from 0.34 to 0.47 in terms of AUC-PR. Among these configurations, 33 outperform the Sub-PCA baseline, 16 perform worse, and 5 achieve identical results. 0.30 0.33 0.35 0.38 0.40 0.43 0.45 0.48 0.50 
+
+> AUC-PR Score
+> 0
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> Count
+> Best AE
+> Sub-PCA
+
+Fig. 7: Distribution of AUC-PR across the 54 different com-bination of hyperparameters (overlapping only) set on the evaluation dataset from TSB-AD for the AutoEncoder. VII. D ISCUSSION 
+
+This work shows that conclusions about reconstruction-based TSAD can change substantially depending on evaluation and pipeline choices that are often under-specified in the literature. While our experiments are restricted to univariate reconstruction methods under the offline TSB-AD protocol, several observations and practical recommendations emerge. 
+
+a) Inference windowing strategy is a critical component of reconstruction pipelines: The inference procedure, in par-ticular the stride and resulting overlap between reconstructed windows, has a critical and non-trivial impact on performance. Overlapping inference improves AUC-PR, AUC-ROC, and Standard-F1 for all evaluated models, with average relative gain up to +28% and average absolute gain up to +0.10, and improvements on a majority of time series. This indicates that the detection quality of reconstruction-based methods depends not only on the architecture and training procedure, but also on how reconstructions are mapped back to point-wise anomaly scores. 
+
+b) Simple baselines remain competitive: On TSB-AD, lightweight reconstruction models (AutoEncoder and DLinear) match or outperform more complex Transformer variants in the univariate setting. This reinforces the importance of including strong and carefully tuned baselines when claiming progress. In particular, architectural complexity alone does not guarantee improved anomaly detection performance, and tuning choices can lead to large performance gaps even for relatively simple models. Consequently, fair comparisons should report both the tuned configuration and the tuning budget (search space, selection metric, and number of seeds), as these can substantially influence the conclusions drawn from a benchmark. Additionally, Rec-PCA, the fastest method evaluated in this study, requires tuning only two parameters: the subsequence length and the percentage of explained vari-ance. Yet, this method achieves strong results on the TSB-AD dataset, making it a compelling baseline method. 
+
+c) Benchmark heterogeneity and robustness matter: 
+
+Benchmark-level averages can hide substantial variability across datasets and time series instances. Our dataset-level analysis shows that some datasets yield high performance for most models, while other datasets remain challenging regardless of the architecture. In addition, deep models can exhibit non-negligible variability across random seeds, and 11 
+
+performance can depend strongly on the selected hyperpa-rameters. These observations support more robust reporting practices: (i) reporting results across multiple seeds (e.g., mean 
+
+± std) rather than a single run; (ii) complementing benchmark-level averages with dataset-level breakdowns; and (iii) using statistical tests (e.g., paired tests across time series) to avoid over-interpreting small differences in averaged metrics. Over-all, these practices help distinguish consistent improvements from gains that depend on favorable initialization, specific datasets, or particular hyperparameter choices. 
+
+d) Takeaway from hyperparameter tuning: The retained hyperparameter configurations, shown in Table VII, provide additional practical insight. The best configurations often use larger learning rates (frequently 1e −2) and longer training (often 50 epochs), and in several cases a constant learning rate performs as well as or better than ReduceLROnPlateau .This suggests that default settings commonly used in prior TSAD studies (e.g., smaller learning rates with aggressive scheduling) may be suboptimal for the univariate reconstruc-tion setting considered here. More broadly, the observed sensitivity to hyperparameters motivates explicitly reporting the full training recipe (optimizer, learning rate, schedule, epochs, window length) and encourages future work on more robust selection criteria that reduce the dependence on labeled validation or extensive tuning. TABLE VII: Hyperparameter selected configuration: learning rate (LR), number of training epochs (Ep.), subsequence length (Len), learning-rate scheduler, and architecture preset (Arch).                                    
+
+> Model LR Ep. Len Sch. Arch.
+> DLinear 10 −250 96 Const SAutoEncoder 10 −250 96 Plat. SFEDformer 10 −350 32 Const MTransformer 10 −330 32 Plat. MAutoformer 10 −450 32 Const LTimesNet 10 −250 96 Plat. L
+
+VIII. C ONCLUSION 
+
+We presented an empirical study of reconstruction-based univariate TSAD on the TSB-AD benchmark, complemented with an analysis on the UCR archive. Our results show that evaluation choices, and in particular the inference strategy (disjoint vs. overlapping windows), have a substantial and consistent impact on anomaly detection performance and can change method rankings. They also show that, under careful tuning, simple reconstruction baselines (e.g., AutoEncoder, DLinear) remain highly competitive, while performance varies widely across datasets and can be sensitive to random seeds and hyperparameters. These findings support more transparent and reproducible evaluation of reconstruction-based TSAD: explicitly specify-ing inference settings (window length, stride, aggregation), reporting multi-seed results and dataset-level breakdowns, and using paired significance tests to avoid over-interpreting small average differences. A natural direction for future work is to extend this analysis to multivariate TSAD. We expect the same core issue to persist: multivariate reconstruction models still operate on slid-ing windows and must map multiple, potentially overlapping, window reconstructions back to point-wise scores. As a result, the choice of inference windowing strategy (stride, overlap, and aggregation) is likely to have a similar impact, potentially amplified by additional design choices specific to multivariate data (e.g., channel-wise vs. joint error aggregation, variable scaling, and correlation structure). Future studies should there-fore evaluate whether overlap affects not only overall accuracy but also the localization of anomalous dimensions and the stability of rankings across datasets. ACKNOWLEDGMENT 
+
+This work is supported by R´ egion Occitanie. This work was performed using HPC resources from GENCI-IDRIS (Grant 2026-11017733). REFERENCES [1] P. Yan, A. Abdulkadir, P.-P. Luley, M. Rosenthal, G. A. Schatte, B. F. Grewe, and T. Stadelmann, “A Comprehensive Survey of Deep Transfer Learning for Anomaly Detection in Industrial Time Series: Methods, Applications, and Directions,” IEEE Access , vol. 12, pp. 3768–3789, 2024. [2] W. Yang, R. Wang, and B. Wang, “Detection of Anomaly Stock Price Based on Time Series Deep Learning Models,” in 2020 Management Science Informatization and Economic Innovation Development Confer-ence (MSIEID) , 2020, pp. 110–114. [3] X. Yang, X. Qi, and X. Zhou, “Deep Learning Technologies for Time Series Anomaly Detection in Healthcare: A Review,” IEEE Access ,vol. 11, pp. 117 788–117 799, 2023. [4] Z. Zamanzadeh Darban, G. I. Webb, S. Pan, C. Aggarwal, and M. Salehi, “Deep Learning for Time Series Anomaly Detection: A Survey,” vol. 57, no. 1, pp. 15:1–15:42. [Online]. Available: https://dl.acm.org/doi/10.1145/3691338 [5] D. Bank, N. Koenigstein, and R. Giryes, “Autoencoders,” Machine learn-ing for data science handbook: data mining and knowledge discovery handbook , pp. 353–374, 2023. [6] L. R. Medsker, L. Jain et al. , “Recurrent neural networks,” Design and applications , vol. 5, no. 64-67, p. 2, 2001. [7] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, “Attention is All you Need,” in Advances in Neural Information Processing Systems , vol. 30. Curran Associates, Inc. [Online]. Available: https://proceedings.neurips. cc/paper/2017/hash/3f5ee243547dee91fbd053c1c4a845aa-Abstract.html [8] X. Qiu, Z. Li, W. Qiu, S. Hu, L. Zhou, X. Wu, Z. Li, C. Guo, A. Zhou, Z. Sheng, J. Hu, C. S. Jensen, and B. Yang, “Tab: Unified benchmarking of time series anomaly detection methods,” Proc. VLDB Endow. , vol. 18, no. 9, p. 2775–2789, May 2025. [Online]. Available: https://doi.org/10.14778/3746405.3746407 [9] Q. Liu and J. Paparrizos, “The elephant in the room: Towards a reliable time-series anomaly detection benchmark,” in Proceedings of the 38th International Conference on Neural Information Processing Systems , ser. NIPS ’24, vol. 37. Curran Associates Inc., 2024, pp. 108 231–108 261. [10] Y. Wang, H. Wu, J. Dong, Y. Liu, M. Long, and J. Wang. Deep Time Series Models: A Comprehensive Survey and Benchmark. [Online]. Available: http://arxiv.org/abs/2407.13278 [11] V. Chandola, A. Banerjee, and V. Kumar, “Anomaly detection: Asurvey,” ACM Comput. Surv. , vol. 41, no. 3, Jul. 2009. [Online]. Available: https://doi.org/10.1145/1541880.1541882 [12] A. Bl´ azquez-Garc´ ıa, A. Conde, U. Mori, and J. A. Lozano, “A review on outlier/anomaly detection in time series data,” ACM Comput. Surv. , vol. 54, no. 3, Apr. 2021. [Online]. Available: https://doi.org/10.1145/3444690 [13] P. Boniol, Q. Liu, M. Huang, T. Palpanas, and J. Paparrizos, “Dive into time-series anomaly detection: A decade review,” 2024. [14] A. Zhang, S. Deng, D. Cui, Y. Yuan, and G. Wang, “An experimental evaluation of anomaly detection in time series,” PVLDB , vol. 17, no. 3, 2023. 12 
+
+[15] C.-C. M. Yeh, Y. Zhu, L. Ulanova, N. Begum, Y. Ding, H. A. Dau, D. F. Silva, A. Mueen, and E. Keogh, “Matrix profile i: all pairs similarity joins for time series: a unifying view that includes motifs, discords and shapelets,” in 2016 IEEE 16th international conference on data mining (ICDM) . Ieee, 2016, pp. 1317–1322. [16] F. T. Liu, K. M. Ting, and Z.-H. Zhou, “Isolation Forest,” in ICDM ,2008, pp. 413–422. [17] A. H. Yaacob, I. K. Tan, S. F. Chien, and H. K. Tan, “ARIMA Based Network Anomaly Detection,” in 2010 Second International Conference on Communication Software and Networks , 2010, pp. 205–209. [18] K. Hundman, V. Constantinou, C. Laporte, I. Colwell, and T. Soder-strom, “Detecting spacecraft anomalies using lstms and nonparametric dynamic thresholding,” in ACM SIGKDD , New York, NY, USA, 2018, p. 387–395. [19] N. Takeishi, “Shapley values of reconstruction errors of pca for explain-ing anomaly detection,” in 2019 international conference on data mining workshops (icdmw) . IEEE, 2019, pp. 793–798. [20] P. Malhotra, A. Ramakrishnan, G. Anand, L. Vig, P. Agarwal, and G. Shroff. LSTM-based Encoder-Decoder for Multi-sensor Anomaly Detection. arXiv.org. [Online]. Available: https://arxiv.org/abs/1607. 00148v2 [21] D. Park, Y. Hoshi, and C. C. Kemp, “A Multimodal Anomaly Detector for Robot-Assisted Feeding Using an LSTM-Based Variational Autoencoder,” vol. 3, no. 3, pp. 1544–1551. [Online]. Available: https://ieeexplore.ieee.org/abstract/document/8279425 [22] C. Zhang, D. Song, Y. Chen, X. Feng, C. Lumezanu, W. Cheng, J. Ni, B. Zong, H. Chen, and N. V. Chawla, “A Deep Neural Network for Unsupervised Anomaly Detection and Diagnosis in Multivariate Time Series Data,” vol. 33, no. 01, pp. 1409–1416. [Online]. Available: https://ojs.aaai.org/index.php/AAAI/article/view/3942 [23] H. Wu, T. Hu, Y. Liu, H. Zhou, J. Wang, and M. Long, “Timesnet: Temporal 2d-variation modeling for general time series analysis,” arXiv preprint arXiv:2210.02186 , 2022. [24] Q. Wen, T. Zhou, C. Zhang, W. Chen, Z. Ma, J. Yan, and L. Sun. Transformers in Time Series: A Survey. [Online]. Available: http://arxiv.org/abs/2202.07125 [25] H. Wu, J. Xu, J. Wang, and M. Long, “Autoformer: Decomposition transformers with auto-correlation for long-term series forecasting,” 
+
+Advances in neural information processing systems , vol. 34, pp. 22 419– 22 430, 2021. [26] T. Zhou, Z. Ma, Q. Wen, X. Wang, L. Sun, and R. Jin, “Fedformer: Frequency enhanced decomposed transformer for long-term series fore-casting,” in International conference on machine learning . PMLR, 2022, pp. 27 268–27 286. [27] J. Audibert, P. Michiardi, F. Guyard, S. Marti, and M. A. Zuluaga, “USAD: UnSupervised Anomaly Detection on Multivariate Time Series,” in Proceedings of the 26th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining . ACM, 2020, pp. 3395–3404. [Online]. Available: https://dl.acm.org/doi/10.1145/ 3394486.3403392 [28] J. Xu, H. Wu, J. Wang, and M. Long, “Anomaly transformer: Time series anomaly detection with association discrepancy,” arXiv preprint arXiv:2110.02642 , 2021. [29] H. Kim, S. Kim, S. Min, and B. Lee, “Contrastive Time-Series Anomaly Detection,” vol. 36, no. 10, pp. 5053–5065. [Online]. Available: https://ieeexplore.ieee.org/abstract/document/10325644 [30] T. Fawcett, “An introduction to ROC analysis,” vol. 27, no. 8, pp. 861–874. [Online]. Available: https://www.sciencedirect.com/science/ article/pii/S016786550500303X [31] J. Davis and M. Goadrich, “The relationship between Precision-Recall and ROC curves,” in Proceedings of the 23rd International Conference on Machine Learning - ICML ’06 . ACM Press, pp. 233–240. [Online]. Available: http://portal.acm.org/citation.cfm?doid=1143844.1143874 [32] N. Tatbul, T. J. Lee, S. Zdonik, M. Alam, and J. Gottschlich, “Precision and Recall for Time Series,” in Advances in Neural Information Processing Systems , vol. 31. Curran Associates, Inc. [Online]. Available: https://proceedings.neurips.cc/paper/2018/hash/ 8f468c873a32bb0619eaeb2050ba45d1-Abstract.html [33] P. Boniol, A. K. Krishna, M. Bruel, Q. Liu, M. Huang, T. Palpanas, R. S. Tsay, A. Elmore, M. J. Franklin, and J. Paparrizos, “VUS: Effective and efficient accuracy measures for time-series anomaly detection,” vol. 34, no. 3, p. 32. [Online]. Available: https://doi.org/10.1007/s00778-025-00907-x [34] M.-L. Shyu, S.-C. Chen, K. Sarinnapakorn, and L. Chang, “A novel anomaly detection scheme based on principal component classifier,” 2003. [35] A. Zeng, M. Chen, L. Zhang, and Q. Xu, “Are transformers effective for time series forecasting?” in Proceedings of the AAAI conference on artificial intelligence , vol. 37, no. 9, 2023, pp. 11 121–11 128. [36] F. Wilcoxon, “Individual comparisons by ranking methods,” in Break-throughs in statistics: Methodology and distribution . Springer, 1992, pp. 196–202. [37] S. Holm, “A simple sequentially rejective multiple test procedure,” 
+
+Scandinavian journal of statistics , pp. 65–70, 1979. [38] M. Imamura, “Generalized Discords for Time Series Anomaly Detection with Flexible Subsequence Lengths,” in Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V.2 ,ser. KDD ’25. Association for Computing Machinery, pp. 1013–1024. [Online]. Available: https://dl.acm.org/doi/10.1145/3711896.3736977 [39] S. Tafazoli, Y. Lu, R. Wu, T. V. A. Srinivas, H. Dela Cruz, R. Mercer, and E. Keogh, “C22MP: The marriage of catch22 and the matrix profile creates a fast, efficient and interpretable anomaly detector,” 
+
+Knowledge and Information Systems , vol. 66, pp. 4789–4823, 2024. [Online]. Available: https://doi.org/10.1007/s10115-024-02107-5 [40] Y. Lu, R. Wu, A. Mueen, M. A. Zuluaga, and E. Keogh, “DAMP: Accurate time series anomaly detection on trillions of datapoints and ultra-fast arriving data streams,” Data Mining and Knowledge Discovery , vol. 37, no. 2, pp. 627–669, 2023. [Online]. Available: https://doi.org/10.1007/s10618-022-00911-7 [41] P. Boniol, M. Linardi, F. Roncallo, T. Palpanas, M. Meftah, and E. Remy, “Unsupervised and scalable subsequence anomaly detection in large data series,” The VLDB Journal , vol. 30, no. 6, pp. 909–931, 2021. [Online]. Available: https://doi.org/10.1007/s00778-021-00655-8 [42] Y. Zhu, C.-C. M. Yeh, Z. Zimmerman, K. Kamgar, and E. Keogh, “Matrix Profile XI: SCRIMP++: Time Series Motif Discovery at Interactive Speeds,” in 2018 IEEE International Conference on Data Mining (ICDM) , 2018, pp. 837–846. [Online]. Available: https://ieeexplore.ieee.org/abstract/document/8594908 [43] S. Tuli, G. Casale, and N. R. Jennings, “TranAD: Deep transformer networks for anomaly detection in multivariate time series data,” vol. 15, no. 6, pp. 1201–1214. [Online]. Available: https://dl.acm.org/ doi/10.14778/3514061.3514067 
+
+APPENDIX 
+
+TABLE VIII: Training and Optimization Hyperparameter Search Space for the three random seeds {0, 1, 2}
+
+Hyperparameter Search Values / Range Initial Learning Rate {10 −2, 10 −3, 10 −4}
+
+Training Epochs {10 , 20 , 30 , 50 }
+
+Subsequence Length {32 , 64 , 96 }
+
+Learning Rate Scheduler Constant, ReduceLROnPlateau 
+
+Scheduler Patience 5 epochs Scheduler Reduction Factor 0.5 Inference Strategy Disjoint, overlapping 13 
+
+TABLE IX: Detailed Architecture Presets for Evaluated Models. Each model is evaluated across three capacity levels (Small, Medium, Large) to ensure a fair comparison of structural complexity. Bold indicates retained parameters. 
+
+Model Architectural Parameter Small Medium Large Rec-PCA Percentage of explained variance 25 50 75 
+
+DLinear Moving average ratio 0.1 0.25 0.5 AutoEncoder Hidden dimensions ratio [0.5, 0.25] [0.75, 0.5, 0.25] [1, 0.75, 0.5, 0.25] Transformer Model dimension ( dmodel ) 8 16 32 Feed-forward dimension ( df f ) 16 32 64 Encoder layers ( elayers ) 1 2 3Attention heads ( nheads ) 2 2 4FEDformer Model dimension ( dmodel ) 8 16 32 Feed-forward dimension ( df f ) 16 32 64 Encoder layers ( elayers ) 1 1 2Attention heads ( nheads ) 2 2 4Moving average window 15 25 25 Autoformer Model dimension ( dmodel ) 8 16 32 
+
+Feed-forward dimension ( df f ) 16 32 64 
+
+Encoder layers ( elayers ) 1 1 2
+
+Attention heads ( nheads ) 2 2 4
+
+Factor 3 3 5
+
+Moving average window 15 25 25 
+
+TimesNet Top-k 3 3 3
+
+Model dimension ( dmodel ) 8 12 16 
+
+Feed-forward dimension ( df f ) 16 24 32 
+
+Number of kernels 3 4 6
+
+Encoder layers ( elayers ) 1 1 2

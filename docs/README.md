@@ -6,85 +6,73 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-09
-- 运行时间：2026-06-09 22:17:14 UTC
+- 最新运行日期：2026-06-10
+- 运行时间：2026-06-10 22:55:44 UTC
 - 运行状态：成功
-- 本次总论文数：21
-- 精读区：8
+- 本次总论文数：17
+- 精读区：4
 - 速读区：13
 
 ### 今日简报（AI）
-今日精读两篇9分论文：自适应序列变化检测的混合预测分布法与BRUIT-FM开放数据噪声减少挑战。  
-最值得关注的是基于预测分布混合的变化检测新思路，以及开放噪声数据集基准测试结果。  
-建议优先研读这两篇精读论文，并参考速读中的概念漂移评估框架以拓展实践。
-- 详情：[/202606/09/README](/202606/09/README)
+今日精读4篇、速读13篇，聚焦雷达目标检测与轴承异常检测。  
+重点关注《Complex VAE with Heavy-Tailed Likelihood for Sea Clutter Target Detection》（9.0分）和《TPA-AD: Two-Stage Pseudo Anomaly-Guided Bearing Anomaly Detection》（8.0分）。  
+建议深入研读这两篇高分文章，并留意速读中LLM驱动的运动异常生成方法，可拓展异常检测思路。
+- 详情：[/202606/10/README](/202606/10/README)
 
 ### 精读区论文标签
-1. [Adaptive Sequential Change Detection using Mixtures of Predictive Distributions](/202606/09/2606.05072v1-adaptive-sequential-change-detection-using-mixtures-of-predictive-distributions)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：自适应序列变化检测算法，适用于异常检测
-2. [The BRUIT-FM "open data" noise reduction challenge](/202606/09/2606.05941v1-the-bruit-fm-open-data-noise-reduction-challenge)  
+1. [Complex VAE with Heavy-Tailed Likelihood for Radar Target Detection in Sea Clutter](/202606/10/2606.10540v1-complex-vae-with-heavy-tailed-likelihood-for-radar-target-detection-in-sea-clutter)  
    标签：评分：9.0/10、query:ocean-qc
-   evidence：海床地震学数据（含海洋波浪信号）的降噪挑战
-3. [Online change point detection under heavy-tailedness and contamination](/202606/09/2606.09737v1-online-change-point-detection-under-heavy-tailedness-and-contamination)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：污染数据下的在线变化点检测；鲁棒异常检测
-4. [Anomalies in Multivariate Time Series Benchmarks Are Mostly Univariate](/202606/09/2606.02670v2-anomalies-in-multivariate-time-series-benchmarks-are-mostly-univariate)  
+   evidence：无监督VAE用于海杂波雷达数据中的异常检测
+2. [TPA-AD: A Two-Stage Pseudo Anomaly-Guided Method for Bearing Time-Series Anomaly Detection](/202606/10/2606.04073v1-tpa-ad-a-two-stage-pseudo-anomaly-guided-method-for-bearing-time-series-anomaly-detection)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：多元时间序列异常检测诊断框架
-5. [TPA-AD: A Two-Stage Pseudo Anomaly-Guided Method for Bearing Time-Series Anomaly Detection](/202606/09/2606.04073v1-tpa-ad-a-two-stage-pseudo-anomaly-guided-method-for-bearing-time-series-anomaly-detection)  
+   evidence：两阶段伪异常引导的时间序列异常检测方法，可直接应用于海洋数据
+3. [Online change point detection under heavy-tailedness and contamination](/202606/10/2606.09737v1-online-change-point-detection-under-heavy-tailedness-and-contamination)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：时间序列异常检测方法，可迁移至海洋数据
-6. [VT-3DAD: Cross-Category 3D Anomaly Detection via Visual-Text Normal Space Alignment](/202606/09/2606.04369v1-vt-3dad-cross-category-3d-anomaly-detection-via-visual-text-normal-space-alignment)  
+   evidence：在线鲁棒变点检测，适用于重尾和污染数据
+4. [Disjoint or Overlapping? Inference Windowing for Reconstruction-Based Time Series Anomaly Detection](/202606/10/2606.09874v1-disjoint-or-overlapping-inference-windowing-for-reconstruction-based-time-series-anomaly-detection)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：提出免训练的跨类别3D异常检测框架，直接贡献于异常检测技术
-7. [Feasibility to detect rapid change and disappearance of seagrass: Lessons from nearly 80 years of vegetation change in the Ako, Seto Inland Sea, Japan](/202606/09/2606.07949v1-feasibility-to-detect-rapid-change-and-disappearance-of-seagrass-lessons-from-nearly-80-years-of-vegetation-change-in-the-ako-seto-inland-sea-japan)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：利用遥感和深度学习进行海洋生态观测的方法
-8. [Towards End to End Motion Planning and Execution for Autonomous Underwater Vehicles Using Reinforcement Learning](/202606/09/2606.08513v1-towards-end-to-end-motion-planning-and-execution-for-autonomous-underwater-vehicles-using-reinforcement-learning)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：基于强化学习的自主水下机器人端到端运动规划
+   evidence：基于重建的时间序列异常检测，关注推理窗口策略
 
 ### 速读区论文标签
-1. [A Framework for Evaluating and Benchmarking Concept Drift Detection Methods](/202606/09/2606.07789v1-a-framework-for-evaluating-and-benchmarking-concept-drift-detection-methods)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：面向数据流概念漂移检测方法的评估框架
-2. [PAI: Preserving Amplitude Information in Representation-Based Time-Series Anomaly Detection](/202606/09/2606.08935v1-pai-preserving-amplitude-information-in-representation-based-time-series-anomaly-detection)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：保留幅值信息的表示学习时间序列异常检测
-3. [From Local Training to Large-Scale Mapping: A Comparative Assessment of Machine Learning and Deep Learning for Transferable Satellite-Derived Bathymetry](/202606/09/2606.02764v1-from-local-training-to-large-scale-mapping-a-comparative-assessment-of-machine-learning-and-deep-learning-for-transferable-satellite-derived-bathymetry)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：评估机器学习/深度学习用于卫星测深，属于海洋遥感观测方法
-4. [TSQAgent: Rating Time Series Data Quality via Dedicated Agentic Reasoning](/202606/09/2606.03629v1-tsqagent-rating-time-series-data-quality-via-dedicated-agentic-reasoning)  
-   标签：评分：7.0/10、query:ocean-qc
-   evidence：时间序列数据质量评估方法，可应用于海洋观测
-5. [AnchorMoE: Interpretable Time Series Classification via Anchor-Routed MoE](/202606/09/2606.03631v2-anchormoe-interpretable-time-series-classification-via-anchor-routed-moe)  
+1. [High Dimensional Change Point Models for Two-Directional Data](/202606/10/2606.07816v1-high-dimensional-change-point-models-for-two-directional-data)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：可解释时间序列分类方法，可应用于异常检测
-6. [Wave-mean decomposition of scale-dependent kinetic energy from surface drifters](/202606/09/2606.03744v1-wave-mean-decomposition-of-scale-dependent-kinetic-energy-from-surface-drifters)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：对表面漂流浮标观测应用拉格朗日滤波进行波-平均分解，直接关联浮标观测技术
-7. [Extending TCLUST to higher dimensions](/202606/09/2606.03750v1-extending-tclust-to-higher-dimensions)  
+   evidence：高维变点检测，针对双向数据，受气候监测启发
+2. [Visual Prompting Meets Feature Reconstruction-Based Anomaly Detection with Dual-Teacher Supervision](/202606/10/2606.09670v1-visual-prompting-meets-feature-reconstruction-based-anomaly-detection-with-dual-teacher-supervision)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：提出鲁棒聚类方法用于离群点检测，与数据集中异常检测相关
-8. [Finding Needles in the Haystack: Transductive Active Labeling in Ecology](/202606/09/2606.03821v1-finding-needles-in-the-haystack-transductive-active-labeling-in-ecology)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：生态数据上的转导主动标注
-9. [Anomaly Detection for Electro-Hydrostatic Actuators using LSTM Autoencoder](/202606/09/2606.05274v1-anomaly-detection-for-electro-hydrostatic-actuators-using-lstm-autoencoder)  
+   evidence：基于特征重构的异常检测，结合视觉提示
+3. [Mobility Anomaly Generation using LLM-Driven Behavior with Kinematic Constraints](/202606/10/2606.10314v1-mobility-anomaly-generation-using-llm-driven-behavior-with-kinematic-constraints)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：用于时间序列异常检测的LSTM自编码器
-10. [Parameter-efficient Dual-encoder Architecture with Differentiable Choquet Integral Fusion for Underwater Acoustic Classification](/202606/09/2606.02341v1-parameter-efficient-dual-encoder-architecture-with-differentiable-choquet-integral-fusion-for-underwater-acoustic-classification)  
+   evidence：轨迹数据异常生成以支持检测研究
+4. [A Unified Siamese Learning Framework for Zero-Day Anomaly Detection and Classification in Optical Networks](/202606/10/2606.10827v1-a-unified-siamese-learning-framework-for-zero-day-anomaly-detection-and-classification-in-optical-networks)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：光网络中基于孪生网络的零日异常检测
+5. [Eigenvector Spatial Filters Nuclear Norm Matrix Completion with Application to Air Quality Data](/202606/10/2606.05450v1-eigenvector-spatial-filters-nuclear-norm-matrix-completion-with-application-to-air-quality-data)  
+   标签：评分：6.0/10、query:ocean-qc
+   evidence：利用空间特征向量矩阵补全进行环境数据缺失值插补
+6. [Eigenvector Spatial Filters Nuclear Norm Matrix Completion with Application to Air Quality Data](/202606/10/2606.05450v2-eigenvector-spatial-filters-nuclear-norm-matrix-completion-with-application-to-air-quality-data)  
+   标签：评分：6.0/10、query:ocean-qc
+   evidence：环境数据矩阵补全方法，可迁移至海洋数据质量控制
+7. [MemoVAD: Resource-Efficient Video Anomaly Detection via Dynamic Semantic Memory in Edge Computing Scenarios](/202606/10/2606.07669v1-memovad-resource-efficient-video-anomaly-detection-via-dynamic-semantic-memory-in-edge-computing-scenarios)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：视频异常检测框架，包含时序上下文和不确定性感知门控
+8. [Aqua Boundary-Saliency Attention Module for Lightweight Underwater Salient Instance Segmentation Detection Transformer](/202606/10/2606.08002v1-aqua-boundary-saliency-attention-module-for-lightweight-underwater-salient-instance-segmentation-detection-transformer)  
    标签：评分：6.0/10、query:ocean-obs
-   evidence：用于水下声学分类的双编码器架构
-11. [FAF-CD: Frequency-Aware Fusion for Change Detection under Imperfect Multimodal Remote Sensing](/202606/09/2606.03114v1-faf-cd-frequency-aware-fusion-for-change-detection-under-imperfect-multimodal-remote-sensing)  
+   evidence：水下实例分割用于海洋生态监测
+9. [LogNEO: A GPT-Neo Reinforcement Learning Framework for Accurate Real-Time Log Anomaly Detection](/202606/10/2606.08153v1-logneo-a-gpt-neo-reinforcement-learning-framework-for-accurate-real-time-log-anomaly-detection)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：基于频率感知的遥感变化检测框架用于异常识别
-12. [NLLog: Lightweight, Explainable SOC Anomaly Detection via Log-to-Language Rewriting](/202606/09/2606.04957v1-nllog-lightweight-explainable-soc-anomaly-detection-via-log-to-language-rewriting)  
+   evidence：基于GPT-Neo和强化学习的大规模日志异常检测
+10. [Illumination-Invariant Anomaly Detection for Sub-Canopy UAV Multispectral Point Clouds](/202606/10/2606.09111v1-illumination-invariant-anomaly-detection-for-sub-canopy-uav-multispectral-point-clouds)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：轻量级可解释的日志异常检测
-13. [Dual Feature Decoupling for Fine-Grained OOD Detection](/202606/09/2606.05536v1-dual-feature-decoupling-for-fine-grained-ood-detection)  
+   evidence：无需先验的异常检测框架，可处理光照变化，适用于多光谱点云
+11. [Residual Pseudospectra Reveal a Physics-Informed Koopman Backbone for Tropical Pacific Variability and ENSO Prediction](/202606/10/2606.09369v1-residual-pseudospectra-reveal-a-physics-informed-koopman-backbone-for-tropical-pacific-variability-and-enso-prediction)  
+   标签：评分：6.0/10、query:ocean-qc
+   evidence：海洋SST变率与ENSO预测，涉及海洋数据分析
+12. [Patch-Level DINOv2 Scoring for Gravitational-Wave Glitch Detection: Breaking the Signal Dilution Barrier via Vector-Quantized Local Feature Indexing](/202606/10/2606.09933v1-patch-level-dinov2-scoring-for-gravitational-wave-glitch-detection-breaking-the-signal-dilution-barrier-via-vector-quantized-local-feature-indexing)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：基于特征解耦的分布外检测方法，与异常检测相关
+   evidence：基于补丁级特征的无监督时频数据异常检测，方法可迁移至海洋数据
+13. [nCMD: Benign-Anchored Feature Selection for Imbalanced Network Intrusion Detection](/202606/10/2606.09934v1-ncmd-benign-anchored-feature-selection-for-imbalanced-network-intrusion-detection)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：以正常为锚点的异常检测特征选择
 
 
 <div class="dpr-home-promo-card">
