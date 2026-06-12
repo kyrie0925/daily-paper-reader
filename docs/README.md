@@ -6,53 +6,49 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-11
-- 运行时间：2026-06-11 22:26:28 UTC
+- 最新运行日期：2026-06-12
+- 运行时间：2026-06-12 22:10:14 UTC
 - 运行状态：成功
-- 本次总论文数：11
-- 精读区：2
-- 速读区：9
+- 本次总论文数：9
+- 精读区：1
+- 速读区：8
 
 ### 今日简报（AI）
-今日收录11篇论文，精读2篇重点聚焦无训练腐败检测与持续异常检测。最值得关注的是目标检测数据集的无训练腐败检测方法，以及异构表格数据的持续异常检测。建议读者优先精读这两篇8分论文，它们分别提供了低成本的数据集质量评估和动态异常检测的新思路。
-- 详情：[/202606/11/README](/202606/11/README)
+今日共推荐9篇论文，精读1篇《TaskFusion: Continual Anomaly Detection for Heterogeneous Tabular Data》，速读涵盖AI安全、遥感变化检测及免训练腐败检测。  
+最值得关注的是精读论文提出的持续异常检测方法，以及速读中的AI安全代理和遥感变化检测网络。  
+建议普通读者优先了解异质表格的持续异常检测思路，再尝试将AI安全方案与校园系统结合评估。
+- 详情：[/202606/12/README](/202606/12/README)
 
 ### 精读区论文标签
-1. [Analyzing Training-Free Corruption Detection for Object Detection Datasets](/202606/11/2606.10666v1-analyzing-training-free-corruption-detection-for-object-detection-datasets)  
+1. [TaskFusion: Continual Anomaly Detection for Heterogeneous Tabular Data](/202606/12/2606.11844v1-taskfusion-continual-anomaly-detection-for-heterogeneous-tabular-data)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：无训练的特征空间方法检测数据集中的标注错误
-2. [TaskFusion: Continual Anomaly Detection for Heterogeneous Tabular Data](/202606/11/2606.11844v1-taskfusion-continual-anomaly-detection-for-heterogeneous-tabular-data)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：异构表格数据的持续异常检测
+   evidence：提出了一种面向表格数据的持续异常检测方法，包含异常暴露机制
 
 ### 速读区论文标签
-1. [3D Underwater Path Planning via Generative Flow Field Surrogates](/202606/11/2606.06077v1-3d-underwater-path-planning-via-generative-flow-field-surrogates)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：基于生成流场代理的自主水下航行器路径规划
-2. [Data Profiling for Change Rules](/202606/11/2606.07860v1-data-profiling-for-change-rules)  
+1. [An AI Security Agent for University ACMIS: Multi-Vector Threat Detection and Automated Response](/202606/12/2606.08270v1-an-ai-security-agent-for-university-acmis-multi-vector-threat-detection-and-automated-response)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：提出变更规则用于检测数据中的异常行为
-3. [Patch-Level DINOv2 Scoring for Gravitational-Wave Glitch Detection: Breaking the Signal Dilution Barrier via Vector-Quantized Local Feature Indexing](/202606/11/2606.09933v1-patch-level-dinov2-scoring-for-gravitational-wave-glitch-detection-breaking-the-signal-dilution-barrier-via-vector-quantized-local-feature-indexing)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：基于补丁级得分的异常检测方法
-4. [LakeFM: Toward a Foundation Model for Aquatic Ecosystems Using Irregular Multivariate Multi-depth Time Series Data](/202606/11/2606.11268v1-lakefm-toward-a-foundation-model-for-aquatic-ecosystems-using-irregular-multivariate-multi-depth-time-series-data)  
+   evidence：监督异常检测与行为分析用于威胁检测，属于通用异常检测技术
+2. [Content-Induced Spatial-Spectral Aggregation Network for Change Detection in Remote Sensing Images](/202606/12/2606.10328v1-content-induced-spatial-spectral-aggregation-network-for-change-detection-in-remote-sensing-images)  
    标签：评分：7.0/10、query:ocean-obs
-   evidence：基于不规则多元时间序列的水生生态系统基础模型；支持海洋观测
-5. [APEX: A Network-Native Time-Series Foundation Model for Forecasting and Anomaly Detection for Wireless Edge Operations](/202606/11/2606.11553v1-apex-a-network-native-time-series-foundation-model-for-forecasting-and-anomaly-detection-for-wireless-edge-operations)  
+   evidence：遥感变化检测可应用于海洋生态系统监测
+3. [Analyzing Training-Free Corruption Detection for Object Detection Datasets](/202606/12/2606.10666v1-analyzing-training-free-corruption-detection-for-object-detection-datasets)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：时间序列异常检测基础模型
-6. [Traceable Virtual Sea Trials in the Marine Robotics Unity Simulator for Manoeuvring Assessment of Unmanned Surface Vehicles](/202606/11/2606.12349v1-traceable-virtual-sea-trials-in-the-marine-robotics-unity-simulator-for-manoeuvring-assessment-of-unmanned-surface-vehicles)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：无人海洋观测自主系统
-7. [Towards Realistic 3D Sonar Simulation](/202606/11/2606.06130v1-towards-realistic-3d-sonar-simulation)  
+   evidence：数据集中错误检测用于异常检测
+4. [Privacy-Preserving Federated Autoencoder for ECG Anomaly Detection on Edge Devices](/202606/12/2606.11556v1-privacy-preserving-federated-autoencoder-for-ecg-anomaly-detection-on-edge-devices)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：使用自编码器进行无监督异常检测
+5. [SwarmSense-DNN: A Trustworthy and Decentralized Neural Framework for Proactive Anomaly Defense in Consumer IoT](/202606/12/2606.11803v1-swarmsense-dnn-a-trustworthy-and-decentralized-neural-framework-for-proactive-anomaly-defense-in-consumer-iot)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：去中心化神经网络异常检测框架
+6. [Online Shift Detection and Conformal Adaptation for Deployed Safety Classifiers](/202606/12/2606.11949v1-online-shift-detection-and-conformal-adaptation-for-deployed-safety-classifiers)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：在线漂移检测，适用于时序变化检测
+7. [Efficient Time Series Clustering from Multiscale Reservoir Dynamics with Granular-Ball Anchoring Graph Optimization](/202606/12/2606.12077v1-efficient-time-series-clustering-from-multiscale-reservoir-dynamics-with-granular-ball-anchoring-graph-optimization)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：时间序列聚类方法可迁移至异常值检测
+8. [Deep learning for echo sounder data](/202606/12/2606.10811v1-deep-learning-for-echo-sounder-data)  
    标签：评分：6.0/10、query:ocean-obs
-   evidence：用于自主水下机器人的三维声纳仿真
-8. [RQUL-UIE: Revitalizing Quality-Unstable Labels for Underwater Image Enhancement via In-Dataset Self-Supervision](/202606/11/2606.06176v1-rqul-uie-revitalizing-quality-unstable-labels-for-underwater-image-enhancement-via-in-dataset-self-supervision)  
-   标签：评分：6.0/10、query:ocean-qc
-   evidence：自监督标签质量评估与去噪用于水下图像增强，处理海洋数据质量控制
-9. [GNSS-FM: A Self-Supervised Foundation Model for Daily GNSS Displacement Time Series](/202606/11/2606.07725v1-gnss-fm-a-self-supervised-foundation-model-for-daily-gnss-displacement-time-series)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：GNSS位移时间序列自监督基础模型，通过掩码潜在预测实现异常和离群点检测
+   evidence：深度学习用于回声测深仪数据，属于海洋观测技术
 
 
 <div class="dpr-home-promo-card">
