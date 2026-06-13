@@ -6,49 +6,48 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-12
-- 运行时间：2026-06-12 22:10:14 UTC
+- 最新运行日期：2026-06-13
+- 运行时间：2026-06-13 21:26:18 UTC
 - 运行状态：成功
-- 本次总论文数：9
-- 精读区：1
-- 速读区：8
+- 本次总论文数：8
+- 精读区：2
+- 速读区：6
 
 ### 今日简报（AI）
-今日共推荐9篇论文，精读1篇《TaskFusion: Continual Anomaly Detection for Heterogeneous Tabular Data》，速读涵盖AI安全、遥感变化检测及免训练腐败检测。  
-最值得关注的是精读论文提出的持续异常检测方法，以及速读中的AI安全代理和遥感变化检测网络。  
-建议普通读者优先了解异质表格的持续异常检测思路，再尝试将AI安全方案与校园系统结合评估。
-- 详情：[/202606/12/README](/202606/12/README)
+今日精读聚焦微服务系统异常根因分析与湖泊时序数据基础模型，速读涵盖保险损失预测、稳健回归及极值分布新方法。
+
+最值得关注的两个方向：微服务异常根因分析（得分8.0）与不规则多深度时序数据的湖泊基础模型（得分8.0），均有显著实用价值。
+
+建议优先阅读两篇精读论文，掌握异常定位与生态数据建模的核心技术，其余速读可作为拓展参考。
+- 详情：[/202606/13/README](/202606/13/README)
 
 ### 精读区论文标签
-1. [TaskFusion: Continual Anomaly Detection for Heterogeneous Tabular Data](/202606/12/2606.11844v1-taskfusion-continual-anomaly-detection-for-heterogeneous-tabular-data)  
+1. [Anomaly Detection and Root Cause Analysis for Microservice Systems](/202606/13/2606.09942v1-anomaly-detection-and-root-cause-analysis-for-microservice-systems)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：提出了一种面向表格数据的持续异常检测方法，包含异常暴露机制
+   evidence：微服务系统的异常检测与根因分析
+2. [LakeFM: Toward a Foundation Model for Aquatic Ecosystems Using Irregular Multivariate Multi-depth Time Series Data](/202606/13/2606.11268v1-lakefm-toward-a-foundation-model-for-aquatic-ecosystems-using-irregular-multivariate-multi-depth-time-series-data)  
+   标签：评分：8.0/10、query:ocean-obs
+   evidence：基于时间序列数据的水生生态系统基础模型
 
 ### 速读区论文标签
-1. [An AI Security Agent for University ACMIS: Multi-Vector Threat Detection and Automated Response](/202606/12/2606.08270v1-an-ai-security-agent-for-university-acmis-multi-vector-threat-detection-and-automated-response)  
+1. [LSTM-Based Detection of Structural Breaks in Property Insurance Loss Reserving: A Climate-Informed Approach](/202606/13/2606.11463v1-lstm-based-detection-of-structural-breaks-in-property-insurance-loss-reserving-a-climate-informed-approach)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：监督异常检测与行为分析用于威胁检测，属于通用异常检测技术
-2. [Content-Induced Spatial-Spectral Aggregation Network for Change Detection in Remote Sensing Images](/202606/12/2606.10328v1-content-induced-spatial-spectral-aggregation-network-for-change-detection-in-remote-sensing-images)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：遥感变化检测可应用于海洋生态系统监测
-3. [Analyzing Training-Free Corruption Detection for Object Detection Datasets](/202606/12/2606.10666v1-analyzing-training-free-corruption-detection-for-object-detection-datasets)  
+   evidence：基于LSTM的时间序列结构断点异常检测方法
+2. [The Triply-Randomized Negative Binomial Beta for Robust Regression and Conjugate Models of Bounded Support Data](/202606/13/2606.11624v1-the-triply-randomized-negative-binomial-beta-for-robust-regression-and-conjugate-models-of-bounded-support-data)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：数据集中错误检测用于异常检测
-4. [Privacy-Preserving Federated Autoencoder for ECG Anomaly Detection on Edge Devices](/202606/12/2606.11556v1-privacy-preserving-federated-autoencoder-for-ecg-anomaly-detection-on-edge-devices)  
+   evidence：鲁棒回归模型处理异常值
+3. [The data-driven extreme value distribution: non-parametric tail estimation with a derived stability criterion](/202606/13/2606.12174v1-the-data-driven-extreme-value-distribution-non-parametric-tail-estimation-with-a-derived-stability-criterion)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：使用自编码器进行无监督异常检测
-5. [SwarmSense-DNN: A Trustworthy and Decentralized Neural Framework for Proactive Anomaly Defense in Consumer IoT](/202606/12/2606.11803v1-swarmsense-dnn-a-trustworthy-and-decentralized-neural-framework-for-proactive-anomaly-defense-in-consumer-iot)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：去中心化神经网络异常检测框架
-6. [Online Shift Detection and Conformal Adaptation for Deployed Safety Classifiers](/202606/12/2606.11949v1-online-shift-detection-and-conformal-adaptation-for-deployed-safety-classifiers)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：在线漂移检测，适用于时序变化检测
-7. [Efficient Time Series Clustering from Multiscale Reservoir Dynamics with Granular-Ball Anchoring Graph Optimization](/202606/12/2606.12077v1-efficient-time-series-clustering-from-multiscale-reservoir-dynamics-with-granular-ball-anchoring-graph-optimization)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：时间序列聚类方法可迁移至异常值检测
-8. [Deep learning for echo sounder data](/202606/12/2606.10811v1-deep-learning-for-echo-sounder-data)  
+   evidence：数据驱动极值分布用于异常检测
+4. [The Sharp Phase Transition of Tyler's M-Estimator for Robust Subspace Recovery](/202606/13/2606.06782v1-the-sharp-phase-transition-of-tylers-m-estimator-for-robust-subspace-recovery)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：鲁棒子空间恢复算法处理异常值
+5. [A Source Domain is All You Need: Source-Only Cross-OS Transfer Learning for APT Anomaly Detection via Semantic Alignment and Optimal Transport](/202606/13/2606.10216v1-a-source-domain-is-all-you-need-source-only-cross-os-transfer-learning-for-apt-anomaly-detection-via-semantic-alignment-and-optimal-transport)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：基于最优传输的异常检测
+6. [Deep learning for echo sounder data](/202606/13/2606.10811v1-deep-learning-for-echo-sounder-data)  
    标签：评分：6.0/10、query:ocean-obs
-   evidence：深度学习用于回声测深仪数据，属于海洋观测技术
+   evidence：将深度学习应用于回声测深数据，用于水下观测，与海洋观测相关
 
 
 <div class="dpr-home-promo-card">

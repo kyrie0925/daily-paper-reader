@@ -1,0 +1,921 @@
+Title: A Source Domain is All You Need: Source-Only Cross-OS Transfer Learning for APT Anomaly Detection via Semantic Alignment and Optimal Transport
+
+URL Source: https://arxiv.org/pdf/2606.10216v1
+
+Published Time: Wed, 10 Jun 2026 00:24:14 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# A Source Domain is All You Need: Source-Only Cross-OS Transfer Learning for APT Anomaly Detection via Semantic Alignment and Optimal Transport 
+
+Sidahmed Benabderrahmane a, ∗, Petko Valtchev b, James Cheney c, Talal Rahwan a
+
+> aNew York University, NYUAD, Division of Science, Computer Science Department.
+> bUniversity of Quebec in Montreal, Computer Science Department, Montreal.
+> cUniversity of Edinburgh, School of Informatics, Edinburgh.
+
+Abstract 
+
+Advanced Persistent Threats (APTs) are stealthy, multi-stage cyberattacks carried out by highly skilled adversaries aiming to in-filtrate and maintain access to critical systems over extended periods. Detecting APTs remains challenging due to the rarity and scarcity of labeled attack traces, severe class imbalance, and the di ffi culty of synthetically generating realistic behaviors. These issues become even more pronounced in cross-operating system (cross-OS) scenarios, where labeled data in the target domain is unavailable, impeding generalization across platforms, and a detector trained on one source platform must be deployed on a dif-ferent target platform without access to target-domain labels. We study this source-only cross-OS APT detection problem using system-level provenance traces and propose a transport-based framework for ranking anomalous target processes under zero target supervision. The proposed framework first abstracts process behavior into structured natural-language descriptions and embeds them into a shared semantic space using pretrained language models. It then constructs a source-domain normality reference and scores target processes through three complementary views: semantic deviation from source-normal prototypes, structural devia-tion captured by graph autoencoding, and geometric deviation measured through Optimal Transport (OT). The core methodological contribution is an OT-based barycentric anomaly score that projects target embeddings onto the source-normal manifold and quan-tifies residual transport mismatch. We further introduce entropy-weighted, angle-aware, and density-aware OT variants to capture complementary forms of cross-domain deviation. The semantic and structural components are used as auxiliary evidence channels, while the OT score provides the main geometry-aware transfer mechanism. We evaluate the framework on DARPA Transparent Computing provenance data spanning Linux, Windows, BSD, and Android, covering multiple APT scenarios and twelve cross-OS transfer pairs. The evaluation compares multiple language-model backbones, OT variants, scoring paths, fusion strategies, and transfer anomaly-detection baselines using both ROC-AUC and nDCG for ranking-oriented security triage. Results show that transport-based scoring provides strong cross-OS generalization and that combining semantic, structural, and geometric evidence improves robustness under severe class imbalance. The findings demonstrate that source-only provenance modeling, when coupled with semantic abstraction and OT-based anomaly scoring, can support practical cross-platform APT detection without target-domain supervision. 
+
+Keywords: Anomaly Detection, Optimal Transport, Transfer Learning, Cyber-security, Advanced Persistent Threats. 
+
+1. Introduction 
+
+”If you know the enemy and know yourself, you need not fear the result of a hundred battles.” — Sun Tzu, The Art of War . In the digital battlefield of modern cybersecurity, know-ing the enemy means detecting stealthy, multi-stage intrusions known as Advanced Persistent Threats (APTs) [1, 2, 3]. These attacks are orchestrated by highly skilled adversaries who lever-age customized malware, lateral movement, and long-term per-sistence to evade traditional defenses [4, 5].        
+
+> ∗Corresponding author
+> Email addresses: sidahmed.benabderrahmane@nyu.edu (Sidahmed Benabderrahmane), valtchev.petko@uqam.ca (Petko Valtchev),
+> jcheney@inf.ed.ac.uk (James Cheney), talal.rahwan@nyu.edu (Talal Rahwan)
+
+APT detection remains particularly challenging because at-tack traces are rare, labeled examples are scarce, class imbal-ance is severe, and realistic malicious behaviors are di ffi cult to synthesize [6, 7]. These challenges become even more pro-nounced in heterogeneous computing environments, where Se-curity Operation Centers (SOCs) monitor fleets spanning mul-tiple operating systems such as Linux, Windows, BSD, and An-droid. In such settings, labeled data may be available for one source platform but absent for another target platform, making it di ffi cult to deploy supervised detectors across operating sys-tems [8, 9]. This paper studies the problem of source-only cross-OS APT detection : detecting anomalous processes in an unlabeled target operating system using only provenance traces and labels from a source operating system. This setting is practically impor-tant because collecting and labeling representative APT traces  
+
+> Preprint submitted to Journal June 10, 2026
+> arXiv:2606.10216v1 [cs.LG] 8 Jun 2026
+
+for every platform is costly, time-consuming, and often infeasi-ble. At the same time, many adversarial tactics, techniques, and procedures (TTPs), such as privilege escalation, command-and-control, credential access, and lateral movement, are seman-tically related across operating systems even when their low-level artifacts di ff er. This suggests that cross-OS detection may be possible if platform-specific syntax can be abstracted into transferable behavioral representations. Achieving this goal is di ffi cult for three reasons. First, a se-mantic gap exists between OS-specific behavioral artifacts; for example, bash in Linux and cmd.exe in Windows may express related operational intent through di ff erent commands and ex-ecution contexts. Second, a structural gap arises because pro-cess interactions, execution graphs, and provenance neighbor-hoods di ff er across operating systems. Third, the target domain is unlabeled, which prevents conventional supervised adapta-tion or validation-based calibration. As a result, a cross-OS de-tector must transfer knowledge from the source domain while avoiding assumptions that require target labels. To address these challenges, we propose a source-only cross-OS anomaly detection framework for system-level provenance traces. The framework abstracts process behavior into struc-tured natural-language descriptions, embeds these descriptions into a shared semantic space using pretrained language encoders, constructs a source-domain normality reference, and ranks tar-get processes according to complementary anomaly evidence. The central methodological component is an Optimal Transport (OT)-based barycentric anomaly score that projects target em-beddings onto the source-normal manifold and measures resid-ual transport mismatch. We further introduce entropy-weighted, angle-aware, and density-aware variants of this score to capture alignment uncertainty, directional drift, and low-density projec-tion behavior. Importantly, we distinguish between adapted components and new contributions. The language-model embeddings and Variational Graph Autoencoder (VGAE) modules build on es-tablished representation-learning techniques and are used as aux-iliary semantic and structural evidence channels. The main con-tribution of this work lies in formalizing the source-only cross-OS APT detection setting, introducing OT-based barycentric anomaly scoring for provenance embeddings, and systemati-cally evaluating this setting across multiple operating-system transfer pairs. The contributions of this paper are as follows: 
+
+• Source-only cross-OS APT detection problem. We de-fine and formalize source-only cross-OS APT detection, where labeled source-domain provenance traces are avail-able but the target operating system has no supervision. This setting reflects realistic security operations where representative attack labels are unavailable for every plat-form. 
+
+• Transport-based barycentric anomaly scoring. We in-troduce an OT-based anomaly score for cross-OS prove-nance embeddings. The score projects target processes onto the source-normal manifold through barycentric Op-  
+
+> Figure 1: Conventional OS-specific APT detection pipelines require target-domain training or platform-specific supervision. The proposed framework addresses source-only cross-OS detection by combining semantic, structural, and OT-based geometric anomaly evidence under zero target supervision.
+
+timal Transport and measures residual deviation. We fur-ther propose entropy-weighted, angle-aware, and density-aware variants to capture uncertainty, directional drift, and low-density projection behavior. 
+
+• Multi-view source-only detection framework. We de-sign a framework that combines semantic, structural, and geometric evidence while respecting the zero-target-label constraint. The LLM-based semantic representation and VGAE-based structural modeling are used as adapted aux-iliary components, whereas the OT-based score forms the central geometry-aware transfer mechanism. 
+
+• Comprehensive cross-OS empirical benchmark. We evaluate the framework on DARPA Transparent Comput-ing provenance traces across four operating systems, two APT scenarios, and twelve source-target transfer pairs. The study reports ROC-AUC and nDCG, and compares multiple language-model backbones, OT variants, scor-ing paths, fusion strategies, and source-only anomaly-detection baselines. Figure 1 motivates the proposed setting by contrasting con-ventional OS-specific APT detection pipelines with the source-only cross-OS setting considered in this work. Existing ap-proaches are typically coupled to a specific operating system or require target-domain supervision, which limits their applica-bility in heterogeneous environments [10, 11]. In contrast, our framework transfers source-domain provenance knowledge to an unlabeled target OS through semantic abstraction, structural modeling, and OT-based geometric scoring. We evaluate the proposed framework on real-world cyberse-curity datasets from the DARPA Transparent Computing (TC) program, spanning Linux, Windows, Android, and BSD oper-ating systems. The results show that transport-based scoring provides strong cross-OS generalization and that combining se-mantic, structural, and geometric evidence improves robustness under severe class imbalance. The detected anomalous pro-cesses also show meaningful alignment with adversarial tactics from the MITRE ATT&CK framework, supporting the opera-tional relevance of the approach for cross-platform APT triage. 22. Related Work 
+
+2.1. APT and Provenance-Based Anomaly Detection 
+
+Advanced Persistent Threats (APTs), including campaigns such as Stuxnet , APT28 , and SolarWinds , have demonstrated the risks of long-dwell, multi-stage intrusions against critical infrastructures and enterprise systems [2, 12, 4, 5]. Unlike short-lived attacks, APTs often involve stealthy sequences of actions such as initial compromise, privilege escalation, lateral move-ment, command-and-control communication, and persistence. This makes detection di ffi cult because malicious activity may appear individually benign while becoming suspicious only when analyzed as part of a broader behavioral context. Traditional anomaly detection methods, including statistical models, one-class classifiers, isolation forests, and reconstruction-based models, have been widely used in cybersecurity settings. However, APT detection remains challenging because attack instances are rare, labeled traces are scarce, class imbalance is extreme, and attack behaviors evolve over time [6, 7, 13, 14]. Deep learning methods, including convolutional models, au-toencoders, and attention-based architectures, have improved detection performance in several settings, but they often require large training corpora, careful tuning, and environment-specific feature engineering [15, 16, 17, 18]. Unsupervised approaches reduce the need for attack labels, but they remain prone to high false positives and weak transferability when the deployment environment di ff ers from the training environment [19, 20]. System-level provenance data has become an important sub-strate for APT detection because it captures dependencies among processes, files, sockets, and system activities. Provenance-based methods model causal or behavioral relationships and can therefore reveal suspicious multi-step behavior that may not be visible from isolated events. Recent systems have used graph learning and representation learning over provenance graphs to detect intrusions and anomalous behaviors [10, 21, 11]. How-ever, most existing provenance-based detectors are designed for a fixed operating system or deployment environment. They typ-ically assume that training and testing data share the same fea-ture space, event vocabulary, or graph semantics. This limits their applicability to heterogeneous SOC environments where Windows, Linux, BSD, and Android endpoints must be moni-tored jointly. 
+
+2.2. Cross-Domain and Transfer Learning in Cybersecurity 
+
+Transfer learning and domain adaptation have been explored in cybersecurity to reduce dependence on labeled data in new environments. Existing studies have considered transfer across network tra ffi c domains, malware families, intrusion datasets, and related security contexts [22]. For example, adversarial domain adaptation has been used for network intrusion detec-tion by pretraining on source tra ffi c and adapting to target tra ffi c[23]. Feature-distance and deep transfer approaches have also been studied for identifying unknown attacks or transferring se-curity models across related domains [24]. In malware analysis, vision-based transfer learning has been used to extract features from binary images using pretrained convolutional networks [25]. Other approaches include cross-domain learning over as-sembly code, sequential attack modeling with hidden Markov models, and generative augmentation for low-frequency secu-rity events [26, 27, 28]. Despite these advances, most transfer-learning approaches in security di ff er from the setting considered in this paper. First, many methods operate on network-level or malware-level data rather than system-level provenance traces. Second, several approaches assume access to target-domain samples for adap-tation, calibration, or validation, and some require target la-bels. Third, cross-domain transfer is often studied between datasets or tra ffi c distributions, rather than across operating sys-tems where the event vocabulary, executable names, process semantics, and graph structure may di ff er substantially. In con-trast, our setting is source-only and cross-OS: the detector must rank anomalous processes in an unlabeled target operating sys-tem using only source-domain provenance information. 
+
+2.3. Semantic and Graph Representation Learning for Security Traces 
+
+Representation learning has become central to security ana-lytics because raw security events are sparse, heterogeneous, and di ffi cult to compare directly across environments. Lan-guage models such as BERT, RoBERTa, DistilBERT, and MiniLM have shown that textual or sequence-based inputs can be em-bedded into dense semantic spaces that preserve contextual sim-ilarity [29, 30, 31, 32]. In cybersecurity, this motivates the use of structured behavioral descriptions to represent process activ-ity, command execution, file access, and network communica-tion in a form that can be compared semantically across plat-forms. Graph representation learning provides a complementary view by modeling relations among entities or samples. Graph neural networks and graph autoencoders have been used to learn latent representations from relational data, including process graphs and provenance structures [33, 34, 10]. Such methods are useful for detecting structural deviations, such as abnor-mal neighborhoods or unexpected process interactions. How-ever, language-model embeddings and graph autoencoders are not, by themselves, su ffi cient to solve source-only cross-OS APT detection. Language models provide semantic abstraction, while graph models provide structural evidence, but neither di-rectly defines a source-to-target anomaly score under zero target supervision. In our framework, these components are therefore used as adapted auxiliary evidence channels rather than as the main methodological novelty. 
+
+2.4. Optimal Transport for Domain Alignment and Anomaly Scoring 
+
+Optimal Transport (OT) provides a principled framework for comparing probability distributions by estimating the min-imum cost required to move mass from one distribution to an-other. Entropic regularization and Sinkhorn-based computa-tion have made OT scalable for machine learning applications [35, 36]. OT has been used in domain adaptation and represen-tation alignment because it can compare source and target dis-tributions without requiring pointwise correspondences. This 3makes it particularly attractive for cross-domain anomaly de-tection, where the source and target distributions may be shifted but still share underlying semantic or geometric structure. In this work, we use OT not only as a distribution-alignment tool but also as an anomaly-scoring mechanism. Target pro-cess embeddings are projected onto a source-normal manifold through barycentric transport, and their residual deviation from this projection is used as a geometric anomaly score. This dif-fers from standard adaptation settings where OT is primarily used to align representations before training a classifier. Our formulation is source-only and label-free in the target domain: the transport map is used to quantify how far each target process deviates from source-normal behavior. We further extend this score with entropy-weighted, angle-aware, and density-aware variants to capture alignment uncertainty, directional drift, and low-density projection behavior. 
+
+2.5. Positioning of This Work 
+
+The above literature provides important building blocks for APT detection, transfer learning, semantic representation, graph modeling, and distribution alignment. However, existing work does not directly address the source-only cross-OS APT de-tection setting considered here, where labeled provenance data are available only for a source operating system and the tar-get operating system has no supervision. Existing APT detec-tors are often within-domain , transfer-learning methods often assume target adaptation or operate on network-level data, and representation-learning methods do not by themselves define a cross-OS anomaly score. Our contribution is therefore not to claim novelty for lan-guage models or graph autoencoders individually. Instead, we formalize the source-only cross-OS APT detection problem and introduce OT-based barycentric anomaly scoring as a geometry-aware transfer mechanism for provenance embeddings. The re-sulting framework combines semantic, structural, and geomet-ric evidence while preserving the zero-target-label constraint, and is evaluated across multiple operating systems, attack sce-narios, embedding backbones, scoring paths, and transfer base-lines. 
+
+3. Problem Formulation 
+
+We consider the problem of source-only cross-operating-system anomaly detection for Advanced Persistent Threats (APTs). The objective is to rank anomalous processes in an unlabeled target operating system by using only provenance data and su-pervision available from a source operating system. This setting reflects realistic cybersecurity deployments where representa-tive attack labels may exist for one platform but are unavailable for another platform. Let 
+
+DS = {(xSi , ySi )}nS
+
+> i=1
+
+denote the source domain, where each process instance xSi is collected from a source operating system and ySi ∈ { 0, 1} de-notes its label, with 0 indicating benign behavior and 1 indicat-ing anomalous or attack-related behavior. Let 
+
+DT = {xTj }nT
+
+> j=1
+
+denote the target domain, consisting of unlabeled process in-stances collected from a di ff erent operating system. Target la-bels are assumed to be unavailable during training, scoring, model selection, and fusion; they are used only for o ffl ine eval-uation. Each process instance x is derived from system-level prove-nance telemetry, such as process events, executed routines, file operations, network flows, and process interactions. Depend-ing on the scoring path, x may be represented as a structured behavioral sentence, a node in a process graph, or an embed-ding vector. We denote by ϕ(·) a representation function that maps process instances into a shared representation space: 
+
+z = ϕ(x), z ∈ Z .
+
+The source and target embeddings are therefore denoted by 
+
+ZS = {ϕ(xSi )}nS
+
+> i=1
+
+, ZT = {ϕ(xTj )}nT
+
+> j=1
+
+.
+
+Because the target domain is unlabeled, the detector cannot rely on target-domain supervision or validation-based calibra-tion. Instead, it must construct a source-domain reference of normal behavior. We define the source-normal subset as 
+
+D0 
+
+> S
+
+= {xSi ∈ D S | ySi = 0},
+
+with corresponding embeddings 
+
+Z0 
+
+> S
+
+= {ϕ(xSi ) | ySi = 0}.
+
+The goal is to learn an anomaly scoring function 
+
+A : ZT → R
+
+using only DS , and in particular the source-normal reference 
+
+D0 
+
+> S
+
+, such that higher scores indicate a greater likelihood that a target process is anomalous. This setting di ff ers from conventional supervised, semi-supervised, and domain-adaptation formulations. In supervised detection, labeled target-domain examples are available. In standard do-main adaptation, unlabeled or partially labeled target data may be used for adaptation and hyperparameter selection. In con-trast, our setting is source-only : target samples may be embed-ded and scored at inference time, but their labels are never used to train, calibrate, or tune the detector. The main di ffi culty comes from cross-OS distribution shift. Source and target processes may di ff er in three complementary ways. First, they exhibit semantic heterogeneity , because oper-ating systems use di ff erent commands, routines, and event vo-cabularies to express related behavior; for example, bash in Linux and cmd.exe in Windows may serve related execution roles. Second, they exhibit structural disparity , because pro-cess graphs, execution neighborhoods, and provenance depen-dencies di ff er across platforms. Third, they exhibit geometric 
+
+4shift , because even semantically related behaviors may occupy di ff erent regions of the embedding space. We instantiate the anomaly scoring function through three complementary evidence channels. The semantic channel com-pares target process descriptions against source-normal behav-ioral prototypes. The structural channel measures deviations in graph-based process neighborhoods. The geometric channel uses Optimal Transport to project target embeddings onto the source-normal manifold and quantify residual transport mis-match. The final score is obtained by fusing the three path-level scores: 
+
+A(xTj ) = Fuse Asem (xTj ), Astr (xTj ), AOT (xTj ) . (1) In the main framework, we use a calibration-free max-fusion rule: 
+
+A(xTj ) = max nAsem (xTj ), Astr (xTj ), AOT (xTj )o . (2) This choice is motivated by the zero-target-label setting, where learned or validation-tuned fusion is not reliable. Max-fusion acts as a conservative security rule: a process is prioritized if any complementary view provides strong evidence of abnor-mality. Alternative fusion strategies are evaluated empirically in the experimental section. 
+
+4. Methodology 
+
+4.1. Overview 
+
+We propose a source-only cross-OS APT detection frame-work for ranking anomalous target-domain processes without using target labels. Given a labeled source domain DS and an unlabeled target domain DT , the framework constructs a source-normal behavioral reference and assigns each target pro-cess an anomaly score through three complementary evidence channels: semantic, structural, and geometric. The semantic channel measures deviation from source-normal behavioral pro-totypes in a language-model embedding space. The structural channel measures deviations from expected graph neighborhoods using a Variational Graph Autoencoder (VGAE). The geomet-ric channel, which is the core methodological component of the framework, uses barycentric Optimal Transport (OT) to project target embeddings onto the source-normal manifold and score residual transport mismatch. The framework respects the source-only constraint through-out the pipeline. Source labels are used only to identify source-normal processes and build the reference memory. Target labels are never used for representation learning, score computation, score normalization, fusion, model selection, or hyperparame-ter tuning; they are used only for o ffl ine evaluation. Figure 2 summarizes the overall cross-OS transfer pipeline. Let D0 
+
+> S
+
+= {xSi | ySi = 0} denote the source-normal subset. For each language-model backbone l, each process is encoded as 
+
+zS ,li = gl(s(xSi )) , zT,lj = gl(s(xTj )) ,
+
+where s(·) denotes a structured behavioral sentence and gl(·)is a pretrained sentence encoder. Source-normal prototypes are stored in a memory M0,lS , which contains original source-domain embeddings and, when translation is used, target-aligned translated embeddings. Target embeddings are denoted by 
+
+ZlT = {zT,lj | xTj ∈ D T }.
+
+For readability, we omit the superscript l when the context is clear. 
+
+4.2. Behavioral Sentence Construction and Semantic Alignment 
+
+Each process is represented from system-level provenance telemetry. A process instance x may include executed routines, system events, file operations, network flows, and parent-child process relations. We serialize these multi-view signals into a structured natural-language behavioral sentence: 
+
+s(x) = Serialize( e1, e2, . . . , em),
+
+where each er denotes an observed provenance element. For example, a process may be represented as: 
+
+> Process 123 performed event open and event write, executed /bin/bash and nmap, and sent data to 192.168.1.100:22.
+
+This textual abstraction serves two purposes. First, it pro-duces a common representation format for heterogeneous prove-nance views. Second, it reduces dependence on OS-specific feature names by exposing the behavioral intent of process ac-tivity. To reduce cross-OS vocabulary mismatch, source-domain technical tokens may be translated into target-domain termi-nology using restricted prompt-based mapping. The prompt is constrained to translate discrete technical identifiers and does not ask the language model to generate new behaviors. This reduces hallucination risk because the model is used only for canonicalizing OS-specific vocabulary, not for inventing pro-cess activity. The resulting target-aligned source sentence is denoted by ˜ s(xSi ). For example, a Linux source sentence such as 
+
+> Process 42 executed /bin/bash ,
+> loaded /usr/lib/lib.so ,
+> copied /tmp/backdoor/malware payload.sh to /home/user/ ,
+> opened /etc/passwd ,
+> and sent data through ssh to 192.168.1.10:22.
+
+may be translated into a Windows-aligned sentence: 
+
+> Process 42 executed cmd.exe, loaded C:/Windows/System32/lib.exe, copied C:/tmp/backdoor/malware payload.exe to C:/Users/user/, accessed an account-information file, and sent data through an SSH client to 192.168.1.10:22.
+
+The goal is not to alter the observed behavior, but to express source-domain actions using target-domain terminology when an equivalent concept exists. For instance, /bin/bash may be mapped to cmd.exe , a Linux shared object such as lib.so 
+
+5Source provenance transcription and translation:            
+
+> Phishing email
+> Firefox
+> malware_payload.sh
+> /tmp /backdoor
+> sudo lib.so
+> ssh -sT -p 22
+> 192.168.1.0/24
+> cp / tmp /backdoor/ malware_payload.sh
+> /home/user/
+> Attacker’s ip
+> open recv write
+> exec
+> conn
+> exec
+> send
+> Phishing email
+> Firefox.exe
+> malware_payload.exe
+> C:/ tmp /backdoor
+> lib.exe
+> ssh -sT -p 22
+> 192.168.1.0/24
+> copy
+> C:/ tmp /backdoor/ malware_payload.exe
+> C:/
+> Attacker’s ip
+> open recv write
+> exec
+> conn
+> exec
+> send
+
+LLM -prompts: translation.           
+
+> Process id has received malware_payload.sh ,
+> has written / tmp /backdoor,
+> has executed sudo lib.so ,
+> has connected 192.168.1.0:24,
+> has executed cp / tmp /backdoor/ malware_payload.sh
+> /home/user/,
+> has sent data to ip .
+> Process id has received malware_payload.exe ,
+> has written C:/ tmp /backdoor ,
+> has executed lib.exe ,
+> has connected 192.168.1.0:24,
+> has executed copy C:/ tmp /backdoor/
+> malware_payload.exe C:/ ,
+> has sent data to ip .
+
+Normal Pool Embeddings: 
+
+Events embeddings 
+
+> Transcription from source to text.
+> Translation from source to target domain.
+
+Figure 2: Source-only cross-OS transfer pipeline. Source-domain provenance traces are converted into structured behavioral descriptions, optionally translated into target-domain terminology, and embedded into a shared semantic space. A source-normal prototype memory is constructed from benign source processes and their target-aligned translated counterparts. Target processes are embedded and scored through semantic similarity, structural reconstruction, and OT-based barycentric projection without using target labels. 
+
+may be mapped to a Windows executable /library-style artifact such as lib.exe , and a copy operation such as cp may be ex-pressed as copy . When no reliable equivalent exists, the origi-nal token is retained or mapped to a generic behavioral descrip-tion. For each embedding backbone l, we construct a source-normal prototype memory: 
+
+M0,lS = ngl(s(xSi )) , gl( ˜ s(xSi )) xSi ∈ D 0
+
+S
+
+o .
+
+Here, gl(s(xSi )) denotes the embedding of the original source-domain behavioral sentence, while gl( ˜ s(xSi )) denotes the em-bedding of its target-aligned translated version. The memory 
+
+M0,lS therefore contains source-normal behavioral prototypes ex-pressed both in the original source vocabulary and in the target-aligned vocabulary. If translation is not used for a particular experiment, the memory reduces to the original source-normal embeddings. Du-plicate prototypes can be removed or retained depending on implementation; in our experiments, the prototype memory is treated as a multiset because repeated benign behaviors reflect source-domain normality frequency. 
+
+4.3. Semantic Similarity Scoring 
+
+The semantic score measures how far a target process is from the closest source-normal behavioral prototype. For a tar-get process xTj , we compute 
+
+zTj = gl(s(xTj )) .
+
+The semantic anomaly score is defined as the minimum cosine distance to the source-normal prototype memory: 
+
+A(l)sem (xTj ) = min 
+
+z∈M 0,lS
+
+1 − cos( zTj , z) . (3) A low score indicates that the target behavior is semantically close to at least one source-normal behavior, whereas a high score indicates semantic deviation. This score is label-free with respect to the target domain and provides the first evidence channel of the framework. 
+
+4.4. Structural Modeling via Source-Normal VGAE 
+
+Semantic similarity captures pointwise behavioral deviation but does not explicitly model the local organization of processes in the embedding space. A target process may be suspicious not only because it is far from a source-normal prototype, but also because its neighborhood structure is inconsistent with normal source-domain geometry. To capture this e ff ect, we use a Vari-ational Graph Autoencoder (VGAE) as a structural evidence channel. For each embedding backbone l, we use the previously con-structed source-normal prototype memory M0,lS . Thus, the struc-tural graph is built over source-normal prototypes rather than over source processes alone. Let 
+
+N0,lS = |M 0,lS |
+
+denote the number of source-normal prototypes for encoder l.Depending on whether duplicate prototypes are removed, N0,lS
+
+can be smaller than or equal to 2 |D 0
+
+S |.We then construct a source-normal k-nearest-neighbor graph 
+
+G0,lS = (V0,lS , E0,lS ),
+
+where each node corresponds to one prototype embedding in 
+
+M0,lS . Edges are created between nearest neighbors under co-sine similarity and are symmetrized to obtain an undirected graph. The neighborhood size is set as 
+
+k = max( kmin , ⌈ρN0,lS ⌉),
+
+6where ρ controls graph density and kmin avoids degenerate graphs for small source-normal memories. Let 
+
+X0,lS ∈ RN0,lS ×dl
+
+denote the node feature matrix of the source-normal prototype graph, where each row is the dl-dimensional embedding of one source-normal prototype under encoder l. Let 
+
+A0,lS ∈ { 0, 1}N0,lS ×N0,lS
+
+denote the adjacency matrix of the source-normal k-nearest-neighbor graph. The VGAE encoder maps node features and graph structure to a latent Gaussian distribution: 
+
+qθ(hi | X0,lS , A0,lS ) = N(μi, diag( σ2 
+
+> i
+
+)) , hi ∈ Rr, (4) where r is the VGAE latent dimension. The decoder recon-structs graph edges through an inner product: ˆAi j = σ(h⊤ 
+
+> i
+
+h j), (5) where σ(·) is the sigmoid function. The reconstruction loss is a binary cross-entropy over ob-served source-normal prototype edges and sampled non-edges: 
+
+Lrecon = −
+
+X 
+
+> (i,j)∈E 0,lS
+
+log ˆ Ai j − α
+
+X  
+
+> (i,j)∈¯E0,lS
+
+log(1 − ˆAi j ), (6) where ¯E0,lS denotes a sampled set of non-edge pairs from the source-normal prototype graph, and α balances positive and negative reconstruction terms. The complete VGAE objective is 
+
+LVGAE = Lrecon + 1
+
+N0,lS
+
+DKL 
+
+qθ(H | X0,lS , A0,lS ) ∥ N (0, I) , (7) where H = {hi}N0,lS 
+
+> i=1
+
+denotes the set of latent structural embed-dings. The KL term regularizes the latent space toward a stan-dard Gaussian prior. At inference, each target process xTj is embedded using the same encoder gl and inserted into the source-normal prototype graph by connecting it to its k nearest source-normal proto-types. This produces an augmented graph used only for scor-ing and does not use target labels. Let NlS ( j) denote the set of source-normal prototype neighbors of target process xTj . The structural anomaly score is defined as the average reconstruc-tion mismatch over this neighborhood: 
+
+A(l)str (xTj ) = 1
+
+|N lS ( j)|
+
+X  
+
+> i∈N lS(j)
+
+A ji − ˆA ji , (8) where A ji = 1 for the inserted target–prototype edges and ˆ A ji 
+
+is the VGAE reconstruction probability. A high reconstruc-tion mismatch indicates that the VGAE, trained only on source-normal prototype structure, cannot represent the target process neighborhood as normal. 
+
+4.5. Barycentric Optimal Transport for Geometric Scoring 
+
+The core methodological component of our framework is an Optimal Transport (OT)-based geometric anomaly score. While semantic similarity compares a target process to individual source-normal prototypes, OT compares the target embedding distribu-tion to the source-normal embedding distribution and provides a soft geometric projection of each target point onto the source-normal support. Optimal Transport provides a principled way to compare probability distributions by estimating a minimum-cost trans-port plan between them [36]. Given two probability measures 
+
+μ and ν, the original Monge formulation seeks a deterministic map T that pushes μ onto ν while minimizing transport cost. Since such a map may not exist or may be di ffi cult to com-pute, the Kantorovich relaxation instead seeks a transport plan 
+
+γ ∈ Π(μ, ν ), i.e., a joint distribution whose marginals are μ and 
+
+ν:
+
+γ⋆ = arg min 
+
+> γ∈Π(μ,ν )
+
+Z
+
+> X×Y
+
+c(x, y) dγ(x, y), (9) where c(x, y) is a ground cost, typically based on Euclidean dis-tance. In our setting, OT is not used to train a target-domain classifier. Instead, it is used as a source-only anomaly-scoring mechanism: target embeddings are softly projected onto the source-normal embedding support, and their residual deviation from this projection is used as a geometric anomaly score. Figure 3 illustrates the intuition behind the proposed OT-based anomaly score. The left panel shows how a target em-bedding zTi is softly matched to multiple source-normal proto-types through the OT coupling γ⋆. Rather than assigning the target point to a single nearest neighbor, OT produces a dis-tribution of transport weights over the source-normal support. These weights define a barycentric projection ˆ zi, which can be interpreted as the best source-normal explanation of the target process under the learned transport plan. The residual distance 
+
+∥zTi − ˆzi∥2 then measures how much of the target behavior re-mains unexplained by source-normal behavior. The right panel of Figure 3 shows the corresponding cost matrix C, where each entry Ci j = ∥zTi − zSj ∥22 measures the trans-port cost between a target process and a source-normal proto-type. Low-cost entries indicate source-normal prototypes that can plausibly explain a target process, whereas high-cost en-tries indicate poor matches. The OT coupling uses this cost structure to determine how target mass should be assigned to source-normal prototypes. In our anomaly detection setting, target processes that require high-cost or di ff use transport, or that remain far from their barycentric projection, are considered more suspicious. For each embedding backbone l, let 
+
+ZlT = {zT,li }ni=1
+
+denote the target embeddings, and let 
+
+M0,lS = {zS ,lj }ml
+
+> j=1
+
+denote the previously constructed source-normal prototype mem-ory. This memory contains both original source-normal em-beddings and their target-aligned translated counterparts. For 7Figure 3: Illustration of the proposed OT-based anomaly score. Left: a target embedding zTi is softly transported to the source-normal support through an OT coupling γ⋆. Row-normalized transport weights πi j define a barycentric pro-jection ˆ zi, interpreted as the source-normal explanation of the target point. The residual ∥zTi − ˆzi∥2 is used as a geometric anomaly score. Right: the cost matrix         
+
+> Ci j =∥zTi−zSj∥22and the row corresponding to zTidetermine the normalized transport weights used in the barycentric projection.
+
+readability, we omit the superscript l in the remainder of this subsection and write m = ml.We define empirical measures over the target and source-normal embeddings: 
+
+μT =
+
+> n
+
+X
+
+> i=1
+
+aiδzTi , μS =
+
+> m
+
+X
+
+> j=1
+
+b jδzSj ,
+
+where δz denotes the Dirac measure centered at embedding z,i.e., a unit probability mass located at z. Thus, μT and μS are empirical distributions over target and source-normal embed-dings, respectively. Unless otherwise stated, we use uniform weights ai = 1/n and b j = 1/m.The pairwise transport cost between target and source-normal embeddings is defined as 
+
+Ci j = ∥zTi − zSj ∥22. (10) To obtain a smooth and computationally e ffi cient coupling, we use entropic OT: 
+
+γ⋆ = arg min   
+
+> γ∈Π(μT,μ S)
+
+⟨γ, C⟩ − εH(γ), (11) where 
+
+H(γ) = −
+
+X 
+
+> i,j
+
+γi j log( γi j )is the entropy of the coupling, ε > 0 is the entropic regulariza-tion strength, and Π(μT , μ S ) denotes the set of couplings with marginals μT and μS . Small values of ε yield sharper couplings, while larger values produce smoother transport plans. Given the optimal coupling γ⋆, we define row-normalized transport weights: 
+
+πi j = γ⋆
+
+> i j
+
+Pmr=1 γ⋆
+
+> ir
+
+,
+
+> m
+
+X
+
+> j=1
+
+πi j = 1. (12) The normalization is important because γ⋆ is a transport plan whose rows sum to the target marginal ai. The normalized weights πi j therefore define the conditional source-normal dis-tribution associated with target point zTi .The barycentric projection of zTi onto the source-normal support is then ˆzi =
+
+> m
+
+X
+
+> j=1
+
+πi j zSj . (13) This projection is a convex combination of source-normal pro-totypes and can be interpreted as the source-normal explanation of the target process under the learned transport plan. The baseline OT anomaly score is the barycentric residual: 
+
+A(l)OT ,res (xTi ) = ∥zTi − ˆzi∥2. (14) A large residual indicates that the target process cannot be well represented by a transported combination of source-normal be-haviors, suggesting that it lies away from the source-normal manifold. 
+
+4.6. Why the Barycentric Residual is a Principled Anomaly Score 
+
+The barycentric OT residual can be interpreted as a source-normal manifold deviation score. Since ˆ zi is a convex combi-nation of source-normal prototypes, it always lies in the convex hull of the source-normal support: ˆzi ∈ conv( M0,lS ).
+
+Therefore, the residual ∥zTi − ˆzi∥2 measures how far the target point remains from a source-normal explanation after OT-based soft alignment. 
+
+Geometric observation.. For any target embedding zTi and any barycentric projection ˆ zi ∈ conv( M0,lS ), 
+
+∥zTi − ˆzi∥2 ≥ dist zTi , conv( M0,lS ) .
+
+Thus, if a target point lies far from the source-normal convex support, every barycentric source-normal projection must in-cur a large residual. Conversely, if a normal target behavior is transferable across operating systems, semantic abstraction should place it close to the transported source-normal support, allowing a small barycentric residual. This observation motivates the use of the OT residual as an anomaly score. Normal target processes are expected to admit a compact source-normal explanation after semantic alignment, while anomalous processes are expected to remain poorly ex-plained by the transported source-normal manifold. 
+
+4.7. OT Score Variants 
+
+The baseline residual captures geometric mismatch, but dif-ferent types of cross-OS deviation may appear as uncertain align-ment, directional semantic drift, or projection into sparse source-normal regions. We therefore define three complementary OT variants. 8Figure 4: Illustration of the four proposed OT-based anomaly scoring variants. (a) Residual OT measures the Euclidean distance between a target embedding       
+
+> zTiand its barycentric source-normal projection ˆ zi. (b) Entropy-weighted OT amplifies the residual when the row-normalized transport weights are di ff use, indicating uncertain alignment to many source-normal prototypes. (c) Angle-aware OT combines the residual with an angular deviation term 1 −cos( zTi,ˆzi), capturing directional semantic drift. (d) Density-aware OT increases the score when the barycentric projection lies in a sparse source-normal region, measured through the local k-NN neighborhood around ˆ zi.
+
+Figure 4 illustrates the intuition behind the four OT-based scoring variants. All variants start from the same barycentric projection idea: a target process zTi is softly matched to the source-normal support and projected to ˆ zi. Residual OT scores the Euclidean mismatch between the target point and this pro-jection. Entropy-weighted OT increases the score when the transport weights are di ff use, indicating uncertain alignment. Angle-aware OT additionally penalizes directional semantic drift between zTi and ˆ zi. Density-aware OT increases the score when the projection falls in a sparse region of the source-normal sup-port. These variants are complementary: the residual term cap-tures geometric distance, the entropy term captures alignment uncertainty, the angular term captures directional mismatch, and the density term captures weak local source support. Their nor-malized scores are later aggregated through the hierarchical fu-sion procedure described in Section 4.8. 
+
+Entropy-weighted OT.. A target point may have a moderate residual but an uncertain transport assignment distributed across many source-normal prototypes. We capture this using the en-tropy of the row-normalized transport weights: 
+
+Hi = −
+
+> m
+
+X
+
+> j=1
+
+πi j log( πi j + ϵ0),
+
+where ϵ0 is a small numerical constant. We use the normalized entropy ¯Hi = Hi
+
+log m
+
+and define 
+
+A(l)OT ,ent (xTi ) = ∥zTi − ˆzi∥2
+
+1 + η ¯Hi
+
+ . (15) where η ≥ 0 controls the influence of transport uncertainty on the anomaly score. Larger values of η assign more weight to di ff use, high-entropy alignments, while η = 0 reduces the score to the baseline barycentric residual. High entropy indicates dif-fuse and ambiguous alignment, which increases the anomaly score. 
+
+Angle-aware OT.. Some target processes may have moderate Euclidean residual but strong directional deviation from their transported source-normal projection. We therefore define 
+
+A(l)OT ,ang (xTi ) = ∥zTi − ˆzi∥2 + λ 1 − cos( zTi , ˆzi) . (16) where λ ≥ 0 controls the contribution of angular deviation rel-ative to the Euclidean barycentric residual. Larger values of 
+
+λ make the score more sensitive to directional semantic drift, while λ = 0 reduces the score to the baseline residual. This variant captures directional semantic drift between a target pro-cess and its barycentric source-normal explanation. 
+
+Density-aware OT.. A target process may project close to the source-normal support but into a sparse or weakly supported region. Let 
+
+dk(ˆ zi) = 1
+
+k
+
+X 
+
+> r∈N k(ˆ zi)
+
+∥ˆzi − zSr ∥2
+
+be the average distance from the barycentric projection to its k
+
+nearest source-normal neighbors. Larger values indicate lower local support. We define the density-aware score as 
+
+A(l)OT ,den (xTi ) = ∥zTi − ˆzi∥2 1 + β dk(ˆ zi)median r(dk(zSr )) + ϵ0
+
+!
+
+. (17) where β ≥ 0 controls the influence of local source-density on the anomaly score. Larger values of β make the score more sensitive to projections falling in sparse source-normal regions, while β = 0 reduces the score to the baseline barycentric resid-ual. The constant ϵ0 > 0 prevents division by zero. This formu-lation increases the score when the barycentric projection falls in a sparse source-normal region. 
+
+Parameter setting.. The entropic OT regularization parameter 
+
+ε controls the smoothness of the transport plan. Unless other-wise stated, we use ε = 0.05, which balances transport sharp-ness and numerical stability. The coe ffi cients η, λ, and β control the relative influence of entropy uncertainty, angular deviation, and local sparsity in the OT score variants, respectively. They are not learned from target labels and are fixed before evalua-tion. To make these coe ffi cients interpretable, we use normal-ized quantities: entropy is divided by log m, the angular term is bounded through 1 − cos( ·, ·), and the density term is nor-malized by the median source-neighborhood distance. Unless otherwise stated, we use η = 0.2, λ = 0.1, and β = 0.5. The values of η and λ follow stable preliminary grid checks, while 
+
+β is introduced as a conservative default in the revised density-aware formulation so that local sparsity modulates, rather than dominates, the barycentric residual. None of these coe ffi cients is selected using target labels. We further evaluate sensitivity to 
+
+ε, η, λ, and β in the robustness analysis. 9For each backbone l, the four OT variants produce four raw score vectors over the same target processes. Since these vari-ants may have di ff erent numerical ranges, each variant score vector is first normalized using the label-free normalization pro-cedure described in Section 4.8. The normalized OT variants are then aggregated as 
+
+A(l)OT (xTi ) = max n ˜A(l)OT ,res (xTi ), ˜A(l)OT ,ent (xTi ), ˜A(l)OT ,ang (xTi ), ˜A(l)OT ,den (xTi )o .
+
+(18) 
+
+4.8. Score Normalization and Hierarchical Fusion 
+
+The semantic, structural, and OT scores may have di ff er-ent numerical scales. Before any max-based aggregation, each score vector is normalized without using labels. For a score vector a = (a1, . . . , an) computed over target processes for a fixed transfer pair, path, backbone, and variant, we apply z-score normalization: ˜ai = ai − μa
+
+σa + ϵ0
+
+, (19) where μa and σa are computed over the unlabeled target-score distribution. This normalization uses no target labels. Fusion is performed hierarchically. First, OT variants are fused within each backbone using Eq. (18). Second, scores are fused across language-model backbones: 
+
+Asem (x) = max 
+
+> l
+
+˜A(l)sem (x), (20) 
+
+Astr (x) = max 
+
+> l
+
+˜A(l)str (x), (21) 
+
+AOT (x) = max 
+
+> l
+
+˜A(l)OT (x). (22) Finally, the path-level scores are fused as 
+
+Afinal (x) = max {A sem (x), Astr (x), AOT (x)} . (23) Max-fusion is used as the default because it is calibration-free and consistent with security triage, where a process should be prioritized if any independent evidence channel provides strong abnormality evidence. In the absence of target labels, learned weighted fusion cannot be reliably calibrated, and averaging may dilute attacks that are visible only through one modal-ity. We nevertheless evaluate mean fusion as a representative calibration-free alternative in the experimental section. 
+
+4.9. Algorithm 
+
+Algorithm 1 summarizes the complete source-only work-flow, from source-normal memory construction to semantic, structural, and OT-based scoring, followed by label-free nor-malization and hierarchical fusion. 
+
+5. Experiments 
+
+5.1. Dataset and Setup 
+
+We evaluate the proposed framework on the DARPA Trans-parent Computing (TC) datasets 1, a large-scale public corpus 
+
+> 1https://www.darpa.mil/program/transparent-computing
+
+Algorithm 1: Source-Only Cross-OS APT Detection 
+
+Input: Source data DS = {(xSi , ySi )}; target data 
+
+DT = {xTj }; encoders {gl}Ll=1; translation dictionary or prompts; OT parameters (ε, η, λ, β ). 
+
+Output: Final anomaly scores {A final (xTj )}nT
+
+> j=1
+
+. 
+
+> 1
+
+Extract source-normal subset D0 
+
+> S
+
+= {xSi | ySi = 0}; 
+
+> 2
+
+foreach encoder g l do  
+
+> 3
+
+Semantic representation ; 
+
+> 4
+
+foreach xSi ∈ D 0 
+
+> S
+
+do  
+
+> 5
+
+Construct source behavioral sentence s(xSi );  
+
+> 6
+
+Optionally construct target-aligned sentence ˜s(xSi );  
+
+> 7
+
+Add gl(s(xSi )) and gl( ˜ s(xSi )) to source-normal memory M0,lS ; 
+
+> 8
+
+foreach xTj ∈ D T do  
+
+> 9
+
+Construct target behavioral sentence s(xTj );  
+
+> 10
+
+Compute target embedding zT,lj = gl(s(xTj ));  
+
+> 11
+
+Compute semantic score A(l)sem (xTj ) using Eq. (3);  
+
+> 12
+
+Structural scoring ; 
+
+> 13
+
+Construct source-normal k-NN graph G0,lS from 
+
+M0,lS ; 
+
+> 14
+
+Train VGAE on G0,lS ; 
+
+> 15
+
+Insert target nodes by connecting them to nearest source-normal neighbors;  
+
+> 16
+
+Compute structural scores A(l)str (xTj ) using Eq. (8);  
+
+> 17
+
+OT scoring ; 
+
+> 18
+
+Compute cost matrix between target embeddings and source-normal memory;  
+
+> 19
+
+Solve entropic OT using Eq. (11);  
+
+> 20
+
+Compute barycentric projections using Eq. (13);  
+
+> 21
+
+Compute residual, entropy-weighted, angle-aware, and density-aware OT scores;  
+
+> 22
+
+Normalize and fuse OT variants using Eqs. (19) and (18);  
+
+> 23
+
+Normalize each score vector without using labels using Eq. (19);  
+
+> 24
+
+Fuse scores across encoders and evidence channels using Eqs. (20)–(23);  
+
+> 25
+
+return {A final (xTj )}nT
+
+> j=1
+
+;of system-level provenance traces designed for advanced threat detection [21] 2. The TC corpus contains detailed execution traces collected from four operating systems: Linux, Windows, Android, and BSD [13]. Each trace records system-level activi-ties such as process events, file operations, process interactions, and network flows during benign execution and APT-style at-tack scenarios. For each operating system, we consider two attack scenarios 
+
+> 2https://gitlab.com/adaptdata
+
+10 Table 1: Class imbalance across operating systems and attack scenarios in the DARPA TC dataset. Values indicate the number of anomalous processes over the total number of processes.                                
+
+> Operating System Attack Scenario 1 Attack Scenario 2 Anomalies /Total Anomalies /Total BSD 13 /75,903 11 /224,624
+> Linux 8/17,569 8/11,151
+> Windows 25 /247,160 46 /282,104
+> Android 9/102 13 /12,106
+
+involving multi-stage adversarial behavior, including actions such as privilege escalation, suspicious execution, network commu-nication, and lateral movement. The presence of four operating systems enables ordered cross-OS transfer evaluation: for each scenario, we evaluate all 4 × 3 = 12 source-target transfer pairs, such as Linux →Windows, Windows →BSD, and Android →Linux. This makes the dataset well suited for studying source-only cross-OS APT detection under heterogeneous system behavior. Table 1 summarizes the class imbalance across operating systems and attack scenarios. The number of anomalous pro-cesses is extremely small relative to the total number of pro-cesses in most cases, reflecting the operational challenge of APT detection: malicious behavior is rare, sparse, and easily dominated by benign system activity. 
+
+5.2. Source-Only Evaluation Protocol 
+
+For each ordered source-target pair, the source operating system provides labeled provenance data, while the target op-erating system is treated as fully unlabeled during model con-struction and scoring. Source labels are used only to identify source-normal processes and construct the source-normal pro-totype memory. Target labels are never used for representa-tion learning, translation, graph construction, OT computation, score normalization, fusion, model selection, or hyperparame-ter tuning. They are used only after scoring to compute eval-uation metrics. Table 2 summarizes what information is used at each stage of the pipeline. This protocol ensures that all re-ported results correspond to the intended source-only cross-OS setting. 
+
+5.3. Reproducibility 
+
+All experiments were conducted locally on a MacBook Pro equipped with an Apple M1 Max chip and 64 GB of unified memory, running macOS 15 (Sequoia). 
+
+5.4. Implementation Details 
+
+We evaluate four pretrained language-model encoders: BERT [29], RoBERTa [30], DistilBERT [31], and MiniLM [32]. MiniLM embeddings are 384-dimensional, while BERT, RoBERTa, and DistilBERT embeddings are 768-dimensional. For each pro-cess, structured behavioral sentences are generated from prove-nance logs using deterministic templates. OS-specific tokens, such as routines, executable names, and event identifiers, are optionally canonicalized through restricted prompt-based map-ping. To control cost and runtime, translations are cached at the token /routine level rather than at the process level; there-fore, the number of API calls grows with the number of unique technical tokens rather than with the number of processes. For semantic scoring, each target process is compared against the source-normal prototype memory using minimum cosine distance. For structural scoring, we construct a k-nearest-neighbor graph over source-normal prototypes for each embedding back-bone and train a VGAE on the source-normal graph. Unless otherwise stated, the neighborhood size is defined as 
+
+k = max( kmin , ⌈ρN0,lS ⌉), where N0,lS is the size of the source-normal prototype memory for encoder l. For OT scoring, we compute entropic OT between target embeddings and the source-normal prototype memory using the POT library. We use ε =
+
+0.05 as the default entropic regularization strength. For the OT score variants, we use η = 0.2 for entropy-weighted OT, λ = 0.1 for angle-aware OT, and β = 0.5 for density-aware OT. These coe ffi cients are fixed before evaluation and are not selected using target labels. Score vectors are nor-malized using z-score normalization over the unlabeled target-score distribution before max-based aggregation. This normal-ization is applied separately for each transfer pair, scoring path, embedding backbone, and OT variant, following Eq. (19). We further evaluate sensitivity to these hyperparameters in the ro-bustness analysis. 
+
+5.5. Comparison With Existing Methods 
+
+A large body of work studies APT detection within a single operating system using provenance graphs, endpoint teleme-try, or environment-specific behavioral representations [10, 13]. Such systems are often highly e ff ective in their intended de-ployment setting, but they are not designed for the protocol studied in this paper: source-only cross-OS transfer with no target-domain supervision. In particular, many within-OS de-tectors rely on target-specific feature engineering, environment-dependent training, or labeled attack traces in the deployment domain. Directly comparing against such supervised target-domain methods would violate the zero-target-label premise of our setting. We therefore compare against source-only transfer base-lines that can be trained using source-domain data and applied directly to the unlabeled target domain. These baselines are se-lected because they satisfy the same information constraints as our method: no target labels are used for training, calibration, fusion, or model selection. 
+
+• AE Transfer. An autoencoder is trained on source-normal embeddings and applied to target embeddings. The re-construction error is used as the anomaly score [37]. 
+
+• Isolation Forest Transfer. Isolation Forest is trained on source-normal embeddings and then applied to target embeddings. Samples that are easier to isolate receive higher anomaly scores [38]. 
+
+• k-NN Transfer. Each target sample is scored by its dis-tance to the k nearest source-normal embeddings. Larger distances indicate weaker support from the source-normal reference [39]. 
+
+• LOF Transfer. Local Outlier Factor is fit using source-normal embeddings and applied to target embeddings to 11 Table 2: Source-only cross-OS evaluation protocol. Target labels are used only for final o ffl ine evaluation.                                   
+
+> Pipeline stage Uses source labels? Uses target samples? Uses target labels?
+> Source-normal memory con-struction Yes No No Behavioral sentence construc-tion No Yes No Token /routine translation cache No No No Target embedding computation No Yes No VGAE training Yes, normal subset only No No VGAE target scoring No Yes No OT coupling and barycentric projection No Yes No Score normalization and fusion No Yes No AUC and nDCG computation No Yes Yes, evaluation only
+
+detect deviations from the local density structure of the source domain [40]. These baselines provide protocol-aligned references for as-sessing whether the proposed semantic, structural, and OT-based components improve cross-OS generalization beyond standard source-only anomaly scoring. For all baselines, the training ref-erence is restricted to source-normal data, and target labels are used only for final evaluation. 
+
+5.6. Evaluation Metrics 
+
+We evaluate anomaly detection performance using both ROC-AUC and nDCG. These metrics capture complementary aspects of the source-only cross-OS detection problem. 
+
+ROC-AUC. ROC-AUC measures the threshold-independent abil-ity of a detector to rank anomalous processes above benign processes. This is useful because the operating threshold is typically unknown in advance and may vary across SOC de-ployments. ROC-AUC therefore captures global separability between benign and attack-related processes across the entire ranked list. 
+
+nDCG. Because APT detection is an extreme class-imbalance problem, global separability alone is not su ffi cient. In prac-tice, analysts usually inspect only the highest-ranked alerts. We therefore also report Normalized Discounted Cumulative Gain (nDCG), a ranking-oriented metric that rewards placing true anomalies near the top of the alert list [41, 42]. Given a ranked list of target processes, nDCG is defined as nDCG@ K = DCG@ K
+
+IDCG@ K ,
+
+where DCG@ K =
+
+> K
+
+X
+
+> i=1
+
+2rel i − 1log 2(i + 1) .
+
+Here, rel i ∈ { 0, 1} indicates whether the process ranked at po-sition i is anomalous, and IDCG@ K denotes the ideal DCG obtained by a perfect ranking. A value of 1 indicates that all relevant anomalous processes are ranked as early as possible. Unless otherwise stated, we report nDCG over the full ranked target list. 
+
+5.7. Experimental Organization 
+
+We evaluate the proposed framework under a strict source-only cross-OS protocol. For each of the two attack scenarios, we consider all ordered source-target operating-system pairs among Linux, Windows, BSD, and Android. This results in 12 transfer pairs per scenario and 24 transfer settings in total. In each setting, the source domain is used to construct the source-normal reference and train source-only components, while the target domain is treated as unlabeled throughout representation construction, translation, graph construction, OT computation, scoring, normalization, and fusion. Target labels are used only after scoring, for o ffl ine computation of ROC-AUC and nDCG. The evaluation is organized around six complementary anal-yses. First, we compare the proposed label-free fused frame-work against protocol-aligned source-only baselines. The pro-posed score is computed by fusing normalized per-process se-mantic, structural, and OT-based anomaly scores before evalu-ation. The dominant evidence channel is reported only as a di-agnostic interpretation of which component most strongly ex-plains the result in each transfer direction; it is not used for supervised model selection or target-domain tuning. Second, we compare against four source-only transfer base-lines: AE Transfer, Isolation Forest Transfer, k-NN Transfer, and LOF Transfer. Each baseline is trained using only source-normal embeddings and then applied directly to target-domain embeddings without using target labels. This ensures that all methods operate under the same source-only information con-straint. We report both per-transfer results and aggregate sum-maries over the 12 transfer pairs of each scenario. Third, we perform score-level component ablation to quan-tify the contribution of each evidence channel under the actual deployable fusion rule. We evaluate semantic-only, structural-only, OT-only, pairwise combinations, and the complete seman-tic +structural +OT configuration. Fourth, we evaluate the fusion strategy itself. The default max-fusion rule is compared with mean fusion under the same label-free normalization procedure. This analysis tests whether preserving the strongest anomaly evidence from any single view is preferable to averaging evidence across views. Both fusion strategies operate without target labels. Fifth, we analyze the four OT scoring variants: residual OT, entropy-weighted OT, angle-aware OT, and density-aware OT. This analysis is performed across all transfer pairs and all four embedding backbones: BERT, RoBERTa, DistilBERT, and 12 MiniLM. The goal is not to assume that one OT variant dom-inates universally, but to evaluate whether the variants capture complementary forms of cross-OS geometric mismatch. Finally, we study cross-OS transfer asymmetry and robust-ness. We examine the complementarity of semantic, structural, and geometric evidence by reporting which component is dom-inant across transfer directions. We also visualize source-target transfer behavior using heatmaps, where rows correspond to source operating systems and columns correspond to target op-erating systems, with diagonal self-transfer entries omitted. This representation highlights cross-OS asymmetry and makes target-domain e ff ects easier to interpret. In addition, we assess sensi-tivity to key OT hyperparameters to verify that the observed trends are stable under reasonable perturbations and are not driven by an isolated parameter choice. Across four language-model backbones, three evidence chan-nels, four OT variants, four source-only baselines, twelve trans-fer pairs, and two attack scenarios, the evaluation covers a broad set of source-only cross-OS configurations. For stochastic com-ponents such as VGAE training, experiments are repeated over multiple random seeds when applicable. For deterministic scor-ing components, we report averages across transfer pairs and scenarios, and we use the full per-transfer results to assess sta-bility across heterogeneous source-target directions. To ensure fair comparison, all methods receive the same source and target embeddings for a given backbone and trans-fer pair. No method is allowed to use target labels for training, hyperparameter selection, score calibration, or fusion. When a method requires a normal reference, it is trained only on source-normal embeddings. Score normalization is performed using the same label-free procedure before aggregation whenever re-quired. 
+
+5.8. Controlled Cross-OS Keyword Translation Implementation 
+
+A major challenge in source-only cross-OS transfer is that the same behavioral intent may be expressed through di ff erent operating-system vocabularies. For example, a Linux process may execute /bin/bash , load a shared object such as lib.so ,or copy a shell payload, whereas an analogous Windows behav-ior may involve cmd.exe , executable or library-style artifacts, and Windows-style file paths. Directly embedding these raw OS-specific tokens can increase the apparent semantic distance between otherwise related behaviors. To reduce this vocabu-lary mismatch, we apply a controlled keyword-level translation step before embedding. Importantly, the translation module is not allowed to rewrite the full behavioral trace freely. Instead, it receives a list of technical tokens extracted from the source sentence and is instructed to map only OS-specific identifiers to target-domain equivalents when a reliable conceptual match exists. Observed actions, event types, process identifiers, IP addresses, ports, and the order of events are preserved. If no reliable equivalent exists, the token is retained or mapped to a generic behavioral description. This design reduces hallucina-tion risk because the language model is used as a constrained vocabulary canonicalizer rather than as a generative event syn-thesizer. For example, consider the following Linux source sen-tence: 
+
+> Process 42 executed /bin/bash, loaded /usr/lib/lib.so, copied /tmp/backdoor/malware payload.sh to /home/user/, opened /etc/passwd, and sent data through ssh to 192.168.1.10:22.
+
+For a Linux →Windows transfer setting, the controlled trans-lation step may produce: 
+
+> Process 42 executed cmd.exe, loaded C:/Windows/System32/lib.exe, copied C:/tmp/backdoor/malware payload.exe to C:/Users/user/, accessed an account-information file, and sent data through an SSH client to 192.168.1.10:22.
+
+The goal is not to assert that the exact Windows artifacts were observed. Rather, the translated sentence expresses the same source-domain behavior using target-domain terminology when an equivalent concept exists. Thus, /bin/bash may be mapped to cmd.exe , a Linux shared object such as lib.so 
+
+may be mapped to a Windows-style executable or library arti-fact such as lib.exe , and a Linux home-directory path may be rewritten using a Windows user-directory convention. Network endpoints and event semantics are preserved. The prompt used for this step is restricted to token-level mapping. A representative prompt is shown below:     
+
+> You are given a list of technical tokens extracted from a Linux provenance sentence. Translate only OS-specific keywords into Windows-equivalent terminology when a clear conceptual equivalent exists. Do not add new events, processes, files, IP addresses, ports, or behaviors. Preserve the original action sequence. If no reliable equivalent exists, keep the token unchanged or replace it with a generic behavioral description. Return only a JSON dictionary mapping source tokens to translated tokens.
+
+For the example above, the model may return a dictionary such as: 
+
+/bin/bash → cmd.exe ,
+
+/usr/lib/lib.so → C:/Windows/System32/lib.exe ,
+
+malware payload.sh → malware payload.exe ,
+
+/home/user/ → C:/Users/user/ ,
+
+/etc/passwd → account-information file .
+
+To reduce computation cost and improve consistency, we cache translations at the token and routine level. Many pro-cesses share the same technical identifiers, such as executable names, library names, event labels, or routine names. There-fore, once a token such as /bin/bash or lib.so has been mapped for a given source-target OS pair, the same cached mapping is reused for all subsequent processes. This avoids repeated LLM calls, ensures consistent canonicalization across the dataset, and makes the number of translation queries depend on the size of the unique technical vocabulary rather than on the number of processes. This controlled translation strategy preserves the source-only evaluation protocol. Target labels are never used during 13 translation, embedding, scoring, normalization, or fusion. The translation step only aligns technical vocabulary between op-erating systems so that semantically related behaviors can be compared in a shared embedding space. 
+
+6. Results and Analysis 
+
+We organize the results around six questions: (i) whether the proposed source-only framework improves over protocol-aligned baselines; (ii) whether score-level fusion improves over individual evidence channels; (iii) whether semantic, structural, and OT-based evidence provide complementary signals; (iv) how the individual OT variants behave across transfer direc-tions and embedding backbones; (v) how performance depends on the source-target operating-system pair; and (vi) whether the main hyperparameter choices are stable under reasonable per-turbations. Unless otherwise stated, entries of the form a/b
+
+denote ROC-AUC /nDCG. The gain column reports absolute ROC-AUC improvement over the strongest source-only base-line among AE, k-NN, IF, and LOF. All fusion results are com-puted without target labels; target labels are used only for of-fline evaluation. 
+
+6.1. Comparison with Source-Only Transfer Baselines 
+
+This analysis evaluates whether the proposed source-only framework improves over protocol-aligned transfer baselines under the same no-target-label constraint. The proposed score is obtained through label-free score-level fusion of semantic, structural, and OT-based evidence. The dominant evidence col-umn is included only for interpretation; it indicates which evi-dence channel most strongly explains the result in the diagnos-tic component analysis and is not used for supervised model selection. Tables 3 and 4 show that the proposed framework improves over the strongest source-only baseline in every source-target transfer direction for both attack scenarios. In Scenario 1, the ROC-AUC gain ranges from +0.08 to +0.36, while in Sce-nario 2 it ranges from +0.12 to +0.36. The nDCG values show the same operational trend: the proposed framework improves not only global separability but also top-ranked alert quality. This is important for APT triage, where analysts typically in-spect only a small set of high-priority processes. 
+
+6.2. Aggregate Performance Across Scenarios 
+
+This analysis summarizes the main quantitative trends across all 24 source-target transfer settings, covering 12 transfer pairs in each of the two attack scenarios. Table 5 confirms the consistency of the gains. The strongest baseline in terms of overall mean ROC-AUC is LOF with 0 .59, whereas the proposed framework reaches 0 .86. The same pat-tern holds for nDCG: the strongest baseline reaches 0 .35, while the proposed framework reaches 0 .60. These results support the use of semantic abstraction, structural modeling, and OT-based geometric scoring for source-only cross-OS APT detection. 
+
+6.3. Score-Level Component Ablation 
+
+This ablation evaluates the contribution of each evidence channel under the actual score-level fusion rule. Scores are normalized and combined before computing ROC-AUC, so this experiment reflects the deployable label-free fusion procedure. Table 6 shows that the complete three-path fusion achieves the highest mean ROC-AUC in both scenarios. OT is the strongest individual component in Scenario 1, while structural and OT evidence are both highly competitive in Scenario 2. Pairwise combinations improve over most single components, and the full fusion provides the best overall result. This confirms that the framework benefits from combining complementary evi-dence channels under the actual label-free scoring rule. 
+
+6.4. Fusion Strategy Ablation 
+
+To justify the default max-fusion rule, we compare it with mean fusion under the same label-free normalization proce-dure. Both strategies combine normalized per-process anomaly scores and do not use target labels. Table 7 shows that max fusion outperforms mean fusion in both attack scenarios. This supports our design choice: in source-only cross-OS APT detection, an anomalous process may be strongly visible in only one evidence channel. Mean fusion can dilute such single-view evidence, whereas max fusion pre-serves the strongest semantic, structural, or geometric anomaly signal. 
+
+6.5. Complementarity of Semantic, Structural, and OT Evidence 
+
+This analysis examines whether the semantic, structural, and OT-based evidence channels are redundant or complemen-tary across transfer directions. Table 8 shows that OT is the dominant evidence channel in most transfer directions, supporting its role as the central geometry-aware transfer mechanism. At the same time, struc-tural evidence is essential in several di ffi cult transfers, such as those where graph-neighborhood behavior better captures cross-OS consistency than direct semantic or geometric align-ment. The ties further show that di ff erent evidence channels can converge to similarly strong rankings. This supports the design choice of retaining all three paths rather than reducing the framework to a single detector. 
+
+6.6. OT Variant Analysis 
+
+This analysis evaluates how the four OT scoring variants be-have across embedding backbones and transfer directions. The goal is not to claim that one OT variant dominates universally, but to verify that the variants provide complementary geometric signals. Table 9 shows that OT behavior is scenario-dependent. In Scenario 1, all variants are relatively stable, with most configu-rations exceeding random performance. In Scenario 2, the task is harder and variability increases, but the OT variants still pro-vide useful geometric evidence. Angle-aware OT obtains the strongest mean and median AUC in Scenario 2, while resid-ual OT wins the largest number of transfer pairs after averaging over backbones. This supports the use of normalized OT-variant 14 Table 3: Scenario 1 source-only baseline comparison using ROC-AUC /nDCG. The Proposed column reports the score produced by the proposed label-free frame-work. Dominant Evidence indicates the component that most strongly explains the result in diagnostic analysis. Gain reports absolute ROC-AUC improvement over the strongest source-only baseline. 
+
+Transfer Pair Proposed Dominant Evidence AE k-NN IF LOF Gain 
+
+Linux → Windows 0.79 /0.60 OT 0.52 /0.29 0.55 /0.31 0.37 /0.18 0.60 /0.41 +0.19 Linux → BSD 0.98 /0.61 OT 0.69 /0.51 0.78 /0.54 0.57 /0.38 0.70 /0.49 +0.20 Linux → Android 0.93 /0.68 OT 0.75 /0.52 0.81 /0.55 0.61 /0.49 0.78 /0.55 +0.12 BSD → Windows 0.81 /0.63 Str 0.19 /0.09 0.45 /0.29 0.16 /0.12 0.42 /0.22 +0.36 BSD → Linux 0.98 /0.57 Sem /OT 0.71 /0.49 0.67 /0.41 0.59 /0.39 0.81 /0.42 +0.17 BSD → Android 0.81 /0.70 OT 0.45 /0.38 0.36 /0.22 0.33 /0.19 0.56 /0.40 +0.25 Windows → BSD 0.79 /0.59 OT 0.53 /0.40 0.57 /0.40 0.57 /0.39 0.67 /0.46 +0.12 Windows → Linux 0.81 /0.56 OT 0.66 /0.46 0.63 /0.49 0.58 /0.41 0.60 /0.48 +0.15 Windows → Android 0.80 /0.71 OT 0.63 /0.50 0.60 /0.44 0.40 /0.29 0.56 /0.40 +0.17 Android → Windows 0.98 /0.80 OT 0.60 /0.51 0.71 /0.53 0.57 /0.44 0.66 /0.59 +0.27 Android → Linux 0.78 /0.55 OT 0.57 /0.41 0.70 /0.49 0.52 /0.38 0.47 /0.30 +0.08 Android → BSD 0.96 /0.61 OT 0.80 /0.56 0.58 /0.47 0.55 /0.36 0.46 /0.28 +0.16 
+
+Table 4: Scenario 2 source-only baseline comparison using ROC-AUC /nDCG. The Proposed column reports the score produced by the proposed label-free frame-work. Dominant Evidence indicates the component that most strongly explains the result in diagnostic analysis. Gain reports absolute ROC-AUC improvement over the strongest source-only baseline. 
+
+Transfer Pair Proposed Dominant Evidence AE k-NN IF LOF Gain 
+
+Linux → Windows 0.78 /0.38 OT 0.36 /0.10 0.50 /0.22 0.45 /0.18 0.66 /0.33 +0.12 Linux → BSD 0.98 /0.63 OT 0.67 /0.30 0.51 /0.25 0.80 /0.45 0.16 /0.09 +0.18 Linux → Android 0.79 /0.70 OT 0.34 /0.10 0.36 /0.12 0.60 /0.42 0.61 /0.25 +0.18 BSD → Windows 0.76 /0.38 OT 0.22 /0.10 0.51 /0.30 0.60 /0.31 0.60 /0.30 +0.16 BSD → Linux 0.85 /0.51 OT 0.63 /0.41 0.52 /0.28 0.52 /0.19 0.72 /0.42 +0.13 BSD → Android 0.93 /0.66 OT 0.32 /0.10 0.56 /0.17 0.48 /0.26 0.66 /0.39 +0.27 Windows → BSD 0.97 /0.59 Sem /OT 0.70 /0.49 0.58 /0.34 0.70 /0.42 0.60 /0.27 +0.27 Windows → Linux 0.92 /0.65 Str 0.30 /0.12 0.56 /0.20 0.22 /0.10 0.45 /0.13 +0.36 Windows → Android 0.79 /0.70 OT 0.65 /0.33 0.54 /0.21 0.32 /0.10 0.63 /0.20 +0.14 Android → Windows 0.75 /0.51 Str 0.60 /0.38 0.61 /0.30 0.56 /0.31 0.54 /0.29 +0.14 Android → Linux 0.91 /0.60 OT 0.32 /0.10 0.56 /0.30 0.58 /0.35 0.60 /0.33 +0.31 Android → BSD 0.92 /0.70 Sem /Str /OT 0.55 /0.34 0.22 /0.18 0.64 /0.35 0.56 /0.28 +0.28 
+
+Table 5: Aggregate comparison over the 12 ordered cross-OS transfer pairs in each scenario. Values report mean ROC-AUC /nDCG.                   
+
+> Method Scenario 1 Scenario 2 Overall
+> AE Transfer 0.59 /0.42 0.47 /0.23 0.53 /0.33
+> k-NN Transfer 0.61 /0.42 0.50 /0.23 0.56 /0.33 IF Transfer 0.48 /0.33 0.53 /0.28 0.51 /0.31 LOF Transfer 0.61 /0.41 0.56 /0.27 0.59 /0.35 Proposed 0.86 /0.63 0.86 /0.58 0.86 /0.60
+
+Table 6: Score-level component ablation using label-free fusion. Values report mean ROC-AUC over the 12 ordered cross-OS transfer pairs for each scenario.                           
+
+> Configuration Scenario 1 Scenario 2
+> Semantic only 0.742 0.554 Structural only 0.803 0.815 OT only 0.855 0.811 Semantic +Structural 0.828 0.832 Semantic +OT 0.860 0.824 Structural +OT 0.862 0.841 Semantic +Structural +OT 0.864 0.858
+
+fusion: each variant captures a di ff erent form of geometric mis-match, and no single variant is optimal for all source-target di-rections. 
+
+Table 7: Label-free fusion strategy ablation. Values report mean ROC-AUC over the 12 ordered cross-OS transfer pairs for each attack scenario.       
+
+> Fusion Strategy Scenario 1 Scenario 2
+> Mean fusion 0.75 0.71 Max fusion 0.86 0.86
+
+Table 8: Dominant evidence channel across the two attack scenarios. Counts are computed from Tables 3 and 4.                
+
+> Dominant evidence channel Scenario 1 Scenario 2 Total
+> Semantic only 0/12 0/12 0/24 Structural GVAE 1/12 2/12 3/24 OT geometric evidence 10 /12 8/12 18 /24 Tie involving multiple channels 1/12 2/12 3/24
+
+6.7. Source–Target Transfer Behavior 
+
+To visualize the asymmetry of cross-OS transfer, we repre-sent component-level AUCs as source-target heatmaps. Rows correspond to source operating systems and columns correspond to target operating systems; diagonal self-transfer entries are omitted. Figure 5 summarizes the cross-OS transfer behavior of the 15 Table 9: OT variant analysis across both attack scenarios. BERT, RoBERTa, DistilBERT, and MiniLM columns report mean ROC-AUC over the 12 transfer pairs for the corresponding backbone. Avg. ±Std, median, worst-case, and AUC > 0.5 are computed over 48 configurations: 12 transfer pairs × 4 embedding backbones. Wins /12 counts how often the variant obtains the best average AUC across the four backbones for a transfer pair; ties are counted for all tied variants. 
+
+Scenario OT Variant BERT RoBERTa DistilBERT MiniLM Avg. ±Std Median Worst Wins /12 AUC > 0.5S1 Residual OT 0.639 0.659 0.622 0.698 0.655 ±0.168 0.640 0.320 5 40 /48 S1 Entropy-weighted OT 0.636 0.652 0.610 0.707 0.651 ±0.165 0.670 0.320 2 40 /48 S1 Angle-aware OT 0.616 0.618 0.605 0.694 0.633 ±0.149 0.675 0.300 3 40 /48 S1 Density-aware OT 0.636 0.626 0.628 0.717 0.652 ±0.134 0.675 0.300 2 42 /48 S2 Residual OT 0.467 0.628 0.578 0.573 0.562 ±0.217 0.535 0.160 5 29 /48 S2 Entropy-weighted OT 0.511 0.588 0.604 0.569 0.568 ±0.200 0.610 0.150 4 32 /48 S2 Angle-aware OT 0.507 0.582 0.625 0.622 0.584 ±0.250 0.630 0.120 2 30 /48 S2 Density-aware OT 0.487 0.576 0.513 0.647 0.556 ±0.251 0.615 0.120 2 26 /48  
+
+> (a) Scenario 1: fused framework (b) Scenario 2: fused framework
+
+Figure 5: Source-target transfer heatmaps for the proposed fused framework. Rows denote the source operating system and columns denote the target operating system; diagonal self-transfer entries are omitted. The heatmaps show that the proposed source-only framework remains e ff ective across heterogeneous cross-OS transfer directions in both attack scenarios, while also revealing asymmetric transfer di ffi culty across source-target pairs. 
+
+proposed fused framework. The results show that performance is not symmetric across source-target directions, confirming that cross-OS APT detection depends strongly on the target plat-form and attack scenario. Nevertheless, the fused framework maintains strong performance across most transfer pairs in both scenarios, supporting the use of complementary semantic, struc-tural, and OT-based evidence. 
+
+6.8. Hyperparameter Sensitivity 
+
+The goal of this experiment is not to tune parameters on target labels, but to verify that the observed trends are stable under reasonable perturbations around the default settings used in the main experiments. Table 10 shows that the default settings provide the strongest or near-strongest performance across both scenarios. Moderate perturbations generally preserve competitive AUC values, in-dicating that the framework is not driven by an isolated lucky hyperparameter choice. This supports the robustness of the OT-based scoring design under the source-only evaluation protocol. 
+
+6.9. MITRE ATT &CK Contextualization 
+
+To assess threat relevance, we map representative high-ranked processes to MITRE ATT&CK 3 techniques. This mapping is 
+
+> 3
+
+https://attack.mitre.org/ 
+
+Table 10: Sensitivity to OT hyperparameters. Values report mean ROC-AUC over the 12 ordered cross-OS transfer pairs. Bold values correspond to the default setting used in the main experiments.                                     
+
+> Parameter Value Scenario 1 Scenario 2
+> ε0.01 0.81 0.82
+> ε0.05 0.86 0.86
+> ε0.10 0.84 0.83
+> η0.10 0.79 0.78
+> η0.20 0.86 0.86
+> η0.50 0.85 0.83
+> λ0.05 0.77 0.81
+> λ0.10 0.86 0.86
+> λ0.20 0.86 0.85
+> β0.25 0.85 0.84
+> β0.50 0.86 0.86
+
+used only for post-hoc explanation, not for training, scoring, calibration, or fusion. It connects low-level provenance events with adversarial intent and helps SOC analysts interpret why a ranked process is security-relevant. Representative detections align with common attack stages such as Execution , Persis-tence , Privilege Escalation , Defense Evasion , and Command and Control . Linux events such as event open , event exec ,
+
+event fork , and event rename suggest suspicious execution or anti-forensics, consistent with T1036.003, T1055, and T1543.003. Windows patterns involving event regmod , event createproc ,16 disk writes, network connections, or event schtasks indicate registry persistence, command execution, scheduled-task per-sistence, payload staging, or C2 activity, consistent with T1547.001, T1059, T1105, T1053.005, and T1027. BSD permission change-and-execution patterns map to T1222.002 and T1548.001, while Android APK installation, network transmission, and wakelock behavior reflect spyware-like persistence or exfiltration patterns, e.g., T1476, T1409, and T1547. Overall, ATT&CK contextual-ization shows that the detector surfaces recognizable adversar-ial tradecraft rather than arbitrary statistical outliers. 
+
+6.9.1. Lessons Learned: 
+
+Our study identifies and addresses six major challenges in achieving e ff ective cross-OS transfer for APT detection. First, we overcome feature misalignment across OSs by translating raw activity into normalized natural language, enabling seman-tic abstraction through pretrained LLMs. Second, we lever-age the DARPA TC dataset—unique in o ff ering multi-OS APT traces —supporting 12 transfer scenarios. Third, to mitigate the absence of target labels, we rely solely on source super-vision and unsupervised scoring (OT, VGAE, similarity) in the target. Fourth, to handle poor generalization of classical models (e.g., AE, IF), we learn source manifolds and project target em-beddings via Optimal Transport. Fifth, we fuse heterogeneous signals (semantic, structural, geometric) using a late-stage max aggregation—striking a balance between simplicity, robustness, and deployability. Finally, we reduce GPT translation costs by caching translated process actions, ensuring scalable and e ffi -cient cross-domain modeling. Together, these solutions enable a robust source-only, target-unsupervised transfer framework for APT detection under real-world cross-platform constraints. 
+
+6.10. Limitations 
+
+Although the proposed framework shows strong performance under source-only cross-OS transfer, several limitations should be acknowledged. First, the method assumes access to labeled source-domain data in order to identify source-normal processes and construct the normal reference memory. Therefore, the framework is target-unsupervised but not fully label-free: source labels are still required to define the benign reference distri-bution. In environments where even source-domain labels are noisy or unavailable, additional mechanisms for robust normal-reference construction would be needed. Second, the semantic alignment step relies on controlled keyword-level translation to reduce cross-OS vocabulary mis-match. Although the translation prompt is constrained to pre-serve observed events, IP addresses, ports, process identifiers, and action order, imperfect mappings may still occur when an OS-specific artifact has no clear equivalent in the target plat-form. We reduce this risk by using translation only as a vocab-ulary canonicalization step, caching repeated mappings, and re-taining tokens when no reliable equivalent exists. Nevertheless, translation quality may influence the embedding geometry and therefore the downstream anomaly scores. Third, the OT-based score depends on the quality of the em-bedding space. If semantically related source and target behav-iors are not placed near compatible regions of the representa-tion space, the barycentric projection may become less informa-tive. This limitation is partly mitigated by evaluating multiple language-model backbones and by combining OT with struc-tural and semantic evidence, but the framework may still be af-fected by embedding bias or poor representation of rare system behaviors. Fourth, the structural channel depends on the construction of the source-normal k-nearest-neighbor graph. The choice of neighborhood size and graph density can a ff ect VGAE recon-struction behavior, especially when the source-normal mem-ory is small or highly imbalanced. We address this by using a density-controlled graph construction and by evaluating sen-sitivity to key parameters, but more adaptive graph construction strategies could further improve robustness. Fifth, while the DARPA Transparent Computing data pro-vides one of the most suitable public benchmarks for cross-OS APT detection, it remains a finite benchmark with a limited number of attack scenarios. Real SOC deployments may in-volve additional operating systems, evolving software stacks, noisier telemetry, and adversaries whose behaviors di ff er from those represented in the dataset. Therefore, further validation on additional provenance datasets and operational traces would strengthen external validity. Finally, the proposed framework improves ranking quality but does not by itself replace analyst judgment. The MITRE ATT&CK contextualization provides post-hoc interpretability for selected high-ranked processes, but it is not a formal causal attribution mechanism. Future work should integrate richer ex-planation modules, analyst feedback, and online adaptation mech-anisms while preserving the source-only constraint. These limitations do not undermine the central empirical finding: source-only cross-OS APT detection can be substan-tially improved by combining semantic abstraction, structural modeling, and OT-based geometric anomaly scoring under a strict zero-target-label protocol. 
+
+7. Conclusion and Future Work 
+
+We introduced a source-only, target-unsupervised frame-work for cross-OS APT detection, that leverages LLM-generated behavioral descriptions, optimal transport alignment, and multi-path anomaly scoring. Our method generalizes from a sin-gle labeled source OS to multiple unseen targets, eliminating the need for costly retraining or domain adaptation. Through extensive evaluation on DARPA TC data across 12 OS pairs, we demonstrated the superiority of our approach over classical transfer baselines. For future work, we plan to explore few-shot adaptation via user feedback, causal modeling of cross-domain process behavior, and integration with real-time security event streams to support continuous learning under evolving attack surfaces. 
+
+Conflicts of Interest 
+
+The authors declare no conflict of interest. 17 References 
+
+[1] H. Dong and I. Kotenko, “Cybersecurity in the ai era: analyzing the im-pact of machine learning on intrusion detection,” Knowledge and Infor-mation Systems , vol. 67, no. 5, pp. 3915–3966, 2025. [2] A. Saha, J. Mattei, J. Blasco, L. Cavallaro, D. Votipka, and M. Lindorfer, “Expert insights into advanced persistent threats: Analysis, attribution, and challenges,” in Proceedings of the 34th USENIX Security Symposium (USENIX Sec) , 2025. [3] L. Wang, L. Fang, and Y. Hu, “A dynamic provenance graph-based de-tector for advanced persistent threats,” Expert Systems with Applications ,vol. 265, p. 125877, 2025. [4] R. Buchta, G. Gkoktsis, F. Heine, and C. Kleiner, “Advanced persistent threat attack detection systems: A review of approaches, challenges, and trends,” Digital Threats: Research and Practice , vol. 5, no. 4, pp. 1–37, 2024. [5] A. Sharma, B. B. Gupta, A. K. Singh, and V. Saraswat, “Advanced persis-tent threats (apt): evolution, anatomy, attribution and countermeasures,” 
+
+Journal of Ambient Intelligence and Humanized Computing , pp. 1–27, 2023. [6] N. I. Che Mat, N. Jamil, Y. Yuso ff , and M. L. Mat Kiah, “A systematic literature review on advanced persistent threat behaviors and its detection strategy,” Journal of Cybersecurity , vol. 10, no. 1, p. tyad023, 2024. [7] D. T. Salim et al. , “A systematic review for apt detection and e ff ective cyber situational awareness conceptual model,” Heliyon , vol. 9, no. 7, p. 17156, 2023. [8] N. H. Ghoson, V. Meyrueis, K. Benfriha, T. Guiltat, and S. Loubere, “A review on the static and dynamic risk assessment methods for ot cyberse-curity in industry 4.0,” Computers & Security , vol. 150, p. 104295, 2025. [9] G. Longo, F. Lupia, A. Merlo, F. Pagano, and E. Russo, “A data anonymization methodology for security operations centers: Balancing data protection and security in industrial systems,” Information Sciences ,vol. 690, p. 121534, 2025. [10] M. Ur Rehman, H. Ahmadi, and W. Ul Hassan, “Flash: A comprehen-sive approach to intrusion detection via provenance graph representa-tion learning,” in 2024 IEEE Symposium on Security and Privacy (SP) ,pp. 3552–3570, 2024. [11] S. Benabderrahmane, J. Cheney, and T. Rahwan, “Ranking-enhanced anomaly detection using active learning-assisted attention adversarial dual autoencoder,” Scientific Reports , vol. 15, 2025. [12] A. Singhal and P. Liu, “Advanced persistent threats,” in Encyclopedia of Cryptography, Security and Privacy , pp. 34–36, Springer, 2025. [13] S. Benabderrahmane, N. Hoang, P. Valtchev, J. Cheney, and T. Rahwan, “Hack me if you can: Aggregating autoencoders for countering persistent access threats within highly imbalanced data,” Future Gener. Comput. Syst. , vol. 160, pp. 926–941, 2024. [14] A. M. Amine, “Optimization of intrusion detection with deep learning: A study based on the kdd cup 99 database.,” International Journal of Safety 
+
+& Security Engineering , vol. 14, no. 4, 2024. [15] H. Neuschmied, M. Winter, B. Stojanovi´ c, K. Hofer-Schmitz, J. Boˇ zi´ c, and U. Kleb, “Apt-attack detection based on multi-stage autoencoders,” 
+
+Applied Sciences , vol. 12, no. 13, 2022. [16] M. AbuOdeh, C. Adkins, O. Setayeshfar, P. Doshi, and K. H. Lee, “A novel ai-based methodology for identifying cyber attacks in honey pots,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 35, pp. 15224–15231, 2021. [17] B. Min, J. Yoo, S. Kim, D. Shin, and D. Shin, “Network anomaly detec-tion using memory-augmented deep autoencoder,” IEEE Access , vol. 9, pp. 104695–104706, 2021. [18] T. Satyapanich, F. Ferraro, and T. Finin, “Casie: Extracting cybersecurity event information from text,” in Proceedings of the AAAI conference on artificial intelligence , vol. 34, pp. 8749–8757, 2020. [19] S. Benabderrahmane, G. Berrada, J. Cheney, and P. Valtchev, “A rule mining-based advanced persistent threats detection system,” in Proceed-ings of the Thirtieth International Joint Conference on Artificial Intelli-gence, IJCAI 2021, Montreal, Canada, 19-27 August 2021 (Z. Zhou, ed.), pp. 3589–3596, ijcai.org, 2021. [20] L. Segurola, M. Moreno-Moreno, I. Irigoien, and A. M. Florez-Tapia, “Unsupervised anomaly detection approach for cyberattack identifica-tion,” International Journal of Machine Learning and Cybernetics ,vol. 15, no. 11, pp. 5291–5302, 2024. [21] G. Berrada et al. , “A baseline for unsupervised advanced persistent threat detection in system-level provenance,” Future Gener. Comput. Syst. ,vol. 108, pp. 401–413, 2020. [22] S. Benabderrahmane and T. Rahwan, “From one attack domain to an-other: Contrastive transfer learning with siamese networks for APT de-tection,” Knowl. Based Syst. , vol. 332, p. 114877, 2025. [23] A. S. Li, A. Iyengar, A. Kundu, and E. Bertino, “Transfer learn-ing for security: Challenges and future directions,” arXiv preprint arXiv:2403.00935 , 2024. [24] S. Liu, J. Huang, P. Han, Z. Fan, and J. Ma, “Cross-domain fault diagnosis of rotating machinery under time-varying rotational speed and asymmet-ric domain label condition,” vol. 25, p. 2818, MDPI, 2025. [25] A. Krizhevsky, I. Sutskever, and G. E. Hinton, “Imagenet classification with deep convolutional neural networks,” in Advances in Neural Infor-mation Processing Systems , vol. 25, pp. 1097–1105, 2012. [26] K. Pei, Y. Li, Y. Yao, and B. Li, “Xda: Cross domain learning for at-tack attribution,” in Proceedings of the 29th USENIX Security Symposium (USENIX Security) , pp. 1061–1078, USENIX Association, 2020. [27] S. Wang, S. Nepal, C. Rudolph, M. Grobler, S. Chen, and T. Chen, “Back-door attacks against transfer learning with pre-trained deep learning mod-els,” vol. 15, pp. 1526–1539, IEEE, 2020. [28] B. Tang, Y. Lu, Q. Li, Y. Bai, J. Yu, and X. Yu, “A di ff usion model based on network intrusion detection method for industrial cyber-physical sys-tems,” vol. 23, p. 1141, MDPI, 2023. [29] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “Bert: Pre-training of deep bidirectional transformers for language understanding,” pp. 4171– 4186, 2019. [30] Y. Liu, M. Ott, N. Goyal, J. Du, M. Joshi, D. Chen, O. Levy, M. Lewis, L. Zettlemoyer, and V. Stoyanov, “Roberta: A robustly optimized bert pretraining approach,” arXiv preprint arXiv:1907.11692 , 2019. [31] V. Sanh, L. Debut, J. Chaumond, and T. Wolf, “Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter,” arXiv preprint arXiv:1910.01108 , 2019. [32] W. Wang, F. Wei, L. Dong, H. Bao, N. Yang, and M. Zhou, “Minilm: Deep self-attention distillation for task-agnostic compression of pre-trained transformers,” in NeurIPS , 2020. [33] T. N. Kipf and M. Welling, “Semi-supervised classification with graph convolutional networks,” in Proceedings of the International Conference on Learning Representations (ICLR) , 2016. [34] T. N. Kipf and M. Welling, “Variational graph auto-encoders,” 2016. [35] M. Cuturi, “Sinkhorn distances: Lightspeed computation of optimal transport,” Advances in neural information processing systems , vol. 26, 2013. [36] G. Peyr´ e, M. Cuturi, et al. , “Computational optimal transport: With appli-cations to data science,” Foundations and Trends ® in Machine Learning ,vol. 11, no. 5-6, pp. 355–607, 2019. [37] J. Boone, “A joint reconstruction-triplet loss autoencoder approach to-wards unseen attack detection in iov networks,” IEEE Internet of Things Journal , 2025. [38] S. Xue, B. Li, Y. Yang, S. Zhu, and Y. Yao, “A novel semi-supervised deep transfer learning method with improved extended isolation forest for bearing fault diagnosis,” IEEE Transactions on Instrumentation and Measurement , 2025. [39] M. Sorkhei, C. Matsoukas, J. F. Haslum, E. Konuk, and K. Smith, “k-nn as a simple and e ff ective estimator of transferability,” arXiv preprint arXiv:2503.18528 , 2025. [40] V. Vincent, “Transfer learning for anomaly detection through localized and unsupervised instance selection,” in Proceedings of the AAAI Confer-ence on Artificial Intelligence , vol. 34, pp. 6054–6061, 2020. [41] K. J¨ arvelin and J. Kek¨ al¨ ainen, “Cumulated gain-based evaluation of ir techniques,” ACM Transactions on Information Systems (TOIS) , vol. 20, no. 4, pp. 422–446, 2002. [42] W. Yang, J. Chen, S. Zhang, P. Wu, Y. Sun, Y. Feng, C. Chen, and C. Wang, “Breaking the top-k barrier: Advancing top-k ranking metrics optimization in recommender systems,” in Proceedings of the 31st ACM SIGKDD Conference , pp. 3542–3552, 2025. 
+
+18
