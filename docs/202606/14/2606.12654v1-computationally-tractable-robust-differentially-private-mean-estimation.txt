@@ -1,0 +1,2363 @@
+Title: Computationally tractable robust differentially private mean estimation
+
+URL Source: https://arxiv.org/pdf/2606.12654v1
+
+Published Time: Fri, 12 Jun 2026 00:17:12 GMT
+
+Number of Pages: 40
+
+Markdown Content:
+# Computationally tractable robust differentially private mean estimation 
+
+## Kelly Ramsay Department of Mathematics and Statistics York University Toronto, ON, Canada 
+
+## kramsay@yorku.ca 
+
+## June 12, 2026 
+
+Abstract 
+
+We develop a new, differentially private mean estimator called the balloon mean. The main features of the balloon mean are that it is computationally tractable and enjoys robustness to outlying observations. It is based on an iterative clipping procedure over expanding Mahalanobis balls, or “balloons.” The method satisfies zero-concentrated differential privacy and depends on a small number of interpretable tuning parameters. We provide theoretical guarantees under heavy-tailed and contaminated elliptical models, characterizing its statistical performance and robustness to outliers. Extensive simulations demonstrate that the balloon mean is robust to heavy-tailed and contaminated data, and outperforms existing differentially private mean estimators in contaminated settings. 
+
+# 1 Introduction 
+
+Differentially private mean estimation has been an active area of research in recent years, enjoying substantial statistical and algorithmic progress, see e.g., (Biswas et al., 2020; Kamath et al., 2020; Hopkins et al., 2022; Huang et al., 2021; Brown et al., 2023; Liu et al., 2021a; Yu et al., 2024) and the references therein. On the other hand, robust mean estimation is a central problem in statistics and theoretical computer science, particularly in high dimensions and under adversarial contamination (Tukey, 1974; Diakonikolas et al., 2019; Cheng et al., 2020; Lugosi and Mendelson, 2021). Recently, several authors have begun exploring robust and private mean estimation (Hopkins et al., 2022; Liu et al., 2021b,a; Kothari et al., 2022; Yu et al., 2024; Ramsay et al., 2025; Ramsay and Spicker, 2025a; Brown and Zakynthinou, 2025). Despite this growing literature, existing robust and private mean estimators still suffer from limitations. Many proposed methods are either computationally heavy, rely on sophisticated convex or sum-of-squares relaxations, or Markov chain Monte Carlo (MCMC). Others are not designed to scale well in high dimensions, or require tuning parameters that can be difficult to interpret or tune in practice. Moreover, much of the robust private literature focuses on approximate differential privacy, whereas substantially fewer methods provide robustness guarantees under stronger privacy notions such as zero-concentrated or pure differential privacy. These limitations motivate the development of new estimators, and so we introduce a new differentially private mean estimator, called the balloon mean , that is computationally efficient, depends on simple, interpretable tuning parameters, satisfies stronger forms of differential privacy, and enjoys robustness to heavy tails and some robustness to adversarial contamination. The balloon mean can be described as follows. We start with an initial “balloon” or ellipse, which is defined by an initial radius, a covariance matrix, known or privately estimated, and a center. The data are then projected onto the balloon and a crude estimate of the mean is computed via a noisy mean of the projections, denoted by ˜μ1. Then, we privately blow up an ellipse, or “balloon” centered at ˜μ1 until it contains most of the data, precisely. 100 τ % of the data. We then produce a new private estimate of μ, say ˜μ2, by projecting the data onto the new balloon and computing a noisy mean of the projections. We iterate several 1       
+
+> arXiv:2606.12654v1 [stat.ME] 10 Jun 2026 μm
+> 1. Privately grow ellipse around current mean estimate
+> μm+1
+> 2. Project to ellipse + compute noisy mean
+> iterate -2 -1 012-3  -2  -1  0 1 2
+> m
+> ~0
+> m
+> ~1m
+> ~2
+
+Figure 1: The balloon mean procedure illustrated. Starting from an initial balloon, or ellipse, we iterate between noisy means of projections onto the current balloon, and privately estimating a balloon that contains most of the data. The rightmost panel shows an example of two iterations of the iterated balloon mean algorithm. The dashed ellipses are the private balloons at each iteration, and successive private mean estimates are labeled. times between “balloon blowing” and naive private mean estimation to arrive at our final estimate. This procedure is demonstrated in Figure 1. The balloon mean avoids MCMC, gradient-based optimization, and sum-of-squares subroutines, relying instead on simple linear-algebraic operations with a few interpretable tuning parameters, making it com-putationally appealing. It satisfies zero-concentrated differential privacy, with a natural extension to pure differential privacy if desired, providing strong privacy guarantees. Moreover, taking smaller values of the parameter τ provides robustness against adversarial contamination. We provide theoretical analysis of the balloon mean, yielding finite-sample results under heavy-tailed and adversarially contaminated elliptically distributed data in the known covariance setting. 
+
+## 1.1 Related work 
+
+As mentioned earlier, differentially private mean estimation is an active area of research. Multivariate mean estimation under approximate differential privacy has been well-studied (Liu et al., 2021a,b; Brown et al., 2021; Esfandiari et al., 2022; Duchi et al., 2023; Brown et al., 2023; Dagan et al., 2024; Brown and Zakynthinou, 2025; Ramsay and Spicker, 2025a). Under stronger privacy guarantees, such as pure or zero-concentrated differential privacy, many authors have considered mean estimators for a sample of subgaussian data (Kamath et al., 2018; Bun et al., 2019; Cai et al., 2021; Biswas et al., 2020). Several works relax these assumptions using moment conditions, contamination models, or both (Hopkins et al., 2022; Yu et al., 2024; Ramsay et al., 2025), while maintaining stronger privacy guarantees. Some of these estimators rely on procedures that are computationally intensive or do not currently admit efficient implementations (Hopkins et al., 2022; Ramsay et al., 2025). To our knowledge, there are few computationally tractable estimators that simultaneously achieve robustness to contamination and strong privacy guarantees. Yu et al. (2024) provide a private, robust mean estimator based on differentially private M -estimation, in which robustness is achieved by minimizing a Huber loss function, through a privatized gradient descent. Rather than optimizing a robust loss, we iteratively localize the mean by privately identifying Mahalanobis balls containing most of the data and projecting observations onto these regions before averaging. The proposed algorithm bears some similarity to some existing algorithms, and we clarify important differences below. Our mean can be thought of as a multivariate, iterated private winsorized mean (Ramsay and Spicker, 2025b). We note that the multivariate setting is substantially more challenging, and requires several non-trivial innovations, algorithmically and theoretically, including iteration, private recentering, and 2handling correlation between coordinates. Another similar work is the COINPRESS mean (Biswas et al., 2020). While COINPRESS also computes noisy means of data clipped to centrally defined balls or ellipsoids, the radii are fixed in advance and follow a shrinking schedule, whereas our method privately and adaptively selects the radius at each iteration via a balloon blowing procedure. Lastly, the work of Huang et al. (2021) is also closely related. They introduce a differentially private mean estimator that also selects the clipping radius privately from the data. In their approach, they preprocess the data, after which the clipping radius is selected via a private quantile of the preprocessed sample norms. From there, they generate a single clipped mean, which yields an instance-optimality guarantee. In contrast, the balloon mean is inherently iterative, repeatedly recentering and projecting onto Mahalanobis balls rather than selecting a single clipping threshold. Beyond these algorithmic differences, Huang et al. (2021) focus on instance-optimality for empirical mean release, while our focus is on robustness and statistical optimality under heavy-tailed and contaminated elliptical models. We compare our method to both those of Biswas et al. (2020) and Huang et al. (2021) in Section 5. 
+
+## 1.2 Contributions 
+
+Our main contributions are: (i) We introduce a novel differentially private mean estimator, the balloon mean. The balloon mean is based on iterated Mahalanobis clipping. The balloon mean is computationally simple, depends on a small number of interpretable parameters, and includes a natural robustness parameter to control resistance to outliers. (ii) We present a theoretical result, under both a heavy-tailed and an adversarially contaminated elliptical distribution model, giving explicit finite-sample error bounds in terms of dimension, sample size, privacy level, and contamination. Our result implies that in the “heavy-tailed setting”, i.e., when the data have finite second moment, the balloon mean achieves the minimax-optimal rate of convergence. (iii) Through extensive simulations across dimensions, privacy levels, and distributions, we show that the balloon mean is computable in high dimensions, robust to heavy-tailed and contaminated data, and is outperforms existing computationally tractable private mean estimators in heavy-tailed and contaminated settings. 
+
+# 2 Background 
+
+## 2.1 Problem 
+
+We begin by formalizing the estimation problem. We suppose there exists a random sample of d-dimensional vectors, X1, . . . , X n ∼ ν, where ν denotes the unknown population distribution or measure. We also suppose that we only observe an η-contaminated version of this sample, denoted X′
+
+> 1
+
+, . . . , X ′
+
+> n
+
+. That is ⌊ηn ⌋ observations in the original sample, are replaced by arbitrary values, chosen by some adversary. Importantly, these values can depend on the sample itself. In our theoretical analysis, we assume that ν is an elliptical distribution. Elliptical distributions can be written in terms of three parameters: ν = EC (μ, Σ, F ) , where μ is the mean, 
+
+Σ is the scatter matrix, or covariance matrix when it exists, and F is the distribution function of the length of the vector. In particular, if, X ∼ EC (μ, Σ, F ), then we can write X = μ + ℓΣ1/2u where u is a uniformly random vector on the unit sphere and ℓ is a positive random variable which determines the length X, with 
+
+ℓ ∼ F . For more details on elliptical distributions, see (Fang et al., 1990). This model is summarized in the following condition. 
+
+Condition 2.1. Take an independent, identically distributed sample X1, . . . , X n ∼ ν = EC (μ, Σ, F ), to be the uncorrupted points. Then (a) Here, F is strictly increasing and the variance of F is finite, i.e., R x2dF < ∞.(b) The points X′
+
+> 1
+
+, . . . , X ′ 
+
+> n
+
+then differ arbitrarily from the uncorrupted points on at most ηn points, 
+
+0 ≤ η ≤ 1/2, where the corrupted values may depend on the uncorrupted values. Note that two types of contamination are included in the model put forth in Condition 2.1. First, the lack of assumed moments constitutes contamination from heavy tails. A stronger form of contamination comes from the “adversarial corruption” model, where an η-proportion of the observations are replaced by adversarial values. Thus, we will evaluate our proposed estimator under the weaker heavy-tailed model (η = 0 ) and the stronger adversarially corrupted model ( η > 0). 32.2 Differential privacy 
+
+Next, we introduce the essential concepts from differential privacy (Dwork et al., 2006; Dwork and Roth, 2014). Define a dataset of size n ∈ N to be a set of n real numbers, and let Dn be the set of datasets of size 
+
+n. We say that a dataset xn ∈ D n, is adjacent to another dataset yn ∈ D n if xn and yn differ by exactly one point. Let An be the set of pairs of adjacent datasets of size n. Let Gxn be a probability distribution over Rd with d ∈ N that depends on xn. That is, the distribution Gxn is a function of the dataset xn If 
+
+Gxn is absolutely continuous, let gxn be the associated probability density function. For α > 1, denote the α-Rényi Divergence between distributions, F and H, by Dα(F |H). We now define zero-concentrated differential privacy (zCDP) (Dwork and Rothblum, 2016; Bun and Steinke, 2016). 
+
+Definition 2.2. The quantity θ ∼ Gxn is ρ-zero-concentrated differentially private ( ρ-zCDP), ρ > 0, if, for all α ∈ (1 , ∞),
+
+sup 
+
+> (yn,zn)∈A n
+
+Dα(Gyn |Gzn ) ≤ αρ. 
+
+Here, θ is a d-dimensional differentially private quantity and ρ is the privacy budget , with smaller values of ρ
+
+producing higher levels of privacy. The following two properties are useful for developing differentially private estimates (Dwork and Rothblum, 2016; Bun and Steinke, 2016). 
+
+Proposition 2.3. The following hold: 
+
+• Post-processing: For any function f that does not depend on xn, defined on a subset of Rd, if θ
+
+satisfies ρ-zCDP, then f (θ) satisfies ρ-zCDP. 
+
+• Composition: If θ1, θ 2 satisfy ρ1-zCDP and ρ2-zCDP, respectively, then (θ1, θ 2) satisfies (ρ1 + ρ2)-zCDP. 
+
+Proposition 2.3 first states that functions of differentially private quantities are still private, and second that releasing two differentially private quantities results in a jointly differentially private estimate, with a larger privacy parameter. Next, we introduce a simple way to generate a differentially private statistic, the Gaussian mechanism (Dwork and Rothblum, 2016; Bun and Steinke, 2016). For a statistic T : Dn → Rd, define the global 
+
+L2-sensitivity of T to be 
+
+GS( T ) = sup 
+
+> (yn,zn)∈A n
+
+|T (yn) − T (zn)|.
+
+Here, |x| denotes the Euclidean norm of the vector x. We have the following proposition. 
+
+Proposition 2.4. Let T : Dn → Rd be any statistic with GS (T ) < ∞. If Z is a standard Gaussian random variable, then 
+
+T (xn) + GS( T )Z/ p2ρ, 
+
+satisfies ρ-zCDP. 
+
+Proposition 2.4 illustrates how correctly calibrated noise can be added to a statistic to ensure differential privacy. Another popular differentially private mechanism we utilize here is AboveThreshold (Dwork and Roth, 2014). In particular, we use the zero-concentrated version described by Ramsay and Spicker (2025b). Given a sequence of real-valued queries, AboveThreshold can privately identify the first query whose value exceeds a given threshold, using a privacy budget that depends only weakly on the number of queries. At a high level, the algorithm first “privatizes” the threshold by adding noise, and then processes the queries sequentially, adding fresh noise to each query answer before comparing it to the noisy threshold. Once a query is found whose noisy value exceeds the noisy threshold, the algorithm halts and outputs its index. In our setting, we consider a sequence of counting queries that measure how many data points fall inside a sequence of ellipses. The sequence of ellipses considered is defined by a grid parameter, to be defined in the following section. 43 Algorithm description 
+
+We now describe our proposed algorithm, first introducing some critical notation. Let Proj (x, R, c, A ) be the projection of x ∈ Rd onto the ball of radius R > 0 centered at c ∈ Rd, with respect to the Mahalanobis norm 
+
+| · | A. The Mahalanobis norm of x is |x|A = |A−1/2x|. In addition, for a dataset xn, let Proj (xn, R, c, A ) be the set of projections of the elements of xn, i.e., {Proj (x1, R, c, A ), . . . , Proj (xn, R, c, A )}. Let BR, Σ(c) denote the ball with respect to the norm | · | Σ of radius R > 0 centered at c ∈ Rd, i.e., BR, Σ(c) = {| x − c|Σ ≤ R}.We let M be the number of iterations of the algorithm. For a given iteration m ∈ { 1, . . . , M }, we let ρmean ,m 
+
+and ρbal ,m denote the privacy budget allotted to the mean update and the balloon update, respectively. The total privacy budget is then ρ = ρmean ,M + PM −1 
+
+> m=1
+
+(ρmean ,m + ρbal ,m ). Note that the algorithm ends on the mean estimation step: no privacy budget need be assigned to the balloon update for iteration M .The algorithm is initialized with a guess of the mean, ˜μ0, and a radius ˜R0. The initial radius ˜R0 should be chosen large enough so that the true mean is within ˜R0 of ˜μ0, i.e., μ ∈ B ˜R0,Σ( ˜μ0). Starting with the initial Mahalanobis ball, B ˜R0,Σ( ˜μ0), we can now iterate between the mean update step and the balloon update step. We proceed first with the mean update step. The mean update step is simple, we project the observations onto the current Mahalanobis ball. The sample mean of the projections then has global sensitivity 2 ˜Rm−1/n 
+
+and we can use the Gaussian mechanism. At iteration m, the mean estimate is given by 
+
+˜μm = n−1
+
+> n
+
+X
+
+> i=1
+
+Proj( X′ 
+
+> i
+
+, ˜Rm−1, ˜μm−1, Σ) + Z, 
+
+where 
+
+Z ∼ N d
+
+
+
+0, Σ × 2 ˜R2
+
+> m−1
+
+/n 2ρmean ,m 
+
+
+
+:= Nd
+
+ 0, λ 2
+
+> m,n
+
+Σ .
+
+The balloon update step proceeds as follows. The center is moved to the new mean estimate, ˜μm. We then use AboveThreshold to privately blow up the balloon until it contains approximately ⌊τmn⌋ points, where 0 < τ m < 1 is an input parameter that can change at each iteration. This is effectively an update to the radius. In more detail, let V, V 1, V 2, . . . be a sequence of independent, standard normal random variables. Denote by ˜ν the empirical distribution of the data X′
+
+> 1
+
+, . . . , X ′
+
+> n
+
+. First, we supply the algorithm with: a grid size parameter β > 1 and a lower bound on the radius Rmin > 0. Given these parameters, the algorithm proceeds as follows: 1. Compute the noisy threshold ˆτm = τm + V /n √ρbal ,m , set i = 0 , and set ri = βi + Rmin − 1. Here, ri is the current radius. 2. Compute the noisy count of points contained in Bri,˜μm,Σ. That is, compute ˆNi = # {j : X′ 
+
+> j
+
+∈
+
+Bri,˜μm,Σ} + Vi/√ρbal ,m .3. If ˆNi < ˆτmn, then increase i by one and update ri = βi + Rmin − 1. Otherwise, stop. 4. If we stop at query i∗, then the updated radius is ˜Rm = ri∗ = βi∗
+
++ Rmin − 1.The final estimate of the mean is then given by ˜μM . Pseudocode is given in Algorithm 1 and Algorithm 2. A visual depiction of the algorithm, as well as an example path of the balloon mean over several iterations are given in Figure 1. Before proceeding to our main theoretical results, a few remarks are in order. First, the alternating 
+
+balloon-and-update scheme substantially mitigates the influence of poor initial values. We show in the next section that this can be achieved in few iterations. Furthermore, by choosing τM < 1 − η, the method automatically excludes up to ⌊nη ⌋ extreme outliers, yielding some robustness to outliers, if desired. Lastly, we currently assume known covariance, but a robust, differentially private estimate of the covariance can be used in place of Σ in practice (Kim and Jung, 2025). 
+
+# 4 Theory 
+
+In this section, we introduce some theoretical results, mainly a non-asymptotic, high probability bound on the Mahalanobis error between the private mean estimate and the population mean. First, we establish privacy and computation time of the balloon mean estimator. 5Algorithm 1 BalloonMean 
+
+Require: Data xn, covariance Σ, ρmean , ρ bal , grid β > 1, radii (Rmin , eR0), iterations M , center eμ0, target τ
+
+Ensure: Private estimate eμM 
+
+> 1:
+
+for m = 1 , . . . , M − 1 do  
+
+> 2:
+
+yn ← Proj  xn, B eRm−1,Σ(eμm−1) 
+
+> 3:
+
+eμm ←
+
+h 1
+
+> n
+
+P 
+
+> y∈yn
+
+y
+
+i
+
++ Nd
+
+ 0, λ 2
+
+> m,n
+
+Σ 
+
+> 4:
+
+eRm ← BalloonUpdate  xn, eμm, Σ, R min , τ m, ρ bal ,m , β  
+
+> 5:
+
+end for  
+
+> 6:
+
+yn ← Proj  xn, B eRm−1,Σ(eμm−1) 
+
+> 7:
+
+eμM ←
+
+h 1
+
+> n
+
+P 
+
+> y∈yn
+
+y
+
+i
+
++ Nd
+
+ 0, λ 2
+
+> M,n
+
+Σ 
+
+> 8:
+
+return eμM
+
+Algorithm 2 BalloonUpdate 
+
+Require: Data xn, center c, covariance Σ, lower bound Rmin , grid size β > 1, target τ , privacy budget ρ
+
+Ensure: Estimated radius eR 
+
+> 1:
+
+ˆτ ← τ + N  0, (n√ρ)−2 
+
+> 2:
+
+ˆNi ← 0, i ← − 1 
+
+> 3:
+
+while ˆNi/n < ˆτ do  
+
+> 4:
+
+i ← i + 1  
+
+> 5:
+
+Ni ← { j : |xj − c|Σ ≤ Rmin + βi − 1} 
+
+> 6:
+
+ˆNi ← Ni + N  0, ρ −1 
+
+> 7:
+
+end while  
+
+> 8:
+
+eR ← Rmin + βi − 1 
+
+> 9:
+
+return eR
+
+Proposition 4.1. The balloon mean satisfies ρ-zero concentrated differential privacy and can be computed in 
+
+O(d3 + nd 2 + M nd + M n log n) time. 
+
+The proof of Proposition 4.1 can be found in Appendix D. In order for our statistical results to hold, we later require that n > d and we recommend choosing M < log n. Under these conditions, the computational cost reported in Proposition 4.1 reduces to O(nd 2). To achieve this computational cost, the BalloonMean and 
+
+BalloonUpdate can be implemented more efficiently than the pseudocode given in Algorithms 1 and 2. The whitening and matrix decomposition need only be performed once, and BalloonUpdate can be implemented similarly to the quantile procedure of Durfee (2024). The presented pseudocode is for ease of exposition. We now introduce two conditions, which, in addition to Condition 2.1, are necessary for our main statistical result. 
+
+Condition 4.2. It holds that μ ∈ B ˜R0,Σ(μ0) and |μ0|Σ ≤ γ ˜R0 for some universal constant 0 < γ < 1 − 1/√3.Our first condition requires that our initial balloon captures μ, and that |μ0|Σ is not arbitrarily close to ˜R0.Later, we take ˜R0 ≳ √n, which makes the condition |μ0|Σ ≤ γ ˜R0 non-restrictive. Let ∆R = ˜R0 − Rmin + 1 
+
+and δ ∈ (0 , 1) be a user-specified failure probability parameter. We consider the following choice of τ ,
+
+τ ∗ = 1 −
+
+8η + 986 log 
+
+
+
+3
+
+ log ∆ R  
+
+> log β
+
++ 1 
+
+
+
+log n/δ 
+
+
+
+n
+
+ , (1) and we let τ ′ := τ ′(δ) = 1 − τ ∗. That is, τ ′ is the approximate fraction of data that lies outside the balloon. The next condition places restrictions on the input parameters. For q ∈ [0 , 1] , c ∈ Rd, let 
+
+ξq,c = inf {R : ν(BR, Σ(c)c) ≤ q}. In words, ξq,c is the smallest radius for which a ball centered at c captures at least a 1 − q fraction of the probability mass of ν. We can refer to ξq,c as the minimal radius at level q,centered at c. Note that the radius is decreasing in q, for fixed c.6Condition 4.3. It holds (a) β ≤ 1 + inf |c−μ|Σ≤2 ˜R0     
+
+> ξ3τ′/4,c −ξ5τ′/4,c
+> ξ5τ′/4,c −Rmin +1 := 1 + bn,
+
+(b) Rmin ≤ inf c∈Rd ξ2τ ′,c /2 and ˜R0 ≥ 3√n.Condition 4.3 part (a) says that the grid must be fine enough in order for the estimated mean to be close to μ. There must be some distance between the minimal radius at level 3τ ′/4 and at 5τ ′/4. This will hold if 
+
+F is absolutely continuous. The denominator is positive by Condition 4.3 part (b). Condition 4.3 part (b) gives bounds on the minimum and maximum radius input parameters. Notice that we can input a radius increasing in n, we do not need an initial ball that is small or centered close to μ. The input radius just needs to be smaller than the minimal radius at level 2τ ′ for any c ∈ Rd. We now present our main result. Let ρ− = min m∈[M ] ρmean ,m and note we say that a ≲ b ( a ≳ b ) if a ≤ b (a ≥ Cb ) for a universal constant 
+
+C > 0.
+
+Theorem 4.4. Suppose that Condition 2.1, Condition 4.2, and Condition 4.3 hold, τ1 = . . . = τM = τ ∗,
+
+M = O(log n), and inf m∈[M −1] ρbal ,m ≥ 16 /24349 . Then, given e−8( d+1) log n < δ < 1, there exists universal constants K1, K 2 > 0 such that if η < K 1,
+
+n ≥ K2
+
+log(log n/δ )
+
+d/ 4 ˜R20 ∧ 1 ,
+
+then for all ρmean ,1, . . . , ρ mean ,M > 0, we have that with probability at least 1 − δ,
+
+|˜μM − μ|Σ ≲
+
+s
+
+dn(ρ− ∧ 1) + pdη +
+
+vuut log 
+
+
+
+3
+
+ log ∆ R  
+
+> log β
+
++ 1 
+
+
+
+log n/δ 
+
+
+
+n . (2) The proof of Theorem 4.4 can be found in Appendix D. Theorem 4.4 establishes an upper bound on the rate of convergence of the balloon mean. A lower bound on the achievable rate can be obtained by combining some non-private and private lower bounds, (Kamath et al., 2020; Lugosi and Mendelson, 2021), yielding 
+
+s
+
+dn ∧ nρ −
+
++
+
+r log(1 /δ )
+
+n + √η. (3) Under the weaker heavy-tailed contamination model, i.e., η = 0 , if the tuning parameters are chosen so that the term 
+
+
+
+log( ˜R0 + 1 − Rmin )/log β + 1 
+
+
+
+, is at most polynomial in n and d, the rate (2) is minimax optimal up to logarithmic factors (Kamath et al., 2020). When η > 0, the contamination contribution scales as √dη .Based on existing lower bounds for adversarial contamination (Liu et al., 2021a; Lugosi and Mendelson, 2021), we expect the lower bound given in (3) to be tight. This suggests that our current contamination dependence in (2) is suboptimal by a factor of √d for the stronger adversarial contamination model. We believe this gap is structural. To see this, based on its construction, the balloon mean does not explicitly account for the case where the contaminating points are placed along a single direction, inside the thin shell that contains the bulk of the data in high dimensions, see (Diakonikolas et al., 2019). It is well known that simultaneously achieving optimal adversarial contamination dependence, strong privacy guarantees, and computational efficiency is highly challenging, and to our knowledge, no existing algorithm fully satisfies all three. Our focus is on developing a method that is simple to implement while still enjoying optimal robustness under the weaker, heavy-tailed model, and characterizing its rate under the stronger, contaminated model. Improving the contamination dependence while preserving privacy and computational tractibility is an important direction for future work. Note that the dependence of the upper bound (2) on the rate of convergence on the algorithmic input parameters β, ˜R0 and Rmin is logarithmic. This weak dependence indicates that the method is not sensitive to fine-tuning and can be used in practice without extensive or even any tuning of these parameters. We corroborate this behavior empirically in Section 5. 
+
+Remark 4.5 (Dependence of τ ∗ on d). We may expect to see d appear in the choice of τ (1) . Through assumptions on δ and n in Theorem 4.4, we get the implicit assumption that τ ∗ ≳ d/n .7Remark 4.6 (Choice of τ ). The constants appearing in (1) are not optimized. They arise from worst-case concentration bounds and union arguments used in the analysis, and are therefore conservative. In practice, τm
+
+should be viewed as a robustness tuning parameter that controls the tolerated fraction of extreme observations. If no contamination is suspected, it can be chosen close to one. The theory provides guidance on the role and scaling of τm, but it is not necessary to take τ1, . . . , τ M exactly as in (1) . Empirical investigation into the choice of τ1, . . . , τ M is done in Section 5. 
+
+# 5 Empirical Evaluation 
+
+## 5.1 Sensitivity to tuning parameters 
+
+All code from all experiments can be retrieved from the anonymized Github Repository. The code supports GPU computation but it is not required to run the experiments. We conducted an extensive simulation study examining sensitivity to all tuning parameters across dimensions, sample sizes, and privacy levels. We varied one parameter at a time while fixing the others at default values. We considered two threshold settings in all simulations: a high-τ variant meant for situations where robustness is not needed and a robust low-τ variant. The default values were given by ˜μ0 = (0 , . . . , 0) ⊤, Rmin = 1 , ˜R0 = 50 √d, β = 1 .01 , M = 4 ,
+
+τ1 = τ2 = τ3 = 0 .9 for the high-τ variant, and τ1 = 0 .9, τ2 = 0 .8 and τ3 = 0 .6 for the low-τ variant. We assessed the effect of ˜μ0, ˜R0, β, M and τ . Additionally, we looked at the effect of changing τ at each iteration, i.e., the τ -schedule. We did not look at Rmin , as the analogous parameter in similar works showed little influence on the algorithm (Durfee, 2024; Ramsay and Diaz-Rodriguez, 2024; Ramsay and Spicker, 2025b). We considered four population distributions: (i) a Gaussian model, (ii) a contaminated Gaussian model in which an η = 0 .1 fraction of the data was replaced by adversarial outliers obtained by shifting the mean and inflating the covariance, (iii) a multivariate t distribution with three degrees of freedom, and (iv) a non-Gaussian “banana-shaped” distribution. In each trial, the true mean was μ = (1 , . . . , 1) ⊤. Here we summarize the main trends while full results and a complete description of simulation parameters are deferred to Appendix B and Appendix C. Performance was measured using Mahalanobis error with respect to the true mean. Overall, we found that the balloon mean exhibits low sensitivity to its main tuning parameters. In particular, performance is minimally affected by varying ˜μ0, ˜R0 and the grid size β. For the number of iterations, in low dimensions, the error appears to stabilize at three iterations ( M = 3 ), whereas in high dimensions, the error stabilizes at four iterations ( M = 4 ). This is consistent across generating distribution, sample size n, and does not depend on the τ variant. We found that in high-dimensions smaller τ values 
+
+τ < 0.9 generally perform better. This is consistent across generating distribution and τ variant. For all dimensions, in the contaminated settings (heavy-tailed and contaminated Gaussian) smaller τ values perform better, as expected. In clean settings with low and moderate dimensions, the dependence on τ is weaker and sometimes reverses in very low dimensions. As for the τ -schedule, for the high-τ (non-robust) variant, decreasing τ across iterations consistently improves performance in contaminated settings, reflecting the increased robustness induced by smaller τ . In Gaussian and banana-shaped settings, decreasing schedules are also preferred in higher dimensions and under stronger privacy, while in other settings the three schedules perform similarly. For the low-τ (robust) variant, decreasing schedules provide only modest additional gains in contaminated settings, and little difference is observed in the clean data models. 
+
+## 5.2 Comparison to existing estimators 
+
+We now compare the balloon mean to some existing estimators satisfying zCDP, and therefore do not include approximate differentially private robust methods, which operate under a weaker different privacy regime. For each dataset, we computed the non-private sample mean as a baseline, together with five private mean estimators: (i) low-τ variant of the balloon mean, (ii) high-τ variant of the balloon mean, (iii) 
+
+COINPRESS (Biswas et al., 2020), (iv) the private Huber M -estimator (Yu et al., 2024), and (v) the instance optimal mean (Huang et al., 2021). We considered a range of dimensions d ∈ { 2, 8, 16 , 64 , 128 }, sample sizes 
+
+n ∈ { 250 , 500 , 1000 , 2000 , 5000 }, and privacy budgets ρ ∈ { 0.01 , 0.1, 1}. Dimensions in powers of 2 were used 8Figure 2: Logged Mahalanobis error as a function of the sample size n for various ν, across dimensions 
+
+d ∈ { 8, 64 , 128 }. Shaded regions indicate 95% confidence intervals over 200 trials. to accommodate the instance optimal mean. We tested the same population distributions as in Section 5.1. For each combination of parameters, we conducted 200 trials. For methods that required it, the initial center was taken to be the origin, and the starting radius was 
+
+50 √d. We set a grid size of β = 1 .01 and we chose M = 4 with two threshold settings: high-τ variant 
+
+(τ1, τ 2, τ 3) = (0 .9, 0.9, 0.9) and a low-τ variant (τ1, τ 2, τ 3) = (0 .7, 0.6, 0.5) . For COINPRESS , we used privacy-splitting weights proportional to (1 /3, 1/2, 1) for the three iterations, as recommended in the original work. The private adaptive Huber estimator was run using T = ⌊log n⌋ iterations (Yu et al., 2024). The default parameters T = 10 and prop =0.25 were taken for the instance optimal mean (Huang et al., 2021). All tuning parameters were held fixed across experiments and were not optimized for individual distributions or methods. Figure 2 presents a representative subset of the comparison study; the full set of results appears in Figure 3 in Appendix A. We see that smaller values of τ lead to a more robust balloon mean: the low-τ variant performs better under contamination and heavy-tailed distributions, while the two balloon means behave similarly in the clean Gaussian setting. The Huber estimator exhibits some robustness to heavy tails and contamination in low dimensions, but its performance degrades in higher dimensions. The COINPRESS mean and the instance optimal mean remain reasonably stable under contamination and heavy tails, though they are less robust than the low-τ variant balloon mean. Overall, the balloon mean performs well relative to the competing methods, particularly in higher-dimensional settings and under stronger privacy constraints, 9making it competitive with, and even in several settings improving upon, state-of-the-art approaches. 
+
+Impact statement: Private mean estimation is an essential component of many private machine learning algorithms and tasks. Improving it supports the responsible use of sensitive, high-dimensional data. 
+
+# References 
+
+Biswas, S., Dong, Y., Kamath, G., and Ullman, J. (2020). CoinPress: Practical private mean and covariance estimation. Advances in Neural Information Processing Systems , 33:14475–14485. Brown, G., Gaboardi, M., Smith, A., Ullman, J., and Zakynthinou, L. (2021). Covariance-aware private mean estimation without private covariance estimation. Advances in Neural Information Processing Systems ,34:7950–7964. Brown, G., Hopkins, S., and Smith, A. (2023). Fast, sample-efficient, affine-invariant private mean and covariance estimation for subgaussian distributions. In Neu, G. and Rosasco, L., editors, Proceedings of Thirty Sixth Conference on Learning Theory , volume 195 of Proceedings of Machine Learning Research ,pages 5578–5579. PMLR. Brown, G. and Zakynthinou, L. (2025). Tukey Depth Mechanisms for Practical Private Mean Estimation. 
+
+arXiv e-prints , page arXiv:2502.18698. Bun, M., Kamath, G., Steinke, T., and Wu, S. Z. (2019). Private hypothesis selection. Advances in Neural Information Processing Systems , 32. Bun, M. and Steinke, T. (2016). Concentrated Differential Privacy: Simplifications, Extensions, and Lower Bounds , page 635–658. Springer Berlin Heidelberg. Cai, T. T., Wang, Y., and Zhang, L. (2021). The cost of privacy: Optimal rates of convergence for parameter estimation with differential privacy. The Annals of Statistics , 49(5):2825 – 2850. Cheng, Y., Diakonikolas, I., Ge, R., and Soltanolkotabi, M. (2020). High-dimensional robust mean estimation via gradient descent. In Daumé III, H. and Singh, A., editors, Proceedings of the 37th International Conference on Machine Learning , volume 119 of Proceedings of Machine Learning Research , pages 1768– 1778. PMLR. Dagan, Y., Jordan, M. I., Yang, X., Zakynthinou, L., and Zhivotovskiy, N. (2024). Dimension-free private mean estimation for anisotropic distributions. Diakonikolas, I., Kamath, G., Kane, D. M., Li, J., Moitra, A., and Stewart, A. (2019). Efficient algorithms and lower bounds for robust high-dimensional mean estimation. SIAM Journal on Computing , 48(2):742–864. Duchi, J., Haque, S., and Kuditipudi, R. (2023). A Fast Algorithm for Adaptive Private Mean Estimation. 
+
+arXiv e-prints , page arXiv:2301.07078. Durfee, D. (2024). Unbounded differentially private quantile and maximum estimation. Advances in Neural Information Processing Systems , 36. Dwork, C., McSherry, F., Nissim, K., and Smith, A. (2006). Calibrating noise to sensitivity in private data analysis. In Theory of Cryptography Conference , pages 265–284. Dwork, C. and Roth, A. (2014). The algorithmic foundations of differential privacy. Foundations and Trends in Theoretical Computer Science , 9(3–4):211–407. Dwork, C. and Rothblum, G. N. (2016). Concentrated differential privacy. arXiv preprint arXiv:1603.01887 .Esfandiari, H., Mirrokni, V., and Narayanan, S. (2022). Tight and robust private mean estimation with few users. 10 Fang, K.-T., Kotz, S., and Ng, K. W. (1990). Symmetric Multivariate and Related Distributions . Monographs on Statistics and Applied Probability. Chapman and Hall, London. Goldberg, P. W. and Jerrum, M. R. (1995). Bounding the vapnik–chervonenkis dimension of concept classes parameterized by real numbers. Machine Learning , 18(2–3):131–148. Gross, D. (2011). Recovering low-rank matrices from few coefficients in any basis. IEEE Transactions on Information Theory , 57(3):1548–1566. Hopkins, S. B., Kamath, G., and Majid, M. (2022). Efficient mean estimation with pure differential privacy via a sum-of-squares exponential mechanism. In Proceedings of the 54th Annual ACM SIGACT Symposium on Theory of Computing , pages 1406–1417. Huang, Z., Liang, Y., and Yi, K. (2021). Instance-optimal mean estimation under differential privacy. 
+
+Advances in Neural Information Processing Systems , 34:25993–26004. Kamath, G., Li, J., Singhal, V., and Ullman, J. (2018). Privately learning high-dimensional distributions. 
+
+arXiv e-prints . arXiv:1805.00216. Kamath, G., Singhal, V., and Ullman, J. (2020). Private mean estimation of heavy-tailed distributions. In 
+
+Conference on Learning Theory , pages 2204–2235. PMLR. Kim, M. and Jung, S. (2025). Robust and differentially private pca for non-gaussian data. Kothari, P. K., Manurangsi, P., and Velingker, A. (2022). Private robust estimation by stabilizing convex relaxations. In Proceedings of the 35th Conference on Learning Theory (COLT 2022) , volume 178 of 
+
+Proceedings of Machine Learning Research , pages 723–777. PMLR. First polynomial-time, sample complexity 
+
+(ε, δ )-DP algorithm for robust mean/covariance estimation in the presence of adversarial outliers. Ledoux, M. and Talagrand, M. (1991). Probability in Banach Spaces: Isoperimetry and Processes , volume 23 of Results in Mathematics and Related Areas . Springer, Berlin. Liu, X., Kong, W., Kakade, S., and Oh, S. (2021a). Robust and differentially private mean estimation. arXiv e-prints . arXiv:2102.09159. Liu, X., Kong, W., and Oh, S. (2021b). Differential privacy and robust statistics in high dimensions. arXiv e-prints . arXiv:2111.06578. Lugosi, G. and Mendelson, S. (2021). Robust multivariate mean estimation: The optimality of trimmed mean. The Annals of Statistics , 49(1):393 – 410. Ramsay, K. and Diaz-Rodriguez, J. (2024). Differentially private boxplots. Ramsay, K., Jagannath, A., and Chenouri, S. (2025). Differentially private multivariate medians. Journal of Machine Learning Research , 26(255):1–52. Ramsay, K. and Spicker, D. (2025a). Differentially private projection-depth-based medians. Electronic Journal of Statistics , 19(2):5456 – 5505. Ramsay, K. and Spicker, D. (2025b). Improved subsample-and-aggregate via the private modified winsorized mean. arXiv preprint arXiv:2501.14095 .Sen, B. (2022). A gentle introduction to empirical process theory and applications. Lecture Notes, Columbia University .Talagrand, M. (1994). Sharper bounds for gaussian and empirical processes. The Annals of Probability ,22(1):28–76. Tukey, J. W. (1974). Mathematics and the picturing of data. In International Congress of Mathematicians .Yu, M., Ren, Z., and Zhou, W.-X. (2024). Gaussian differentially private robust mean estimation and inference. 
+
+Bernoulli , 30(4):3059 – 3088. 11 A Full simulation results from comparison study 
+
+Below is the full set of simulation results from the comparison study. 
+
+Figure 3: Logged Mahalanobis error as a function of the sample size n for mean estimation under four distributions (Gaussian, contaminated Gaussian, t3, and banana-shaped) and dimensions d ∈ { 2, 5, 15 , 50 , 100 }.Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We compare the balloon mean with high-τ and low-τ settings against competing robust and private baselines, across privacy levels ρ ∈ { 0.01 , 0.1, 1.0} (linetypes). The balloon mean is stable across dimensions and distributions, with the low-τ variant providing improved robustness under contamination and heavy tails, while remaining competitive in uncontaminated settings. 
+
+# B Simulation results from sensitivity study 
+
+We conducted a sensitivity analysis to assess how the performance of the balloon mean depends on the tuning parameters. We then varied one tuning parameter at a time while fixing the others at default values. The default values were given by ˜μ0 = (0 , . . . , 0) ⊤, ˜R0 = 50 √d, β = 1 .01 , M = 2 , τ1 = τ2 = 0 .9 for the high-τ variant, and τ1 = 0 .8 and τ2 = 0 .6 for the low-τ variant. When assessing each tuning parameter, we varied the tuning parameters as follows, ˜R0 = c√d with c ∈ { 2, 4, 5, 10 , 15 , 30 }, β ∈ { 1.001 , 1.01 , 1.05 , 1.1},
+
+τ ∈ { 0.7, 0.8, 0.85 , 0.9, 0.95 , 0.99 }, M ∈ { 2, 3, 4, 5, 6}. When we varied M , we set τ1 = . . . = τM −1 = 0 .9
+
+for the high-τ variant, and τM −2 = 0 .8 and τM −1 = 0 .6, otherwise τi = 0 .9 for the low-τ variant. For 
+
+˜μ0, we considered ˜μ0 = cμ , with c ∈ { 1.0, 1.5, 2.0, 4.0, 10 .0}. This moves ˜μ0 along the line running from the origin to μ and beyond. For each parameter, we considered Gaussian, contaminated Gaussian, t3, and 12 skewed distributions, dimensions d ∈ { 5, 20 , 50 , 100 }, sample sizes n ∈ { 500 , 2000 , 5000 }, and privacy budgets 
+
+ρ ∈ { 0.1, 1}, repeating each configuration for 200 trials. Performance was measured using Mahalanobis error with respect to the true mean. The full results are given below. 
+
+## B.1 Effect of initial mean 
+
+We observed minimal sensitivity of the method to the inital mean ˜μ0, see below. 
+
+Figure 4: Average Mahalanobis error as a function of c, where ˜μ0 = cμ under four distributions and differing dimensions d at n = 500 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 13 Figure 5: Average Mahalanobis error as a function of c, where ˜μ0 = cμ under four distributions and differing dimensions d at n = 2000 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 14 B.2 Effect of initial radius 
+
+We observed minimal sensitivity of the method to the radius ˜R0, see below. 
+
+Figure 6: Average Mahalanobis error as a function of ˜R0/√d for mean estimation under four distributions and differing dimensions d at n = 500 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 15 Figure 7: Average Mahalanobis error as a function of ˜R0/√d for mean estimation under four distributions and differing dimensions d at n = 2000 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 16 B.3 Effect of grid size 
+
+We observed minimal sensitivity of the method to the grid size β, see below. 
+
+Figure 8: Average Mahalanobis error as a function of β for mean estimation under four distributions and differing dimensions d at n = 500 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 17 Figure 9: Average Mahalanobis error as a function of β for mean estimation under four distributions and differing dimensions d at n = 2000 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 18 B.4 Effect of the target fraction τ
+
+Here we present the results for the effect of the target fraction τ . In high-dimensions smaller τ values generally perform better. This is consistent across generating distribution and τ variant. In the contaminated settings (heavy-tailed and contaminated Gaussian) smaller τ values perform better, as expected. Looking at the clean settings in low-moderate dimensions, we first consider the low-τ -variant. When n = 500 , τ has relatively minimal effect on the low-τ variant. When n is large, and the dimension is very small, larger τ appears to be preferred, but this effect disappears when d becomes moderate and again lower τ values are preferred. Looking at the high-τ variant, when n = 500 , lower τ values are preferred. When n = 2000 , τ has little effect in the Gaussian setting when d = 2 , and smaller τ is preferred when d = 20 . For the banana-shaped distribution, when d = 2 larger τ is preferred, and smaller τ is preferred when d = 20 . There is a visible effect of τ , but it is not large; across all settings, varying τ only moderately changes the error. 
+
+Figure 10: Average Mahalanobis error as a function of τ for mean estimation under four distributions and differing dimensions d at n = 500 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 19 Figure 11: Average Mahalanobis error as a function of τ for mean estimation under four distributions and differing dimensions d at n = 2000 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 20 B.5 Effect of the number of iterations M
+
+Here we present the results for the effect of the number of iterations M . In low dimensions, the error appears to stabilize at three iterations ( M = 3 ), whereas in high dimensions, the error stabilizes at four iterations (M = 4 ). This is consistent across generating distribution, sample size n, and does not depend on the τ
+
+variant. 
+
+Figure 12: Average Mahalanobis error as a function of M for mean estimation under four distributions and differing dimensions d at n = 2000 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 21 Figure 13: Average Mahalanobis error as a function of M for mean estimation under four distributions and differing dimensions d at n = 2000 . Solid lines show the mean error over repetitions, with shaded bands indicating a 95% confidence interval over the simulation runs. We report the balloon mean with high-τ and low-τ settings, across privacy levels ρ ∈ { 0.1, 1.0} (linetypes). 22 C Investigating different τ schedules 
+
+To study the effect of the τ -schedule across iterations, we fixed the number of iterations to M = 4 and compared three types of schedules: constant, increasing, and decreasing. We centered these schedules around 
+
+τ = 0 .9. For the high-τ variant, we set (τ, τ, τ ) for the constant schedule, (τ − 0.2, τ − 0.1, τ ) for the increasing schedule, and (τ, τ − 0.1, τ − 0.2) for the decreasing schedule. For the low-τ variant, we did the same thing, instead with τ = 0 .6. All experiments used β = 1 .01 and ˜R0 = 50 √d. We varied the distribution (Gaussian, contaminated Gaussian, t3, and banana), the dimension d ∈ { 5, 20 , 50 , 100 }, the sample size n ∈ { 500 , 2000 },and the privacy budget ρ ∈ { 0.1, 1}, and repeated each configuration for 50 trials. The results can be seen below in Figures 14–17. We first consider the high-τ (non-robust) variant. In contaminated and heavy-tailed settings, the decreasing-τ schedule consistently yields lower error, which is a result of the robustness awarded by smaller τ
+
+values. In the Gaussian and banana-shaped settings, decreasing τ is also preferred in higher-privacy regimes (smaller ρ) and in higher dimensions. Outside of these regimes, the three τ schedules perform similarly, and no strong separation is observed. We next consider the low-τ (robust) variant. Here, a decreasing-τ schedule provides some additional robustness beyond the already conservative choice of τ , but less so than in the high-τ variant. In the Gaussian and banana-shaped settings, however, the three τ schedules behave comparably, and we do not observe a consistent advantage for any single schedule. 23 Figure 14: Non-robust balloon mean variants ( ρ = 0 .1). Boxplots of the Mahalanobis error across distributions and dimensions. The three colors correspond to increasing, constant, and decreasing τ schedules. 24 Figure 15: Non-robust balloon mean variants ( ρ = 1 ). Boxplots of the Mahalanobis error across distributions and dimensions. The three colors correspond to increasing, constant, and decreasing τ schedules. 25 Figure 16: Robust balloon mean variants ( ρ = 0 .1). Boxplots of the Mahalanobis error across distributions and dimensions. The three colors correspond to increasing, constant, and decreasing τ schedules. 26 Figure 17: Robust balloon mean variants ( ρ = 1 ). Boxplots of the Mahalanobis error across distributions and dimensions. The three colors correspond to increasing, constant, and decreasing τ schedules. 27 D Technical Proofs 
+
+For this section, we consider: 
+
+τ1, . . . , τ M = τ = 1 −
+
+8η + 986 log 
+
+
+
+3
+
+ log ∆ R  
+
+> log β
+
++ 1 
+
+
+
+M ∗/δ 
+
+
+
+n
+
+ , (4) and we let τ ′ := τ ′(δ) = 1 − τ (δ). In Theorem 4.4 we take M ∗ = log n as a special case of (4) , matching τ ∗.In addition, we let Let h(β) = log ∆ R/ log β, for brevity. 
+
+Proof of Theorem 4.4. Assume without loss of generality μ = 0 . We first bound |˜μ1|Σ. Observe that the conditions of Lemma D.4 are satisfied. Let S(x) = 1 − F (x). Hence, applying Lemma D.4 with probability at least 1 − 3δ/M ∗, we have that, 
+
+|˜μ1|Σ ≲ ˜R0 S
+
+ ˜R0 − | μ0|Σ
+
+
+
++
+
+s
+
+dn2ρmean ,1
+
++ η +
+
+s
+
+(d/ ˜R20 ∧ 1) log( M ∗/δ )
+
+n
+
+!
+
+.
+
+Now, Condition 4.2 and an application of Markov’s inequality yield: 
+
+|˜μ1|Σ ≲ ˜R0
+
+1( ˜R0 − | μ0|Σ)2 + η +
+
+r (d/ 4R2 ∧ 1) log( M ∗/δ )
+
+n +
+
+s
+
+dn2ρmean ,1
+
+!
+
+≲ 1˜R0(1 − γ)2 + ˜R0
+
+√dn√ρmean ,1
+
++ η +
+
+r (d/ 4R2 ∧ 1) log( M ∗/δ )
+
+n
+
+!
+
+.
+
+Now, we have that since ˜R0 > 3√n ≳ pn/d (1 − γ)2 for γ < 1 − 1/√3 from Condition 4.3 part (b), we have 
+
+|˜μ1|Σ ≲
+
+r dn + ˜R0
+
+√dn√ρmean ,1
+
++ η +
+
+r (d/ 4R2 ∧ 1) log( M ∗/δ )
+
+n
+
+!
+
+. (5) Now, note that the conditions of Lemma D.10 are satisfied and with probability at least 1 − O(M δ/M ∗),it holds that |˜μM | ≤ 3 ˜R0/4. Then, the conditions of Lemma D.1 are satisfied. Hence, there exists a universal constant D1 > 0 such that with probability at least 1 − O(M δ/M ∗), it holds that for all 1 ≤ m ≤ M , we have 
+
+|˜μm|Σ ≤ D1
+
+r dn +
+
+s
+
+dnρ mean ,m 
+
++ |˜μm−1|Σ
+
+s
+
+dnρ mean ,m 
+
++
+
+r log(3 h(β)M ∗/δ )
+
+n + √η
+
+!
+
++ √d
+
+r log(3 h(β)M ∗/δ )
+
+n + √η
+
+! ! 
+
+.
+
+Now, taking D2 > 0 large enough and D3 > 0 small enough 
+
+s
+
+dnρ −
+
++
+
+r log(3 h(β)M ∗/δ )
+
+n + √η ≤ 910 D1
+
+.
+
+The previous two inequalities combined, along with the properties of the geometric series, yield that 
+
+|˜μM |Σ ≤ D1
+
+r dn +
+
+s
+
+dnρ −
+
++
+
+r log(3 h(β)M ∗/δ )
+
+n + pdη 
+
+!
+
++ |˜μ1|Σ
+
+ 910 
+
+M −1
+
+. (6) 28 Now, combining the previous bound with (5) , and taking M > log ( ˜R0)/ log (10 /9) + 1 yields   910 
+
+M −1 <
+
+1/ ˜R0, we have that with probability at least 1 − O(M δ/M ∗)
+
+|˜μM |Σ ≲
+
+r dn +
+
+s
+
+dnρ −
+
++
+
+r d log(3 h(β)M ∗/δ )
+
+n + pdη 
+
++
+
+r dn +
+
+
+
+√dn√ρ−
+
++ η +
+
+s
+
+(d/ 4 ˜R20 ∧ 1) log( M ∗/δ )
+
+n
+
+ .
+
+Simplifying, we have that with probability at least 1 − O(M δ/M ∗)
+
+|˜μM |Σ ≲
+
+r dn +
+
+s
+
+dnρ −
+
++
+
+r log(3 h(β)M ∗/δ )
+
+n + pdη. 
+
+Taking M ∗ = log n yields the final result. 
+
+## D.1 Error in one iteration 
+
+Lemma D.1. Suppose that Condition 2.1–4.3 hold, ρbal ,m ≥ 16 /24349 , τ = τ (δ) as in (4) , |˜μm−1 − μ|Σ ≤
+
+3 ˜R0/4, then given 0 < M ∗e−8( d+1) < δ < 2M ∗/9 then with probability at least 1 − 9δ/ 2M ∗ we have that 
+
+|˜μm − μ|Σ ≲
+
+r dn +
+
+s
+
+dnρ mean ,m 
+
++ |˜μm−1 − μ|Σ
+
+s
+
+dnρ mean ,m 
+
++
+
+√d + |˜μm−1 − μ|Σ
+
+ r log(3 h(β)M ∗/δ )
+
+n + √η
+
+!
+
+.
+
+Proof. Without loss of generality, assume that μ = 0 , since the operation is translation invariant (with probability 1). We have that for X ∼ EC(0 , Σ, F ) independent of the sample, 
+
+|˜μm|Σ =
+
+> n
+
+X
+
+> i=1
+
+Proj( X′ 
+
+> i
+
+, ˜Rm−1, ˜μm−1, Σ) /n + Nd 0, ˜R2
+
+> m−1
+
+2n2ρmean ,m 
+
+Σ
+
+!
+
+> Σ
+
+≤
+
+> n
+
+X
+
+> i=1
+
+Proj( X′ 
+
+> i
+
+, ˜Rm−1, ˜μm−1, Σ) /n −
+
+> n
+
+X
+
+> i=1
+
+Proj( Xi, ˜Rm−1, ˜μm−1, Σ) /n 
+
+> Σ
+
++
+
+> n
+
+X
+
+> i=1
+
+Proj( Xi, ˜Rm−1, ˜μm−1, Σ) /n − E(Proj( X, ˜Rm−1, ˜μm−1, Σ)) 
+
+> Σ
+
++ E(Proj( X, ˜Rm−1, ˜μm−1, Σ)) 
+
+> Σ
+
++ Nd 0, ˜R2
+
+> m−1
+
+2n2ρmean ,m 
+
+Σ
+
+!
+
+> Σ
+
+:= |I1|Σ + |I2|Σ + |I3|Σ + |I4|Σ.
+
+Here, I1 is the difference between the uncontaminated and contaminated clipped sample mean, I2 is the deviation between the uncontaminated clipped sample mean and its corresponding theoretical mean, I3 is the deviation between the theoretical clipped mean and the true mean, and I4 is magnitude of the noise added to the clipped mean. The rest of the proof proceeds by bounding each of I1–I4 above with high probability. 
+
+Bounding I1: Note that |˜μm−1|Σ ≤ 3 ˜R0/4 by assumption. Thus, the conditions of Lemma D.8 are satisfied. Let ˜ξq,c = inf {R : ˜ ν(BR, Σ(c)c) ≤ q}. Applying Lemma D.8 yields that 
+
+ξ2τ ′,˜μm−1 ≤ ˜ξ3τ ′/2,˜μm−1 ≤ ˜Rm−1 ≤ ˜ξτ ′/2,˜μm−1 ≤ ξτ ′/4,˜μm−1 , (7) 29 with probability at least 1 − 3δ/ 2M ∗. Call the event on which (7) holds E2 and assume E2 holds for the remainder of the proof. Next, because τ ′ < 1 =⇒ τ ′/4 < 1/4 < 1/2 and Condition 2.1 holds we can apply Lemma D.3. Lemma D.3 gives ξτ ′/4,c > |c|Σ, which implies the conditions of Lemma D.2 are met. Applying Lemma D.2 we have for any c ∈ Rd,
+
+ξτ ′/4,c ≲ 1
+
+√τ ′ + |c|Σ. (8) Equation (7), (8) and the fact that η ≤ τ ′/8 yields that 
+
+|I1|Σ =
+
+> n
+
+X
+
+> i=1
+
+h
+
+Proj( X′ 
+
+> i
+
+, ˜Rm−1, ˜μm−1, Σ) − Proj( Xi, ˜Rm−1, ˜μm−1, Σ) 
+
+i
+
+/n 
+
+> Σ
+
+≲ η ˜Rm−1 ≲ ηξ τ ′/4,˜μm−1 ≲ √τ ′ + η|˜μm−1|Σ.
+
+Bounding I2: First, let R1 = inf |c|Σ<|˜μm−1|Σ ξ2τ ′,c and R2 = sup |c|Σ<|˜μm−1|Σ ξτ ′/4,c . Observe that 
+
+|I2|Σ =
+
+> n
+
+X
+
+> i=1
+
+Proj( Xi, ˜Rm−1, ˜μm−1, Σ) /n − E(Proj( X, ˜Rm−1, ˜μm−1, Σ)) 
+
+> Σ
+
+≤ sup 
+
+> |c|Σ<|˜μm−1|Σ,R ∈(R1,R 2)
+> n
+
+X
+
+> i=1
+
+Proj( Xi, R, c, Σ) /n − E(Proj( X, R, c, Σ)) 
+
+> Σ
+
+= sup 
+
+> |c|Σ<|˜μm−1|Σ,R ∈(R1,R 2),|u|Σ=1
+
+* nX
+
+> i=1
+
+Proj( Xi, R, c, Σ) 
+
+n − E(Proj( X, R, c, Σ)) , u 
+
++
+
+> Σ
+
+= sup 
+
+> |c|Σ<|˜μm−1|Σ,R1≤R≤R2,
+> |u|=1
+> n
+
+X
+
+> i=1
+
+Σ−1/2 Proj( Xi, R, c, Σ) , u 
+
+n −
+
+D
+
+E(Σ −1/2 Proj( X, R, c, Σ)) , u 
+
+E
+
+.
+
+Now, let Yi = Σ −1/2Xi, and observe that for any u ∈ Rd,
+
+D
+
+Σ−1/2 Proj( Xi, R, c, Σ) , u 
+
+E
+
+=
+
+
+
+1 ∧ R
+
+|Σ−1/2(Xi − c)|
+
+ D
+
+Σ−1/2(Xi − c), u 
+
+E
+
++
+
+D
+
+Σ−1/2c, u 
+
+E
+
+=
+
+
+
+1 ∧ R
+
+|Yi − Σ−1/2c|
+
+ D
+
+Yi − Σ−1/2c, u 
+
+E
+
++
+
+D
+
+Σ−1/2c, u 
+
+E
+
+.
+
+Similarly, for Y = Σ −1/2X,
+
+D
+
+E(Σ −1/2 Proj( X, R, c, Σ)) , u 
+
+E
+
+= E
+
+ 
+
+1 ∧ R
+
+|Y − Σ−1/2c|
+
+ D
+
+Y − Σ−1/2c, u 
+
+E
+
++
+
+D
+
+Σ−1/2c, u 
+
+E
+
+.
+
+Combining this observation with the previous bound yields 
+
+|I2|Σ ≤ sup 
+
+> |c|<|˜μm−1|Σ,R1≤R≤R2,
+> |u|=1
+> n
+
+X
+
+> i=1
+
+ R 
+
+> |Yi−c|
+
+∧ 1
+
+
+
+⟨Yi − c, u ⟩
+
+n − E
+
+ R
+
+|Y − c| ∧ 1
+
+
+
+⟨Y − c, u ⟩
+
+
+
+:= sup 
+
+> g∈G
+> n
+
+X
+
+> i=1
+
+[g(Yi)/n − E(g(Yi))] .
+
+Now, this last expression is a supremum of an empirical process, over a set of functions whose Vapnik-Chervonenkis dimension (VC dimension) is at most Cd for a universal constant C > 0. To see this, observe that the subgraphs of G form a concept class parametrized by 2d + 1 parameters, where the instances have dimension d + 1 . For this class, membership can be decided by a Boolean combination of a constant number 30 of polynomial inequalities of constant degree. Therefore, the VC-dimension is at most Cd for some universal 
+
+C > 0; see Theorem 2.2 of Goldberg and Jerrum (1995). Now, note that we have sup g∈G sup x∈Rd |g(x)| ≲ 2R2 = 2 ξτ ′/4,u |˜μm−1|Σ for any unit vector u ∈ Sd−1. We can now apply Talagrand’s inequality for empirical processes (Talagrand, 1994; Sen, 2022), see Lemma E.2 for convenience. Using the notation of Lemma E.2, we take U = 2 ξτ ′/4,u |˜μm−1|Σ for some u ∈ Sd−1 and 
+
+σ2 = sup g∈G Eg(Zi)2 ≤ (1 + |˜μm−1|2Σ) ∧ 4R22. The bound on σ2 uses the fact that Yi are isotropic. Applying the lemma, we get that for some universal constant D > 0, for all s > D pd/n , we have that there exists a universal constant D′ > 0, such that 
+
+Pr sup 
+
+> g∈G
+> n
+
+X
+
+> i=1
+
+g(Zi)/n − E(g(Zi)) > s 
+
+!
+
+≲ exp −D′ ns 2
+
+ξτ ′/4,u |˜μm−1|Σ
+
+pd/n + (1 + |˜μm−1|2Σ) + ξτ ′/4,u |˜μm−1|Σ s
+
+!
+
+≲ exp 
+
+
+
+−D′
+
+ ns 2
+
+(1 + |˜μm−1|2Σ)
+
+^ ns ξτ ′/4,u |˜μm−1|Σ
+
+ 
+
+.
+
+This yields that with probability at least 1 − δ/M ∗, it holds that 
+
+|I2|Σ ≲
+
+r dn +
+
+q
+
+1 + |˜μm−1|2Σ ·
+
+r log( M ∗/δ )
+
+n + ξτ ′/4,u |˜μm−1|Σ
+
+log( M ∗/δ )
+
+n
+
+≲
+
+r dn +
+
+r log( M ∗/δ )
+
+n + |˜μm−1|Σ
+
+r log( M ∗/δ )
+
+n + ξτ ′/4,u |˜μm−1|Σ
+
+log( M ∗/δ )
+
+n .
+
+Now, applying (8) and using the fact that √τ ′ ≳ plog( M ∗/δ )/n we have that with probability at least 
+
+1 − δ/M ∗,
+
+|I2|Σ ≲
+
+r dn +
+
+r log( M ∗/δ )
+
+n + |˜μm−1|Σ
+
+r log( M ∗/δ )
+
+n .
+
+Bounding I3: Directly from Lemma D.5, in combination with (7), we have 
+
+|I3|Σ ≤ sup 
+
+> |c|Σ≤| ˜μm−1|Σ
+
+sup 
+
+> R∈(R1,R 2)
+
+√d + |c|Σ
+
+ p Pr ( |X − c|Σ > R ) ≲
+
+√d + |˜μm−1|Σ
+
+ √τ ′.
+
+Bounding I4 Now, by standard subgaussian tail bounds, we have that for u ≥ √d,
+
+Pr ( |Z| > u ) = Pr  χ2 
+
+> d
+
+> u 2 ≤ 2 exp( −u2/10) ,
+
+where Z ∼ N d(0 , I ). This implies that with probability at least 1 − 2 exp (−d/ 10) , it holds that |Z| ≲ √d. 
+
+with probability at least 1 − 2 exp( −d/ 10) , we then have that for any u ∈ Sd−1
+
+|I4|Σ = |N d
+
+ 0, [ ˜R2
+
+> m−1
+
+/2n2ρmean ,m ] × Σ|Σ ≲ ξτ ′/4,u |˜μm−1|Σ
+
+s
+
+dn2ρmean ,m 
+
+≲ ( 1
+
+√τ ′ + |˜μm−1|Σ)
+
+s
+
+dn2ρmean ,m 
+
+.
+
+Putting the bounds together: Combining the bounds on each of I1–I4, we get that with probability at least 1 − 5δ/ 2M ∗ − 2 exp( −d/ 10) > 1 − 9δ/ 2M ∗ that 
+
+|˜μm|Σ ≲
+
+r dn + (1 + |˜μm−1|Σ)
+
+r log( M ∗/δ )
+
+n +
+
+√d + |˜μm−1|Σ
+
+ √τ ′ + ( 1
+
+√τ ′ + |˜μm−1|Σ)
+
+s
+
+d
+
+2n2ρmean ,m 
+
+.
+
+Simplifying with the bound τ ′ ≥ 1/n , we have that 
+
+|˜μm|Σ ≲
+
+r dn + (1 + |˜μm−1|Σ)
+
+r log( M ∗/δ )
+
+n +
+
+√d + |˜μm−1|Σ
+
+ √τ ′ +
+
+s
+
+dnρ mean ,m 
+
++ |˜μm−1|Σ
+
+s
+
+dn2ρmean ,m 
+
+.
+
+31 Plugging in (4), we have that 
+
+|˜μm|Σ ≲
+
+r dn +
+
+√d + |˜μm−1|Σ
+
+ r log(3 h(β)M ∗/δ )
+
+n
+
++
+
+√d + |˜μm−1|Σ
+
+ √η +
+
+s
+
+dnρ mean ,m 
+
++ |˜μm−1|Σ
+
+s
+
+dn2ρmean ,m 
+
+,
+
+which simplifies to 
+
+|˜μm|Σ ≲
+
+r dn +
+
+s
+
+dnρ mean ,m 
+
++ |˜μm−1|Σ
+
+s
+
+dnρ mean ,m 
+
++
+
+√d + |˜μm−1|Σ
+
+ r log(3 h(β)M ∗/δ )
+
+n + √η
+
+!
+
+.
+
+## D.2 Helpful bounds on ξa,b 
+
+Lemma D.2. For 0 < a < 1 and b ∈ Rd such that ξa,b > |b|Σ, if the covariance matrix of X exists, then 
+
+ξa,b, Σ ≤ 1
+
+√a + |b|Σ. (9) 
+
+Proof. We want to bound ξa,b for small b and large a. We have that 
+
+Pr ( |X − b|Σ ≥ ξa,b, Σ) = Pr  X / ∈ Bξa,b, Σ,Σ(b) = a. 
+
+Now, for ξa,b > |b|Σ, applying Markov’s inequality yields 
+
+a = Pr ( |X − b|Σ ≥ ξa,b, Σ) ≤ Pr ( |X|Σ ≥ ξa,b, Σ − | b|Σ) ≤ Pr ( ℓ ≥ (ξa,b, Σ − | b|Σ)) ≤ 1(ξa,b, Σ − | b|Σ)2 .
+
+This yields that 
+
+ξa,b, Σ ≤ 1
+
+√a + |b|Σ.
+
+Lemma D.3. If X ∼ EC (0 , Σ, F ) and F is strictly increasing, then we have that for any c ∈ Rd, and any 
+
+0 < q < 1/2 it holds that ξq,c > |c|Σ.
+
+Proof. Define 
+
+⟨x, y ⟩Σ = ⟨Σ−1/2x, Σ−1/2y⟩.
+
+If x ∈ B|c|Σ,Σ(c), then |x − c|2Σ ≤ | c|2Σ. Thus, 
+
+|x|2Σ + |c|2Σ − 2⟨x, c ⟩Σ ≤ | c|2Σ.
+
+Canceling |c|2Σ yields 
+
+|x|2Σ − 2⟨x, c ⟩Σ ≤ 0, so ⟨x, c ⟩Σ ≥ 0.
+
+Define −B|c|Σ,Σ(c) = {− x : x ∈ B|c|Σ,Σ(c)}. If y ∈ − B|c|Σ,Σ(c), then y = −x for some x ∈ B|c|Σ,Σ(c), and immediately ⟨x, c ⟩Σ ≥ 0 = ⇒ ⟨ y, c ⟩Σ ≤ 0. . It follows that B|c|Σ,Σ(c) ∩ − B|c|Σ,Σ(c) = {0}. Central symmetry of X, i.e., X d
+
+= −X implies Pr (X ∈ B|c|Σ,Σ(c)) = Pr (X ∈ − B|c|Σ,Σ(c)) . Now, using B|c|Σ,Σ(c) ∩ − B|c|Σ,Σ(c) = 
+
+{0},
+
+Pr( X ∈ B|c|Σ,Σ(c) ∪ B|c|Σ,Σ(c)) = Pr( X ∈ B|c|Σ,Σ(c)) + Pr( X ∈ − B|c|Σ,Σ(c)) = 2 Pr( X ∈ B|c|Σ,Σ(c)) ≤ 1.
+
+Thus 
+
+Pr( X ∈ B|c|Σ,Σ(c)) ≤ 12 , Pr( |X − c|Σ ≥ | c|Σ) = 1 − Pr( X ∈ B|c|Σ,Σ(c)) ≥ 12 .
+
+Now, Pr( |X − c|Σ > s ) is clearly nonincreasing in s. From above, 
+
+Pr( |X − c|Σ > |c|Σ) ≥ 12 > q. 
+
+Then, the smallest radius s for which Pr( |X − c|Σ > s ) < q must satisfy s ≥ | c|Σ, or, ξq,c > |c|Σ.
+
+32 D.3 Concentration of the mean for iteration one 
+
+Lemma D.4. Assume that μ ∈ B ˜R0,Σ(μ0). Then for all M ∗e−d/ 10 < δ < M ∗/3, provided that 
+
+n ≥ log( M ∗/δ )
+
+d/ 4R2 ∧ 1 ,
+
+then with probability at least 1 − 3δ/M ∗
+
+|μ − ˜μ1|Σ ≲ ˜R0 S
+
+ ˜R0 − | μ0|Σ
+
+
+
++
+
+s
+
+dn2ρmean ,1
+
++ η +
+
+s
+
+log( M ∗/δ )( d/ ˜R20 ∧ 1) 
+
+n
+
+!
+
+.
+
+Proof. Assume that μ = 0 without loss of generality and for brevity, let ρ = ρmean ,1. We first bound the noise attributed to the Gaussian mechanism. By standard subgaussian tail bounds, we have that for u ≥ √d,
+
+Pr ( |Z| > u ) = Pr  χ2 
+
+> d
+
+> u 2 ≤ 2 exp( −u2/10) ,
+
+where Z ∼ N d(0 , I ). This implies that with probability at least 1 − 2 exp (−d/ 10) , it holds that |Z| ≲ √d. 
+
+with probability at least 1 − 2 exp( −d/ 10) , we then have that 
+
+|N d
+
+ 0, [ eR20/2n2ρ] × Σ|Σ ≲ ˜R0
+
+s
+
+dn2ρ .
+
+Now let ˆμ1 = 1
+
+> n
+
+Pni=1 Proj (Xi, ˜R0, μ 0, Σ) and ˆμ′ 
+
+> 1
+
+= 1
+
+> n
+
+Pni=1 Proj (X′ 
+
+> i
+
+, ˜R0, μ 0, Σ) . Observe that |ˆμ1 − ˆμ′
+
+> 1
+
+| ≤ 
+
+η( ˜R0 + |μ0 − μ|Σ) ≤ 2η ˜R0. This follows from |μ0 − μ|Σ ≤ ˜R0 because μ ∈ B ˜R0,Σ(μ0). With this in mind, we have that with probability at least 1 − δ/M ∗ − 2 exp( −d/ 10) 
+
+|˜μ1|Σ ≲ |E(Proj( X, ˜R0, μ 0, Σ)) |Σ + |ˆμ′ 
+
+> 1
+
+− E(Proj( X, ˜R0, μ 0, Σ)) |Σ + eR0
+
+s
+
+dn2ρ
+
+≲ |E(Proj( X, ˜R0, μ 0, Σ)) |Σ + 2 η ˜R0 + |ˆμ1 − E(Proj( X, ˜R0, μ 0, Σ)) |Σ + eR0
+
+s
+
+dn2ρ
+
+≲ ˜R0S
+
+ ˜R0 − | μ0|Σ
+
+
+
++ η ˜R0 +
+
+s
+
+log( M ∗/δ )( d ∧ ˜R20)
+
+n + eR0
+
+s
+
+dn2ρ ,
+
+where the last line applies Lemma D.6 and Lemma D.7. 
+
+## D.4 Upper bounds on the expected value of the projections 
+
+Lemma D.5. For X ∼ EC(0 , Σ, F ), we have that for R > 0 and c ∈ Rd, we have that 
+
+|E(Proj( X, R, c, Σ)) |Σ ≤
+
+√d + |c|Σ
+
+ p Pr ( |X − c|Σ > R ).
+
+Proof. First, observe that on {| X − c|Σ > R }, we have that, letting u = ( X − c)/|X − c|Σ and s = |X − c|Σ,
+
+Proj (X, R, c, Σ) − X = Ru − su = ( R − s)u. Using this, the fact that Proj (X, R, c, Σ) = X on {| X − c|Σ ≤ R},the fact that E|X − c|Σ ≤ E|X|Σ + |c|Σ and the fact that EX = 0 , we then have 
+
+|E(Proj( X, R, c, Σ)) |Σ = |E(Proj( X, R, c, Σ) − X)|Σ
+
+≤ E(( |X − c|Σ − R)1 {| X − c|Σ > R })
+
+≤ E(|X − c|Σ1 {| X − c|Σ > R })
+
+≤
+
+√d + |c|Σ
+
+ p Pr ( |X − c|Σ > R ),
+
+where the last line applies Holder’s inequality. 33 Lemma D.6. For X ∼ EC(0 , Σ, F ), R > 0 and c ∈ Rd, we have that 
+
+|E(Proj( X, R, c, Σ)) |Σ ≤ (R + |c|Σ)S (( R − | c|Σ)+) .
+
+Proof. Letting R∗ = ( R − | c|Σ) ∨ 0 and A1 = {x : |x|Σ ≤ R∗},
+
+|E(Proj( X, R, c, Σ)) |Σ = E(Proj( X, R, c, Σ) |X ∈ A1)F (R∗) + E(Proj( X, R, c, Σ) |X / ∈ A1)S (R∗)
+
+> Σ
+
+= |E(Proj( X, R, c, Σ) |X / ∈ A1)S (R∗)|Σ ≤ (R + |c|Σ)S (( R − | c|Σ)+) ,
+
+which completes the proof. 
+
+## D.5 Concentration of projected observations 
+
+Lemma D.7. If X ∼ EC( μ, Σ, F ), and, given R > 0 and c ∈ Rd, μ ∈ BR, Σ(c) then for all 0 < δ < 1 and 
+
+n ≥ log(3 /2δ)
+
+d/ 4R2 ∧ 1 ,
+
+with probability at least 1 − δ, it holds that 
+
+1
+
+n
+
+> n
+
+X
+
+> i=1
+
+[Proj( Xi, R, c, Σ) − E(Proj( Xi, R, c, Σ))] 
+
+> Σ
+
+≲
+
+r log(3 /2δ)( d ∧ R2)
+
+n .
+
+Proof. Without loss of generality, assume that μ = 0 . First, let Yi = Proj (Xi, R, c, Σ) − E(Proj (Xi, R, c, Σ)) .Now, observe that E(Yi) = 0 and |Yi|2Σ ≤ (| Proj (Xi, R, c, Σ) − c|Σ + |E( Proj (Xi, R, c, Σ)) − c|Σ)2 ≤ 4R2. In addition, Proj is 1-Lipschitz in x (see Lemma E.3). Therefore, we have that E|Yi|2Σ ≤ E|Xi|2Σ = d. Using the Bernstein vector inequality, see Lemma E.1 and related references (Ledoux and Talagrand, 1991; Gross, 2011), for all 0 < t < 2R ∧ d/ 2R, we have that 
+
+Pr  | ¯Y |Σ ≥ t ≤ exp 
+
+
+
+−n t2
+
+8( d ∧ 4R2) + 1 /4
+
+
+
+,
+
+which yields the desired result. 
+
+## D.6 Concentration of the radius 
+
+Here we prove two lemmata that together show that the private radius concentrates. The first is as follows. 
+
+Lemma D.8. Suppose that Condition 2.1–4.3 hold, |˜μm|Σ ≤ 3 ˜R0/4, ρbal ,m ≥ 16 /24349 , and τ = τ (δ) as in 
+
+(4) , then given M ∗e−8( d+1) < δ < 3M ∗/2, we have with probability at least 1 − 2δ/ 3M ∗,
+
+ξ2τ ′,˜μm ≤ ˜ξ3τ ′/2,˜μm ≤ ˜Rm ≤ ˜ξτ ′/2,˜μm ≤ ξτ ′/4,˜μm ,
+
+and 
+
+ξ2τ ′,˜μm ≤ ˜ξ3τ ′/2,˜μm ≤ ξ5τ ′/4,˜μm ≤ ξ3τ ′/4,˜μm ≤ ˜ξτ ′/2,˜μm ≤ ξτ ′/4,˜μm .
+
+Proof. Assume without loss of generality that μ = 0 and let ρ = ρbal ,m for the remainder of the proof. Now, define E1 to be the event such that the following inequalities hold 
+
+ξ2τ ′,˜μm ≤ ˜ξ3τ ′/2,˜μm ≤ ξ5τ ′/4,˜μm ≤ ξ3τ ′/4,˜μm ≤ ˜ξτ ′/2,˜μm ≤ ξτ ′/4,˜μm . (10) Equation (10) combined with the following inequality 
+
+˜ξ3τ ′/2,˜μm ≤ ˜Rm ≤ ˜ξτ ′/2,˜μm , (11) yields the final result. It remains to prove E1 holds with high probability and, on E1, (11) holds with high probability. We start with the latter. 34 For r > 0 and c ∈ Rd, let ˜G(r, c ) = ˜ν(Br, Σ(c)c). One may recall that ˜ν is the empirical measure of the contaminated sample. The inequality (11) is implied by τ ′/2 ≤ ˜G( ˜ξτ ′,˜μm , ˜μm) ≤ 3τ ′/2. Equivalently, (11) is holds if ˜G( ˜ξτ ′,˜μm , ˜μm) is within τ ′/2 of τ ′. To prove that this inequality holds with high probability, we can apply Lemma D.9 taking τ ′ = τ ′ and t = τ ′/2. In order to apply Lemma D.9, two conditions must be satisfied. The first is that Rmin ≤ ˜ξ3τ ′/2,˜μm . Condition 4.3 part (b) directly yields that Rmin ≤ inf c∈Rd ˜ξ3τ ′/2,c ≤
+
+˜ξ3τ ′/2,˜μm . The second condition needed to apply Lemma D.9 is 
+
+1 < β ≤
+
+˜ξτ ′/2,˜μm − Rmin + 1 ˜ξ3τ ′/2,˜μm − Rmin + 1 . (12) Note that on E1, we have 
+
+˜ξτ ′/2,˜μm − Rmin + 1 ˜ξ3τ ′/2,˜μm − Rmin + 1 = 1 + ˜ξτ ′/2,˜μm − ˜ξ3τ ′/2,˜μm
+
+˜ξ3τ ′/2,˜μm − Rmin + 1 > 1 + inf 
+
+> |c|Σ≤| ˜μm|Σ
+
+ξ3τ ′/4,c − ξ5τ ′/4,c 
+
+ξ5τ ′/4,c − Rmin + 1 = 1 + bn.
+
+Condition 4.3 part (a) directly says that β < 1 + bn, yielding (12). We can now apply Lemma D.9, which yields that 
+
+Pr 
+
+
+
+τ ′/2 − ˜ν(Beξτ ′, ˜μm 
+
+(c)) > τ ′/2|E1
+
+
+
+≤ log   ˜ξτ ′/2,eμm + 1 − Rmin 
+
+
+
+log β + 1 
+
+!
+
+× exp 
+
+
+
+− n(τ ′ ∨ τ ′2/2) 8 (√ρ ∨ ρ)
+
+
+
+.
+
+We simplify the right-hand side. Observe that since |˜μm|Σ ≤ 3 ˜R0/4 and Condition 4.3 part (b) holds, we can apply Lemma D.11 which yields that ξτ ′/4,˜μm < ˜R0. This fact, combined with (10) yields that 
+
+˜ξτ ′/2,˜μm < ξ τ ′/4,˜μm < ˜R0 on E1. It follows that on E1,
+
+log( ˜ξτ ′/2,˜μm + 1 − Rmin )log β ≤ log( ˜R0 + 1 − Rmin )log β = h(β).
+
+Thus, 
+
+Pr 
+
+
+
+τ ′/2 − ˜ν(Beξτ ′, ˜μm 
+
+(c)) > τ ′/2|E1
+
+
+
+≤ (h(β) + 1) × exp 
+
+
+
+− n(τ ′ ∨ τ ′2/2) 8 (√ρ ∨ ρ)
+
+
+
+≤ (h(β) + 1) × exp 
+
+
+
+− nτ ′
+
+8 (√ρ ∨ ρ)
+
+
+
+.
+
+Now, using the fact that ρ ≥ 82 × 1/986 2 = 16 /24349 and 
+
+τ ′ ≥ 986 
+
+n log 
+
+
+
+3 M ∗
+
+δ [h(β) + 1] 
+
+
+
+,
+
+we have that 
+
+Pr 
+
+
+
+τ ′/2 − ˜ν(Beξτ ′, ˜μm 
+
+(c)) > τ ′/2|E1
+
+
+
+≤ δ
+
+3M ∗ .
+
+Equivalently, on E1, we have that (11) holds with probability at least 1 − δ/ 3M ∗.
+
+The next step is to show that E1 occurs with high probability. In other words, the inequalities (10) hold simultaneously with high probability. Now, we have that the inequalities (10) are implied by the two events 
+
+\
+
+> |c|Σ≤| ˜μm|Σ
+
+n
+
+ξ2τ ′,c ≤ ˜ξ3τ ′/2,c ≤ ξ5τ ′/4,c 
+
+o
+
+and \
+
+> |c|Σ≤| ˜μm|Σ
+
+n
+
+ξ3τ ′/4,c ≤ ˜ξτ ′/2,c ≤ ξτ ′/4,c 
+
+o
+
+.
+
+35 As a result, we aim to bound the probability of the following events above: 
+
+[
+
+> |c|Σ≤| ˜μm|Σ
+
+n ˜ξ3τ ′/2,c ≤ ξ2τ ′,c 
+
+o
+
+and [
+
+> |c|Σ≤| ˜μm|Σ
+
+n ˜ξ3τ ′/2,c ≥ ξ5τ ′/4,c 
+
+o
+
+,
+
+[
+
+> |c|Σ≤| ˜μm|Σ
+
+n ˜ξτ ′/2,c ≤ ξ3τ ′/4,c 
+
+o
+
+and [
+
+> |c|Σ≤| ˜μm|Σ
+
+n ˜ξτ ′/2,c ≥ ξτ ′/4,c 
+
+o
+
+.
+
+above. Define ˆν to be the empirical measure of the uncontaminated sample and define ˆG(r, c ) = ˆν(Br, Σ(c)c) for 
+
+r > 0 and c ∈ Rd. We next relate ˜G to ˆG, where recall ˜G(r, c ) = ˜ν(Br, Σ(c)c) for r > 0 and c ∈ Rd. Observe that by the definition of τ ′, sup r∈R,|c|Σ≤| ˜μm|Σ | ˜G(r, c ) − ˆG(r, c )| ≤ η ≤ τ ′/8. It follows that 
+
+˜ξ3τ ′/2,c ≤ ξ2τ ′,c =⇒ 3τ ′/2 ≥ ˜G(ξ2τ ′,c , c )=⇒ 3τ ′/2 ≥ ˆG(ξ2τ ′,c , c ) − τ ′/8
+
+⇐⇒ 3τ ′/2 + τ ′/8 ≥ ˆG(ξ2τ ′,c , c )
+
+⇐⇒ (3 /2 + 1 /8 − 2) τ ′ ≥ ˆG(ξ2τ ′,c , c ) − 2τ ′
+
+⇐⇒ 2τ ′ − ˆG(ξ2τ ′,c , c ) ≥ 3τ ′/8.
+
+Similarly, we have that 
+
+˜ξτ ′/2,c ≥ ξτ ′/4,c =⇒ τ ′/2 ≤ ˜G(ξτ ′/4,c , c )=⇒ τ ′/2 ≤ ˆG(ξτ ′/4,c , c ) + τ ′/8
+
+⇐⇒ τ ′/2 − τ ′/8 ≤ ˆG(ξτ ′/4,c , c )
+
+⇐⇒ 3τ ′/8 − τ ′/4 ≤ ˆG(ξτ ′/4,c , c ) − τ ′/4
+
+⇐⇒ ˆG(ξτ ′/4,c , c ) − τ ′/4 ≥ τ ′/8.
+
+Using the same logic we get that 
+
+˜ξ3τ ′/2,c ≥ ξ5τ ′/4,c =⇒ ˆG(ξ5τ ′/4,c , c ) − 5τ ′/4 ≥ τ ′/8,
+
+and that 
+
+ξ3τ ′/4,c ≤ ˜ξτ ′/2,c =⇒ 3τ ′/4 − ˆG(ξ3τ ′/4,c , c ) ≥ τ ′/8.
+
+With these final four inequalities in mind, it then suffices to bound 
+
+Pr 
+
+ sup    
+
+> |c|Σ≤| ˜μm|Σ
+> q∈{ 1/4,5/4,3/2,2}
+
+|G(ξqτ ′,c , c ) − ˆG(ξqτ ′,c , c )| ≥ τ ′/8
+
+ .
+
+The above probability can be bounded via empirical process theory. The class of functions 
+
+G = {g(x) = 1 {| x − c|Σ ≤ ξqτ ′,c } : |c|Σ ≤ | ˜μm|Σ, q ∈ { 1/4, 5/4, 3/2, 2}} 
+
+is contained in the class of functions 
+
+F = {g(x) = 1 {| x − c|Σ ≤ t} : c ∈ Rd, t ∈ R},
+
+which has Vapnik-Chervonenkis (VC) dimension d + 1 . Now, noting that for any |c|Σ ≤ | ˜μm|Σ, q ∈{1/4, 5/4, 3/2, 2} we have that Var (1 {| Xi − c| ≥ ξqτ ′,c }) ≤ 2τ ′ for i ∈ [n]. Therefore, using standard empirical process bounds, (e.g., see (Sen, 2022) Theorem 7.13), we have that 
+
+E sup    
+
+> |c|Σ≤| ˜μm|Σ
+> q∈{ 1/4,5/4,3/2,2}
+
+|G(ξqτ ′,c , c ) − ˆG(ξqτ ′,c , c )| ≤ 8pτ ′(d + 1) /n. 
+
+36 Now, observe that by the definition of τ ′ and the condition that δ > M ∗e−8( d+1) , we have that τ ′ >
+
+log( M ∗/δ )/n > 8( d + 1) /n , which yields 
+
+E sup    
+
+> |c|Σ≤| ˜μm|Σ
+> q∈{ 1/4,5/4,3/2,2}
+
+|G(ξqτ ′,c , c ) − ˆG(ξqτ ′,c , c )| ≤ √8τ ′.
+
+We now apply Talagrand’s inequality, see Lemma E.2 for convenience, with U ≤ 1/n and σ2 ≤ 2τ ′/n 2 to get that, 
+
+Pr 
+
+ sup    
+
+> |c|Σ≤| ˜μm|Σ
+> q∈{ 1/4,5/4,3/2,2}
+
+|G(ξqτ ′,c , c ) − ˆG(ξqτ ′,c , c )| ≥ τ ′/8
+
+ ≤ exp 
+
+ −3nτ ′
+
+16(96 √2 + 49) 
+
+
+
+≤ exp 
+
+ −nτ ′
+
+986 
+
+
+
+.
+
+Recall that 
+
+τ ′ ≥ 986 log(3 M ∗/δ )
+
+n .
+
+Using this fact, we have that exp ( −nτ ′/986) ≤ δ/ 3M ∗. Therefore, we have shown that E1 occurs with probability at least 1 − δ/ 3M ∗ and the proof is complete. We now prove the second lemma. Recall that the corrupted sample X′
+
+> 1
+
+, . . . , X ′ 
+
+> n
+
+has empirical measure denoted by ˜ν, and that we define ˜ξq,c = inf {R : ˜ ν(BR, Σ(c)c) ≤ q} for q ∈ [0 , 1] and c ∈ Rd.
+
+Lemma D.9. For all 0 < τ ′ ≤ 1, 0 < t < 1, 0 < R min < ˜ξτ ′+t, ˜μm , m ∈ [M − 1] , ρbal ,m > 0 and 
+
+1 < β ≤ ( ˜ξτ ′−t, ˜μm − Rmin + 1) /( ˜ξτ ′+t, ˜μm − Rmin + 1) ,
+
+we have that 
+
+Pr 
+
+
+
+τ ′ − ˜ν B eRm,Σ(eμm)c > t 
+
+
+
+≤ log   ˜ξτ ′−t, eμm + 1 − Rmin 
+
+
+
+log β + 1 
+
+!
+
+× exp 
+
+
+
+− n(t ∨ t2)4 (√ρbal ,m ∨ ρbal ,m )
+
+
+
+.
+
+Proof of Lemma D.9. For notational simplicity, we let ρ = ρbal ,m for the remainder of the proof. Recall 
+
+ˆτ ′ = τ ′ − V / (n√ρ) d
+
+= τ ′ − V / (n√ρ), where d
+
+= refers to ‘is equal in distribution’. Observe that 
+
+Pr 
+
+
+
+|τ ′ − ˜ν(B eRm,Σ(˜ μm)c)| > t 
+
+
+
+= Pr 
+
+
+
+˜ν(B eRm,Σ(˜ μm)c) − τ ′ > t 
+
+
+
++ Pr 
+
+
+
+τ ′ − ˜ν(B eRm,Σ(˜ μm)c) > t 
+
+
+
+:= I + II. 
+
+First, we must ensure that there is some k ∈ N such that ˜ν(Bβk −1+ Rmin ,Σ( ˜μm)c) is within t of q. Let k be the integer at which the process terminates. We have that 
+
+˜ν(B eRm,Σ(˜ μm)c) − τ ′ ≥ t ⇐⇒ k ≤ log( ˜ξτ ′+t, ˜μm − Rmin + 1) log β := k1,τ ′ − ˜ν(B eRm,Σ(˜ μm)c) ≥ t ⇐⇒ k ≥ log( ˜ξτ ′−t, ˜μm − Rmin + 1) log β := k2.
+
+Thus, as long as there is an integer between k1 and k2, there is a valid k ∈ N. This is implied by the condition 
+
+1 ≤ k2 − k1, which is equivalent to 
+
+1 ≤ log( ˜ξτ ′−t, ˜μm − Rmin + 1) log β − log( ˜ξτ ′+t, ˜μm − Rmin + 1) log β =⇒ β ≤ ˜ξτ ′−t, ˜μm − Rmin + 1 ˜ξτ ′+t, ˜μm − Rmin + 1 .
+
+The above inequality holds by assumption, and so a valid k exists. 37 We now bound I above. Then, using the definition of k1 and k, the fact that V and {Vi}∞ 
+
+> i=1
+
+are standard normal random variables and a union bound, it holds that 
+
+I = Pr ( k < k 1) ≤
+
+> k1
+
+X
+
+> i=1
+
+Pr 
+
+
+
+Vi/n √ρ ≥ 1 − ˆτ ′ − ˜ν(Bβi+Rmin −1,Σ(˜ μm)) 
+
+
+
+≤
+
+> k1
+
+X
+
+> i=1
+
+Pr 
+
+
+
+Vi/n √ρ ≥ 1 − ˆτ ′ − ˜ν(Bβk1 +Rmin −1,Σ(˜ μm)) 
+
+
+
+=
+
+> k1
+
+X
+
+> i=1
+
+Pr 
+
+
+
+Vi/n √ρ ≥ 1 − τ ′ + V /n √ρ − ˜ν(B( ˜ξτ ′+t−Rmin +1)+ Rmin −1,Σ(˜ μm)) 
+
+
+
+≤ k1 Pr ( Vk1 − V ≥ tn √ρ)
+
+≤ log( ˜ξτ ′+t, ˜μm + 1 − Rmin )log β exp 
+
+
+
+−n(t ∨ t2)pρ ∨ ρ2/4
+
+
+
+.
+
+Here we use an exponential tail bound for the standard Gaussian, as we will be applying this result when 
+
+t < 1. Now, we consider II . Observe that 
+
+II = Pr ( k > k 2) = 
+
+> k2
+
+Y
+
+> i=1
+
+Pr  Vi/n √ρ + ˜ ν(Bβi+Rmin −1,Σ(˜ μm)) < 1 − ˆτ ′
+
+≤ Pr  Vi/n √ρ + ˜ ν(Bβk2 +Rmin −1,Σ(˜ μm)) ≤ 1 − ˆτ ′
+
+= Pr 
+
+ Vi
+
+n√ρ + ˜ ν(B˜ξτ ′−t−Rmin +1+ Rmin −1,Σ(˜ μm)) ≤ 1 − τ ′ − Vn√ρ
+
+
+
+≤ Pr ( tn √ρ ≤ − V − Vi)
+
+≤ exp 
+
+
+
+−n(t ∨ t2)pρ ∨ ρ2/4
+
+
+
+.
+
+## D.7 Some structural lemmata 
+
+Let ρ− = min k∈[M ] = ρmean ,k .
+
+Lemma D.10. Under the conditions of Theorem 4.4, we have that at any iteration of the algorithm m ∈ [M ],there exists universal constants K1, K 2 > 0 such that η ≤ K1 and 
+
+n ≥ K2 (d/ (ρ− ∧ 1) ∨ log(3 h(β)M ∗/δ )) ,
+
+then with probability at least 1 − O(M δ/M ∗) we have ˜R0 ≥ 3√n =⇒ ˜R0 ≥ 14 ξτ ′/4,˜μm−1,Σ/5 and |˜μm − μ|Σ ≤
+
+3 ˜R0/4.Proof. In view of Lemma D.11, it remains to show that |˜μm|Σ ≤ 3 ˜R0/4 for arbitrary m with high probability. For this, we proceed via induction. First, we have that (5) in the proof of Theorem 4.4 is 
+
+|˜μ1|Σ ≲
+
+r dn + ˜R0
+
+√dn√ρmean ,1
+
++ η +
+
+r (d/ 4R2 ∧ 1) log( M ∗/δ )
+
+n
+
+!
+
+,
+
+which holds with probability at least 1 − δ/M ∗. Now, noting that ˜R0 > 1, we have that there exists constants 
+
+C, C ′ > 0 such that for n ≥ C
+
+
+
+d/ ˜R0 ∨ log( M ∗/δ ) ∨ pd/ρ mean ,1
+
+
+
+and η < C ′, we have that |˜μ1|Σ ≤ 3 ˜R0/4
+
+with probability at least 1 − δ/M ∗. Now, applying Lemma D.1 m − 1 times yields that with probability at least 1 − 9( m − 1) δ/ 2M ∗ we have that for all k ≤ m,
+
+|˜μk|Σ ≲
+
+r dn +
+
+s
+
+dnρ mean ,k 
+
++ |˜μk−1|Σ
+
+s
+
+dnρ mean ,k 
+
++
+
+√d + |˜μk−1|Σ
+
+ r log(3 h(β)M ∗/δ )
+
+n + √η
+
+!
+
+.
+
+38 Using the induction assumption and letting ρ− = min k∈[M ] = ρmean ,k we want to show that 
+
+r dn +
+
+s
+
+dnρ −
+
++ |˜μk−1|Σ
+
+s
+
+dnρ −
+
++
+
+√d + |˜μk−1|Σ
+
+ r log(3 h(β)M ∗/δ )
+
+n + √η
+
+!
+
+≤ 3√n/ 4.
+
+This is implied by 
+
+8
+
+s
+
+d
+
+9n(1 ∧ ρ−) +
+
+s
+
+dρ−
+
++ plog(3 h(β)M ∗/δ ) + √nη + 4 pdη/ 3 + 4 
+
+r d log(3 h(β)M ∗/δ )9n ≤ √n. 
+
+Now, there exists universal constants C∗, C ′′ > 0 such that for n ≥ C∗d and η < C ′′ , then √n − √nη −
+
+4√dη/ 3 ≳ √n. As a result, we then aim to show that for some universal constant C′′′ > 08
+
+s
+
+d
+
+9n(1 ∧ ρ−) +
+
+s
+
+dρ−
+
++ plog(3 h(β)M ∗/δ ) + 4 
+
+r d log(3 h(β)M ∗/δ )9n ≤ C′′′ √n. 
+
+It follows that there exists a universal constant K > 0 such that for 
+
+n ≥ K (d/ (ρ− ∧ 1) ∨ log(3 h(β)M ∗/δ )) ,
+
+the above inequality holds. 
+
+Lemma D.11. At any iteration of the algorithm m ∈ [M ], if |˜μm − μ|Σ ≤ ˜R0, then ˜R0 ≥ 3√n =⇒ ˜R0 ≥
+
+14 ξτ ′/4,˜μm /5.Proof. Without loss of generality, assume that μ = 0 . We have from Lemma D.2 and the fact that τ ′ > 16 /n :
+
+ξτ ′/4,˜μm−1 ≤ 2
+
+√τ ′ + |˜μm−1|Σ ≤ √n/ 8 + |˜μm−1|Σ ≤ √n/ 8 + ˜R0.
+
+The result follows from the fact that 14 ξτ ′/4,˜μm−1 /5 ≤ 7√n/ 20 + 14 ˜R0/5 ≤ 3√n ≤ ˜R0.
+
+## D.8 Proof of Proposition 4.1 
+
+Proof of Proposition 4.1. The privacy guarantee follows directly from composition (Proposition 2.3), the Gaussian mechanism (Proposition 2.4), and the privacy guarantee of (zero-concentrated) AboveThreshold for quantiles (Ramsay and Spicker, 2025b). The computation time can be proven as follows. The initial covariance matrix inversion and decomposition takes O(d3) time. Then, we can whiten the data once, taking O(nd 2)
+
+time. For each iteration, we compute the relevant Euclidean norm for each data point, O(nd ). The radius computation can be implemented in O(n log n) time (Durfee, 2024). The projections take a worst case O(nd )
+
+time, and the noise mean also takes O(nd ) time. Therefore, the final time is O(d3 +nd 2 +M nd +M n log n).
+
+# E Useful existing results 
+
+The following is a version from Gross (2011), which can also be found in the book by Ledoux and Talagrand (1991). 
+
+Lemma E.1. Let X1, . . . , X n be independent random vectors with common dimension d and assume that each one is centered, uniformly bounded and also the variance is bounded above: 
+
+E[Xi] = 0 and |Xi| ≤ μ as well as E|Xi|2 ≤ σ2.
+
+Let 
+
+Z = 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+Xi.
+
+Then we have for 0 < ε < σ 2/μ 
+
+Pr ( |Z| ≥ ε) ≤ exp 
+
+
+
+−n · ε2
+
+8σ2 + 14
+
+
+
+.
+
+39 Lemma E.2 (Talagrand (1994); Sen (2022)) . Given a separable class of measurable, real functions F such that for f ∈ F we have that |f |∞ < U , σ2 = sup f ∈F Ef 2(Xi), and E(f (Xi)) = 0 , it holds that for t > 0Pr sup  
+
+> f∈F
+> n
+
+X
+
+> i=1
+
+f (Xi) ≥ E sup  
+
+> f∈F
+> n
+
+X
+
+> i=1
+
+f (Xi) + t
+
+!
+
+≤ exp 
+
+ −t2/22U E sup f ∈F
+
+Pni=1 f (Xi) + nσ 2 + U t/ 3
+
+
+
+≤ exp −t2/22U pn VC( F ) + nσ 2 + U t/ 3
+
+!
+
+.
+
+Proof. Let Z = sup f ∈F
+
+Pni=1 f (Xi), σ2 = sup f ∈F Ef 2(Xi) and V = 2 U EZ + nσ 2. We have that applying Talagrand’s/Bousquet’s inequality (Talagrand, 1994), it holds that 
+
+Pr ( Z ≥ EZ + t) ≤ exp 
+
+ −2t2
+
+2V + 2 U t/ 3
+
+
+
+.
+
+Now, we have that from (85) of Sen (2022), it holds that EZ/n ≲ pVC( F )/n. 
+
+Pr ( Z ≥ EZ + t) ≤ exp −t2/22U pn VC( F ) + nσ 2 + U t/ 3
+
+!
+
+.
+
+Lemma E.3. Consider a Hilbert space H with norm induced by the inner product ⟨· , ·⟩ . For nonempty, closed, and convex C ⊂ H , define the projection of x ∈ H onto C as 
+
+Proj 
+
+> C
+
+(x) ∈ argmin 
+
+> z∈C
+
+|x − z|.
+
+Then Proj C (x) is 1-Lipschitz. Proof. Let p = Proj C (x) and q = Proj C (y). Given that C is closed and convex, we have that all z ∈ C,
+
+⟨x − p, z − p⟩ ≤ 0 and ⟨y − q, z − q⟩ ≤ 0.
+
+Taking z = q in the first inequality and z = p in the second yields 
+
+⟨x − p, q − p⟩ ≤ 0 and ⟨y − q, p − q⟩ ≤ 0.
+
+Adding them gives 
+
+⟨x − p, q − p⟩ + ⟨q − y, q − p⟩ ≤ 0 ⇐⇒ ⟨ x − y + q − p, q − p⟩ ≤ 0,
+
+which then implies 
+
+⟨x − y − (p − q), p − q⟩ ≥ 0 ⇐⇒ ⟨ x − y, p − q⟩ ≥ | p − q|2.
+
+By the Cauchy–Schwarz inequality, 
+
+|p − q|2 ≤ ⟨ x − y, p − q⟩ ≤ | x − y| | p − q|.
+
+40

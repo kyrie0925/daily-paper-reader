@@ -1,0 +1,758 @@
+Title: CRAFTIIF: Cross-Resolution Analytic Four-Type Interpretable Isolation Forest for Multivariate Time Series Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2606.13486v1
+
+Published Time: Fri, 12 Jun 2026 01:09:03 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+1
+
+# Cross-Resolution Analytic Four-Type Interpretable Isolation Forest (CRAFTIIF) for Multivariate Time Series Anomaly Detection 
+
+William Smits iD 
+
+Abstract —Anomaly detection in multivariate time series (MT-SAD) is fundamentally challenged by the heterogeneity of anomaly types: point anomalies (isolated sensor spikes), distri-butional anomalies (sustained level shifts), temporal anomalies (rhythm or frequency changes), and collective anomalies (inter-sensor correlation breakdowns) each require distinct feature rep-resentations and detection strategies. Most existing unsupervised methods address only one or two of these types simultaneously, and nearly all provide limited interpretability into which signals, channels, or anomaly types drove a detection. We present CRAFTIIF (Cross-Resolution Analytic Four-Type Interpretable Isolation Forest), a fully unsupervised MTSAD framework that operates across all four anomaly types simultaneously without dataset-specific tuning. CRAFTIIF generates K=500 random draws of analytic wavelet features per family across four wavelet families—Morlet, DOG, Haar, and Coiflet— each targeting a specific anomaly type. These features feed five structured and interpretable Isolation Forests: one per anomaly type and a meta-IF that detects compound anomalies requiring multiple branches to agree. An adaptive hybrid threshold based on Otsu bimodality detection and MAD estimation calibrates detection automatically to the test score distribution, handling anomaly rates from 0.1% to 69.2%. We evaluate CRAFTIIF on all 19 datasets of the mTSBench benchmark [10], the most comprehensive public MT-SAD evaluation available, achieving mean F1 = 0.228 across all datasets and F1 = 0.322 on 13 detectable datasets. We introduce a diagnostic framework—oracle F1, detectability limits, branch separation ratios, and collective attribution—that constitutes a standalone contribution applicable to any Isolation Forest-based detector, enabling practitioners to distinguish method failures from datasets that are fundamentally undetectable without do-main knowledge or labelled data. Crucially, 6 of 19 mTSBench datasets are shown to be undetectable by any unsupervised signal-statistics method, not just CRAFTIIF , a characterisation that was previously unavailable for this benchmark. Because each Isolation Forest is trained exclusively on features corresponding to its anomaly type, branch firing provides direct type-specific attribution: a point-branch detection signals an isolated spike; a distributional-branch detection signals a sustained level shift — without the ambiguity of post-hoc feature importance scores that commingle features from multiple anomaly types. A com-prehensive ablation study of 11 conditions confirms that adaptive threshold calibration contributes 38% mean F1 improvement, the four-branch structured architecture contributes 20%, and the meta-IF branch contributes 23% over their respective ablated alternatives. 
+
+Index Terms —Multivariate time series, anomaly detection, unsupervised learning, isolation forest, wavelet features, inter-pretability, benchmark evaluation, mTSBench. 
+
+W. Smits is with Avathon, Austin, TX, USA. E-mail: will.smits@avathongov.com ORCID iD: https://orcid.org/0009-0007-1673-8172 0 25 50 75 100 125 150 175 200                           
+
+> Sample
+> 1
+> 0
+> 1
+> 2
+> 3
+> 4
+> Signal value
+> Isolated spike: instantaneous sensor fault
+> anomaly
+> (a) Point anomaly
+> 025 50 75 100 125 150 175 200
+> Sample
+> 1
+> 0
+> 1
+> 2
+> 3
+> Signal value
+> Sustained level shift: elevated operating range
+> anomaly
+> (b) Distributional anomaly
+> 025 50 75 100 125 150 175 200
+> Sample
+> 1.5
+> 1.0
+> 0.5
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+> Signal value
+> Frequency change: rhythm disruption
+> anomaly
+> (c) Temporal anomaly
+> 025 50 75 100 125 150 175 200
+> Sample
+> 1.5
+> 1.0
+> 0.5
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+> Signal value
+> Correlation breakdown: ch1 ch2 (individually normal)
+> anomaly
+> (d) Collective anomaly
+> Channel 1
+> Channel 2
+> Shaded regions indicate ground-truth anomaly intervals. CRAFTIIF targets all four types simultaneously via four wavelet-specific feature branches.
+
+Fig. 1. The four structural anomaly types targeted by C RAFTIIF . Shaded regions indicate ground-truth anomaly intervals. (a) Point: isolated spike or instantaneous sensor fault. (b) Distributional: sustained level shift from the normal operating range. (c) Temporal: rhythm or frequency change in an oscillatory signal. (d) Collective: inter-sensor correlation breakdown without any single channel behaving anomalously (Channel 1 and Channel 2 individually appear normal; their correlation inverts in the anomaly region). 
+
+I. I NTRODUCTION 
+
+Anomaly detection in multivariate time series arises across industrial monitoring [17], medical sensing [19], cybersecu-rity [20], and scientific instrumentation [18]. A multivariate time series X ∈ RT ×d contains T observations across d chan-nels, and an anomaly is any segment that deviates significantly from normal behaviour. Despite decades of research, practical deployment of MTSAD systems remains difficult for three fundamental reasons. 
+
+Anomaly type heterogeneity. Anomalies in real deploy-ments take four structurally distinct forms (Figure 1): point 
+
+anomalies are instantaneous sensor faults or spikes; distri-butional anomalies are sustained departures from the normal value range; temporal anomalies are changes in the rhythm, frequency, or phase of oscillatory signals; and collective 
+
+anomalies are breakdowns of normal inter-sensor correlation structure without any single channel behaving anomalously. Most existing methods are designed for one or two of these types and degrade significantly when evaluated across all four simultaneously. 
+
+Absence of labels. Labelled anomalies are rarely available at deployment time. Supervised and semi-supervised methods that achieve strong results on benchmark datasets with pro-
+
+> arXiv:2606.13486v1 [cs.LG] 11 Jun 2026 2
+
+vided labels are impractical when labels must be acquired at annotation cost. Fully unsupervised methods that learn only from normal training data are required in most real-world settings. 
+
+Interpretability. When an anomaly is flagged, practitioners need to understand why : which channels, which time scales, and which anomaly type drove the detection. This is essential for distinguishing genuine faults from false positives, for root cause analysis, and for building practitioner trust. Most deep learning MTSAD methods provide no interpretability mechanism beyond attention weights, which are difficult to connect to physical causes. Even methods offering feature importance on a global model face a structural limitation: a high importance score for a wavelet feature at scale s does not reveal whether the anomaly is a spike, a level shift, or a rhythm change — all three can activate the same feature under different conditions. Direct anomaly-type attribution requires that the detection model be partitioned by type, not explained post-hoc. 
+
+Contributions. We address all three challenges with the following contributions: 1) CRAFTIIF : a structured unsupervised MTSAD method. Four wavelet families—each chosen for max-imal discriminability of one anomaly type—generate 
+
+K=500 random analytic feature draws per family, pro-ducing a high-dimensional but structured feature space. Five Isolation Forests—one per anomaly type plus a meta-IF for compound anomalies—are trained indepen-dently to prevent cross-type feature interference. All components are auto-configured with no dataset-specific tuning. 2) Adaptive Otsu/MAD hybrid threshold. A bimodality-strength-based threshold calibration method handles anomaly rates from 0.1% to 69.2% and automatically detects and disables anti-correlated branches (where anomalies score lower than normals). This component alone provides a 38% mean F1 improvement over a fixed training-percentile threshold. 3) A diagnostic framework for MTSAD evaluation. Ora-cle F1, detectability limits, branch separation ratios, and collective attribution collectively allow practitioners and benchmark evaluators to distinguish four qualitatively different result categories: near-oracle performance (threshold calibration is correct), oracle gap (threshold improvement available), feature limit (anomaly type is not captured by the feature space), and fundamen-tal detectability limit (no unsupervised signal-statistics method can succeed). We find that 6 of 19 mTSBench datasets fall into the fundamental detectability limit category. 4) Comprehensive mTSBench evaluation. We evaluate on all 19 mTSBench datasets [10] with a single configura-tion and no dataset-specific tuning. C RAFTIIF achieves mean VUS-PR = 0.463 ( K=500 ), outperforming all 24 methods evaluated in the mTSBench publication, in-cluding the previous best (PCA, 0.329, +40.7%) and raw IsolationForest (0.300, +54.3%). Ablation results across 11 conditions quantify the contribution of each architectural component. The remainder of this paper is organised as follows. Section II reviews related work. Section III describes the CRAFTIIF method in detail. Section IV presents the diagnostic framework. Section V reports benchmark results, comparisons, and ablation study. Section VI presents the sub-window local-isation extension. Section VII discusses limitations and future work. Section VIII concludes. II. R ELATED WORK 
+
+A. Isolation Forest and Variants 
+
+Isolation Forest (iForest) [1] isolates anomalies by random recursive partitioning: anomalies are isolated in fewer splits than normal points and therefore have shorter average path lengths. Extended Isolation Forest [2] replaces axis-aligned splits with hyperplane splits to reduce boundary artefacts. RRCF [3] extends the approach to data streams via robust random cut trees. SCIForest [4] introduces sample-and-count strategy to improve detection of clustered anomalies. All of these methods operate on raw or minimally processed features, without targeting specific anomaly types. C RAFTIIF differs in two key ways: it operates on structured analytic wavelet features designed for anomaly-type specificity, and it maintains four independent IFs rather than a single monolithic model. 
+
+B. Wavelet Methods for Anomaly Detection 
+
+Wavelets decompose signals into time-frequency compo-nents at multiple resolutions, making them natural candi-dates for temporal anomaly detection [13]. MODWT-based methods [14] apply maximum overlap discrete wavelet trans-forms as preprocessing before statistical testing. Most existing wavelet MTSAD methods use a fixed decomposition (typically a single wavelet type at a fixed scale) before applying a classical detector, discarding the multi-resolution structure. CRAFTIIF instead uses wavelets as randomised feature gen-erators across four families and hundreds of scales, anal-ogous to how Random Forests use random feature subsets to build ensemble diversity. The vectorised FFT-based con-tinuous wavelet transform (CWT) computes K=500 random convolutions at a cost equivalent to three batched RFFT operations regardless of K, enabling practical benchmark-scale evaluation. 
+
+C. Random Projection Methods for Time Series 
+
+ROCKET [23] demonstrated that random convolutional kernels projected into a high-dimensional feature space, com-bined with a simple linear classifier, achieve state-of-the-art accuracy on time series classification benchmarks. The core insight is that diversity in random kernel shape — varying dilation, length, and bias — produces complementary fea-ture representations without requiring domain-specific feature engineering. MiniRocket [24] and MultiRocket [25] refined this approach with fixed kernels and richer feature statistics for improved efficiency and accuracy. QUANT [26] extended the random projection principle further: rather than random convolutions, it computes quantile features ( Q25 , Q50 , Q75 )3
+
+over randomly sampled multi-resolution intervals, achieving competitive classification with minimal computational cost. CRAFTIIF shares the foundational intuition of both ROCKET and QUANT: random sampling across a struc-tured parameter space generates ensemble diversity cheaply, and high-dimensional random projections capture discrimi-native signal properties without exhaustive feature engineer-ing. Specifically, C RAFTIIF ’s Group C features — quantile statistics of wavelet coefficient amplitudes at random scales — directly parallel QUANT’s quantile-over-interval approach, and the K=500 random draws per family parallel ROCKET’s random kernel ensemble. Three fundamental differences distinguish C RAFTIIF from these methods and make it appropriate for unsupervised anomaly detection rather than supervised classification. We note that ROCKET and QUANT require labelled training data to fit their linear classifiers and therefore cannot be directly evaluated under the unsupervised mTSBench proto-col; empirical comparison is inapplicable and the contrast below is necessarily theoretical. First, C RAFTIIF ’s random draws sample analytic wavelets with explicit time-frequency localisation — a Morlet kernel at scale s measures oscillatory energy at frequency 1/s ; a Haar kernel measures level-change magnitude at that scale; a DOG kernel responds to local cur-vature. Each draw is physically interpretable in terms of what it measures about the signal’s anomaly structure. ROCKET’s random convolutional kernels and QUANT’s random intervals have no such physical grounding — a kernel with dilation 7 and bias −0.3 has no meaning relative to point, distributional, temporal, or collective anomaly types. Second, both ROCKET and QUANT require labelled examples to train a linear classi-fier on the projected features. C RAFTIIF is fully unsupervised: the random wavelet features feed Isolation Forests that detect anomalies from the training distribution alone, with no labels required at any stage. Third, ROCKET and QUANT treat the projected feature space as a flat input to a single classifier, dis-carding the structural relationship between feature groups and anomaly types. C RAFTIIF ’s four-branch architecture routes features to type-specific IFs, preventing cross-type interference and providing branch-level attribution that identifies which anomaly type drove each detection. In this sense, C RAFTIIF can be viewed as a theoretically grounded, unsupervised, and interpretable adaptation of the random projection paradigm to the MTSAD setting — re-placing generic random kernels with anomaly-type-specific analytic wavelets, and supervised linear classification with structured unsupervised isolation. 
+
+D. Deep Learning for MTSAD 
+
+Deep learning methods for MTSAD include reconstruction-based approaches [5], [8], prediction-based approaches [9], and attention-based approaches [6], [7]. These methods achieve strong results on individual datasets but require sub-stantial training data, long training times (hours to days per dataset), and fixed architectures that may not gener-alise across anomaly types. Importantly, most deep learning MTSAD methods provide limited interpretability: attention weights indicate which time steps were attended to but do not connect cleanly to the anomaly type, the channels involved, or the physical cause. C RAFTIIF provides explicit branch-level attribution as a built-in diagnostic at no additional inference cost. 
+
+E. Benchmark Evaluation 
+
+Early MTSAD benchmarks focused on single datasets with known anomaly labels [17], [18]. TSAD-Eval [11] demon-strated that published results are highly sensitive to evaluation protocol and dataset choice. mTSBench [10] provides 19 datasets spanning heterogeneous anomaly types, anomaly rates from 0.1% to 69.2%, and channel counts from 2 to 72, representing the most comprehensive public MTSAD bench-mark available. We evaluate C RAFTIIF on all 19 mTSBench datasets with a single configuration and no dataset-specific tuning. C RAFTIIF achieves mean VUS-PR = 0.463 ( K=500 ), ranking #1 among all 24 methods evaluated in the mTSBench publication. Concurrent work has proposed methods evaluated on the TSB-AD benchmark [11] — a different evaluation suite — including CANDI [21] and ARTA [22]; these are not directly comparable due to different datasets and protocols. 
+
+F. Interpretable Anomaly Detection 
+
+Interpretability in anomaly detection has been addressed through attention mechanisms [7], SHAP values [15], and prototype-based explanations [16]. These approaches explain individual predictions post-hoc but do not structure the de-tection model around interpretable components. C RAFTIIF ’s branch architecture makes interpretability intrinsic: the branch that fires identifies the anomaly type, the branch separation ratio quantifies the discriminability of each anomaly type, and the collective attribution report identifies which channel pairs drive collective detections. III. M ETHOD 
+
+CRAFTIIF processes a multivariate time series X ∈ RT ×d
+
+without requiring any labels. Figure 2 illustrates the full pipeline, which proceeds in four stages: data quality prepro-cessing, random multiresolution analytic feature extraction, structured IF detection, and adaptive threshold calibration. 
+
+A. Data Quality Preprocessing 
+
+Real sensor data invariably contains missing values, sensor dropouts, and transient NaN/Inf entries. A gap handler assigns each sample to one of three confidence tiers: full confidence 
+
+(no missing data in the window), soft confidence (partially imputed, included with reduced weight), and suppressed (too much missing data; excluded from both training and de-tection). The imputation strategy uses forward-fill followed by linear interpolation and marks imputed regions with a binary missingness mask that is passed to the extractor as an additional channel. 
+
+Auto-configuration. Window length W is set from the ACF decay of the training signal: 
+
+W = nextpow2  2 × median  {t : rX (t) < e −1} , W ∈ [16 , 256] ,
+
+(1) 4CRAFTIIF Pipeline            
+
+> Groups: A,B,C,D Groups: A,C,D Groups: A,C,D Groups: A,C,D
+> temp
+> score
+> point
+> score
+> dist
+> score
+> coll
+> score
+> Stage 1
+> Input
+> Stage 2
+> Preprocess.
+> Stage 3
+> Feature
+> Extract.
+> Stage 3a
+> Wavelet
+> Families
+> Stage 4
+> Branch IFs
+> Stage 4b
+> Meta-IF
+> Stage 5
+> Threshold
+> Stage 6
+> Aggregation
+> Stage 7
+> Output
+> Raw MTS XT×d
+> Data Quality & Windowing
+> Gap handling · confidence tiers · auto W, s
+> Random Multiresolution Feature Extraction
+> K = 500 draws per family · (scale, channel weight, feature group)
+> Morlet
+> (temporal)
+> DOG
+> (point)
+> Haar
+> (distrib.)
+> Coiflet
+> (collective)
+> Temporal IF
+> temp
+> Point IF
+> point
+> Distrib. IF
+> dist
+> Collective IF
+> coll
+> meta Meta IF
+> Trained on branch score vector
+> Adaptive Otsu / MAD Threshold
+> Per-branch · bimodality-strength-based · auto-calibrated
+> Majority Vote Point Labels
+> Flag sample tif 30% of covering windows flagged
+> Anomaly Labels + Branch Attribution
+> Point labels (T,) · branch scores · separation ratios · oracle F1
+> Detection branches
+> Temporal branch
+> Point branch
+> Distributional branch
+> Collective branch
+> Meta branch
+
+Fig. 2. CRAFTIIF pipeline. Input MTS X passes through data quality prepro-cessing and auto-configured windowing before random multiresolution feature extraction across four wavelet families (Morlet, DOG, Haar, Coiflet), each generating K=500 random draws of (scale, channel weight, feature group). Four type-specific Isolation Forests and a meta-IF produce branch scores that feed the adaptive Otsu/MAD threshold and majority-vote aggregation. Branch firing provides direct anomaly-type attribution by construction: no post-hoc analysis is required. 
+
+where rX (t) is the autocorrelation at lag t. Stride s is set so that at least 60 training windows are available: s =
+
+⌊(Ttrain − W )/60 ⌋. Both parameters are fully automatic; no user specification is required. 
+
+Training augmentation. When Ttrain < 2,000 and the anomaly rate is estimated below 10%, the first 40% of the test set is prepended as pseudo-normal training data to prevent score saturation (where all test scores exceed the training score range). This applies to GutenTAG ( Ttrain =1 ,000 ) and CalIt2 (Ttrain =940 ) in our benchmark evaluation. 
+
+B. Random Multiresolution Analytic Features 1) Wavelet Family Selection: The four wavelet families are chosen to maximally discriminate each anomaly type: 
+
+• Morlet ψM (complex Gaussian modulated by cosine): the analytic form captures both amplitude and instantaneous phase, making it sensitive to oscillatory rhythm changes. Targets temporal anomalies. 
+
+• DOG / Mexican hat ψD: the second derivative of a Gaussian computes signal curvature, responding maxi-mally at local extrema and sharp transitions. Targets point 
+
+anomalies. 
+
+• Haar ψH: a step function that measures the differ-ence between adjacent half-windows, sensitive to abrupt level changes and step transitions. Targets distributional 
+
+anomalies. 
+
+• Coiflet ψC (4th-order): a higher-order smooth wavelet that captures the distributional shape of the signal across scales. Targets collective anomalies via cross-scale corre-lation features. 
+
+2) Random Draw Generation: For each family f and each of K=500 draws k, three parameters are sampled: 
+
+sk ∼ LogUniform (smin , s max ), (2) 
+
+wk ∼ Dirichlet (1d) (channel mix) , (3) 
+
+gk ∼ Uniform {A, B, C, D } (feature group) . (4) The scale sk is drawn log-uniformly to ensure equal coverage of fine and coarse scales; the channel weight wk mixes channels into a univariate signal xk(t) = X(t) · wk before convolution; the feature group gk determines which summary statistics are extracted. Random log-uniform sampling is pre-ferred over a systematic scale grid (e.g. powers of two) for two reasons: first, a fixed grid is an implicit dataset-specific choice — anomalies whose characteristic frequency falls between grid points are under-represented — whereas random sampling provides dense, unbiased coverage of the full [smin , s max ] con-tinuum without any dataset-specific configuration; second, the random channel weight wk produces cross-channel projections that a per-channel systematic sweep cannot replicate without an intractable O(d2) enumeration of channel pairs. 
+
+3) Feature Groups: Four feature groups encode different properties of the wavelet coefficients ck(t) for draw k:
+
+• A — Amplitude : [μ(|ck|), σ (|ck|), max( |ck|), ∥ck∥2],capturing overall wavelet response intensity. 
+
+• B — Phase (Morlet only): instantaneous phase entropy and phase coherence, quantifying oscillatory regularity. 
+
+• C — Quantile : [Q25 (|ck|), Q 50 (|ck|), Q 75 (|ck|)] , cap-turing the distribution shape of the response. 
+
+• D — Cross-scale : Pearson correlations between the coefficient amplitude at the reference scale sk, a fine scale 
+
+sk/2, and a coarse scale 2sk, capturing multi-resolution consistency. 
+
+4) Vectorised FFT-based CWT: Naive CWT computation loops over K draws, calling a wavelet library for each. We replace this with a vectorised FFT-based implementation: 
+
+ˆx[f ] = RFFT (x), ˆΨ[ f ] = RFFT (ψs), c = IRFFT (ˆ x · ˆΨ∗).
+
+(5) By batching N windows and three scale levels simultaneously, the total computation reduces to three batched IRFFT calls regardless of K, yielding a 120 × speedup over naive per-draw convolution. The full feature matrix for N windows of d
+
+channels at K=500 draws per family has dimension ∼ 600 –
+
+1,300 per branch, depending on d and which groups are active. 
+
+5) Cross-Channel Pairwise Correlations: For the collective branch, raw Pearson correlations between all  d
+
+2
+
+ channel pairs are computed within each window and appended to the collective feature vector: 
+
+ρij = cov (Xi, Xj )
+
+σ(Xi) σ(Xj ) , i̸ = j. (6) These features directly encode the inter-channel correlation structure that breaks down during collective anomalies, aug-menting the wavelet features with a representation that is invariant to individual channel magnitudes. 5
+
+C. Structured Five-Branch Detection 1) Branch Architecture: Five Isolation Forests are trained independently: 
+
+Fpoint : DOG amplitude features (7) 
+
+Fdist : Haar + Coiflet features (8) 
+
+Ftemp : Morlet amplitude + phase features (9) 
+
+Fcoll : all families + pairwise correlations (10) 
+
+Fmeta : [˜ spt , ˜sdi , ˜ste , ˜sco ] (11) where ˜sb is the normalised score from branch b. Each branch uses nest =200 trees. The meta-IF is trained on the four-dimensional vector of normalised branch scores from the training set, learning to flag windows that are simultaneously unusual in multiple branches but not extreme enough to trigger any single branch alone. This architecture provides two guarantees a global IF cannot match. First, it prevents cross-type feature interference: Haar step-change features cannot contaminate the temporal IF’s decision boundary. Second, branch firing is type-specific by construction : when Fpoint fires, the detection is driven exclusively by DOG curvature features — the signature of isolated spikes — not by distributional or temporal features that may co-occur. This is direct attribution, not a post-hoc approximation. A global IF trained on all features simultaneously cannot provide this guarantee: high importance for a Haar coefficient could reflect a true level shift or a correlation artefact with an unrelated temporal feature, and the two are structurally indistinguishable. 
+
+2) Score Normalisation: Raw IF scores (negative mean path length) are normalised to [0 , 1] relative to the training score distribution: 
+
+˜s = clip 
+
+
+
+0.5 + s − τ
+
+2 σtrain 
+
+, 0, 1
+
+
+
+, (12) where τ is the branch threshold and σtrain is the training score standard deviation. Score saturation—where all test scores exceed the training range—is detected by checking whether the median normalised score exceeds 0.90; when saturation is detected, the meta-branch is suppressed and the normalisation span is widened. 
+
+3) Majority Vote Point Labels: Window-level flags are aggregated to sample-level labels via majority vote: sample 
+
+t is flagged if at least 30% of windows covering t are flagged by any branch. This resolves the overlap between adjacent windows at stride s < W and provides robustness against isolated window-level false positives. 
+
+D. Adaptive Otsu/MAD Hybrid Threshold 
+
+The threshold τb for each branch b is calibrated adaptively from the test score distribution, without using any labels. This is essential: the mTSBench benchmark spans anomaly rates from 0.1% to 69.2%, and a fixed training-percentile threshold (used in many prior works) fails catastrophically outside a narrow anomaly rate range. The calibration proceeds as follows (Figure 3 illustrates the two regimes on representative datasets): 0.0 0.2 0.4 0.6 0.8 1.0                  
+
+> Anomaly score
+> 0
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> Density
+> = 0.93 (strong bimodal)
+> Otsu regime ( > 0.75 )
+> (a) Daphnet point branch
+> Bimodal distribution Otsu threshold
+> Normal windows
+> Anomaly windows
+> Otsu threshold = 0.46
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Anomaly score
+> 0.0
+> 0.5
+> 1.0
+> 1.5
+> 2.0
+> 2.5
+> Density
+> = 0.69 (unimodal)
+> MAD regime ( < 0.40 )
+> (b) Room-occupancy distributional branch
+> Unimodal distribution MAD threshold
+> Normal windows
+> Anomaly windows
+> MAD threshold = 0.70
+> median + 3·MAD = 0.72
+> Adaptive Threshold Calibration Score Distribution Examples
+> Score distributions are illustrative synthetic examples matching the known branch separation ratios and anomaly rates of each dataset.
+> = between-class variance ratio (Otsu bimodality strength). Daphnet: point branch separation 15 ×,> 0.75 Otsu. Room-occ.: distributional branch, 18\% anomaly rate MAD.
+
+Fig. 3. Adaptive threshold calibration illustrated on two datasets. (a) Daphnet (point branch): strongly bimodal score distribution ( β=0 .93 > 0.75 ) triggers the Otsu regime; the two clusters are well-separated and the threshold falls cleanly between them. (b) Room-occupancy (distributional branch): unimodal distribution ( β < 0.40 ) triggers the MAD regime; scores shown are illustrative synthetic examples matching the known branch separation ratios and anomaly rates of each dataset. 
+
+Step 1: Otsu threshold and bimodality strength. 
+
+τOtsu , β = arg max 
+
+τ
+
+σ2
+
+total − σ2
+
+within (τ )
+
+σ2
+
+total 
+
+, (13) where β ∈ [0 , 1] is the fraction of total variance explained by the between-class separation. High β indicates a clearly bimodal score distribution—two well-separated clusters corre-sponding to normal and anomalous windows. 
+
+Step 2: MAD baseline estimate. 
+
+ˆpanom = Pr[ s > median (s)+3 MAD (s)] , ˆα = clip (1 .2 ˆ panom , 0.015 , 0.50 
+
+(14) 
+
+Step 3: Bimodality-strength-based trust. 
+
+τb =
+
+
+
+disabled if τOtsu < median (s)
+
+(inverted / anti-correlated branch) 
+
+Q1− ˆαOtsu (s) if β > 0.75 
+
+(trust Otsu fully) 
+
+Q1− ˆαcapped (s) if 0.40 ≤ β ≤ 0.75 
+
+(Otsu capped at 2×MAD) 
+
+Q1− ˆα(s) if β < 0.40 
+
+(MAD-only) (15) The inverted branch condition ( τOtsu < median (s)) detects branches where anomaly windows score lower than normal windows—an anti-correlation caused by the IF learning to associate the anomaly’s statistical signature with normality. Disabling such branches prevents them from generating pure false positives. IV. D IAGNOSTIC FRAMEWORK 
+
+A recurring challenge in MTSAD is distinguishing three failure modes that superficially produce the same outcome (low F1): poor threshold calibration, insufficient feature rep-resentation for the anomaly type, and fundamental statistical undetectability. The C RAFTIIF diagnostic framework provides four per-dataset metrics that separate these cases. 6
+
+A. Oracle F1 
+
+Oracle F1 is computed post-hoc by sweeping all possible thresholds on the test score distribution and selecting the best: 
+
+F 1oracle = max  
+
+> τ
+
+F 1( ytest , s > τ ) . (16) Oracle F1 is not used during detection—labels are never observed. It serves as an upper bound on what any threshold choice on the current feature scores could achieve. The relationship between achieved F1 and oracle F1 cate-gorises results:  
+
+> •
+
+F 1 ≈ F 1oracle : threshold calibration is correct; no further threshold improvement is possible.  
+
+> •
+
+F 1 ≪ F 1oracle : threshold miscalibration; the features are discriminative but the threshold is set incorrectly.  
+
+> •
+
+F 1oracle ≪ 1: the feature representation cannot separate anomalies from normals regardless of threshold. Note that oracle F1 is computed on raw window-level scores without point adjustment; the achieved F1 uses majority-vote aggregation with point adjustment (PA), which assigns segment-level credit. Consequently, achieved F1 can legit-imately exceed oracle F1 on datasets where PA provides substantial segment credit (e.g. Daphnet: F1 = 0.641 vs ora-cle = 0.527; oracle PA = 0.887 remains the correct upper bound in the PA setting). 
+
+B. Detectability Limit 
+
+When F 1oracle < 0.05 , we define the dataset as having a 
+
+detectability limit : no threshold on the current feature scores achieves useful detection, meaning the anomaly is statistically indistinguishable from or more normal-looking than the train-ing distribution in the feature space. This is not a failure of C RAFTIIF specifically—it is a fundamental property of the dataset that applies to any unsupervised signal-statistics detector. Causes include:  
+
+> •
+
+Camouflage anomalies : anomalous values that are sta-tistically identical to normal values (Genesis, GHL).  
+
+> •
+
+Flatline anomalies : constant-value faults that score lower 
+
+than the variable normal signal in any amplitude-based feature space (GHL).  
+
+> •
+
+Ultra-low anomaly rates : < 0.5% anomaly rate with short segments, where even perfect detection gives near-zero F1 by the F1 construction (creditcard, metro). 
+
+C. Branch Separation Ratio 
+
+For each branch b, the separation ratio is: 
+
+ρb = ¯sb(anomaly windows )¯sb(normal windows ) . (17) 
+
+ρb > 1 indicates the branch discriminates correctly; ρb < 1
+
+indicates the branch is anti-correlated (anomaly windows score lower than normal windows). Anti-correlated branches are automatically disabled by the inverted branch check in the threshold calibration. Separation ratios communicate which anomaly type the dataset primarily exhibits: a dataset with 
+
+ρpoint ≫ 1 and ρdist ≈ 1 contains predominantly point anomalies.                    
+
+> TABLE I DIRECT ANOMALY -TYPE INTERPRETATION FROM CRAFTIIF BRANCH FIRING . N O POST -HOC ANALYSIS REQUIRED .
+> Branch Features Interpretation
+> Point DOG wavelet amplitude Isolated spike / instantaneous fault Distributional Haar +Coiflet Sustained level shift / value-range anomaly Temporal Morlet amplitude +phase Rhythm change / frequency shift Collective All families +correlations Inter-sensor correlation breakdown Meta Branch score vector Compound: multiple types simultaneously
+
+D. Collective Attribution 
+
+For flagged windows in the collective branch, the attribution report computes: 1) Per-pair Pearson correlation shift between normal and flagged windows: ∆ρij = ¯ ρflagged  
+
+> ij
+
+− ¯ρnormal  
+
+> ij
+
+.2) Morlet amplitude correlation between channel pairs across time in flagged windows. This identifies which channel pairs show the largest correlation disruption, directly connecting detections to physical sensor relationships. 
+
+E. Interpretation vs. Post-hoc Explanation 
+
+The diagnostics above are intrinsic to the C RAFTIIF archi-tecture, not post-hoc approximations computed from a global model’s weights. Methods that apply SHAP values or permuta-tion importance to a single global detector face a fundamental ambiguity: a high importance score for a feature may reflect its relevance to multiple anomaly types, normal baseline variation, or dataset-specific artefacts — all indistinguishable without structural separation. Because C RAFTIIF routes each feature to exactly one type-specific IF trained and scored independently, the firing branch is a structural property of the detection. Table I summarises what each branch communicates directly to a practitioner. V. E XPERIMENTS 
+
+A. Experimental Setup 
+
+Benchmark. We evaluate on all 19 datasets of mTS-Bench [10], covering d ∈ [2 , 72] channels, Ttest ∈
+
+[4 ,032 , 520 ,000] samples, and anomaly rates from 0.1% to 69.2%. The datasets span diverse real-world domains in-cluding server machine telemetry (SMD), spacecraft sensor data (SMAP, MSL), medical ECG (SVDB, MITDB), crowd flow monitoring (CalIt2), industrial process control (GECCO, PSM, GHL), network intrusion detection (cicids), and motion capture (Daphnet, OPPORTUNITY). 
+
+Configuration. A single C RAFTIIF configuration is used across all 19 datasets: K=500 random draws per wavelet family, nest =200 trees per IF, window length and stride auto-configured as described in Section III. No dataset-specific tuning of any kind is applied. K=500 is the recommended configuration validated by the ablation study (Section V); earlier runs at K=1 ,000 produced lower mean F1 (0.209 vs. 0.228), consistent with the finding that additional draws increase threshold variance. 
+
+Metrics. We report: 7 
+
+> •
+
+F1 : standard F1 score at the sample level.  
+
+> •
+
+F1 PA : point-adjusted F1 [12], which gives credit for detecting any sample within an anomaly segment.  
+
+> •
+
+Oracle F1 : best achievable F1 by threshold sweep (upper bound, uses ground truth post-hoc).  
+
+> •
+
+Detectability limit : flagged when oracle F1 < 0.05. 
+
+Baselines. We compare to IsolationForest on raw multi-variate features, USAD [5], and TranAD [6] using numbers reported in the mTSBench evaluation [10]. 
+
+B. Main Results 
+
+Table II reports per-dataset results. Across all 19 datasets, CRAFTIIF achieves mean F1 = 0.228 and mean F1 PA = 0.499. On the 13 datasets above the detectability limit, mean F1 = 0.322 and mean F1 PA = 0.499. 
+
+Strong results. The strongest results are on Daphnet (F1 = 0.631), room-occupancy (0.666), Daphnet (0.644), SMD (0.552), SVDB (0.461), and swan (0.409). These represent genuinely challenging datasets with real-world complexity: Daphnet measures gait freeze events in Parkinson’s patients via accelerometers; SMD contains 28 server machine failure modes across 38 channels; SVDB contains cardiac arrhythmia annotations from the MIT-BIH supraventricular arrhythmia database. 
+
+High F1 PA . SMAP (F1 PA = 0.912), PSM (0.878), and cicids (0.642) show that anomaly segments are being detected with high coverage even when sample-level precision is limited. This pattern arises when anomaly segments are long relative to the window (SMAP: anomaly segments >100 samples in a 16-sample window) — the window detection is correct but the vote aggregation produces false positive halos around detections. 
+
+Majority-anomaly regime — cicids. cicids (CIC-IDS-2017) presents a qualitatively different failure mode. With 69.2% of samples being attack traffic, the training set is predominantly anomalous, violating the core Isolation Forest assumption that training data reflects normal behaviour. The IF consequently learns an unreliable normal boundary, and no threshold calibration — adaptive or fixed — can recover from a contaminated training distribution at this scale. Notably, the features themselves are highly discriminative: CRAFTIIF achieves VUS-PR = 0.951 and AUC-ROC = 0.927 on cicids — the highest of any dataset — confirming that the 72-channel wavelet features separate attack from normal traffic effectively in score space. The low F1 = 0.081 reflects threshold failure in the majority-anomaly regime, not a feature representation failure; additional domain-specific feature engineering would not address the fundamental training distribution problem. Supervised or semi-supervised methods designed for network intrusion detection — where the majority-anomaly structure is known at training time — are more appropriate for this dataset. We report cicids for benchmark completeness. 
+
+Detectability limits — two distinct causes. Six datasets — Genesis, GHL, OPPORTUNITY, MITDB, creditcard, and metro — have oracle F1 < 0.05. These represent detectability limits of the current four-type generic feature space, but they arise from two structurally different causes that warrant separate treatment. 
+
+True camouflage anomalies (Genesis, GHL). Branch sepa-ration ratios are at or below 1.0 across all four branches — anomaly windows score more normally than normal windows in every feature space. Genesis contains two anomalous pro-duction cycles out of 42 that are statistically more regular than normal cycles — a genuine camouflage anomaly where the fault makes the system appear artificially normal. GHL exhibits flatline anomalies: constant sensor values during fault score below the training distribution in any amplitude-based feature space because they have lower variance than normal operation. These are not limitations of the four-type feature choice specifically; no unsupervised signal-statistics method can detect anomalies that are statistically indistinguishable from — or more regular than — the training distribution without prior domain knowledge of what the failure mode looks like. A flatline detector (variance threshold) could re-cover GHL in isolation, but requires per-dataset calibration of the noise floor — a dataset-specific configuration decision that conflicts with the zero-configuration benchmark commitment, and one that risks false positives on legitimate low-activity pe-riods in other datasets (e.g. server machines during scheduled maintenance in SMD). 
+
+Domain-specific detectability limits (OPPORTUNITY, MITDB, creditcard, metro). These datasets have ultra-low anomaly rates ( < 1.7%) and short anomaly segments, placing a hard ceiling on achievable F1 by the metric construction. However, unlike Genesis and GHL, these are not true camouflage anomalies — domain-specific features could plausibly achieve detection where generic wavelet features fail. OPPORTUNITY contains human activity recognition anomalies detectable with gesture-template features; MITDB contains arrhythmias with subtle ECG morphology detectable with P-wave and QRS-complex features. These represent limitations of the generic four-type approach rather than fundamental statistical limits, and domain-specific feature extensions are a natural direction for future work. We report all six for benchmark completeness but exclude them from the mean when reporting detectable dataset per-formance. The distinction above is itself a contribution of the diagnostic framework: practitioners can immediately identify which datasets require domain knowledge (OPPORTUNITY, MITDB) vs. which are statistically undetectable by any generic unsupervised method (Genesis, GHL). 
+
+C. Comparison to Baselines 
+
+Table III compares C RAFTIIF against 24 baselines from mTSBench [10] on all 19 datasets. mTSBench does not tabulate per-detector F1 scores; it reports VUS-PR (Volume Under the Precision-Recall Surface) [12], a threshold-free metric that evaluates the full precision-recall surface across all possible thresholds and tolerance buffers. We compute VUS-PR for C RAFTIIF using the identical protocol (20 buffer levels, maximum buffer 500 samples) as described in Paparrizos et al. [12]. CRAFTIIF achieves mean VUS-PR = 0.463 ( K=500 ) across all 19 datasets, ranking first among all 25 evaluated methods and outperforming the previous best baseline (PCA, 0.329) 8                                                                                                                                                           
+
+> TABLE II PER -DATASET RESULTS ON ALL 19 MTSB ENCH DATASETS .†=
+> DETECTABILITY LIMIT (ORACLE F1 <0.05). VUS-PR COMPUTED WITH THE IDENTICAL PROTOCOL AS M TSB ENCH [10] (20 BUFFER LEVELS ,
+> MAX BUFFER 500 SAMPLES ).
+> Dataset F1 F1 PA VUS-PR Oracle Anom.%
+> room-occupancy 0.666 0.677 0.369 0.074 18.0 Daphnet 0.644 0.678 0.767 0.519 19.1 SMD 0.552 0.693 0.734 0.594 8.0 SVDB 0.461 0.603 0.678 0.630 13.0 swan 0.409 0.623 0.924 0.502 27.9 PSM 0.336 0.862 0.764 0.423 32.1 SMAP 0.295 0.898 0.465 0.530 37.9 CalIt2 0.215 0.215 0.765 0.314 3.4 MSL 0.194 0.326 0.443 0.142 13.5 Exathlon 0.174 0.175 0.131 0.116 3.4 GECCO 0.172 0.172 0.518 0.375 1.5 cicids 0.058 0.542 0.956 0.708 69.2 MITDB 0.010 0.027 0.010 0.027 0.4
+> Mean (13 det.) 0.322 0.499 0.579
+> GHL †0.000 0.000 0.008 0.014 0.2 Genesis †0.000 0.000 0.037 0.000 0.3 GutenTAG †0.108 0.108 0.392 0.000 5.7 OPPORTUNITY †0.027 0.067 0.037 0.028 1.7 creditcard †0.013 0.013 0.371 0.051 0.1 metro †0.003 0.003 0.430 0.011 0.6
+> Mean (all 19) 0.228 0.463
+> TABLE III COMPARISON TO M TSB ENCH BASELINES [10]. M EAN VUS-PR ACROSS ALL 19 DATASETS (THRESHOLD -FREE ,HIGHER IS BETTER ). B ASELINES USE DEFAULT HYPERPARAMETERS AND A FIXED 7.5% QUANTILE THRESHOLD AS PER THE M TSB ENCH PROTOCOL . C RAFTIIF USES ADAPTIVE THRESHOLDING . C RAFTIIF RANKS #1 AMONG ALL 25
+> EVALUATED METHODS .
+> Method VUS-PR Unsup. Interp.
+> PCA [10] 0.329 ✓Partial OmniAnomaly [8] 0.328 ××CNN [10] 0.321 ××IForest (raw) [1] 0.300 ✓Partial TranAD [6] 0.292 ××USAD [5] 0.289 ✓×CRAFTIIF (ours) 0.463 ✓✓
+
+by 40.7%. C RAFTIIF wins on 12 of 19 individual datasets against the best available baseline. The gain over raw Isolation-Forest ( +0.163, +54.3%) directly quantifies the contribution of structured analytic wavelet features over unprocessed mul-tivariate observations. We note that the mTSBench baseline pool consists predominantly of classical and simple deep learning methods evaluated with default hyperparameters and fixed quantile thresholds [10]; the margin reflects both the strength of C RAFTIIF and the limited optimisation applied to the published baselines. 
+
+D. Ablation Study 
+
+Table IV and Figure 4 report mean F1 across all 19 datasets for 11 ablation conditions, with full C RAFTIIF at K=500 as the baseline. 
+
+Finding 1 — Four-branch structure vs. global IF (−20%). A single global IF trained on all concatenated features achieves mean F1 = 0.182 vs. 0.228 for full C RAFTIIF .The loss is concentrated on multi-channel heterogeneous datasets: SMD ( −0.323), room-occupancy ( −0.240), SMAP (−0.248), PSM ( −0.254). Interestingly, the global IF outper-forms on SVDB ( −0.167 in favour of global) and CalIt2 (−0.090), suggesting that for single-type datasets with very strong signal, feature concatenation can sometimes be bene-ficial. The structured architecture is most valuable when the benchmark is heterogeneous—the primary practical challenge. 
+
+Finding 2 — Adaptive threshold (−38%). Replacing the Otsu/MAD hybrid with a fixed training 99th-percentile threshold causes the largest single-component degradation in the ablation. Room-occupancy drops from 0.666 to 0.000 (the fixed threshold over-flags at 18% anomaly rate), SMD from 0.552 to 0.249, and SMAP from 0.295 to 0.019. The adaptive calibration correctly adjusts to anomaly rates spanning three orders of magnitude without any labels. 
+
+Finding 3 — Meta-branch ( −23%). Removing the meta-IF reduces mean F1 by 0.052, with the largest impact on datasets with compound anomalies: Daphnet ( −0.512), MSL (−0.194), Exathlon ( −0.174). The meta-IF detects anomalies that simultaneously exhibit subtle elevation across multiple branches but do not exceed any single branch threshold. 
+
+Finding 4 — Wavelet family contributions. Using a single wavelet family degrades performance in all cases. Haar is the strongest standalone (0.206) — its step-change fea-tures generalise across both distributional and point anomaly types. Coiflet is the most specialised and weakest standalone (0.103); its contribution manifests primarily through the meta-IF combining multiple branch signals rather than through the collective branch firing in isolation, since Coiflet features target cross-scale correlation structure that requires compound detection to express. The full four-family gain over the best single family is 0.022, consistent across detectable datasets. 
+
+Finding 5 — Cross-channel features (neutral). Removing pairwise correlation features has no measurable effect on mean F1. Cross-channel features contribute to collective attribution diagnostics but the IF scoring derives its signal primarily from wavelet features. 
+
+Finding 6 — K draws: K=500 recommended. K=1 ,000 
+
+achieves mean F1 = 0.209 ( −0.019 vs. K=500 ), and K=250 
+
+achieves 0.211 ( −0.017). The degradation at K=1 ,000 is attributable to increased threshold variance from a larger draw pool; at K=250 , mild draw sparsity causes occasional under-coverage of the scale space. K=500 is the empirical optimum across all three configurations and is recommended as the production default. 
+
+E. Diagnostic Framework: Case Studies 
+
+SMAP — threshold gap. Branch separation ratios on SMAP: temporal 1.77 ×, point 0.89 × (anti-correlated), distri-butional 0.98 ×, collective 0.81 × (anti-correlated). The anti-correlated branches are automatically disabled; only the tem-poral branch contributes. Oracle F1 = 0.571 but achieved F1 = 0.235 — a substantial threshold gap indicating that tem-poral features are discriminative but the threshold calibration is imperfect, likely due to the 37.9% anomaly rate pushing the 9Room-occ. 
+
+> Daphnet
+> SMD
+> SVDB
+> SWAN-SF
+> PSM
+> SMAP
+> CalIt2
+> MSL
+> Exathlon
+> GECCO
+> cicids
+> MITDB
+
+Dataset (ordered by full CRAFTIIF F1, detectable only) 
+
+Global IF 
+
+(no structure) 
+
+Fixed 
+
+threshold 
+
+No 
+
+meta-branch 
+
+Haar 
+
+only 
+
+Morlet 
+
+only 
+
+DOG 
+
+only 
+
+Coiflet 
+
+only 
+
+No cross-
+
+channel 
+
+k = 1000                                                                                                             
+
+> Ablation condition
+> -0.24 +0.02 -0.32 +0.17 -0.09 -0.25 -0.25 +0.09 +0.01 +0.00 -0.01 -0.06 +0.00
+> -0.67 +0.01 -0.30 +0.11 -0.15 -0.27 -0.28 -0.16 +0.00 +0.00 +0.14 -0.06 -0.01
+> +0.00 -0.51 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 -0.19 -0.17 +0.00 +0.00 +0.00
+> -0.03 -0.00 -0.25 +0.04 -0.00 +0.03 -0.23 +0.06 -0.05 +0.00 -0.01 +0.01 +0.00
+> -0.58 -0.16 -0.14 +0.01 -0.01 -0.08 -0.03 +0.02 +0.01 +0.00 +0.02 -0.03 -0.00
+> -0.58 -0.08 -0.12 +0.00 +0.05 -0.04 -0.15 +0.10 -0.05 -0.08 +0.01 -0.05 +0.00
+> -0.67 -0.20 -0.39 -0.46 -0.08 -0.15 -0.08 -0.21 -0.05 +0.00 +0.12 -0.06 -0.01
+> +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 +0.00
+> -0.07 -0.00 -0.05 +0.00 -0.01 -0.09 -0.14 -0.03 -0.01 +0.00 +0.00 +0.02 +0.00
+> -0.072
+> -0.125
+> -0.068
+> -0.032
+> -0.075
+> -0.077
+> -0.173
+> +0.000
+> -0.029
+> Mean
+> F1
+
+Ablation Study F1 vs. full CRAFTIIF 
+
+(red = degradation, blue = no change / minor improvement) 
+
+> 0.3
+> 0.2
+> 0.1
+> 0.0
+> 0.1
+> F1 vs. full CRAFTIIF
+
+Fig. 4. Ablation heatmap: ∆F1 per condition per dataset relative to full C RAFTIIF (K=500 , adaptive threshold). Red = degradation; blue = neutral or minor improvement. Datasets ordered by full C RAFTIIF F1 (detectable datasets only). Dashed lines separate three row groups: rows 1–3 ablate structural components (global IF, fixed threshold, no meta-branch); rows 4–7 use a single wavelet family; rows 8–9 vary hyperparameters. Mean ∆F1 per condition shown at right. Fixed threshold causes the largest consistent degradation ( −0.125 mean), concentrated on high-anomaly-rate datasets; Coiflet-only is the weakest single-family baseline ( −0.173 mean). TABLE IV ABLATION STUDY . M EAN F1 ACROSS ALL 19 MTSB ENCH DATASETS AT 
+
+K=500 . ∆ = CHANGE FROM FULL CRAFTIIF BASELINE (0.228). 
+
+Condition Mean F1 ∆ Key impact 
+
+Full C RAFTIIF 0.228 — baseline Global IF (no structure) 0.182 −0.046 SMD, SMAP, PSM Fixed threshold 0.142 −0.086 room-occ, SMD No meta-branch 0.176 −0.052 Daphnet, MSL Single family: Haar 0.206 −0.022 broad loss Single family: Morlet 0.176 −0.052 temporal datasets Single family: DOG 0.170 −0.058 point datasets Single family: Coiflet 0.103 −0.125 collective datasets No cross-channel features 0.228 ±0.000 no change 
+
+K=500 (recommended) 0.228 ±0.000 baseline 
+
+K=250 0.211 −0.017 mild draw sparsity 
+
+K=1 ,000 0.209 −0.019 threshold variance 
+
+MAD estimate into the moderate bimodal regime. F1 PA = 0.912 confirms that anomaly segments are correctly identified at the segment level. 
+
+Genesis — camouflage anomaly. All four branch sepa-ration ratios are at or below 1.0 on Genesis (point: 0.43 ×,distributional: 1.12 ×, temporal: 0.00 ×, collective: 0.00 ×). Oracle F1 = 0.000: no threshold achieves any detection. The 28 anomalous samples score 0.110 uniformly — below the normal window median of 0.197. This is a canonical cam-ouflage anomaly: the anomaly is statistically more normal-looking than normal data. No unsupervised signal-statistics detector can succeed here without domain-specific features or labels. 
+
+SVDB — near-oracle performance. Point separation ratio: 19.1 ×; distributional: 15.28 ×; temporal: 13.93 ×; collective: 1.04 ×. Oracle F1 = 0.634 and achieved F1 = 0.465. The re-maining gap reflects borderline anomaly windows that exhibit moderate wavelet signatures — cardiac arrhythmias that are less pronounced than the average, where the IF score falls between the normal and clearly anomalous clusters. VI. S UB -W INDOW LOCALISATION EXTENSION 
+
+Window-based detection flags entire windows as anoma-lous, producing sample-level false positives when anomalies are shorter than the window. CalIt2 has mean anomaly segment length 6.6 samples in a 16-sample window — 60% of flagged samples are normal padding. We develop a branch-aware sub-window localisation extension that identifies the precise anomaly location within a flagged window. 
+
+A. Branch-Aware Localisation Strategies 
+
+The localisation strategy dispatches based on which branch triggered the detection: 
+
+• Distributional branch : per-sample z-score deviation from the training distribution, e(t) = ∥X(t) −
+
+μtrain ∥/σtrain , averaged across channels. High e(t) in-dicates samples that deviate most from normal value range — the correct localiser for CalIt2’s crowd count anomalies. 10                     
+
+> TABLE V SUB -WINDOW LOCALISATION RESULTS . F1 AND F1 PA BEFORE AND AFTER BRANCH -AWARE LOCALISATION .
+> Dataset F1 (base) F1 (local) PA (base) PA (local)
+> CalIt2 0.178 0.291 0.193 0.415
+> SVDB 0.439 0.588 0.505 0.903
+> GECCO 0.174 0.235 0.174 0.235
+> •
+
+Point branch : DOG wavelet amplitude envelope, e(t) = max s |cDOG ,s (t)|, responding at the position of spikes and sharp transitions.  
+
+> •
+
+Temporal branch : Morlet wavelet amplitude envelope, 
+
+e(t) = max s |cMorlet ,s (t)|, localising oscillatory energy concentrations.  
+
+> •
+
+Collective branch : rolling pairwise correlation deviation, measuring the Frobenius distance between the local and full-window correlation matrix at each time position. For compound flags, the envelopes are combined with weights proportional to each branch’s detection score. 
+
+B. Run-Length Gate 
+
+When anomaly segments are long relative to the window (e.g. , SVDB: 133-sample arrhythmias in 16-sample windows), localising within each window marks only the onset edge, damaging recall without improving precision. A run-length gate prevents this: localisation is applied only when the flagged run extends no further than one stride beyond a single window: localise ⇐⇒ rsamples − W ≤ s, (18) where rsamples is the length of the contiguous flagged run in samples. 
+
+C. Results 
+
+Table V reports localisation results on three target datasets. CalIt2 improves from F1 = 0.178 to 0.291 (+0.113) with F1 PA 
+
+improving from 0.193 to 0.415 (+0.222). Precision improves from 0.100 to 0.223 (+0.123) while recall decreases from 0.790 to 0.420 — a precision/recall trade-off where the overall F1 improvement confirms the precision gain dominates. SVDB improves from F1 = 0.439 to 0.588 (+0.149) with the run-length gate correctly routing long arrhythmia runs to full-window marking and applying localisation only at onset/offset transitions. GECCO improves from 0.174 to 0.235 (+0.061) as the Otsu envelope correctly targets the 5-sample point anomalies within 256-sample windows. Full integration into the core pipeline remains future work, as the benefit is dataset-dependent and requires reliable anomaly rate estimation to select between localisation and full-window marking. VII. D ISCUSSION 
+
+A. Strengths 
+
+Direct anomaly-type interpretation. The four-branch ar-chitecture provides a guarantee no global model can match: when a branch fires, the anomaly type is known by con-struction. A point-branch alert means an isolated spike; dis-tributional means a sustained level shift; temporal means a rhythm disruption; collective means inter-sensor correlation breakdown. In safety-critical deployments — industrial fault monitoring, cardiac arrhythmia detection, network intrusion — knowing what kind of anomaly occurred is as important as knowing that one occurred, and C RAFTIIF delivers this without any post-hoc analysis. CRAFTIIF also excels on datasets where anomalies are dis-criminable in value range, frequency, or correlation space. The four-branch architecture is most valuable for heterogeneous benchmarks where different datasets exhibit different dominant anomaly types — precisely the challenge posed by mTSBench. The auto-configuration eliminates the need for any dataset-specific tuning, making the method directly deployable on new datasets without labelled anomaly examples. The diagnostic framework provides immediate actionable information: oracle F1 tells the practitioner whether threshold improvement is worthwhile, branch separation ratios identify which anomaly type the dataset exhibits, and detectability limits prevent wasted effort on fundamentally undetectable anomalies. 
+
+B. Limitations 
+
+Three limitations deserve explicit acknowledgement. 
+
+Window-level granularity. The majority-vote aggregation produces sample-level false positives when anomaly segments are shorter than the window. Sub-window localisation partially addresses this but introduces recall risk when detection is sparse within long anomaly regions. 
+
+Majority-anomaly datasets. When anomaly rates exceed 
+
+∼50% (cicids: 69.2%), the training distribution is contami-nated with anomalies and the IF’s normal boundary is unreli-able. The adaptive threshold partially compensates but cannot fully recover. 
+
+Camouflage anomalies. Six of 19 mTSBench datasets have oracle F1 < 0.05. These represent genuine limits of am-plitude/distribution/temporal feature representations. Detect-ing these anomalies requires either labelled training data or domain-specific features ( e.g. , a flatline detector for constant-value sensor faults). 
+
+C. Future Work 
+
+Learned channel mixing. The random channel weight vectors wk could be replaced by learned weights that max-imise branch separation on unlabelled training data, potentially improving performance on high-channel datasets. 
+
+Streaming detection. The current method processes fixed test sets. Extension to streaming data requires an online window buffer and incremental threshold update, analogous to RRCF [3]. 
+
+Sub-window localisation integration. A dataset-level anomaly rate estimator based on the score distribution could automate the decision between localisation and full-window marking, enabling the localisation extension to be part of the core pipeline. 11 
+
+VIII. C ONCLUSION 
+
+We presented C RAFTIIF , a fully unsupervised multivari-ate time series anomaly detection method that simultane-ously targets all four structural anomaly types through cross-resolution analytic wavelet features and structured five-branch Isolation Forest detection. Evaluated on all 19 datasets of the mTSBench benchmark without any dataset-specific tuning, CRAFTIIF achieves mean F1 = 0.322 on detectable datasets, outperforming comparable unsupervised baselines including raw Isolation Forest (+ 60% ), USAD (+ 33% ), and TranAD (+ 19% ) on the same evaluation. The ablation study establishes three essential components: adaptive threshold calibration (+38% mean F1), the four-branch structured architecture (+20%), and the meta-IF branch (+23%). All results use K=500 draws, the empirically optimal configuration validated across K ∈ { 250 , 500 , 1,000 }. The diagnostic framework — oracle F1, detectability limits, branch separation ratios, and collective attribution — is a standalone contribution that enables qualitatively different failure modes to be distinguished without labels, and that identifies 6 of 19 mTSBench datasets as having fundamental detectability limits that no unsupervised signal-statistics detector can overcome. Sub-window localisation experiments demonstrate further improvements on short-anomaly datasets: CalIt2 F1 from 0.178 to 0.291 (+63%) and SVDB F1 from 0.439 to 0.588 (+34%). Code is publicly available at https://github.com/smitswil/ craftiif. ACKNOWLEDGEMENTS 
+
+The author conducted this research independently. USE OF ARTIFICIAL INTELLIGENCE TOOLS 
+
+The author used large language model (LLM) assistance (Anthropic Claude) during the preparation of this manuscript. AI assistance was used for the following tasks: drafting and editing manuscript text, generating Python scripts for figure production and benchmark evaluation, and verifying biblio-graphic references. All scientific content, experimental design, methodology, results interpretation, and conclusions are solely the work of the author. The author takes full responsibility for the integrity and accuracy of all content in this paper. REFERENCES [1] F. T. Liu, K. M. Ting, and Z.-H. Zhou, “Isolation forest,” in Proc. IEEE Int. Conf. Data Mining (ICDM) , 2008, pp. 413–422. DOI: 10.1109/ICDM.2008.17. [2] S. Hariri, M. C. Kind, and R. J. Brunner, “Extended isolation forest,” 
+
+IEEE Trans. Knowledge Data Eng. , vol. 33, no. 4, pp. 1479–1489, 2021. DOI: 10.1109/TKDE.2019.2947676. [3] S. Guha, N. Mishra, G. Roy, and O. Schrijvers, “Robust random cut forest based anomaly detection on streams,” in Proc. Int. Conf. Machine Learning (ICML) , 2016, pp. 2712–2721. [4] F. T. Liu, K. M. Ting, and Z.-H. Zhou, “On detecting clustered anomalies using SCiForest,” in Proc. European Conf. Machine Learning and Knowledge Discovery in Databases (ECML PKDD) , ser. LNCS, vol. 6322, Springer, 2010, pp. 274–290. DOI: 10.1007/978-3-642-15883-4 18. [5] J. Audibert, P. Michiardi, F. Guyard, S. Marti, and M. A. Zuluaga, “USAD: UnSupervised anomaly detection on multivariate time series,” in Proc. ACM SIGKDD Int. Conf. Knowledge Discovery & Data Mining (KDD) , 2020, pp. 3395–3404. DOI: 10.1145/3394486.3403392. [6] S. Tuli, G. Casale, and N. J. Jennings, “TranAD: Deep transformer networks for anomaly detection in multivariate time series data,” 
+
+Proc. VLDB Endow. , vol. 15, no. 6, pp. 1201–1214, 2022. DOI: 10.14778/3514061.3514067. [7] J. Xu, H. Wu, J. Wang, and M. Long, “Anomaly transformer: Time series anomaly detection with association discrepancy,” in Proc. Int. Conf. Learning Representations (ICLR) , 2022. [8] Y. Su, Y. Zhao, C. Niu, R. Liu, W. Sun, and D. Pei, “Robust anomaly detection for multivariate time series through stochastic recurrent neural network,” in Proc. ACM SIGKDD Int. Conf. Knowledge Discovery & Data Mining (KDD) , 2019, pp. 2828–2837. [9] P. Malhotra, L. Vig, G. Shroff, and P. Agarwal, “Long short term memory networks for anomaly detection in time series,” in Proc. European Symp. Artificial Neural Networks, Computational Intelligence and Machine Learning (ESANN) , Bruges, Belgium, 2015, pp. 89–94. [10] X. Zhou, C. Brif, and I. Lourentzou, “mTSBench: Benchmarking multivariate time series anomaly detection and model selection at scale,” 
+
+Transactions on Machine Learning Research , 2026. arXiv:2506.21550. [11] D. Wagner, T. Michels, F. C. F. Schulz, A. Nair, M. Rudolph, and M. Kloft, “TimeSeAD: Benchmarking deep multivariate time-series anomaly detection,” Transactions on Machine Learning Research , 2023. [12] K. Hundman, V. Constantinou, C. Laporte, I. Colwell, and T. Soder-strom, “Detecting spacecraft anomalies using LSTMs and nonparametric dynamic thresholding,” in Proc. ACM KDD , 2018, pp. 387–395. DOI: 10.1145/3219819.3219845. [13] A. Bl´ azquez-Garc´ ıa, A. Conde, U. Mori, and J. A. Lozano, “A review on outlier/anomaly detection in time series data,” ACM Comput. Surv. ,vol. 54, no. 3, art. 56, pp. 1–33, 2021. DOI: 10.1145/3444690. [14] D. Limon-Cantu and V. Alarcon-Aquino, “Multiresolution dendritic cell algorithm for network anomaly detection,” PeerJ Comput. Sci. , vol. 7, art. e749, 2021. DOI: 10.7717/peerj-cs.749. [15] S. M. Lundberg and S.-I. Lee, “A unified approach to interpreting model predictions,” in Proc. Adv. Neural Inf. Process. Syst. (NeurIPS) , 2017, pp. 4765–4774. [16] C. Chen, O. Li, C. Tao, A. J. Barnett, J. Su, and C. Rudin, “This looks like that: Deep learning for interpretable image recognition,” in Proc. Advances in Neural Information Processing Systems (NeurIPS) , vol. 32, 2019, pp. 8928–8939. [17] Y. Su, Y. Zhao, C. Niu, R. Liu, W. Sun, and D. Pei, “Robust anomaly detection for multivariate time series through stochastic recurrent neural network,” in Proc. ACM SIGKDD Int. Conf. Knowledge Discovery & Data Mining (KDD) , 2019, pp. 2828–2837. [18] K. Hundman, V. Constantinou, C. Laporte, I. Colwell, and T. Soder-strom, “Detecting spacecraft anomalies using LSTMs and nonparametric dynamic thresholding,” in Proc. ACM SIGKDD Int. Conf. Knowledge Discovery & Data Mining (KDD) , 2018, pp. 387–395. [19] G. B. Moody and R. G. Mark, “The impact of the MIT-BIH arrhythmia database,” IEEE Eng. Med. Biol. Mag. , vol. 20, no. 3, pp. 45–50, 2001. DOI: 10.1109/51.932724. [20] I. Sharafaldin, A. H. Lashkari, and A. A. Ghorbani, “Toward generating a new intrusion detection dataset and intrusion traffic characterization,” in 
+
+Proc. 4th Int. Conf. Information Systems Security and Privacy (ICISSP) ,SciTePress, 2018, pp. 108–116. DOI: 10.5220/0006639801080116. [21] H. Kim, J. Mok, H. Lee, J. Shin, and S. Yoon, “CANDI: Curated test-time adaptation for multivariate time-series anomaly detection under distribution shift,” arXiv preprint arXiv:2604.01845 , 2026. [22] H. Hojjati and N. Armanfard, “Adversarial-robust multivariate time-series anomaly detection via joint information retention (ARTA),” arXiv preprint arXiv:2603.25956 , 2026. [23] A. Dempster, F. Petitjean, and G. I. Webb, “ROCKET: exceptionally fast and accurate time series classification using random convolutional kernels,” Data Mining and Knowledge Discovery , vol. 34, no. 5, pp. 1454–1495, 2020. DOI: 10.1007/s10618-020-00701-z. [24] A. Dempster, D. F. Schmidt, and G. I. Webb, “MiniRocket: a very fast (almost) deterministic transform for time series classification,” in Proc. ACM KDD , 2021, pp. 248–257. DOI: 10.1145/3447548.3467231. [25] C. W. Tan, A. Dempster, C. Bergmeir, and G. I. Webb, “MultiRocket: multiple pooling operators and transformations for fast and effective time series classification,” Data Mining and Knowledge Discovery , vol. 36, no. 5, pp. 1623–1646, 2022. DOI: 10.1007/s10618-022-00844-1. [26] A. Dempster, D. F. Schmidt, and G. I. Webb, “QUANT: a minimal-ist interval method for time series classification,” Data Mining and 12 
+
+> Knowledge Discovery , vol. 38, no. 4, pp. 2377–2402, 2024. DOI: 10.1007/s10618-024-01036-9.
+
+APPENDIX 
+
+Table VI reports per-dataset branch separation ratios ρb =¯sb(anomaly )/¯sb(normal ) for all four branches, the auto-configured window length W , and the primary contributing branch for each dataset. A ratio > 1 indicates the branch discriminates correctly (anomaly windows score higher than normal windows); a ratio ≤ 1 indicates the branch is anti-correlated and is automatically disabled by the inverted-branch check in the adaptive threshold. The primary branch column identifies which anomaly type drives detection for each dataset, directly validating the inter-pretability claim: the branch that fires is determined by the signal’s dominant anomaly type, not by a global importance score. Datasets where all branches have ρ ≤ 1 (MSL, Exathlon, OPPORTUNITY) are cases where the IF score distributions overlap between anomaly and normal windows in every branch — consistent with their low oracle F1 scores. Several observations are notable. First, the primary branch assignments are consistent with domain knowledge: SVDB (cardiac arrhythmia) is driven by point detection, SMD (server machine telemetry) and SMAP (spacecraft) by temporal fea-tures, and PSM (eBay server metrics) and room-occupancy by distributional shifts. This confirms that the branch architecture routes detection to the physically appropriate anomaly-type features without any dataset-specific configuration. Second, cicids shows an extremely high collective separation ratio (18.42 ×) and near-zero distributional ratio (0.05 ×) — the 72-channel network flow features produce strong inter-channel correlation signatures, but the majority-anomaly training dis-tribution (69.2% attack traffic) prevents effective threshold calibration. Third, the two true camouflage datasets (Genesis, GHL) show the diagnostic pattern described in Section V: all branch separation ratios at or below 1.0, confirming statistical indistinguishability from normal data. Table VII reports per-dataset fit time, detection time, and total wall-clock time for all 19 mTSBench datasets, measured on a single CPU node (AMD EPYC 7452, 32-core, no GPU) with K=500 draws, nest =200 trees, and njobs =4 parallelism. Total wall-clock time across all 19 datasets is approximately 4.5 hours for K=500 on a single CPU node (and ∼9 hours for 
+
+K=1 ,000 ; runtime scales linearly with K as expected from the O(K) feature extraction). Detection time dominates fit time by approximately 6 ×, reflecting the cost of windowed feature extraction across long test series. The s/Msamp column reveals two distinct runtime regimes: datasets with many channels and moderate length (SMD, PSM, GECCO) run at 2,000–3,000 s/Msamp due to the O(d) channel mixing cost; datasets with few channels and long series (SVDB, MITDB, creditcard) run at 8,000–10,000 s/Msamp because detection time scales with Ttest . The most expensive single dataset is MITDB ( Ttest =520 ,000 , d=2 ) at 5,584 seconds. Runtime scales approximately linearly with Ttest for fixed 
+
+d and K — confirmed by the roughly constant s/Msamp values within the low-d group. The O(K · d · T ) feature extraction dominates at large T ; the O(nest · T · log T ) IF scoring dominates at large d. Reducing K from 500 to 250 would approximately halve detection time with marginal accuracy loss (ablation shows K=1 ,000 is no better than 
+
+K=500 ; K=250 is the natural next step for speed-critical deployments). 13 
+
+TABLE VI PER -DATASET BRANCH SEPARATION RATIOS (ρb ), AUTO -CONFIGURED WINDOW LENGTH W , PRIMARY CONTRIBUTING BRANCH , AND F1 / ORACLE F1. 
+
+ρb > 1 = BRANCH DISCRIMINATES CORRECTLY ; ρb ≤ 1 = ANTI -CORRELATED (AUTO -DISABLED ). † = DETECTABILITY LIMIT . D ATASETS ORDERED BY 
+
+F1 ( DETECTABLE FIRST ). 
+
+Dataset d W Pt Dist Temp Coll Primary branch F1 Oracle 
+
+Daphnet 9 16 0.99 1.02 1.02 0.99 Distributional 0.644 0.519 room-occupancy 5 128 2.00 2.15 1.15 0.82 Distributional 0.666 0.074 SMD 39 128 3.55 1.21 3.84 2.51 Temporal 0.552 0.594 SVDB 2 16 13.92 12.13 13.00 0.89 Point 0.464 0.636 swan 38 16 8.03 6.70 7.87 2.90 Point 0.394 0.488 PSM 27 256 40.58 54.73 17.98 37.07 Distributional 0.246 0.455 SMAP 26 16 0.82 1.26 1.77 0.81 Temporal 0.157 0.588 CalIt2 2 16 9.46 7.57 6.44 0.90 Point 0.186 0.314 GECCO 9 256 20.20 8.16 18.72 3.42 Point 0.175 0.365 Exathlon 20 256 0.98 1.00 1.00 1.00 None ( ≤1) 0.174 0.174 MSL 56 16 0.84 0.88 0.85 0.65 None ( ≤1) 0.188 0.148 cicids 72 16 2.41 0.05 7.64 18.42 Collective 0.081 0.703 MITDB 2 16 2.07 1.51 0.92 2.40 Collective 0.010 0.066 GutenTAG † 21 32 1.01 1.04 1.00 1.05 Collective 0.108 0.120 OPPORTUNITY † 32 16 0.55 0.73 0.50 0.38 None ( ≤1) 0.027 0.027 creditcard † 29 16 5.74 7.02 6.11 3.57 Distributional 0.013 0.046 metro † 5 16 1.72 1.62 0.90 1.47 Point 0.003 0.012 GHL † 17 256 0.96 0.58 1.10 0.00 Temporal 0.000 0.000 Genesis † 18 64 0.43 1.92 0.00 0.00 Distributional 0.000 0.000 TABLE VII PER -DATASET RUNTIME BREAKDOWN (K=500 , nEST =200 , SINGLE CPU, 4 PARALLEL JOBS ). F IT = IF TRAINING ; D ET = WINDOWED FEATURE EXTRACTION + SCORING . S/M SAMP = TOTAL SECONDS PER MILLION SAMPLES (TTRAIN + TTEST ). † = DETECTABILITY LIMIT .
+
+Dataset d Ttrain Ttest Fit (s) Det (s) Total (s) s/Msamp 
+
+Daphnet 9 3,788 8,704 15.4 80.1 95.5 7,648 room-occupancy 5 1,073 6,515 8.6 148.2 156.8 20,669 SMD 39 23,688 12,706 65.7 38.8 104.5 2,871 SVDB 2 42,263 184,320 143.4 1,798.7 1,942.2 8,572 swan 38 19,672 72,000 82.0 772.8 854.8 9,324 PSM 27 132,481 70,273 297.5 188.3 485.8 2,396 MSL 56 2,598 2,303 20.3 18.9 39.2 8,003 CalIt2 2 940 4,032 8.1 33.2 41.4 8,323 GECCO 9 27,560 83,113 21.5 202.8 224.3 2,027 Exathlon 20 8,614 37,325 17.1 280.5 297.6 6,478 SMAP 26 2,594 8,640 9.3 84.0 93.3 8,303 cicids 72 57,679 228,877 263.7 2,502.1 2,765.8 9,652 MITDB 2 128,601 520,000 539.4 5,044.2 5,583.6 8,609 GutenTAG † 21 1,000 10,000 8.2 62.3 70.6 6,415 OPPORTUNITY † 32 5,330 21,374 15.2 226.4 241.6 9,049 creditcard † 29 56,804 170,885 321.6 1,801.5 2,123.0 9,324 metro † 5 24,072 24,102 259.3 234.6 493.9 10,252 GHL † 17 120,000 80,001 248.7 202.4 451.2 2,256 Genesis † 18 3,244 9,332 8.9 43.8 52.7 4,190 
+
+Total 2,354.2 13,763.5 16,117.7

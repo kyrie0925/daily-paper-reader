@@ -1,0 +1,1641 @@
+Title: Least Absolute Deviations Estimation for Sinusoidal Models
+
+URL Source: https://arxiv.org/pdf/2606.13242v1
+
+Published Time: Fri, 12 Jun 2026 00:51:43 GMT
+
+Number of Pages: 34
+
+Markdown Content:
+# Least Absolute Deviations Estimation for Sinusoidal Models 
+
+Zehaan Naik ∗
+
+Debasis Kundu †
+
+June 12, 2026 
+
+Abstract 
+
+We study robust parameter estimation in sinusoidal regression models within a least absolute deviations (LAD) framework. While classical approaches rely predominantly on least-squares formulations, they are known to be sensitive to heavy-tailed noise and outliers. We formulate the estimation problem as direct minimization of the LAD objective and propose a simple, modular coordinate descent algorithm that exploits the partial convexity of the objective: amplitude parameters are updated via weighted median computations, leading to substantial computational improvements over tradi-tional simplex-based optimization methods, while frequency parameters are estimated via a periodogram-inspired grid search with local refinement. We establish strong con-sistency and asymptotic normality of the proposed estimator under mild regularity conditions. Empirically, we demonstrate the method’s effectiveness on both synthetic datasets and real-world time series, including the Mauna Loa atmospheric CO 2 data, air passenger data, and UK drivers’ deaths data, where robustness to non-Gaussian noise is essential. The proposed approach provides a simple, interpretable, and robust alternative to least-squares-based methods for sinusoidal signal estimation. 
+
+Keywords: Least absolute deviations, coordinate descent, sinusoidal regression, robust estimation, periodogram, non-convex optimization, multi-frequency models 
+
+> ∗
+
+Department of Statistical Science, Duke University. Email: znn@duke.edu 
+
+> †
+
+Department of Mathematics and Statistics, Indian Institute of Technology Kanpur. Email: kundu@iitk.ac.in 
+
+1
+
+> arXiv:2606.13242v1 [stat.ME] 11 Jun 2026
+
+# 1 Introduction 
+
+Sinusoidal models form a fundamental building block in signal processing, time series analy-sis, and related domains, where oscillatory behavior arises naturally in applications ranging from communications and radar to climate dynamics and biomedical signals. A standard formulation considers observations of the form 
+
+yt “ A0 sin pθ0tq ` B0 cos pθ0tq ` εt, t “ 1, . . . , n, (1) where A, B P R denote amplitude parameters, θ P p 0, π q is the angular frequency, and 
+
+tεtu is a sequence of random errors. The precise regularity assumptions are introduced in Section 2; however, it is well known that assuming heavy-tailed distributions for the error terms yields a more robust model fit (Wang et al., 2024). Classical approaches to estimating the parameters of such models are predominantly based on Gaussian-noise assumptions and exploit least-squares, maximum-likelihood, or second-order statistical formulations, owing to the differentiability and tractability of the resulting objective functions and subspace methods (Stoica and Moses, 2005; Schmidt, 1986; Roy and Kailath, 1989; Hua and Sarkar, 1990; Li and Stoica, 1996; Rife and Boorstyn, 1974; Quinn, 1994; Kay, 1989). However, LS estimators are known to be highly sensitive to deviations from Gaussian noise assumptions, particularly in the presence of heavy-tailed errors or outliers, settings that frequently arise in real-world signal data (Huber, 1964). This has led to increasing interest in robust estimation techniques, especially those based on least absolute deviations (LAD), which provide improved stability under non-ideal noise conditions. Robust sinusoidal parameter estimation has been studied in several contexts (see, e.g., Kundu (2024, 2026); Ren et al. (2019); Solak et al. (2022); Ando (2020); Aboutanios and Mulgrew (2005); Tang et al. (2013); Katkovnik (1998); Li and Song (2010)), though the primary focus has remained on least-squares formulations or asymptotic analysis under specific model assumptions. Hence, in this work, we consider estimation of the parameters pA0, B 0, θ 0q via direct minimization of the LAD objective 
+
+QnpA, B, θ q “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+|yt ´ A sin pθt q ´ B cos pθt q| . (2) While this objective offers robustness advantages, it presents significant computational 2challenges: it is convex in pA, B q for fixed θ, but highly non-convex in θ, resulting in a difficult joint optimization problem. To the best of our knowledge, existing methods do not directly target this LAD formulation for sinusoidal regression, instead relying on least-squares-based periodogram methods or approximations that sacrifice robustness (Kundu, 2024; Stoica and Moses, 2005; Liang et al., 2009). We propose a simple, modular algorithm for LAD-based estimation in sinusoidal mod-els, based on an alternating minimization framework. The method exploits the partial con-vexity of the objective by iteratively updating the amplitude parameters pA, B q via exact coordinate-wise LAD updates (Naik and Kundu, 2026), and the frequency parameter θ via direct minimization of the LAD objective. The latter is performed using a periodogram-inspired grid search combined with local refinement (Liang et al., 2009), leveraging the model’s oscillatory structure to efficiently explore the non-convex parameter space. This coordinate descent approach ensures monotone descent of the objective and is straightfor-ward to implement (Tseng, 2001). We establish consistency and asymptotic normality of the proposed estimator under the LAD objective in Eq. (2), building on and adapting the framework of Roy et al. (2023). Although our theoretical analysis focuses on the single-frequency model, the proposed framework extends naturally to multi-frequency settings of the form 
+
+yt “
+
+> p
+
+ÿ
+
+> j“1
+
+`A0 
+
+> j
+
+sin pθ0 
+
+> j
+
+tq ` B0 
+
+> j
+
+cos pθ0 
+
+> j
+
+tq˘ ` εt, (3) where the same alternating structure can be applied component-wise. This highlights the approach’s flexibility and its applicability to more complex signal structures. The theo-retical results on consistency and asymptotic normality also extend to multiple frequency models, as discussed in Section 2. We evaluate the proposed method on both synthetic datasets and real-world time series exhibiting different types of periodic behavior, including the Mauna Loa atmospheric CO 2
+
+dataset (Keeling et al., 1976), the Air-Passengers dataset (Box et al., 2015), and the UK Driver-Deaths dataset (Harvey, 1990). On synthetic data, we study performance as the number of components p increases, including overparameterized regimes, and examine the role of initialization. We further conduct an outlier analysis on the Mauna Loa dataset by contaminating it with increasing proportions of heavy-tailed noise and compare the proposed LAD estimator with least-squares (LS) alternatives. These experiments show 3that the method remains stable as model complexity increases and is substantially more robust to outliers than LS-based approaches. The remainder of the paper is organized as follows. Section 2 reviews the univariate optimization results and the LAD reformulation of the periodogram idea that underpins coordinate-wise updates. Section 3 introduces the proposed coordinate descent algorithm, establishes its convergence properties, and presents computational optimizations. Section 4 reports empirical results on synthetic and real-world datasets, including high-dimensional and outlier-contaminated settings. Section 5 concludes with a discussion of practical im-plications and directions for future work. 
+
+# 2 Background 
+
+In this section, we briefly review key properties of the least absolute deviations (LAD) ob-jective that enable efficient optimization in the sinusoidal regression setting. In particular, we exploit the fact that, conditional on the frequency parameter, the model is linear in the amplitude parameters, allowing exact updates via median-based arguments. We then discuss how the classical periodogram intuition can be adapted to the LAD setting for frequency estimation. 
+
+2.1 Univariate LAD Minimization 
+
+We begin with two standard results for LAD minimization in univariate settings. 
+
+Lemma 1. Let ty1, . . . , y nu be given. Then any minimizer of min 
+
+> aPR
+> n
+
+ÿ
+
+> i“1
+
+|yi ´ a| (4) is a sample median of tyiu.
+
+Lemma 2. Let tp xi, y iqu ni“1 be given with xi ‰ 0. Then any minimizer of min 
+
+> bPR
+> n
+
+ÿ
+
+> i“1
+
+|yi ´ bx i| (5) is a weighted median of tyi{xiu with weights |xi|.4Both results follow from subgradient optimality conditions and are standard conse-quences of quantile regression theory (Koenker and Bassett, 1978). 
+
+2.2 Application to the Sinusoidal Model 
+
+Consider the sinusoidal model 
+
+yt “ A0 sin pθ0tq ` B0 cos pθ0tq ` εt.
+
+Fixing θ, the LAD objective in Eq. (2) reduces to min 
+
+> A,B n
+
+ÿ
+
+> t“1
+
+|yt ´ A sin pθt q ´ B cos pθt q| .
+
+While the joint minimization over pA, B q does not admit a closed form, coordinate-wise updates follow directly from the previous lemmas. Fixing B, define 
+
+rpAq 
+
+> t
+
+“ yt ´ B cos pθt q.
+
+Then A minimizes nÿ
+
+> t“1
+
+ˇˇˇrpAq 
+
+> t
+
+´ A sin pθt q
+
+ˇˇˇ ,
+
+and is given by the weighted median of 
+
+#
+
+rpAq
+
+> t
+
+sin pθt q
+
++nt“1
+
+with weights | sin pθt q| .
+
+Similarly, fixing A and defining 
+
+rpBq 
+
+> t
+
+“ yt ´ A sin pθt q,
+
+the update for B is the weighted median of 
+
+#
+
+rpBq
+
+> t
+
+cos pθt q
+
++nt“1
+
+with weights | cos pθt q| .
+
+5These updates provide exact minimizers along each coordinate and form the basis of a coordinate descent procedure for pA, B q, conditional on θ.
+
+2.3 LAD Reformulation of the Periodogram 
+
+We now consider estimation of the frequency parameter θ. For fixed pA, B q, define 
+
+ftpθq “ A sin pθt q ` B cos pθt q.
+
+To understand the structure of the LAD objective, consider the discrepancy for some estimated ˆθ:
+
+ftpθq ´ ftpˆθq “ A` sin pθt q ´ sin pˆθt q˘ ` B` cos pθt q ´ cos pˆθt q˘.
+
+Using sum-to-product identities, sin pθt q ´ sin pˆθt q “ 2 cos 
+
+˜
+
+θ ` ˆθ
+
+2 t
+
+¸
+
+sin 
+
+˜
+
+θ ´ ˆθ
+
+2 t
+
+¸
+
+,
+
+cos pθt q ´ cos pˆθt q “ ´ 2 sin 
+
+˜
+
+θ ` ˆθ
+
+2 t
+
+¸
+
+sin 
+
+˜
+
+θ ´ ˆθ
+
+2 t
+
+¸
+
+.
+
+Substituting, 
+
+ftpθq ´ ftpˆθq “ 2 sin 
+
+˜
+
+θ ´ ˆθ
+
+2 t
+
+¸ « 
+
+A cos 
+
+˜
+
+θ ` ˆθ
+
+2 t
+
+¸
+
+´ B sin 
+
+˜
+
+θ ` ˆθ
+
+2 t
+
+¸ff loooooooooooooooooooooooomoooooooooooooooooooooooon 
+
+> “ϱ
+
+.
+
+This representation separates the discrepancy into two components: a modulation term sin 
+
+˜
+
+θ ´ ˆθ
+
+2 t
+
+¸
+
+,
+
+which vanishes systematically only when ˆθ “ θ, and an oscillatory envelope involving θ`ˆθ 
+
+> 2
+
+.The key observation is that the modulation term equals zero for all t if and only if ˆθ “ θ (modulo periodic equivalence). For ˆθ ‰ θ, it vanishes only on a sparse set of indices and remains nonzero for a set of t with positive density. Since the underlined term ( ϱ) is 6bounded and non-degenerate whenever pA, B q ‰ p 0, 0q, it follows that 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+ˇˇˇftpθq ´ ftpˆθq
+
+ˇˇˇ ą 0 for all ˆθ ‰ θ. 
+
+This establishes identifiability of the frequency parameter under the LAD criterion. In particular, the LAD objective exhibits a periodogram-like structure, where global minima occur at the true frequency, while spurious cancellations remain local and do not persist across t.Consequently, it is natural to estimate θ via a grid search over a dense set of candidate frequencies, followed by local refinement. The oscillatory structure ensures that incorrect frequencies incur a non-vanishing average discrepancy, allowing the true frequency to be isolated by directly evaluating the LAD objective. 
+
+2.4 Consistency of the LAD Estimator 
+
+We consider the model 
+
+yt “ A0 sin pθ0tq ` B0 cos pθ0tq ` εt, t “ 1, . . . , n, 
+
+where we assume that pA0, B 0q P K Ă R2 is compact, θ0 P p 0, π q, and tεtu are i.i.d. random variables with distribution function F satisfying F p0q “ 1{2, continuous and bounded density f , and E|εt| ă 8 .Define the LAD objective 
+
+QnpA, B, θ q “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+ˇˇyt ´ A sin pθt q ´ B cos pθt qˇˇ,
+
+and let 
+
+p ˆAn, ˆBn, ˆθnq “ arg min  
+
+> pA,B,θ qP Θ
+
+QnpA, B, θ q, Θ “ K ˆ p 0, π q.
+
+Theorem 1 (Strong Consistency) . Under the stated assumptions, 
+
+p ˆAn, ˆBn, ˆθnq a.s. 
+
+ÝÝÑ p A0, B 0, θ 0q.
+
+Proof. Presented in the Appendix 72.5 Asymptotic Normality of the LAD Estimator 
+
+We consider the model 
+
+yt “ A0 sin pθ0tq ` B0 cos pθ0tq ` εt, t “ 1, . . . , n, 
+
+where pA0, B 0q P K Ă R2 is compact, θ0 P p 0, π q, and tεtu are i.i.d. random variables with median zero, continuous density f , and f p0q ą 0. Define the residual 
+
+rtpA, B, θ q “ yt ´ A sin pθt q ´ B cos pθt q,
+
+and the LAD objective 
+
+QnpA, B, θ q “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+|rtpA, B, θ q| .
+
+Let p ˆAn, ˆBn, ˆθnq denote the LAD estimator, and suppose that 
+
+p ˆAn, ˆBn, ˆθnq Ñ p A0, B 0, θ 0q almost surely .
+
+Theorem 2 (Asymptotic Normality) . Under the stated assumptions, and assuming 
+
+p ˆAn, ˆBn, ˆθnq Ñ p A0, B 0, θ 0q almost surely ,
+
+we have ¨˚˝
+
+?np ˆAn ´ A0q?np ˆBn ´ B0q
+
+n3{2pˆθn ´ θ0q
+
+˛‹‚ d
+
+ÝÑ N
+
+¨˚˚˚˝0, 14f p0q2
+
+¨˚˚˚˝
+
+2 0 00 2 00 0 6
+
+pA0q2 ` p B0q2
+
+˛‹‹‹‚˛‹‹‹‚.
+
+Proof. Presented in the Appendix This result extends Theorem 4.2 of Roy et al. (2023) to the sine-cosine parameterization of the single-frequency LAD regression model. 82.6 Extension to Multiple-Frequency Models 
+
+We briefly state the corresponding asymptotic results for the multi-frequency model 
+
+yt “
+
+> p
+
+ÿ
+
+> j“1
+
+pAj sin pθj tq ` Bj cos pθj tqq ` εt,
+
+where the frequencies satisfy the identifiability condition 
+
+θj ‰ θk for j ‰ k. 
+
+Let 
+
+η “ p A1, B 1, θ 1, . . . , A p, B p, θ pq
+
+denote the parameter vector, and define the LAD objective 
+
+Qnpηq “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+ˇˇˇˇˇyt ´
+
+> p
+
+ÿ
+
+> j“1
+
+pAj sin pθj tq ` Bj cos pθj tqq 
+
+ˇˇˇˇˇ .
+
+Under the same assumptions as in the single-frequency setting, together with standard frequency-separation and identifiability conditions, the LAD estimator ˆηn “ arg min  
+
+> η
+
+Qnpηq
+
+is strongly consistent: ˆηn
+
+> a.s.
+
+ÝÝÑ η0.
+
+Furthermore, if the error density f is continuous with f p0q ą 0, then the multi-frequency LAD estimator satisfies 
+
+?n
+
+´ ˆA1,n ´ A1, ˆB1,n ´ B1, . . . , ˆAp,n ´ Ap, ˆBp,n ´ Bp
+
+¯ d
+
+ÝÑ N p0, ΣAq,
+
+while the frequency estimators satisfy 
+
+n3{2 ´ˆθ1,n ´ θ1, . . . , ˆθp,n ´ θp
+
+¯ d
+
+ÝÑ N p0, Σθq.
+
+9Under standard frequency-separation conditions, 
+
+θi ‰ θj , i ‰ j, 
+
+the trigonometric components corresponding to distinct frequencies become asymptotically orthogonal. In particular, 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+sin pθitq sin pθj tq Ñ 0, 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+cos pθitq cos pθj tq Ñ 0,
+
+and 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+sin pθitq cos pθj tq Ñ 0, i ‰ j. 
+
+Similarly, for the frequency-score terms, 1
+
+n3
+
+> n
+
+ÿ
+
+> t“1
+
+t2 cos pθitq cos pθj tq Ñ 0, i ‰ j, 
+
+with analogous relations for sine terms. Consequently, the limiting information matrix assumes an asymptotically block-diagonal structure, implying that distinct sinusoidal components are asymptotically uncorrelated. The asymptotic covariance matrices are therefore determined component-wise by the cor-responding single-frequency information matrices. The proofs follow by straightforward ex-tension of the arguments used in the single-frequency case, together with standard trigono-metric averaging results and nonlinear LAD M-estimation theory. 
+
+# 3 Proposed Methodology 
+
+In this section, we present a coordinate descent algorithm for LAD estimation in sinu-soidal models, along with its extension to multi-frequency settings. The proposed method exploits the partial convexity of the LAD objective: conditional on the frequency param-eters, the problem is convex in the amplitude parameters and admits exact updates via weighted medians, while frequency estimation is handled via a direct minimization inspired by periodogram methods. We begin with the single-frequency model and then extend the approach to the multi-frequency case. Practical considerations, including computational optimizations and ini-10 tialization strategies, are discussed in subsequent subsections. 
+
+3.1 Single-Frequency Model 
+
+For the model 
+
+yt “ A0 sin pθ0tq ` B0 cos pθ0tq ` εt,
+
+we seek to minimize the LAD objective in Eq. (2). As discussed in Section 2, the objective is convex in pA, B q for fixed θ, but non-convex in θ.We therefore adopt an alternating minimization strategy. Given a current estimate of θ,the amplitude parameters pA, B q are updated via coordinate-wise LAD minimization using weighted medians. Given pA, B q, the frequency parameter θ is updated by minimizing the LAD objective over θ P p 0, π q using a grid search followed by local refinement. Each step minimizes the LAD objective along a coordinate block, ensuring monotone descent of the objective function. 
+
+3.2 Extension to Multi-Frequency Models 
+
+We now consider the model 
+
+yt “
+
+> p
+
+ÿ
+
+> j“1
+
+pAj sin pθj tq ` Bj cos pθj tqq ` εt.
+
+The corresponding LAD objective is min    
+
+> tAj,B j,θ ju
+
+1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+ˇˇˇˇˇyt ´
+
+> p
+
+ÿ
+
+> j“1
+
+pAj sin pθj tq ` Bj cos pθj tqq 
+
+ˇˇˇˇˇ .
+
+This objective remains convex in the amplitude parameters tAj , B j u conditional on tθj u,but is non-convex in the frequency parameters. We extend the alternating minimization framework by updating each component sequentially. For each j “ 1, . . . , p , define the partial residual 
+
+rpjq 
+
+> t
+
+“ yt ´ ÿ
+
+> ℓ‰j
+
+pAℓ sin pθℓtq ` Bℓ cos pθℓtqq .
+
+Conditional on tθj u, the amplitude parameters are updated via weighted median steps: 11 Algorithm 1 LAD Estimation for Single-Frequency Sinusoidal Model 
+
+Require: Observations tp ti, y iqu ni“1, initial values pAp0q, B p0q, θ p0qq
+
+Ensure: Estimated parameters p ˆA, ˆB, ˆθq 
+
+> 1:
+
+k Ð 0 
+
+> 2:
+
+repeat  
+
+> 3:
+
+k Ð k ` 1 
+
+> 4:
+
+Amplitude update:  
+
+> 5:
+
+Update Apkq using weighted median of 
+
+#
+
+yt ´ Bpk´1q cos pθpk´1qtq
+
+sin pθpk´1qtq
+
++
+
+with weights | sin pθpk´1qtq|  
+
+> 6:
+
+Update Bpkq using weighted median of 
+
+#
+
+yt ´ Apkq sin pθpk´1qtq
+
+cos pθpk´1qtq
+
++
+
+with weights | cos pθpk´1qtq|  
+
+> 7:
+
+Frequency update:  
+
+> 8:
+
+Update θpkq by minimizing 
+
+> n
+
+ÿ
+
+> t“1
+
+ˇˇˇyt ´ Apkq sin pθt q ´ Bpkq cos pθt q
+
+ˇˇˇ
+
+over θ P p 0, π q via grid search with local refinement  
+
+> 9:
+
+until convergence of θpkq 
+
+> 10:
+
+return p ˆA, ˆB, ˆθq
+
+12 • Update Aj using trpjq 
+
+> t
+
+{ sin pθj tqu with weights | sin pθj tq| 
+
+• Update Bj using trpjq 
+
+> t
+
+{ cos pθj tqu with weights | cos pθj tq| 
+
+Conditional on tAj , B j u, each frequency θj is updated by minimizing 
+
+> n
+
+ÿ
+
+> t“1
+
+ˇˇˇrpjq 
+
+> t
+
+´ Aj sin pθt q ´ Bj cos pθt q
+
+ˇˇˇ
+
+over θ P p 0, π q using grid search with local refinement. 
+
+Algorithm 2 LAD Estimation for Multi-Frequency Sinusoidal Model 
+
+Require: Observations tp ti, y iqu ni“1, number of components p, initial values 
+
+tAp0q 
+
+> j
+
+, B p0q 
+
+> j
+
+, θ p0q 
+
+> j
+
+u
+
+Ensure: Estimated parameters tAj , B j , θ j upj“1 
+
+> 1:
+
+k Ð 0 
+
+> 2:
+
+repeat  
+
+> 3:
+
+k Ð k ` 1 
+
+> 4:
+
+for j “ 1 to p do  
+
+> 5:
+
+Compute partial residual rpjq 
+
+> t
+> 6:
+
+Update Apkq 
+
+> j
+
+via weighted median  
+
+> 7:
+
+Update Bpkq 
+
+> j
+
+via weighted median  
+
+> 8:
+
+Update θpkq 
+
+> j
+
+via grid search with local refinement  
+
+> 9:
+
+end for  
+
+> 10:
+
+until convergence  
+
+> 11:
+
+return tAj , B j , θ j upj“1
+
+This extension preserves the structure of the single-frequency algorithm while enabling modeling of complex signals with multiple oscillatory components. The non-convexity of the frequency parameters introduces sensitivity to initialization and computational challenges in practice. In the following subsections, we discuss efficient implementation strategies and principled initialization schemes to improve convergence and solution quality. 13 3.3 Computational Considerations and Initialization 
+
+The alternating minimization framework described above is straightforward to implement, but its efficiency and performance depend critically on computational optimizations and initialization strategies. We discuss both aspects here. 
+
+Global residuals for efficient updates. In the multi-frequency setting, recomputing partial residuals 
+
+rpjq 
+
+> t
+
+“ yt ´ ÿ
+
+> ℓ‰j
+
+pAℓ sin pθℓtq ` Bℓ cos pθℓtqq 
+
+from scratch at each step incurs Opnp q cost per coordinate update. To avoid this, we maintain a global fitted signal ˆyt “
+
+> p
+
+ÿ
+
+> j“1
+
+pAj sin pθj tq ` Bj cos pθj tqq ,
+
+and update residuals incrementally (Naik and Kundu, 2026). For each component j, we compute 
+
+rpjq 
+
+> t
+
+“ yt ´ ˆyt ` p Aj sin pθj tq ` Bj cos pθj tqq ,
+
+which allows reuse of previously computed quantities. After updating pAj , B j , θ j q, the global fit ˆ yt is updated accordingly. This reduces the per-iteration complexity significantly and improves scalability for larger p.
+
+Initialization of frequency parameters. The LAD objective is highly non-convex in the frequency parameters, and the algorithm may converge to different local minima depending on initialization. To ensure adequate coverage of the frequency domain, we initialize tθj upj“1 uniformly over p0, π q:
+
+θp0q 
+
+> j
+
+« jπ p ` 1 , j “ 1, . . . , p. 
+
+This choice spreads the initial frequencies across the admissible range and is consistent with standard discretization strategies used in spectral analysis and periodogram-based methods (Stoica and Moses, 2005). In practice, it is often beneficial to choose p larger than the anticipated number of dominant frequencies. The algorithm can then adapt by assigning negligible amplitudes 14 to redundant components, effectively performing an implicit model selection. This overpa-rameterization strategy improves robustness to initialization and reduces the risk of missing relevant frequency components. 
+
+Initialization of amplitude parameters. Given initial frequency estimates θj , the amplitude parameters Aj , B j may be initialized either randomly or through a preliminary projection step. In particular, conditional on fixed frequencies, the sinusoidal model is lin-ear in the amplitude parameters, allowing initial estimates to be obtained via least-squares projection onto the corresponding sinusoidal basis functions. Such initialization strategies are closely related to classical amplitude estimation methods in sinusoidal models, includ-ing least-squares and filter-bank based approaches, which are known to possess favorable statistical properties when the frequencies are reasonably well estimated (Stoica et al., 2000). In our implementation, we initialize 
+
+Ap0q 
+
+> j
+
+, B p0q 
+
+> j
+
+„ Unif pmin  
+
+> t
+
+yt, max  
+
+> t
+
+ytq,
+
+which provides a simple data-adaptive starting point and avoids degenerate solutions. How-ever, when computational resources permit, projection-based initializations obtained from least-squares or periodogram-derived frequency estimates may improve convergence and reduce sensitivity to local minima. The effects of initialization are examined empirically in Section 4. 
+
+Additional considerations. We note that several refinements can further improve per-formance: 
+
+• Multiple random restarts: Running the algorithm from several independent initial-izations and selecting the solution with the lowest LAD objective helps mitigate local minima. 
+
+• Adaptive frequency discretization: Rather than performing optimization over a uni-formly dense frequency grid, one may employ a hierarchical refinement strategy in which the LAD objective is first evaluated on a coarse discretization and then re-evaluated locally around candidate frequencies. Such adaptive grid selection reduces computational complexity and alleviates off-grid effects that arise in spectral esti-mation problems. The impact of discretization error and basis mismatch has been 15 extensively studied in sparse spectral estimation and compressed sensing settings (Chi et al., 2011), while adaptive refinement strategies have been proposed to mit-igate these effects and improve frequency localization accuracy (Stoica and Babu, 2012). 
+
+• Component pruning: Components with negligible amplitudes pA2 
+
+> j
+
+` B2 
+
+> j
+
+« 0q can be removed during iterations to reduce model complexity. These strategies are standard in non-convex optimization settings and are particularly effective for oscillatory models with multiple interacting components. 
+
+# 4 Experiments 
+
+We evaluate the proposed LAD-based sinusoidal estimation method on both synthetic and real-world datasets. All experiments are implemented in R, and the code is made publicly available for reproducibility on our GitHub repository. We consider three settings: (i) single-frequency synthetic data, (ii) multi-frequency synthetic data, and (iii) real-world environmental time series data. 
+
+4.1 Synthetic Data Experiments 
+
+We begin by evaluating the proposed LAD-based estimation procedure on synthetic datasets designed to systematically assess robustness and scalability. All experiments are conducted under controlled settings where the true data-generating process is known. We consider models of the form 
+
+yt “
+
+> p
+
+ÿ
+
+> j“1
+
+`A0 
+
+> j
+
+sin pθ0 
+
+> j
+
+tq ` B0 
+
+> j
+
+cos pθ0 
+
+> j
+
+tq˘ ` εt, t “ 1, . . . , n, 
+
+with n “ 100. The frequency parameters tθj u are sampled independently from p0, π q, and the amplitude parameters tAj , B j u are drawn from a bounded interval. To evaluate robustness, we generate noise from a heavy-tailed distribution. In partic-ular, we take 
+
+εt „ t3,
+
+a Student-t distribution with three degrees of freedom, which introduces substantial de-viations from Gaussian assumptions and mimics realistic noise conditions encountered in 16 0 20 40 60 80 100 −10  −5  0 5
+
+> ty
+> Noisy Data True Signal Fitted Signal LSE Fit
+
+(a) p = 1 0 20 40 60 80 100 −10  −5  0 5 10  
+
+> ty
+> Noisy Data True Signal Fitted Signal LSE Fit
+
+(b) p = 3 
+
+Figure 1: Basic sinusoidal model fit comparison Model Base MAE MAE for LAD MAE for LSE 
+
+p “ 1 1.054 1.342 1.083 
+
+p “ 3 1.054 1.528 1.070 Table 1: Comparing MAE for LSE and LAD model fits practice. We first consider the simplest case with a single sinusoidal component. In this setting, the proposed method reliably recovers the underlying signal structure, producing stable estimates of both amplitude and frequency parameters even in the presence of heavy-tailed noise. We next extend the analysis to multi-frequency models. For p “ 3, the proposed coordinate descent algorithm successfully captures the superposition of oscillatory components. The use of alternating updates allows the method to decompose the signal into constituent frequencies. We compare the results with standard LSE fits to assess the effectiveness of the objective and descent strategy. We illustrate the fitted curves in Fig. 1 and compare the final training mean absolute errors in Table 1. We can see that the LAD fits for the model compare well with the LSE fits and align closely with the true error added to the pure signal, indicating a reasonable fit. 
+
+Scaling with model complexity. To further investigate the behavior of the method in high-dimensional regimes, we fix n “ 500 and vary the number of components p over a wide range: 
+
+p P t 1, 5, 10 , 20 , 50 , 100 , 200 , 500 , 1000 u.
+
+17 For each value of p, synthetic data are generated according to the model above, and the LAD estimator is computed. We report performance using the mean absolute deviation (MAD) between the observed data and both the true and fitted signals: MAD “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+|yt ´ ˆyt|.
+
+Effect of initialization. Given the non-convexity of the optimization problem, initial-ization plays a critical role in determining the quality of the final solution. To study this effect, we consider multiple initialization strategies. In addition to a baseline random ini-tialization, we construct warm starts by perturbing the true parameters with Gaussian noise of varying standard deviation: 
+
+θp0q 
+
+> j
+
+“ θj ` ηj , ηj „ N p0, σ 2q,
+
+with analogous perturbations applied to Aj and Bj . We consider σ P t 0.1, 1, 2, ?10 u to span a range from near-oracle initialization to highly noisy starting points. Table 2 reports the resulting MAD values across different values of p and initialization strategies. Several trends emerge from these experiments. First, the baseline random initialization becomes increasingly unstable as p increases, and the fitted MAD deteriorates rapidly in overparameterized regimes. In contrast, warm-start strategies significantly improve perfor-mance, particularly when the initialization is close to the true parameters. Even moderate perturbations (e.g., σ “ 1) yield substantial gains over random initialization. In extreme cases, poor initialization leads to divergence or highly suboptimal fits (due to the non-convexity of the objective). Overall, the proposed method demonstrates strong robustness to heavy-tailed noise and the ability to scale to high-dimensional settings, provided that reasonable initialization strategies are employed. 
+
+4.2 Real Data: Mauna Loa CO 2 Analysis 
+
+We evaluate the proposed LAD-based sinusoidal estimation framework on the Mauna Loa atmospheric CO 2 dataset (Keeling et al., 1976), a canonical example of a real-world time series exhibiting both periodic structure and non-Gaussian noise characteristics. The data are first detrended to isolate the oscillatory component, and the model is fit using the proposed algorithm under different configurations. 18 Table 2: Effect of initialization quality on LAD estimation across model complexity 
+
+p MAD (True) Random Init sd = 0.1 sd = 1 sd = 2 sd = ?10 1 1.0783 1.1043 2.1460 1.1043 1.1043 1.1043 5 1.0689 1.4663 1.5057 1.5032 1.5051 6.0783 ˆ 10 6
+
+10 1.1543 3.6558 2.6125 2.8213 1.9623 ˆ 10 7 6.4517 ˆ 10 7
+
+20 1.1200 5.5499 3.5503 1.4008 ˆ 10 6 5.6659 ˆ 10 5 2.0304 ˆ 10 7
+
+50 1.0978 8.7855 4.9486 2.9989 ˆ 10 5 4.9118 ˆ 10 7 1.2251 ˆ 10 7
+
+100 1.0709 11.4082 6.1202 3.9978 ˆ 10 4 1.8113 ˆ 10 5 3.3632 ˆ 10 6
+
+200 1.0499 117.8261 6.2874 1.5842 ˆ 10 4 1.1499 ˆ 10 6 6.7248 ˆ 10 6
+
+500 1.0686 3.8731 ˆ 10 3 11.4654 1.6691 ˆ 10 4 2.0627 ˆ 10 5 1.4869 ˆ 10 6
+
+1000 1.0288 1.2277 ˆ 10 4 14.8495 5.0821 ˆ 10 3 4.0419 ˆ 10 3 1.2801 ˆ 10 41980 1990 2000 2010 2020 −5  0 5 10 
+
+> Year Detrended CO2 (ppm)
+> Actual p = 5 p = 10 p = 20 p = 50
+
+(a) Naive model fit 1980 1990 2000 2010 2020 −5  0 5 10  
+
+> Year Detrended CO2 (ppm)
+> Actual LAD fit LS fit
+
+(b) Only sin model fit compared to LSE 
+
+Figure 2: LAD model fits for Mauana Lao CO 2 data We begin by applying the proposed sinusoidal model with both sine and cosine com-ponents directly to the data for varying values of p. Figure 2a shows the resulting fits for 
+
+p P t 5, 10 , 20 , 50 u.As seen in Figure 2a, the naive application of the coordinate descent algorithm does not yield satisfactory fits. Increasing the number of components leads to instability and overfitting behavior, with the model failing to capture the underlying seasonal structure in a coherent manner. This highlights the sensitivity of the full sine-cosine parameterization to initialization and optimization challenges in real-world settings. To address this, we consider a simplified formulation using only sine components, effec-tively fixing the phase structure and reducing the complexity of the optimization problem. 19 Table 3: Performance under increasing outlier contamination Outliers (%) MAE (LAD) MAE (LS) MAE for As (LAD) MAE for θs (LAD) 0 0.8957 1.9206 0.0000 0.0000 5 0.9094 1.9218 0.1878 0.4207 10 0.8954 1.9209 0.1684 0.4523 20 0.9028 1.9230 0.2985 0.2822 30 0.9114 1.9226 0.3066 0.2980 This modification leads to significantly improved fits. Figure 2b presents the resulting LAD fit alongside the least-squares (LS) fit for p “ 10. As illustrated in Figure 2b, the LAD-based fit closely tracks the observed oscillatory behavior while maintaining stability across the time horizon. The LS fit performs compa-rably in smooth regions but is more sensitive to local fluctuations (MAD for the LAD fit is 0.896 and that for LSE is 1.921). This experiment demonstrates that modest structural modifications to the model—such as restricting to sine components—can substantially im-prove optimization performance while retaining flexibility. More broadly, it highlights the adaptability of the proposed framework to different modeling choices. Finally, we assess robustness by introducing synthetic outliers into the dataset. We contaminate the observations by adding large-magnitude noise to a randomly selected subset of points, with contamination levels ranging from 5% to 30%. Figure 3 shows the resulting fits under increasing levels of contamination. As seen in Figure 3, the LAD-based estimator remains stable even under substantial contamination, preserving the underlying seasonal structure. In contrast, the LS-based fit deteriorates rapidly as the proportion of outliers increases, exhibiting large deviations and loss of structure. We further quantify this behavior using two metrics: (i) mean absolute error (MAE) between the observed (without added outliers) and fitted signals, and (ii) parameter re-covery error, defined as the mean absolute deviation between estimated parameters for all contaminated datasets and reference parameters (taken to be the estimates from the original observed data). The numerical results, reported in Table 3, confirm that the LAD estimator consistently outperforms LS under increasing contamination. These experiments illustrate three key points. First, while the full sine-cosine param-eterization is theoretically appealing, it can be difficult to optimize directly in complex real-world settings. Second, appropriate structural modifications, such as simplifying the 20 1980 1990 2000 2010 2020 −20  −10  0 10  20 
+
+5% Added Outliers 
+
+Year Detrended CO2 (ppm) 
+
+LAD Fit LS Fit 
+
+1980 1990 2000 2010 2020 −20  −10  0 10  20 
+
+10% Added Outliers 
+
+Year Detrended CO2 (ppm) 
+
+1980 1990 2000 2010 2020 −20  −10  0 10  20 
+
+20% Added Outliers 
+
+Year Detrended CO2 (ppm) 
+
+1980 1990 2000 2010 2020 −20  −10  0 10  20 
+
+30% Added Outliers 
+
+Year Detrended CO2 (ppm) Figure 3: Outlier analysis for LAD and LSE fits 21 parameterization, can significantly improve performance without sacrificing interpretabil-ity. Third, the LAD objective provides strong robustness to outliers, making it particularly well-suited for noisy environmental time series data. 
+
+4.3 AirPassengers Data 
+
+We next consider the AirPassengers dataset, a classical time series exhibiting strong sea-sonal structure (Box et al., 2015). The data consist of monthly airline passenger counts over a relatively short time horizon ( n « 140), making it well-suited for studying the behavior of the proposed method under limited sample sizes. We fit the proposed multi-frequency LAD model for increasing values of p P t 3, 5, 10 u. Figure 4 shows the resulting fits. 0 20 40 60 80 100 120 140 −100  −50  0 50  100  150 
+
+> Time Number of Passengers (Detrended)
+> Actual p = 3 p = 5 p = 10
+
+Figure 4: LAD fits for increasing pp MAE 3 19.9252 5 14.3049 10 12.7891 20 511.0688 Table 4: Performance metrics. As seen in Figure 4, the model progressively improves as p increases. For small values of 
+
+p, the fit captures the dominant seasonal pattern, whereas larger values allow the model to capture finer variations in the data. In particular, p “ 10 provides a good balance between flexibility and stability. We summarize the numerical performance of the model in Table 4, reporting mean absolute error (MAE) for different values of p.Due to the relatively small sample size, increasing p beyond this range leads to overfit-ting. In particular, for p “ 20, the model becomes unstable and exhibits erratic behavior, reflecting the difficulty of estimating a large number of parameters from limited data. This highlights a key trade-off between model complexity and sample size in multi-frequency settings. This experiment highlights the proposed method’s ability to capture structured 22 0 50 100 150 −5  0 5 10 
+
+> Time UK Driver Deaths
+> Actual p = 3 p = 5 p = 10
+
+Figure 5: LAD fits for increasing pp MAE 3 2.0423 5 1.1823 10 1.3266 20 7.1713 Table 5: Performance metrics. seasonal patterns with relatively few components, while also illustrating the risks of over-parameterization in small-sample settings. 
+
+4.4 UK Driver Deaths Data 
+
+We next consider the UKDriverDeaths dataset, which records monthly counts of road accident fatalities in the United Kingdom and exhibits a clear seasonal structure with moderate noise (Harvey, 1990). Compared to the AirPassengers data, this dataset presents a slightly more realistic setting with increased variability while still retaining strong periodic patterns. We fit the proposed multi-frequency LAD model for increasing values of p Pt3, 5, 10 u. Figure 5 shows the resulting fits. As seen in Figure 5, the model successfully captures the dominant seasonal structure of the data even for small values of p. Increasing p from 3 to 5 leads to a substantial improvement in fit, as reflected in the reduction in MAE reported in Table 5. However, unlike the AirPassengers dataset, further increasing the model complexity does not yield consistent improvements. In particular, the fit for p “ 10 shows only marginal degradation in MAE, whereas for p “ 20 the model becomes unstable and exhibits clear overfitting. This is also visible in the fitted curves, which begin to capture noise rather than the underlying seasonal structure. In practice, relatively small values of p are sufficient to capture the series’ essential dynamics, and increasing p beyond this range yields diminishing returns and potential instability. 23 5 Conclusion 
+
+In this work, we developed a robust framework for parameter estimation in sinusoidal regression models based on the least absolute deviations (LAD) objective. By directly op-timizing the LAD criterion, we address the well-known sensitivity of least-squares methods to heavy-tailed noise and outliers. The proposed approach leverages the partial convexity of the objective through a coor-dinate descent scheme: amplitude parameters are updated via exact weighted median com-putations, while frequency parameters are estimated using a periodogram-inspired search strategy. This results in a simple, modular algorithm that is both interpretable and easy to implement. We established strong consistency and asymptotic normality of the estima-tor under mild conditions, extending existing results to the sine-cosine formulation of the model. Through extensive experiments on synthetic and real-world datasets, we demonstrated several key properties of the method. The estimator remains stable as model complexity increases when appropriately initialized, exhibits strong robustness to outliers compared to least-squares methods, and adapts effectively to different types of periodic signals. At the same time, our results highlight important practical considerations, including sensi-tivity to initialization (and several initialization techniques) and the challenges posed by overparameterized regimes. Several directions for future work remain. A natural extension is to incorporate regu-larization into the LAD framework, particularly in multi-frequency settings. Penalization schemes for amplitude parameters or the number of active components can improve stabil-ity, enable automatic model selection, and mitigate overfitting in high-dimensional regimes. Additionally, more structured parameterizations and adaptive frequency-selection strate-gies may further improve performance on complex real-world signals. Overall, the proposed LAD-based approach provides a flexible and robust alternative to classical least-squares methods for sinusoidal estimation, with both strong theoretical guarantees and practical applicability across a range of signal processing problems. 24 References 
+
+Aboutanios, E. and Mulgrew, B. (2005). Iterative frequency estimation by interpolation on fourier coefficients. IEEE Transactions on Signal Processing , 53(4):1237–1242. Ando, S. (2020). Frequency-domain prony method for autoregressive model identification and sinusoidal parameter estimation. IEEE Transactions on Signal Processing , 68:3461– 3470. Box, G., Jenkins, G., Reinsel, G., and Ljung, G. (2015). Time Series Analysis: Forecasting and Control . Wiley. Chi, Y., Scharf, L., Pezeshki, A., and Calderbank, R. (2011). Sensitivity to basis mismatch in compressed sensing. IEEE Transactions on Signal Processing , 59(5):2182–2195. Harvey, A. C. (1990). Forecasting, Structural Time Series Models and the Kalman Filter .Cambridge University Press. Hua, Y. and Sarkar, T. K. (1990). Matrix pencil method for estimating parameters of exponentially damped/undamped sinusoids in noise. IEEE Transactions on Acoustics, Speech, and Signal Processing , 38(5):814–824. Huber, P. J. (1964). Robust estimation of a location parameter. The Annals of Mathemat-ical Statistics , 35(1):73–101. Katkovnik, V. (1998). Robust m-periodogram. IEEE Transactions on Signal Processing ,46(11):3104–3109. Kay, S. M. (1989). A fast and accurate single frequency estimator. IEEE Transactions on Acoustics, Speech, and Signal Processing , 37(12):1987–1990. Keeling, C. D., Bacastow, R. B., Bainbridge, A. E., Ekdahl, C. A., Guenther, P. R., Waterman, L. S., and Chin, J. F. S. (1976). Atmospheric carbon dioxide variations at mauna loa observatory, hawaii. Tellus , 28(6):538–551. Knight, K. (1998). Limiting distributions for l1 regression estimators under general condi-tions. The Annals of Statistics , 26(2):755–770. Koenker, R. and Bassett, Gilbert, J. (1978). Regression quantiles. Econometrica: Journal of the Econometric Society , pages 33–50. 25 Kundu, D. (2024). On robust method of estimation in polynomial–sinusoidal regression. 
+
+Signal Processing , 217:109328. Kundu, D. (2026). Robust spectral analysis of sinusoidal signal in heavy tail impulsive noise environment. Sankhya A: The Indian Journal of Statistics , 88(1):160–191. Li, J. and Stoica, P. (1996). Efficient mixed-spectrum estimation with applications to target feature extraction. IEEE Transactions on Signal Processing , 44(2):281–295. Li, T.-H. and Song, K.-S. (2010). A nonlinear method for robust spectral analysis. IEEE Transactions on Signal Processing , 58(5):2466–2474. Liang, K.-c., Wang, X., and Li, T.-H. (2009). Robust discovery of periodically expressed genes using the laplace periodogram. BMC bioinformatics , 10:15. Naik, Z. and Kundu, D. (2026). Coordinate descent algorithm for least absolute deviations regression. arXiv:2603.19336. Newey, W. K. and McFadden, D. (1994). Large sample estimation and hypothesis testing. In Handbook of Econometrics , volume 4, pages 2111–2245. Elsevier. Quinn, B. G. (1994). Estimating frequency by interpolation using fourier coefficients. IEEE Transactions on Signal Processing , 42(5):1264–1268. Ren, J., Zhang, T., Li, J., and Stoica, P. (2019). Sinusoidal parameter estimation from signed measurements via majorization–minimization based relax. IEEE Transactions on Signal Processing , 67(8):2173–2186. Rife, D. C. and Boorstyn, R. R. (1974). Single tone parameter estimation from discrete-time observations. IEEE Transactions on Information Theory , 20(5):591–598. Roy, R. and Kailath, T. (1989). Esprit—estimation of signal parameters via rotational invariance techniques. IEEE Transactions on Acoustics, Speech, and Signal Processing ,37(7):984–995. Roy, S., Mitra, A., and Archak, N. K. (2023). On consistency and asymptotic normality of least absolute deviation estimators for 2-dimensional sinusoidal model. 26 Schmidt, R. O. (1986). Multiple emitter location and signal parameter estimation. In 
+
+Proceedings of the IEEE Antennas and Propagation Society International Symposium ,volume 3, pages 243–258. Solak, V., Aldirmaz, S., and Serbes, A. (2022). Fast and efficient 2-d and k-d dft-based sinusoidal frequency estimation. IEEE Transactions on Signal Processing , 70:1–14. Stoica, P. and Babu, P. (2012). Sparse estimation of spectral lines: Grid selection problems and their solutions. IEEE Transactions on Signal Processing , 60(2):962–967. Stoica, P., Li, H., and Li, J. (2000). Amplitude estimation of sinusoidal signals: survey, new results, and an application. IEEE Transactions on Signal Processing , 48(2):338–352. Stoica, P. and Moses, R. (2005). Spectral Analysis of Signals . Prentice Hall. Tang, G., Bhaskar, B. N., Shah, P., and Recht, B. (2013). Compressed sensing off the grid. 
+
+IEEE Transactions on Information Theory , 59(11):7465–7490. Tseng, P. (2001). Convergence of a block coordinate descent method for nondifferentiable minimization. Journal of Optimization Theory and Applications , 109:475–494. Wang, Y., Li, G., Xiao, Z., Xu, L., and Zhang, W. (2024). Robust estimation for high-dimensional time series with heavy tails. arXiv:2411.05217. 27 Appendix 
+
+Theorem 1 (Strong Consistency) . Under the stated assumptions, 
+
+p ˆAn, ˆBn, ˆθnq a.s. 
+
+ÝÝÑ p A0, B 0, θ 0q.
+
+Proof. We define the contrast function 
+
+HnpA, B, θ q “ QnpA, B, θ q ´ QnpA0, B 0, θ 0q,
+
+so that HnpA0, B 0, θ 0q “ 0. Writing 
+
+htpA, B, θ q “ A0 sin pθ0tq ` B0 cos pθ0tq ´ A sin pθt q ´ B cos pθt q,
+
+we obtain 
+
+HnpA, B, θ q “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+´ˇˇyt ´ A sin pθt q ´ B cos pθt qˇˇ ´ ˇˇyt ´ A0 sin pθ0tq ´ B0 cos pθ0tqˇˇ¯
+
+“ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+´ˇˇεt ` htpA, B, θ qˇˇ ´ ˇˇεt
+
+ˇˇ¯
+
+.
+
+Lemma 3. For any real number h,
+
+E“|ε ` h| ´ | ε|‰ ě 0,
+
+with equality if and only if h “ 0. 
+
+Proof. Since ε has median zero, 
+
+E|ε ` h| ´ E|ε| “ 2
+
+ż |h|
+
+> 0
+
+`F puq ´ 12
+
+˘ du ě 0,
+
+because F puq ą 12 for all u ą 0. As a consequence, for each fixed pA, B, θ q,
+
+E“HnpA, B, θ q‰ “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+E
+
+”
+
+|εt ` htpA, B, θ q| ´ | εt|
+
+ı
+
+ě 0.
+
+28 Moreover, by Lemma 3, there exists c ą 0 such that 
+
+E
+
+”
+
+|εt ` htpA, B, θ q| ´ | εt|
+
+ı
+
+ě c |htpA, B, θ q| .
+
+Uniform convergence. Let 
+
+ZtpA, B, θ q “ | εt ` htpA, B, θ q| ´ | εt|.
+
+Then 
+
+|ZtpA, B, θ q| ď 2`|εt| ` | A0| ` | B0| ` | A| ` | B|˘,
+
+and since K is compact and E|εt| ă 8 , E|ZtpA, B, θ q| is uniformly bounded over Θ. Fur-thermore, ZtpA, B, θ q is continuous in pA, B, θ q.Since Θ is compact, ZtpA, B, θ q is continuous in pA, B, θ q for every t, and 
+
+|ZtpA, B, θ q| ď 2 p| εt| ` | A0| ` | B0| ` | A| ` | B|q ,
+
+where the dominating function has a finite expectation uniformly over Θ, the class 
+
+tZtpA, B, θ q : pA, B, θ q P Θu
+
+is Glivenko–Cantelli. Hence, by a standard Uniform Law of Large Numbers for compact parametric families (see, Newey and McFadden (1994)), sup 
+
+> pA,B,θ qP Θ
+
+|HnpA, B, θ q ´ EH npA, B, θ q| a.s. 
+
+ÝÝÑ 0.
+
+Hence, 
+
+HnpA, B, θ q a.s. 
+
+ÝÝÑ QpA, B, θ q ” lim  
+
+> nÑ8
+
+EHnpA, B, θ q,
+
+uniformly on Θ. 
+
+Identification of the limit. From the previous inequality, 
+
+QpA, B, θ q ě c lim 
+
+> nÑ8
+
+1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+|htpA, B, θ q| .
+
+29 Thus it suffices to show that 
+
+IpA, B, θ q ” lim 
+
+> nÑ8
+
+1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+ˇˇhtpA, B, θ qˇˇ ą 0 for pA, B, θ q ‰ p A0, B 0, θ 0q.
+
+Case 1: θ “ θ0, pA, B q ‰ p A0, B 0q. Then 
+
+ht “ p A0 ´ Aq sin pθ0tq ` p B0 ´ Bq cos pθ0tq.
+
+This is a non-trivial sinusoidal signal. Using standard averaging arguments, lim 
+
+> nÑ8
+
+1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+|ht| “ c1
+
+apA0 ´ Aq2 ` p B0 ´ Bq2 ą 0,
+
+for some constant c1 ą 0. 
+
+Case 2: θ ‰ θ0. Write 
+
+ht “ p A0 sin pθ0tq ` B0 cos pθ0tqq ´ p A sin pθt q ` B cos pθt qq .
+
+Using the trigonometric expansions from the previous subsection, this can be expressed as a sum of terms involving sin 
+
+´ θ0´θ 
+
+> 2
+
+t
+
+¯
+
+and oscillatory factors .
+
+The modulation term vanishes only on a sparse set of t, while the remaining factors are bounded and non-degenerate whenever pA0, B 0q ‰ p 0, 0q. Hence 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+|ht| ą 0 for all θ ‰ θ0.
+
+Therefore, 
+
+QpA, B, θ q “ 0 if and only if pA, B, θ q “ p A0, B 0, θ 0q.
+
+Conclusion. Since HnpA, B, θ q converges uniformly almost surely to QpA, B, θ q, and 
+
+QpA, B, θ q has a unique global minimum at pA0, B 0, θ 0q, it follows by standard M-estimation 30 theory that 
+
+p ˆAn, ˆBn, ˆθnq a.s. 
+
+ÝÝÑ p A0, B 0, θ 0q.
+
+Theorem 2 (Asymptotic Normality) . Under the stated assumptions, and assuming 
+
+p ˆAn, ˆBn, ˆθnq Ñ p A0, B 0, θ 0q almost surely ,
+
+we have ¨˚˝
+
+?np ˆAn ´ A0q?np ˆBn ´ B0q
+
+n3{2pˆθn ´ θ0q
+
+˛‹‚ d
+
+ÝÑ N
+
+¨˚˚˚˝0, 14f p0q2
+
+¨˚˚˚˝
+
+2 0 00 2 00 0 6
+
+pA0q2 ` p B0q2
+
+˛‹‹‹‚˛‹‹‹‚.
+
+Proof. Since the subgradient of |x| is sgn pxq almost surely, the estimating equations are 0 “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+sgn prtpA, B, θ qq sin pθt q,
+
+0 “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+sgn prtpA, B, θ qq cos pθt q,
+
+0 “ 1
+
+n
+
+> n
+
+ÿ
+
+> t“1
+
+sgn prtpA, B, θ qq 
+
+´
+
+At cos pθt q ´ Bt sin pθt q
+
+¯
+
+.
+
+At the true parameter, 
+
+rtpA0, B 0, θ 0q “ εt.
+
+We use the convention sgn pxq “ 
+
+$’’’&’’’%
+
+`1, x ą 0,
+
+0, x “ 0,
+
+´1, x ă 0.
+
+Local parameterization. Let 
+
+u “
+
+¨˚˝
+
+u1
+
+u2
+
+u3
+
+˛‹‚, A “ A0 ` u1
+
+?n , B “ B0 ` u2
+
+?n , θ “ θ0 ` u3
+
+n3{2 .
+
+31 We study the local behavior of 
+
+Qn
+
+ˆ
+
+A0 ` u1
+
+?n , B 0 ` u2
+
+?n , θ 0 ` u3
+
+n3{2
+
+˙
+
+´ QnpA0, B 0, θ 0q.
+
+Knight identity. Using Knight’s identity (Knight, 1998), 
+
+|x ´ h| ´ | x| “ ´ h sgn pxq ` 2
+
+ż h
+
+> 0
+
+p1tx ď su ´ 1tx ď 0uq ds, 
+
+with x “ εt and 
+
+ht “ A0 sin pθ0tq ` B0 cos pθ0tq ´ A sin pθt q ´ B cos pθt q,
+
+we obtain 
+
+n
+
+´
+
+QnpA, B, θ q ´ QnpA0, B 0, θ 0q
+
+¯
+
+“ ´ 
+
+> n
+
+ÿ
+
+> t“1
+
+ht sgn pεtq` 2
+
+> n
+
+ÿ
+
+> t“1
+
+ż ht
+
+> 0
+
+p1tεt ď su ´ 1tεt ď 0uq ds. 
+
+Linearization of ht. Using a first-order Taylor expansion, 
+
+ht “ A0 sin pθ0tq ` B0 cos pθ0tq´
+
+ˆ
+
+A0 ` u1
+
+?n
+
+˙
+
+sin 
+
+´
+
+θ0t ` u3
+
+n3{2 t
+
+¯
+
+´
+
+ˆ
+
+B0 ` u2
+
+?n
+
+˙
+
+cos 
+
+´
+
+θ0t ` u3
+
+n3{2 t
+
+¯
+
+“ ´ u1
+
+?n sin pθ0tq ´ u2
+
+?n cos pθ0tq´ u3
+
+n3{2
+
+´
+
+A0t cos pθ0tq ´ B0t sin pθ0tq
+
+¯
+
+` opn´1{2q.
+
+Stochastic term. Substituting into the first sum, 
+
+> n
+
+ÿ
+
+> t“1
+
+ht sgn pεtq “ uJWn ` opp1q,
+
+32 where 
+
+Wn “
+
+¨˚˚˚˚˚˚˝
+
+1
+
+?n
+
+řnt“1 sgn pεtq sin pθ0tq
+
+1
+
+?n
+
+řnt“1 sgn pεtq cos pθ0tq
+
+1
+
+n3{2
+
+řnt“1 sgn pεtq
+
+´
+
+A0t cos pθ0tq ´ B0t sin pθ0tq
+
+¯˛‹‹‹‹‹‹‚
+
+.
+
+By the multivariate central limit theorem, 
+
+Wn d
+
+ÝÑ N p0, Σq,
+
+where Σ “
+
+¨˚˚˝ 
+
+> 12
+
+0 00 12 00 0 pA0q2 ` p B0q2
+
+6
+
+˛‹‹‚,
+
+using standard trigonometric averaging arguments. 
+
+Deterministic term. For the second term, 
+
+E
+
+„
+
+2
+
+ż ht
+
+> 0
+
+p1tεt ď su ´ 1tεt ď 0uq ds 
+
+ȷ
+
+“ f p0qh2 
+
+> t
+
+` oph2 
+
+> t
+
+q.
+
+Summing over t yields 
+
+uJJu, 
+
+where 
+
+J “ f p0q
+
+¨˚˚˝ 
+
+> 12
+
+0 00 12 00 0 pA0q2 ` p B0q2
+
+6
+
+˛‹‹‚,
+
+which is positive definite since f p0q ą 0. 
+
+Limiting objective. Combining terms, 
+
+n
+
+´
+
+QnpA, B, θ q ´ QnpA0, B 0, θ 0q
+
+¯
+
+“ ´ uJWn ` uJJu ` opp1q.
+
+33 The limiting random objective is 
+
+Lpuq “ ´ uJZ ` uJJu, Z „ N p0, Σq,
+
+which is minimized at 
+
+u˚ “ 12 J´1Z. 
+
+Asymptotic distribution. Therefore, 
+
+¨˚˝
+
+?np ˆAn ´ A0q?np ˆBn ´ B0q
+
+n3{2pˆθn ´ θ0q
+
+˛‹‚ d
+
+ÝÑ N
+
+ˆ
+
+0, 14 J´1ΣJ´1
+
+˙
+
+“ N
+
+¨˚˚˚˝0, 14f p0q2
+
+¨˚˚˚˝
+
+2 0 00 2 00 0 6
+
+pA0q2 ` p B0q2
+
+˛‹‹‹‚˛‹‹‹‚.
+
+34

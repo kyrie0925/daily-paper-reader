@@ -6,48 +6,62 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-13
-- 运行时间：2026-06-13 21:26:18 UTC
+- 最新运行日期：2026-06-14
+- 运行时间：2026-06-14 21:39:12 UTC
 - 运行状态：成功
-- 本次总论文数：8
-- 精读区：2
-- 速读区：6
+- 本次总论文数：14
+- 精读区：6
+- 速读区：8
 
 ### 今日简报（AI）
-今日精读聚焦微服务系统异常根因分析与湖泊时序数据基础模型，速读涵盖保险损失预测、稳健回归及极值分布新方法。
-
-最值得关注的两个方向：微服务异常根因分析（得分8.0）与不规则多深度时序数据的湖泊基础模型（得分8.0），均有显著实用价值。
-
-建议优先阅读两篇精读论文，掌握异常定位与生态数据建模的核心技术，其余速读可作为拓展参考。
-- 详情：[/202606/13/README](/202606/13/README)
+今日精读聚焦异常检测新范式，涵盖自解释时间序列分析与海事离线模仿学习两大高分突破。最值得关注ProtoX-AD可解释异常检测（9.0分）与Rarity-Gated海事异常检测（9.0分），二者分别以显式表征和条件建模提升检测可靠性。建议跟进自解释模型原理及离线学习在弱监督场景的应用细节，后续可对比其与速读中遥感检测框架的适用边界。
+- 详情：[/202606/14/README](/202606/14/README)
 
 ### 精读区论文标签
-1. [Anomaly Detection and Root Cause Analysis for Microservice Systems](/202606/13/2606.09942v1-anomaly-detection-and-root-cause-analysis-for-microservice-systems)  
+1. [ProtoX-AD: Self-Explainable Time Series Anomaly Detection and Characterization](/202606/14/2606.13277v1-protox-ad-self-explainable-time-series-anomaly-detection-and-characterization)  
+   标签：评分：9.0/10、query:anomaly-id
+   evidence：自解释时间序列异常检测方法
+2. [Rarity-Gated Context Conditioning for Offline Imitation Learning-Based Maritime Anomaly Detection](/202606/14/2606.13311v1-rarity-gated-context-conditioning-for-offline-imitation-learning-based-maritime-anomaly-detection)  
+   标签：评分：9.0/10、query:ocean-qc
+   evidence：基于稀有门控条件调节的海洋异常检测
+3. [CRAFTIIF: Cross-Resolution Analytic Four-Type Interpretable Isolation Forest for Multivariate Time Series Anomaly Detection](/202606/14/2606.13486v1-craftiif-cross-resolution-analytic-four-type-interpretable-isolation-forest-for-multivariate-time-series-anomaly-detection)  
+   标签：评分：9.0/10、query:anomaly-id
+   evidence：多变量时间序列异常检测方法
+4. [Scalable anomaly detection via a univariate Christoffel function](/202606/14/2606.12483v1-scalable-anomaly-detection-via-a-univariate-christoffel-function)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：微服务系统的异常检测与根因分析
-2. [LakeFM: Toward a Foundation Model for Aquatic Ecosystems Using Irregular Multivariate Multi-depth Time Series Data](/202606/13/2606.11268v1-lakefm-toward-a-foundation-model-for-aquatic-ecosystems-using-irregular-multivariate-multi-depth-time-series-data)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：基于时间序列数据的水生生态系统基础模型
+   evidence：利用克里斯托费尔函数实现可扩展异常检测，克服了维度灾难问题
+5. [Computationally tractable robust differentially private mean estimation](/202606/14/2606.12654v1-computationally-tractable-robust-differentially-private-mean-estimation)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：具有异常值鲁棒性的均值估计，可用于离群点检测
+6. [A Zero-shot Generalized Graph Anomaly Detection Framework via Node Reconstruction](/202606/14/2606.12673v1-a-zero-shot-generalized-graph-anomaly-detection-framework-via-node-reconstruction)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：零样本图异常检测
 
 ### 速读区论文标签
-1. [LSTM-Based Detection of Structural Breaks in Property Insurance Loss Reserving: A Climate-Informed Approach](/202606/13/2606.11463v1-lstm-based-detection-of-structural-breaks-in-property-insurance-loss-reserving-a-climate-informed-approach)  
+1. [Taming Perception Jitter: Uncertainty-Aware LiDAR Object Detection for Reliable Motion Classification](/202606/14/2606.09350v1-taming-perception-jitter-uncertainty-aware-lidar-object-detection-for-reliable-motion-classification)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：基于LSTM的时间序列结构断点异常检测方法
-2. [The Triply-Randomized Negative Binomial Beta for Robust Regression and Conjugate Models of Bounded Support Data](/202606/13/2606.11624v1-the-triply-randomized-negative-binomial-beta-for-robust-regression-and-conjugate-models-of-bounded-support-data)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：鲁棒回归模型处理异常值
-3. [The data-driven extreme value distribution: non-parametric tail estimation with a derived stability criterion](/202606/13/2606.12174v1-the-data-driven-extreme-value-distribution-non-parametric-tail-estimation-with-a-derived-stability-criterion)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：数据驱动极值分布用于异常检测
-4. [The Sharp Phase Transition of Tyler's M-Estimator for Robust Subspace Recovery](/202606/13/2606.06782v1-the-sharp-phase-transition-of-tylers-m-estimator-for-robust-subspace-recovery)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：鲁棒子空间恢复算法处理异常值
-5. [A Source Domain is All You Need: Source-Only Cross-OS Transfer Learning for APT Anomaly Detection via Semantic Alignment and Optimal Transport](/202606/13/2606.10216v1-a-source-domain-is-all-you-need-source-only-cross-os-transfer-learning-for-apt-anomaly-detection-via-semantic-alignment-and-optimal-transport)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：基于最优传输的异常检测
-6. [Deep learning for echo sounder data](/202606/13/2606.10811v1-deep-learning-for-echo-sounder-data)  
+   evidence：在运动分类中使用z检验进行异常检测
+2. [iSAGE: A Human-in-the-Loop Framework for Remote Sensing Semantic Segmentation via Sparse Point Supervision](/202606/14/2606.10136v1-isage-a-human-in-the-loop-framework-for-remote-sensing-semantic-segmentation-via-sparse-point-supervision)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：遥感影像人机交互语义分割框架
+3. [ZODS-RS -- Zero-training Oriented Detection & Segmentation for Remote Sensing](/202606/14/2606.10769v1-zods-rs----zero-training-oriented-detection--segmentation-for-remote-sensing)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：遥感零训练目标检测与分割流程
+4. [Physics-Guided Spatiotemporal Learning for Coastal Wave Peak Period Estimation from Video](/202606/14/2606.13302v1-physics-guided-spatiotemporal-learning-for-coastal-wave-peak-period-estimation-from-video)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：基于物理引导深度学习从海岸视频估计波浪参数，实现自主海洋观测
+5. [Dual Quaternion-Based Unscented Kalman Filter with Visual Inertial Odometry for Navigation in GPS-Denied Environments](/202606/14/2606.09292v1-dual-quaternion-based-unscented-kalman-filter-with-visual-inertial-odometry-for-navigation-in-gps-denied-environments)  
    标签：评分：6.0/10、query:ocean-obs
-   evidence：将深度学习应用于回声测深数据，用于水下观测，与海洋观测相关
+   evidence：自主系统导航算法
+6. [TSseek: Regular Expression-Based Similarity Search for Distributed Time Series Datasets](/202606/14/2606.09824v1-tsseek-regular-expression-based-similarity-search-for-distributed-time-series-datasets)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：基于正则表达式的时间序列相似性搜索，可支持模式驱动的异常检测
+7. [Deep learning for echo sounder data](/202606/14/2606.10811v1-deep-learning-for-echo-sounder-data)  
+   标签：评分：6.0/10、query:ocean-qc
+   evidence：深度学习用于水下声学数据质量问题
+8. [Least Absolute Deviations Estimation for Sinusoidal Models](/202606/14/2606.13242v1-least-absolute-deviations-estimation-for-sinusoidal-models)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：鲁棒的最小绝对偏差估计，适用于含异常值的数据集
 
 
 <div class="dpr-home-promo-card">

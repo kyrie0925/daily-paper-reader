@@ -1,0 +1,586 @@
+Title: ZODS-RS – Zero-training Oriented Detection     Segmentation for Remote Sensing
+
+URL Source: https://arxiv.org/pdf/2606.10769v1
+
+Published Time: Wed, 10 Jun 2026 01:09:24 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# ZODS-RS — Zero-training Oriented Detection & Segmentation for Remote Sensing 
+
+## Zuan Gu Tianhan Gao * Langxu Zhao Northeastern University, China  
+
+> 2010497@stu.neu.edu.cn, gth@swc.neu.edu.cn, 2471410@stu.neu.edu.cn
+
+## Abstract 
+
+Remote-sensing and UAV applications need models that generalize across platforms and viewpoints without task-specific training. Yet training-free pipelines often falter on oriented geometry, scale/rotation variation, and crowded ports or airfields, and rarely unify detection and segmen-tation. We introduce ZODS-RS, a training-free, closed-form pipeline that outputs horizontal boxes (HBB) and in-stance masks. Built on DINOv3 dense features and SAM-style proposals, ZODS-RS chains: PP (prototype purifica-tion via Tyler covariance), R-SEM (rotation–scale equivari-ant matching with separable kernels and global Hungarian assignment), and UAM (uncertainty-aware pixelwise merg-ing with adaptive priors and optional negative prototypes). A lightweight CWLA fuses multiple DINOv3 layers. On FAIR1M (HBB) we obtain mAP 0.50:0 .95 = 13 .06 
+
+and AP S = 2.93 (class-averaged over ship/airplane) ; on xView (HBB) we report mAP = 16 .69 . On our UAV dataset, ZODS-RS achieves mask mIoU = 31 .10 and im-proves small-object AP by +30 .70 over Grounded-SAM on a single 5090. This work offers a unified, no-training solution for horizontal-box detection plus instance segmentation in aerial imagery; provides explicit closed-form formulations for PP/R-SEM/UAM tightly coupled with DINOv3; and demonstrates consistent gains on small and crowded tar-gets and under cross-domain shifts while keeping deploy-ment simple. 
+
+## 1. Introduction 
+
+Remote-sensing imagery from satellites and low-altitude UAVs features ultra-high resolutions, pronounced oriented geometry (OBB), heavy scale variation, and crowded lay-outs across platforms and view angles. These factors make proposal generation and matching difficult, especially when images span thousands of pixels per side and instances are dense or elongated (e.g., ships, aircraft). Public bench-marks codify these challenges: FAIR1M supplies arbitrar-ily oriented boxes in large tiles, and xView stresses fine-grained categories and small objects under varying resolu-tions [14, 26]. The cost of per-task training and cross-domain adapta-tion motivates training-free pipelines, but they often de-grade when dense features are not separable, proposal quality is unstable, or cross-image memory is absent. 
+
+Open-vocabulary detection and assembled recipes help via language-aligned encoders or modular segmentors, yet per-formance remains highly sensitive to backbone–proposal synergy and domain shift [6, 10, 15, 18, 20, 23, 30, 31]. Foundation segmentors like SAM2 provide promptable, high-recall masks widely used as candidates, but their util-ity hinges on how dense features and downstream match-ing/merging are organized without training [8, 11, 21, 21, 22]. Persisting gaps are: (i) rotation/scale handling is usu-ally approximate—supervised oriented detectors address it but require (re)training [4]; (ii) prototypes are fragile, drifting across scenes without purification or stable sub-prototypes; and (iii) merging is coarse—set-level assign-ment (e.g., Hungarian) enforces exclusivity but ignores pixel-wise uncertainty, fostering over-confident unions in crowded regions [1, 9, 13, 16]. Our view is that frozen-backbone synergy is the foun-dation for training-free perception in remote sensing: DI-NOv3 for robust multi-layer dense features, SAM2 for high-recall proposals, and a persistent memory for cross-image/domain retrieval. Building on this backbone triad, ZODS-RS provides a closed-form, training-free pipeline that outputs HBB + instance masks via three inference-only stages: PP (prototype purification), R-SEM (rotation–scale-equivariant matching with global assignment), and UAM (uncertainty-aware pixel-level merging). We stabilize multi-layer features using a lightweight CWLA, as a seman-tic gate to suppress background look-alikes without fine-tuning [21, 24]. This work provides a training-free, closed-form DINOv3+SAM2+memory pipeline with a PP →
+
+R-SEM → UAM chain (plus CWLA) producing HBB and masks. 1
+
+> arXiv:2606.10769v1 [cs.CV] 9 Jun 2026 Figure 1. Our method is evaluated directly on different datasets without any fine-tuning[2, 19]. The reference set contains one exemplar image per class. Conditioned on this reference set, the model segments the entire target dataset. The results show: (1) strong generalization across sensing scales—from satellite remote sensing to low-altitude UAV imagery; (2) state-of-the-art performance in 1-shot segmentation without any training or domain adaptation; and (3) effective prediction on images of varying sizes without tiling or upscaling.
+
+On xView[14], FAIR1M[26], and our custom UAV dataset, ZODS-RS attains HBB mAP .50: .95 of 16.69 (xView), 13.06 (FAIR1M), and 47.30 (UAV). Under a unified HBB protocol, ZODS-RS consistently ex-ceeds training-free/OVD baselines on xView and FAIR1M and yields larger gains on the domain-specific UAV set—indicating practical generalization to bespoke data without any training or adaptation. Our numerics on xView/FAIR1M, mAP .50: .95 improves by +1.37 to +4.47 over the strongest baseline; on the UAV set, by +41.69 [18, 23]. Contributions. 1. A training-free, closed-form pipeline that unifies de-tection and instance segmentation (HBB + masks) for aerial/UAV imagery, built on a frozen DINOv3 + SAM2 + memory triad and stabilized by CWLA. 2. Module-level mathematics tightly coupled to DINOv3: PP with Tyler scatter and spectral purification plus OT-based anchoring; R-SEM with separable rotation/scale weights and Hungarian assignment; UAM with energy-based uncertainty and adaptive priors. 3. Empirical gains on xView, FAIR1M, and a custom UAV dataset under a unified HBB protocol, with clear benefits on small objects, crowded scenes, and cross-domain robustness—while keeping deployment simple and training-free. ZODS-RS treats frozen-backbone synergy with memory as a first-class design principle and realizes a PP → R-SEM →
+
+UAM inference chain on top of DINOv3+SAM2+memory, addressing rotation, scale variation, crowding, and domain shifts without fine-tuning. 
+
+## 2. Related Work 
+
+2.1. Training-free / OVD / Prompted detection 
+
+Recent progress on training-free and open-vocabulary de-tection (OVD) typically relies on frozen foundation fea-tures and strong proposal generators, then aggregates or aligns scores with textual priors to produce pseudo la-bels or final detections. OWL-V2 scales OVD with web-scale self-training and a text-conditioned detector, show-ing that robust language–vision priors can substantially reduce reliance on closed vocabularies [18]. Florence-2 offers a unified, prompt-based representation supporting 2grounding and detection without task-specific fine-tuning [29]. In practice, Grounded-SAM composes Grounding DINO with SAM to couple open-set localization and high-quality masks under text prompts, illustrating a widely used two-stage recipe [23]. More recently, “No-Time-To-Train” pushes training-free reference-driven segmenta-tion/detection with a staged pipeline anchored by memory and cross-image correspondences [5]. Relative to these lines, we treat the frozen backbone synergy—DINOv3 for dense multi-layer features, SAM2 for high-recall propos-als, and a persistent memory bank for cross-image/domain retrieval—as a first-class design choice, and address fine-grained/scale/crowding issues with a closed-form PP →R-SEM →UAM chain , rather than viewing the backbone as a replaceable component[6, 10, 15, 20, 30, 31]. 
+
+2.2. Dense Features from DINOv2 to DINOv3 
+
+The DINO family demonstrates that large-scale self-supervised ViTs can provide strong dense features with good transfer across pixel- and region-level tasks. DINOv2 established a robust recipe based on curated data and sta-bilized training, yielding versatile features for downstream detection/segmentation [19]. DINOv3 further emphasizes high-quality dense alignment and post-hoc flexibility (e.g., resolution/model-size scaling), reporting stronger dense de-scriptors than prior self-/weakly supervised backbones [24]. In ZODS-RS, we do not merely “swap” backbones; instead, we pair DINOv3 with lightweight cross-layer weighted ag-gregation (CWLA) and a retrieval memory to enhance sepa-rability and detectability under cross-domain shifts, keeping the backbone frozen[2]. 
+
+2.3. SAM2-based Remote Sensing Generation 
+
+Promptable segmentation models are widely adopted as proposal generators. SAM provides class-agnostic, high-quality masks from sparse prompts [11, 22], while SAM2 improves temporal stability and streaming efficiency, and is increasingly used as a reusable segmentation engine [21]. In aerial/remote-sensing imagery, however, small objects, weak textures, and extreme scales challenge proposal qual-ity; empirical studies on “SAM in RS” highlight mixed re-sults and the need for domain-aware prompting or filtering [8]. Our design embeds SAM2 into the backbone synergy: DINOv3’s dense similarity maps guide proposal selection, and R-SEM’s rotation–scale kernels choose candidates that best match purified prototypes 
+
+2.4. Memory Bank & Prototype Retrieval 
+
+Prototype- or memory-based retrieval is a recurring tool in training-free and weakly supervised settings, but single-mean prototypes and cosine scoring are sensitive to do-main shifts and reference selection variance. OVD systems (e.g., OWL-V2) and unified models (e.g., Florence-2) im-plicitly attest to the utility of semantic priors and exter-nal knowledge [18, 29]. ZODS-RS constructs a reference subset with purified sub-prototypes from stable dense fea-tures, using PP to reduce cross-source noise before R-SEM matching[26, 28][3, 17, 25, 27]. 
+
+2.5. Equivariant Matching in Crowded Scene 
+
+Remote-sensing objects exhibit large variations in orienta-tion and scale; classical detectors rely on multi-scale pyra-mids or incorporate rotation handling explicitly. Rotation-equivariant detection (e.g., ReDet[7]) integrates equivariant backbones and rotation-invariant pooling for OBB predic-tion [7], while oriented detectors such as RoI Transformer address geometry explicitly at the proposal/ROI level [4]. For assignment, the DETR family popularized global bi-partite matching with the Hungarian algorithm, providing a clean paradigm for sparse set prediction under overlaps and duplicates [1]. We follow the matching spirit—using global assignment inside R-SEM—but remain training-free and couple it with closed-form scale–rotation kernels; datasets such as DOTAv2 and FAIR1M highlight the need for such handling in real imagery. 
+
+2.6. Pixel Uncertainty and Bayesian Merging 
+
+Uncertainty modeling distinguishes aleatoric from epis-temic components and has improved robustness for dense prediction; Kendall & Gal formalized per-pixel formula-tions widely adopted in segmentation [9]. For boundary re-finement, fully connected Dense-CRF remains an effective, lightweight postprocessor compatible with class-agnostic masks [12]. Our UAM stage uses uncertainty-aware pixel-wise merging with Bayesian weighting and optional CRF refinement to stabilize overlaps and suppress open-set dis-tractors in a training-free regime[16]. 
+
+## 3. Method 
+
+3.1. Engine: DINOv3 + SAM2 + Memory 
+
+We adopt a training-free, inference-time engine (show in fig.2) that produces geometry-faithful dense features, high-recall proposals, and a persistent memory of purified pro-totypes and informative negatives, so that PP / R-SEM / UAM operate in a stable, high-SNR space without gradi-ents or EMA. 
+
+dense tokens. Given an image I ∈ RH0×W0×3, we se-lect L DINOv3 layers L = {ℓ1, . . . , ℓ L}. After resizing to a common grid (H, W ) and L2-normalization, the feature tensors and per-pixel tokens are 
+
+F [ℓ] ∈ RC×H×W , f [ℓ] 
+
+> p
+
+∈ RC , f [ℓ] 
+
+> p
+
+← f [ℓ] 
+
+> p
+
+/∥f [ℓ] 
+
+> p
+
+∥2.
+
+(1) A lightweight cross-layer fusion (CWLA; sec.3.4) later forms ¯fp while preserving layer-wise access for R-SEM. 3Figure 2. Overview of the ZODS-RS pipeline (training-free). Reference branch (top-left): DINOv3 extracts dense tokens from a reference RGB patch; annotations split foreground/background tokens. Robust-PP estimates a Tyler scatter, applies spectral purification with a binary projection, and yields a purified prototype ˆp while mining negatives. Inference branch (bottom): on a test image, DINOv3 provides multi-layer features and SAM2 supplies high-recall instance masks/HBBs. R-SEM computes rotation–scale equivariant responses and fuses them; CWLA weights layers by consistency. Merge (right): UAM performs uncertainty-aware voting over overlapping candidates and suppresses look-alikes with negative channels, producing final HBBs and masks. All steps are closed-form or finite-iteration without training. 
+
+high-recall proposals. SAM2 produces masks 
+
+{Mi}Pi=1 ; each mask induces an bounding box (HBB) Bi
+
+via minAreaRect( Mi). We retain masks passing stabil-ity checks (minimum area/score, morphology IoU) and per-form oriented NMS with IoU threshold τnms , obtaining the set 
+
+M = {(Mi, B i)}P ′
+
+> i=1
+
+. (2) 
+
+reference-to-memory (R2M). A user-marked reference mask—or a self-bootstrapped prediction with high confi-dence and low uncertainty—is committed into the mem-ory of class k through a closed-form / finite-iteration rou-tine. We first collect reference tokens from {F [ℓ]} inside the mask and optionally keep only the top-q% by cosine similarity (w.r.t. an initial anchor) while eroding borders, yielding a cleaned set Xk = {xj }nj=1 ⊂ RC . We then esti-mate a scale-free scatter using Tyler’s fixed-point with trace normalization, 
+
+Σt+1 = dn
+
+> n
+
+X
+
+> j=1
+
+xj x⊤
+
+> j
+
+x⊤ 
+
+> j
+
+Σ−1 
+
+> t
+
+xj
+
+, tr(Σ t+1 ) = d, Σ0 = I, d = C, 
+
+(3) and set bΣk = Σ T , falling back to diag(Σ T ) or I + εI when small-n or ill-conditioning is detected. With bΣk = U ΛU ⊤,we keep the top-r axes Ur and define the idempotent pro-jector 
+
+Pr = Ur diag( w) U ⊤ 
+
+> r
+
+, w ∈ { 0, 1}r , P 2 
+
+> r
+
+= Pr .
+
+(4) References (and any token z) are whitened and projected, 
+
+˜xj = Pr bΣ−1/2 
+
+> k
+
+xj , bΣ−1/2 
+
+> k
+
+= U Λ−1/2 U ⊤, (5) followed by a one-shot bounded-influence mean (M-estimator) and normalization to obtain a purified prototype, 
+
+˜pk =
+
+P 
+
+> j
+
+aj ˜xj
+
+P 
+
+> j
+
+aj
+
+, aj = ψ(∥˜xj ∥2), ˆpk = Pr ˜pk
+
+∥Pr ˜pk∥2
+
+.
+
+(6) When text/image anchors {gm} are available, we option-ally shrink ˜pk toward the anchor manifold via entropy-regularized optimal transport 
+
+Π* = arg min 
+
+> Π∈U
+
+⟨Π, C ⟩ + εH (Π) , Cjm = 1 − ⟨ ˜xj , gm⟩,
+
+(7) and mix the transport barycenter with weight α before the final projection/normalization. To suppress look-alikes, we also mine negatives from low-prior regions (low norm/margin/attention) and aggregate them with the same whiten–project routine, yielding {˜p− 
+
+> k,j
+
+}. The committed memory entry is 
+
+Bk =  ˆpk, bΣk, {˜p− 
+
+> k,j
+
+}mk
+
+> j=1
+
+, (8) 4maintained with bounded capacity and closed-form smooth-ing (count-weighted convex merge), or branched into sub-prototypes when distributions diverge—still training-free. 
+
+interface. The engine outputs F = {¯fp}, M =
+
+{(Mi, B i)}, and B = {B k}k. R-SEM consumes ˆpk and per-layer tokens for rotation–scale matching (sec.3.3); 
+
+3.2. Robust-PP 
+
+Given the memory tuple Bk = (ˆ pk, bΣk, {˜p− 
+
+> k,j
+
+}) and class references Xk = {xj }nj=1 ⊂ RC from sec.3.1, we refine the prototype and scatter in a training-free manner. We first re-estimate a scale-free scatter using Tyler’s fixed-point with trace normalization: 
+
+Σt+1 = dn
+
+> n
+
+X
+
+> j=1
+
+xj x⊤
+
+> j
+
+x⊤ 
+
+> j
+
+Σ−1 
+
+> t
+
+xj
+
+, tr(Σ t+1 ) = d, Σ0 = I, 
+
+(9) and set bΣk ← ΣT after T iterations (finite and gradient-free). For small-n or ill-conditioned cases, we fall back to 
+
+bΣk ← diag(Σ T ) or I +εI with ε > 0. Let bΣk = U ΛU ⊤ be the eigendecomposition with λ1 ≥ · · · ≥ λC > 0. We keep top-r axes Ur = [ u1, . . . , ur ] and define an entropy-gated idempotent projector 
+
+Pr = Ur diag( w) U ⊤ 
+
+> r
+
+, w ∈ { 0, 1}r , P 2 
+
+> r
+
+= Pr .
+
+(10) All tokens (references or candidates) are whitened-and-projected :
+
+˜xj = Pr bΣ−1/2 
+
+> k
+
+xj , bΣ−1/2 
+
+> k
+
+= U Λ−1/2 U ⊤. (11) A one-shot bounded-influence mean (M-estimator) yields 
+
+˜pk =
+
+P 
+
+> j
+
+aj ˜xj
+
+P 
+
+> j
+
+aj
+
+, aj = ψ ∥˜xj ∥2
+
+, ˆpk ← Pr ˜pk
+
+∥Pr ˜pk∥2
+
+.
+
+(12) 
+
+OT-PP (optional). When semantics(eg. Clip/Florence) anchors {gm}Mm=1 ⊂ RC (text prompts or image anchors) are available, we shrink ˜pk toward the anchor manifold via entropy-regularized optimal transport: 
+
+Π* = arg min 
+
+> Π∈U (u,v)
+
+⟨Π, C ⟩+εH (Π) , Cjm = 1 −⟨ ˜xj , gm⟩.
+
+(13) The transport-weighted barycenter 
+
+˜pOT  
+
+> k
+
+=
+
+P 
+
+> j
+
+(Π *1)j ˜xj
+
+P 
+
+> j
+
+(Π *1)j
+
+(14) is optionally mixed with weight α before the final projec-tion/normalization. Properties: the scatter is scale-free; 
+
+Pr is idempotent; OT-PP yields anchor-aware shrinkage; all updates are closed-form or finite-iteration without gra-dients. Output: updated (ˆ pk, bΣk) (with or without OT an-choring), consumed by R-SEM and UAM. 
+
+3.3. R-SEM 
+
+At inference, the detector outputs axis-aligned boxes Ci
+
+(HBBs). For each Ci, we use the box as a SAM2 prompt to produce candidate masks {Mi,t }, select a stable mask Mi
+
+(e.g., highest mask score or largest IoU with the HBB), and derive an oriented box Bi := minAreaRect( Mi). We ap-ply minimum area/score and morphology-IoU sanity checks and perform oriented NMS at IoU threshold τnms , forming 
+
+M = {(Mi, B i)}. This conversion is training-free and purely geometric. Let ¯fp denote the per-pixel descriptor (Sec. 3.1; CWLA in Sec. 3.4). We evaluate class-conditioned responses at multiple scales s ∈ S and angles θ ∈ Θ:
+
+S(s,θ ) 
+
+> k
+
+(p) = ¯fp, (s,θ ), ˆpk , (15) where ¯fp, (s,θ ) is obtained by scale pyramids and steerable rotations (implemented by resampling/FFT rotation without training). We apply separable Gaussian weights 
+
+α(s) ∝ exp 
+
+
+
+− (μ(s)−μ∗)2
+
+> 2γ2
+
+
+
+, β(θ) ∝ exp 
+
+
+
+− (ν(θ)−ν∗)2
+
+> 2η2
+
+
+
+,
+
+¯w(s,θ ) = α(s)β(θ)
+
+P 
+
+> u,v
+
+α(u)β(v) .
+
+(16) and fuse to a rotation–scale equivariant map 
+
+Rk(p) = X
+
+> s∈S
+
+X
+
+> θ∈Θ
+
+¯w(s,θ ) Up  S(s,θ )
+
+> k
+
+(p). (17) For each (Mi, B i) ∈ M, we define a cost balancing saliency, coverage, shape, and orientation: 
+
+Ci,k = − TopKMean K
+
+ Rk | Mi
+
+ − λcov Cover  Rk | Mi, t cov 
+
+
+
++ λshape Φ( Bi) + λθ ∆θ (Bi; Rk).
+
+(18) Here TopKMean K (R | M ) averages the top-K responses inside M , Cover( R | M, t ) = |{ p ∈ M : R(p) ≥ t}| /|M |,
+
+Φ( Bi) encodes aspect-ratio/compactness priors, and ∆θ pe-nalizes the deviation between the OBB angle and the dom-inant response angle θ∗(k) = arg max θ
+
+P 
+
+> p∈Mi
+
+S(s∗,θ ) 
+
+> k
+
+(p).We form a bipartite cost matrix [Ci,k ] and solve a one-to-one assignment using the Hungarian algorithm (per image or tile). 
+
+3.4. CWLA (Consistency-Weighted Layer Aggre-gation) 
+
+Given per-layer responses R[ℓ] 
+
+> k
+
+(p) computed from tokens 
+
+F [ℓ] and prototype ˆpk, we define a layer-level uncertainty 
+
+U [ℓ] (e.g., spatially-averaged entropy of a temperature-scaled softmax over k, or energy −τ log P 
+
+> k
+
+exp( R[ℓ] 
+
+> k
+
+/τ )). We convert uncertainties into soft weights 
+
+βℓ = softmax − U [ℓ]
+
+σ
+
+!
+
+, X
+
+> ℓ∈L
+
+βℓ = 1 , β ℓ ≥ 0, (19) 5and obtain the fused response 
+
+Rk(p) = X
+
+> ℓ∈L
+
+βℓ Up  R[ℓ]
+
+> k
+
+(p). (20) This aggregation is closed-form, training-free, and inter-faces R-SEM by replacing R[ℓ] 
+
+> k
+
+with the equivariant re-sponses prior to fusion. The temperature σ controls selec-tivity with respect to layer reliability. 
+
+3.5. UAM 
+
+Let Rc(p) be the fused response of channel c (class proto-types plus negative channels; negatives come from {˜p− 
+
+> k,j
+
+}
+
+and are never emitted). We build pixel logits with adaptive priors Ac(p) > 0:
+
+Lc(p) = Rc(p)
+
+τ +γ log Ac(p), πc(p) = exp( Lc(p)) 
+
+P 
+
+> q
+
+exp( Lq (p)) .
+
+(21) Define pixel uncertainty U (p) = − P 
+
+> c
+
+πc(p) log πc(p).For overlapping instances {Mj } assigned to classes {kj }
+
+(sec.3.3), we merge by uncertainty-aware voting: 
+
+wj (p) ∝ πkj (p) Akj (p)γ
+
+1 + λ U (p) ,
+
+ˆy(p) = arg max 
+
+> k
+
+X  
+
+> j:kj=k
+
+wj (p) ⊮{p ∈ Mj }. (22) Open-set rejection uses either a maximum posterior threshold max c πc(p) < τopen or an energy gate 
+
+−τ log P 
+
+> c
+
+exp( Rc(p)/τ ) > ϵ open . A lightweight CRF can optionally refine boundaries while keeping scores fixed (no training). Negatives act only as competing channels in the softmax, suppressing look-alikes. 
+
+## 4. Experiments 
+
+4.1. Experiments Setup 
+
+4.1.1. Datasets 
+
+We evaluate on xView, FAIR1M, and a self-collected UAV set; none is used for training. To harmonize labels, we merge xView/FAIR1M to plane , ship and UAV to grave-yard , building . All annotations are expressed as HBB; when OBBs exist, we convert them to axis-aligned en-closing boxes (AABB). For mask-capable methods, we de-rive SAM2-prompted proxy masks from HBBs (quality-checked) and use them only for evaluation. 
+
+4.1.2. Task & Protocol (single-image, no tiling) 
+
+All methods run a single forward pass per image with no cropping/tiling. The primary task is HBB detection. For approaches that also produce masks (e.g., training-free segmentation pipelines), we additionally report mask metrics using the SAM2-derived proxy masks.When open-vocabulary prompts are required, all baselines share the same canonical prompt list per merged class (e.g., ship,airplane,graveyard) and identical text pre-processing. 
+
+4.1.3. Metrics 
+
+We report COCO-style HBB mAP 0.50 :0.95 , AP 50 , AP 75 ,and AP S (small-object AP). For methods that output masks, we additionally report per-instance mask IoU and Dice. 
+
+4.2. Baselines and Implementation Details 
+
+4.2.1. Baselines 
+
+We compare against No-Time-To-Train (NTTT), Grounded-SAM (Grounding-DINO + SAM), OWL-V2, LAE-DINO, and Florence-2. Unless otherwise stated, we use each method’s official inference settings and eval-uate HBB detection under the unified protocol in Sec. 4.1 (single-scale, no tiling, shared NMS/thresholds, identical prompt lists for open-vocabulary variants). For OWL-V2, we tune the score threshold to 0.30 on a small validation subset and keep all other parameters aligned with the shared protocol. Because LAE-DINO is pre-trained on LAE-1M, which includes FAIR1M (via LAE-FOD) and xView, evaluating on those sets would cause train–test overlap. To keep the protocol disjoint, we therefore report results in this subsection only on our self-collected UAV dataset and omit FAIR1M/xView for LAE-DINO comparisons. 
+
+4.2.2. Implementation Details (condensed) 
+
+ZODS-RS follows the engine in sec.3.1 and the mod-ules in sec.3.2– sec.3.5: frozen DINOv3 dense tokens, SAM2 high-recall proposals, and a persistent memory bank feeding Robust-PP, optional R-SEM, CWLA, and UAM, all in a training-free regime. Concretely, we use DINOv3 (sat-ViT-L) with multi-layer tokens from lay-ers [8 , 10 , −1] and an attention prior; SAM2 is hiera-large with points per side=32 , iou thr=0.4 ,
+
+nms thr=0.5 , and num out instance=100 . Robust-PP employs Tyler scatter ( iters=20 , tol=1e-4 ), spec-tral truncation with top r=32 . CWLA is enabled over layers [8 , 12 , −1] using the agreement metric with temper-ature σ = 0 .15 and auto-temperature active, yielding an uncertainty-aware fusion that remains gradient-free. UAM uses temperature τ = 1 .0 with auto-τ (entropy target 0.9, range [0 .5, 2.0] ), combines priors in the logit 
+
+domain with strength γ = 1.5 and component weights 
+
+(a, b, c ) = (0 .5, 0.5, 0.2) , enables negative prototypes (num=3 , min area=128 ) to suppress look-alikes, and applies a lightweight CRF ( n iters=10 , sxy=[3,3] ,
+
+srgb=[5,5,5] ) for boundary refinement. HBB-NMS IoU τnms = 0 .50 , and mask binarization τmask = 0 .50 . In-ference runs on a single 5090 GPU in FP32. 6Figure 3. One-shot cross-domain results. With full-image in-ference, ZODS-RS cleanly separates overlapping instances in crowded scenes while preserving fine-grained localization, en-abled by PP, R-SEM, CWLA, and UAM. 
+
+4.3. Experimental Results 
+
+Evaluation setup and notes. We adopt a training-free, cross-domain protocol. For ship /airplane , one FAIR1M reference per class is used to evaluate on FAIR1M and xView; for UAV (graveyard), the first image serves as the reference and we evaluate the full set. Inference is single-scale on full im-ages (no tiling/upscaling). Baselines use default thresholds except OWL-V2 (score = 0.30). We report COCO-style HBB metrics (mAP 0.50:0 .95 , AP50, AP75, APs); IoU/Dice only for mask-capable methods. Because LAE-DINO is pre-trained on a corpus including xView/FAIR1M, it is re-ported only on UAV to avoid train–test overlap. UAV Data. Overall, ZODS-RS achieves mAP 47.30, far surpassing all baselines (next best Florence-2: 5.61, i.e., ≈
+
+8.4×). AP50 is 50.31 ( ≈ 8.3×), AP75 48.25 ( ≈ 8.0×), and APs 33.65 ( ≈ 11 .4×). On masks, ZODS-RS reaches IoU 31.10 vs. Grounded-SAM 16.62 ( ≈ 1.87 ×), and Dice 42.71 vs. 24.24 ( ≈ 1.76 ×). LAE-DINO scores mAP 0.93 and AP50/75 1.27, trailing ZODS-RS by > 50 ×. These results indicate that 1-shot memory + full-image inference provides strong utility in bespoke, non-textbook distributions (Tab. 1, Fig. 4). FAIR1M (reference from FAIR1M). Ship. ZODS-RS at-tains mAP 23.93, outperforming Florence-2 20.38, OWL-V2 16.32, Grounded-SAM 15.55, and NTTT 6.22. Relative to the strongest baseline (Florence-2), gains are +3.55 mAP (+17%), +13.78 AP50 (+47%), and +8.01 AP75 (+40%). On APs, OWL-V2 5.93 exceeds ours 4.84 ( −1.09 ), sug-gesting that extremely small targets remain a recall bottle-neck under our no-tiling constraint. For masks, ZODS-RS yields IoU 56.57 / Dice 67.92, clearly above Grounded-SAM 33.26 / 41.79 and NTTT 21.21 / 29.46, reflect-ing stronger boundary fidelity and consistency. Airplane. 
+
+Grounded-SAM reaches the highest mAP 3.01; ours 2.19, Florence-2 2.01, OWL-V2 1.62, NTTT 0.82. AP50 fol-lows the same order ( 16 .22 > 11 .96 for ours). Under the stricter AP75, ZODS-RS scores 0.67, exceeding Florence-2 0.28, OWL-V2 0.13, and Grounded-SAM 0.00, indicating more precise localization at high IoU despite lower overall mAP. Mask quality is also superior (IoU 55.15 / Dice 68.79 vs. 23 .76 /29 .66 for Grounded-SAM and 16 .72 /19 .36 for NTTT). (Tab. 1) xView (reference from FAIR1M; cross-domain). Ship (cross-domain). ZODS-RS leads with mAP 13.07, ahead of Florence-2 11.45, Grounded-SAM 8.07, OWL-V2 7.16, NTTT 3.77; AP50 18.43 and AP75 15.10 are also high-est. For APs, OWL-V2 2.03 slightly surpasses ours 1.82 (−0.21 ). On masks, Grounded-SAM IoU 22.25 > ours 19.36, while Dice ours 25.02 > 23.52, hinting that bound-ary coherence benefits from our merging even when raw overlap lags. Airplane (cross-domain). ZODS-RS at-tains mAP 20.31, substantially above Florence-2 13.00, Grounded-SAM 4.73, OWL-V2 4.07, NTTT 1.97 ( +56% 
+
+over Florence-2). AP50 39.90 and AP75 24.62 are likewise dominant (AP75 is ≈ 3.4× the next best). Masks reach IoU 24.03 / Dice 33.62, comfortably exceeding Grounded-SAM 15.96 / 10.03. (Tab. 1) Summary. (i) On UAV data, ZODS-RS shows large, consistent gains across detection and segmentation, di-rectly supporting the “user-specific dataset” use case. (ii) In cross-domain settings (FAIR1M →xView), ZODS-RS is leading or tied on mAP/AP50/AP75 for both ship and air-plane , with particularly strong margins on xView–airplane. (iii) AP75 and mask quality (IoU/Dice) repeatedly fa-vor ZODS-RS, suggesting accurate localization and sta-ble boundaries—even when overall mAP is not the best (FAIR1M–airplane). (iv) APs lags slightly on ship for FAIR1M/xView relative to OWL-V2, consistent with the 
+
+no-tiling evaluation; denser scale grids or lightweight zoom-in heuristics are promising remedies. (v) Under a uni-fied zero-training protocol with 1-shot reference , ZODS-RS delivers reproducible, across-dataset gains. 
+
+4.4. Ablation Studies 
+
+We analyze the stepwise design base → pp → pp+sem-cwla 
+
+→ all (pp+sem-cwla+uam ) under the unified, training-free protocol (single-scale, full-image, 1-shot reference; HBB metrics).As show in Tab. 2, on the user-defined UAV set, performance grows from base to pp and then jumps markedly at pp+sem-cwla , culminating in a large mar-gin at all(pp+sem-cwla+uam) . Concretely, base yields 
+
+(0 .74 /0.74 /0.74) for mAP/AP50/AP75, pp lifts them to 
+
+(2 .93 /2.97 /2.97) , pp sem+cwla to (16 .68 /17 .21 /16 .86) ,7Table 1. HBB results. “ship/airplane/graveyard” indicate the ac-tive class (1=active). IoU/Dice only for mask-capable methods. OWL-V2 uses score thr.=0.30. LAE-DINO reported only on UAV.                                                                                                                                                                                                                                                                                         
+
+> Method Dataset ship airplane graveyard mAP AP50 AP75 APs IoU Dice OWL-V2 (0.30) UAV (graveyard) 0012.92 3.52 3.52 4.23 ––FAIR1M (ship) 10016.32 29.05 15.58 5.93 ––FAIR1M (airplane) 0101.62 8.00 0.13 0.13 ––xView (ship) 1007.16 13.34 8.75 2.03 ––xView (airplane) 0104.07 11.74 4.55 0.00 ––NTTT UAV (graveyard) 0011.53 1.33 1.33 0.00 10.10 13.52 FAIR1M (ship) 1006.22 12.85 0.00 0.00 21.21 29.46 FAIR1M (airplane) 0100.82 9.25 0.00 0.00 16.72 19.36 xView (ship) 1003.77 11.01 1.24 0.00 8.96 11.25 xView (airplane) 0101.97 5.21 0.00 0.00 5.96 11.48 Florence-2 UAV (graveyard) 0015.61 6.06 6.06 0.00 ––FAIR1M (ship) 10020.38 29.55 19.70 0.00 ––FAIR1M (airplane) 0102.01 10.23 0.28 0.00 ––xView (ship) 10011.45 12.60 9.50 0.00 ––xView (airplane) 01013.00 28.69 7.20 0.00 ––LAE-DINO UAV (graveyard) 0010.93 1.27 1.27 0.00 ––FAIR1M (ship) 100––––––FAIR1M (airplane) 010––––––xView (ship) 100––––––xView (airplane) 010––––––Grounded-SAM UAV (graveyard) 0015.28 5.87 5.87 2.95 16.62 24.24 FAIR1M (ship) 10015.55 21.13 19.96 0.00 33.26 41.79 FAIR1M (airplane) 0103.01 16.22 0.00 0.00 23.76 29.66 xView (ship) 1008.07 14.02 9.09 0.00 22.25 23.52 xView (airplane) 0104.73 11.82 0.00 0.00 15.96 10.03 Ours UAV (graveyard) 00147.30 50.31 48.25 33.65 31.10 42.71 FAIR1M (ship) 10023.93 43.33 27.97 4.84 56.57 67.92 FAIR1M (airplane) 0102.19 11.96 0.67 1.01 55.15 68.79 xView (ship) 10013.07 18.43 15.10 1.82 19.36 25.02 xView (airplane) 01020.31 39.90 24.62 0.66 24.03 33.62
+
+and all to (47 .30 /50 .31 /48 .25 ). This trajectory indi-cates: (i) pp aligns reference and candidate features into a more comparable scatter, improving both relaxed and strict IoUs; (ii) adding sem+cwla further stabilizes match-ing through rotation/scale handling and cross-layer consis-tency; and (iii) the full system with uam consolidates over-lapping candidates via uncertainty-aware merging and prior reweighting, pushing detection quality and geometric fi-delity jointly. On FAIR1M and xView (cross-domain), trends are con-sistent but express different trade-offs between recall and localization. On FAIR1M, pp sharply increases AP50 from 
+
+0.00 to 18 .18 while mAP fluctuates, pp+sem-cwla stabi-lizes mAP near the base level, and all turns on strict lo-calization with a non-zero AP75 ( 0.67 ) despite a reduc-tion in AP50—suggesting a more conservative recall but improved high-IoU precision. In contrast, cross-domain xView remains low through pp and pp+sem-cwla , and only with all does it surge to (20 .31 /39 .90 /24 .62) , indicating that the combination of equivariant matching, consistency-weighted fusion, and uncertainty-aware merging is essential when domain shift is pronounced: both recall (AP50) and strict localization (AP75) rise together once the full pipeline is active. Overall, the ablation shows a coherent mecha-nism: pp primarily rectifies distribution mismatch (recall-first), sem-cwla enforces geometrically consistent corre-spondences and robust cross-layer evidence, and uam reg-ularizes pixel-level competition and overlap to yield stable instance decisions across domains. 
+
+Table 2. Ablation results. Stepwise evaluation on three datasets; values are mAP/AP50/AP75. 
+
+Model Dataset mAP AP50 AP75 Base FAIR1M 3.30 0.00 0.00 Base xView 1.60 2.86 1.33 Base UAV 0.74 0.74 0.74 Base+PP FAIR1M 2.76 18.18 0.00 Base+PP xView 1.36 1.82 1.82 Base+PP UAV 2.93 2.97 2.97 Base+PP+SEM-CWLA FAIR1M 3.16 19.89 0.00 Base+PP+SEM-CWLA xView 1.62 3.07 1.24 Base+PP+SEM-CWLA UAV 16.68 17.21 16.86 Base+PP+SEM-CWLA+UAM FAIR1M 2.19 11.96 0.67 Base+PP+SEM-CWLA+UAM xView 20.31 39.90 24.62 Base+PP+SEM-CWLA+UAM UAV 47.30 50.31 48.25 
+
+## 5. Conclusion and Future Work 
+
+In this work, we presented ZODS-RS, a training-free, closed-form pipeline for aerial perception that couples frozen DINOv3 dense tokens, SAM2 proposals, and a per-sistent memory with three inference-only operators—PP for prototype purification, R-SEM for rotation–scale-equivariant matching with global assignment, and UAM for uncertainty-aware pixelwise merging—stabilized by lightweight CWLA. Under a unified HBB protocol , ZODS-RS yields consistent gains over training-free/OVD base-lines: mAP 0.50:0 .95 of 16.69 on xView and 13.06 on FAIR1M, and 47.30 on our UAV set, where mask mIoU reaches 31.10 and small-object AP improves by +30.70 over Grounded-SAM. Ablations (base → pp → pp sem+cwla 
+
+→ all) corroborate the intended roles of distribution align-ment, equivariant matching with cross-layer consistency, and uncertainty-driven merging. For future work, we aim to extend HBB outputs to true OBB and shape-aware masks within UAM; improve small-object recall via lightweight tiling/zoom-in and denser R-SEM scale/angle grids; adapt priors and memory on-line (automatic τ, γ, λ calibration; retrieval-aware sub-prototype growth/pruning); tighten semantic gating with Florence/CLIP for open-set distractors; leverage SAM2 streaming and short-term tracklets for temporal stability; further optimize deployment with ONNX/TensorRT, ker-nel fusion, and mixed precision; broaden evaluation across additional RS/UAV corpora with released reference splits; and strengthen reliability through calibrated uncertainty, ab-stention, and optional human-in-the-loop review for safety-critical workflows. 
+
+## References 
+
+[1] Nicolas Carion et al. End-to-end object detection with trans-formers. In ECCV , 2020. Bipartite (Hungarian) assignment; 
+
+8motivates global matching in our R-SEM. [2] Mathilde Caron, Hugo Touvron, Ishan Misra, Herv´ e J´ egou, Julien Mairal, Piotr Bojanowski, and Armand Joulin. Emerg-ing properties in self-supervised vision transformers. In 
+
+ICCV , 2021. DINO. [3] Marco Cuturi. Sinkhorn distances: Lightspeed computation of optimal transport. In NeurIPS , 2013. [4] Jian Ding et al. Learning roi transformer for oriented ob-ject detection in aerial images. In CVPR , 2019. Rotation-aware detection under supervision; contrasts with training-free goals. [5] Miguel Espinosa, Chenhongyi Yang, Linus Ericsson, Steven McDonagh, and Elliot J. Crowley. No time to train! training-free reference-based instance segmentation. 
+
+arXiv:2507.02798 , 2025. [6] Xiuye Gu, Tsung-Yi Lin, Weicheng Kuo, and Yin Cui. Open-vocabulary object detection via vision and language knowledge distillation. ICLR , 2022. arXiv:2104.13921. [7] Jiaming Han, Jian Ding, Nan Xue, and Gui-Song Xia. Redet: A rotation-equivariant detector for aerial object detection. In 
+
+CVPR , 2021. [8] Weixin Jin et al. Segment anything in remote sensing. 
+
+arXiv:2306.08615 , 2023. [9] Alex Kendall and Yarin Gal. What uncertainties do we need in bayesian deep learning for computer vision? NeurIPS ,2017. Per-pixel aleatoric/epistemic modeling; supports UAM’s uncertainty formulation. [10] Donghyun Kim, Bing Ni, Zhiqiang Hu, Jiahui Zhang, Shuyang Bai, Ming Tang, et al. Region-aware pretraining for open-vocabulary object detection with vision transform-ers. In CVPR , 2023. RO-ViT. [11] Alexander Kirillov, Eric Mintun, Nikhila Ravi, et al. Seg-ment anything. arXiv:2304.02643 , 2023. [12] Philipp Kr¨ ahenb¨ uhl and Vladlen Koltun. Efficient inference in fully connected crfs with gaussian edge potentials. In 
+
+NeurIPS , 2011. [13] Harold W. Kuhn. The hungarian method for the assignment problem. Naval Research Logistics Quarterly , 2(1–2):83– 97, 1955. [14] Darius Lam, Richard Kuzma, Kevin McGee, Samuel Doo-ley, Michael Laielli, Matthew Klaric, Yaroslav Bulatov, and Brendan McCord. xview: Objects in context in overhead imagery, 2018. [15] Liunian Harold Li, Pengchuan Zhang, Haotian Zhang, Jian-wei Yang, Chunyuan Li, Yiwu Zhong, Lijuan Wang, Lu Yuan, Lei Zhang, Jenq-Neng Hwang, Kai-Wei Chang, and Jianfeng Gao. Grounded language-image pre-training. In 
+
+CVPR , 2022. [16] Weitang Liu, Xiaoyun Wang, John Owens, and Yixuan Li. Energy-based out-of-distribution detection. In NeurIPS ,2020. [17] Leland McInnes, John Healy, and Steve Astels. hdbscan: Hi-erarchical density based clustering. Journal of Open Source Software , 2(11):205, 2017. [18] Matthias Minderer et al. Scaling open-vocabulary object de-tection. In NeurIPS , 2023. OVD baseline family; highlights language-aligned detectors for training-free use. [19] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv:2304.07193 , 2023. [20] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. Learning transferable visual models from natural language supervision. In International Conference on Machine Learning (ICML) Workshop , 2021. arXiv:2103.00020. [21] N. Ravi et al. SAM 2: Segment anything in images and videos. arXiv:2408.00714 , 2024. Promptable segmentation; used as high-recall candidate generator. [22] Shan Ren, Michael Goldman, Jordan M. Malof, Leslie Collins, and Kyle Bradbury. Segment anything from space. In WACV , 2024. [23] T. Ren et al. Grounded SAM: Assembling open-world mod-els for universal image segmentation. arXiv:2401.14159 ,2024. Assembled detector+segmenter pipeline; representa-tive modular training-free stack. [24] Oriane Sim´ eoni et al. Dinov3. arXiv:2508.10104 , 2025. Frozen dense features and scaling; backbone component in our synergy. [25] Jake Snell, Kevin Swersky, and Richard S. Zemel. Prototyp-ical networks for few-shot learning. In NeurIPS , 2017. [26] X. Sun et al. FAIR1M: A benchmark dataset for fine-grained object recognition in high-resolution remote sensing imagery. ISPRS J. Photogramm. Remote Sens. , 2022. Fine-grained classes and small objects; stresses scale and crowd-ing. [27] David E. Tyler. A distribution-free m-estimator of multivari-ate scatter. The Annals of Statistics , 15(1):234–251, 1987. [28] Gui-Song Xia, Xiaoqing Bai, Jian Ding, et al. Dota: A large-scale dataset for object detection in aerial images. In CVPR ,2018. Aerial dataset with arbitrary-oriented objects; moti-vates OBB handling. [29] Bin Xiao et al. Florence-2: Advancing a unified representa-tion for a variety of vision tasks. In CVPR , 2024. General vision backbone; used here as optional semantic gate without fine-tuning. [30] Yuting Zhong, Mingyu Ding, Jian Chen, Yutong Wang, Jing Zhang, Ying Tai, Chengjie Wang, Jilin Li, Feiyue Huang, Rongrong Ji, et al. Regionclip: Region-based language-image pretraining. arXiv preprint arXiv:2112.09106 , 2021. [31] Xingyi Zhou, Rohit Girdhar, Armand Joulin, Philipp Kr¨ ahenb¨ uhl, and Ishan Misra. Detecting twenty-thousand classes using image-level supervision. In ECCV , 2022. arXiv:2201.02605. 
+
+9

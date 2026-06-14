@@ -1,0 +1,1641 @@
+Title: Dual Quaternion-Based Unscented Kalman Filter with Visual Inertial Odometry for Navigation in GPS-Denied Environments
+
+URL Source: https://arxiv.org/pdf/2606.09292v1
+
+Published Time: Tue, 09 Jun 2026 02:38:04 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+> Personal use of this material is permitted. Permission from the author(s) and/or copyright holder(s), must be obtained for all other uses. Please contact us and provide details if you believe this document breaches copyrights.
+
+# Dual Quaternion-Based Unscented Kalman Filter with Visual Inertial Odometry for Navigation in GPS-Denied Environments 
+
+Mohamed Khalifa and Hashim A. Hashim 
+
+Abstract —Reliable navigation in GPS-denied environments remains a fundamental challenge in robotics, aerospace, and autonomous vehicle applications. This paper presents a Dual Quaternion-Based Unscented Kalman Filter (DQUKF) equipped with a Visual Inertial Odometry (VIO) algorithm for accurate state estimation enabling navigation in GPS denied locations. The proposed framework formulates the DQUKF in an error state manner, where the nominal pose is represented by a unit dual quaternion and the local pose error is represented by a 6-dimensional twistor parameterization used for sigma point gen-eration, covariance propagation, and measurement correction. In parallel, the VIO algorithm tracks features across image frames, synchronizes measurements between the IMU and camera, and provides visual constraints that complement inertial propagation. Simulation results on the EuRoC MAV dataset show that the proposed DQUKF converges under high initialization uncertainty and achieves a position RMSE of 0.2584 m in the difficult flight sequence, outperforming the benchmark filters. 
+
+Index Terms —Unscented Kalman Filter, Visual-Inertial Odom-etry, dual quaternion, sensor fusion, GPS-denied navigation 
+
+I. I NTRODUCTION 
+
+Micro aerial vehicles (MAVs) operating in GPS-denied environments rely on accurate state estimation for naviga-tion and control. Visual-inertial odometry (VIO), which fuses camera and inertial measurements, has become a widely adopted solution due to the complementary characteristics of these sensors [?], [1], [2]. Inertial measurements pro-vide high-rate motion information but suffer from drift over time, while visual measurements constrain long-term motion but are sensitive to environmental conditions. By combining these sensing modalities, VIO enables reliable estimation of motion in challenging scenarios [3], [4]. In tightly coupled formulations, visual feature observations are incorporated directly into the estimation process, allowing inertial and visual information to be fused at the measurement level. This integration improves estimation accuracy and robustness compared to loosely coupled approaches, particularly under rapid motion, feature degradation, or visually challenging conditions. [5]–[10]. Among the various estimation strategies, filter-based methods remain attractive for real-time VIO due to their recursive structure and computational efficiency [11]. In particular, Kalman filtering and its nonlinear extensions 
+
+This work was supported in part by the National Sciences and Engineering Research Council of Canada (NSERC), under the grants RGPIN-2022-04937. M. Khalifa and H. A. Hashim are with the Department of Mechanical and Aerospace Engineering, Carleton University, Ottawa, Ontario, K1S-5B6, Canada (e-mail: hhashim@carleton.ca). 
+
+provide a principled framework for fusing multi-sensor data while accounting for process and measurement uncertainty [12]. However, beyond the choice of filtering technique, the representation of attitude and rigid-body pose plays a critical role in estimator performance. The choice of parameterization directly affects numerical stability, constraint handling, and the consistency of uncertainty propagation within nonlinear filters. In addition to the choice of filtering technique, the parameterization of pose plays a central role in nonlinear estimation. For attitude estimation, minimal representations such as modified Rodrigues parameters (MRPs) [13] have been widely used due to their ability to represent rotation using three parameters while avoiding the unit-norm constraint associated with quaternions. These representations are typi-cally employed to describe local attitude errors within filtering frameworks, enabling consistent uncertainty propagation and correction. Extending this idea to rigid-body motion, dual quaternion representations can be combined with minimal local parameterizations to represent pose perturbations in a lower-dimensional space. In particular, dual extensions of modified Rodrigues parameters [14] provide a compact six-dimensional representation of local pose error, which can be interpreted as a twistor representation of rigid-body motion. Such formulations offer a promising approach for combining the geometric consistency of dual quaternions with the numer-ical advantages of minimal local parameterizations. 
+
+A. Related Work 
+
+Modern filter-based state estimation is built on the concepts of Kalman filtering. The linear Kalman filter provided an optimal estimation for a linear system with noisy measure-ments [15]. From there, improvements where made to handle nonlinear systems more efficiently, leading to the development of the EKF and UKF [16] [17]. Alongside advances in filtering techniques, prior work has also investigated different param-eterizations for representing attitude and rigid-body motion within estimators. Euler angle based attitude estimation for spacecraft using Kalman filtering was performed [18]. The multiplicative EKF [19] performs attitude estimation using unit quaternions while ensuring the measurement update satisfies the quaternion unit constraint. In [20], a UKF formulation for attitude estimation is presented in which the global orientation is parameterized using quaternions. Attitude parametrization and estimation using nonlinear filtering was further surveyed in [21] [22].The representation of different attitude errors inside 
+
+M. Khalifa and H. A. Hashim, ”Dual Quaternion-Based Unscented Kalman Filter with Visual Inertial Odometry for Navigation in GPS-Denied Environments,” Measurement, pp. 121964, 2026. doi: 10.1016/j.measurement.2026.121964 
+
+> arXiv:2606.09292v1 [cs.RO] 8 Jun 2026 2
+
+the Kalman filtering framework was explored by [23]. In the literature, unit quaternions are the most commonly used parametrization for attitude. The traditional approach to pose estimation in navigation filters represents attitude and position as separate states, typically parameterizing orientation with quaternions and position in Euclidean space. Dual quaternions provide a compact and geometrically consistent representation of rigid-body transformations, allowing rotation and transla-tion to be represented within a single algebraic structure. A dual quaternion based linear Kalman filter has been employed to estimate a SE (3) with linear update model with state dependent measurement noise [24]. For nonlinear filtering, dual quaternions have been used with the iterated extended Kalman filter (IEKF) in [25] to estimate a SE (3) element with nonlinear update model. Other EKF formulations using unit dual quaternions were proposed in [26] and [27]. In both methods, the measurement update is applied additively, which does not inherently preserve the unit dual quaternion constraint and therefore requires normalization. The approach in [28] extends the multiplicative EKF for unit quaternion based attitude estimation in [19] to pose estimation using unit dual quaternions while preserving the normalization constraints. In [29], a particle filter for pose estimation based on unit dual quaternions was proposed. The method employs unit dual quaternions for global pose representation and dual MRPs for local pose parameterization, allowing the mean and covariance to be computed without violating the unit dual quaternion constraints. A dual quaternion UKF for pose estimation was proposed in [30], which is closely related to the present work. However, the approach assumes that the measurements are direct outputs of navigation sensors rather than feature based observations. In visual inertial odometry, feature observations obtained from images play a crucial role in correcting the drift introduced by IMU integration, thus improving estimation accuracy and robustness. Dual quaternions provide a compact and geometrically con-sistent representation of rigid-body transformations, encoding six degrees of freedom using eight parameters. This makes them particularly attractive for robotics and pose estimation applications. However, as constrained representations, they require careful handling of uncertainty within filtering frame-works. Motivated by these considerations, this work employs a unit dual quaternion representation for the nominal pose, together with a minimal local pose error parameterization, within a UKF framework to enable consistent pose estimation for visual inertial navigation. 
+
+B. Contribution 
+
+To address the above-mentioned limitations, this work pro-poses a tightly coupled VIO framework based on a Dual Quaternion Unscented Kalman Filter (DQUKF) for state esti-mation in GPS-denied environments. The main contributions of this work are summarized as follows: B1. A novel DQUKF is proposed for visual-inertial state estimation, enabling consistent uncertainty propagation on the pose manifold by representing rigid-body motion using unit dual quaternions, thereby preserving the geo-metric structure associated with rigid-body transforma-tions and avoiding singularities associated with minimal parameterizations. B2. A twistor-based local pose parameterization is formu-lated through dual MRP to describe rigid-body motion as a six-dimensional perturbation of the nominal unit dual quaternion pose. B3. A tightly coupled visual-inertial fusion framework is de-veloped in which raw visual feature observations are di-rectly integrated with inertial measurements, effectively reducing IMU drift while maintaining computational efficiency. 
+
+C. Structure 
+
+The remainder of the paper is organized as follows: Section (II) mentions the preliminary concepts and mathematical foun-dation. Section (III) discusses the proposed dual quaternion based UKF. Section (IV) highlights the VIO framework. Section (V) presents the simulation results and Section (VI) summarizes the paper. II. P RELIMINARIES 
+
+The set of real numbers with dimensional space n-by-m is given by Rn×m. In ∈ Rn×n and 0n×n represent the identity matrix and zero matrix with dimension n-by-n, respectively. ⃗
+
+0 = [0 , 0, 0, 0] ⊤ ∈ R4 is a zero vector. The Euclidean norm of a given column vector v ∈ Rn is defined as || v|| = √v⊤v.The vehicle world-frame and body-frame are denoted by {W} 
+
+and {B} , respectively. The skew-symmetric operator [·]× of 
+
+v ∈ R3 is defined as 
+
+[v]× =
+
+
+
+0 −v3 v2
+
+v3 0 −v1
+
+−v2 v1 0
+
+ ∈ so (3) , v =
+
+
+
+v1
+
+v2
+
+v3
+
+ (1) where so (3) is the set of 3 × 3 skew-symmetric matrices representing the Lie algebra of the special orthogonal group 
+
+SO (3) . The inverse mapping of skew-symmetric operator is given by (vex : so (3) → R3)vex ([ v]×) = v ∈ R3 (2) The orientation of a rigid body in 3D space is described by a rotation matrix R ∈ SO (3) , where SO (3) is the 3D special orthogonal group. Elements of this group can be represented on a 3D smooth manifold with specific group operations. The Lie group is mathematically represented as [31] 
+
+SO (3) = {R ∈ R3×3|det (R) = +1 , RR ⊤ = I3} (3) For rigid body motion the Special Euclidean Group SE (3) is defined as [32] 
+
+SE (3) = 
+
+  R t
+
+01×3 1
+
+
+
+R ∈ SO (3) , t ∈ R3
+
+
+
+(4) A dual number ˜a is given by ˜a = a + ϵa ′, where a ∈ R and 
+
+a′ ∈ R are real numbers. ϵ is the dual unit having the following property: ϵ̸ = 0 and ϵ2 = 0 [33]. The addition and subtraction of two dual numbers ˜a1 = a1 + ϵa ′ 
+
+> 1
+
+and ˜a2 = a2 + ϵa ′ 
+
+> 2
+
+is given by ˜a1 ± ˜a2 = a1 ± a2 + ϵ(a′ 
+
+> 1
+
+± a′
+
+> 2
+
+). The multiplication 3
+
+of a dual number with a scalar ϱ is given by ˜aϱ = aϱ + ϵa ′ϱ.The product of two dual numbers is given by (a1 + ϵa ′
+
+> 1
+
+)( a2 +
+
+ϵa ′
+
+> 2
+
+) = a1a2 + ϵ(a1a′ 
+
+> 2
+
++ a′
+
+> 1
+
+a2). Dual quaternions are obtained by extending quaternions such that their coefficients are dual numbers instead of real numbers. 
+
+A. Quaternions 
+
+The attitude can be parametrized via different means. Euler angle parametrization is a common approach used to describe the roll, pitch and yaw of MAVs in pose estimation and navigation problems [34]. However, it is not singularity-free as it suffers from gimbal lock. Moreover, it does not provide a unique representation for a given rotation. Angle-axis and Rodriguez vector parameterization are also prone to singular-ities in various configurations [35]. The unit-quaternion is a singularity-free representation of the attitude with 4 parameters and a unity constraint, satisfying motion in 3D space. Let Q
+
+denote a unit-quaternion vector where Q = [ q0, q 1, q 2, q 3]⊤ =[q0, q v ]⊤ ∈ S3, with q0 ∈ R and qv ∈ R3. The unit quaternion is defined by 
+
+S3 = Q ∈ R4 || Q|| = 1 (5) The conjugate quaternion is given by [35] 
+
+Q∗ = q0, −q1, −q2, −q3
+
+⊤ = q0, −q⊤
+
+> v
+
+⊤ ∈ S3 (6) The inverse is the same as the conjugate for unit quaternions. The ⊙ operator is used for handling quaternion multiplication. The product of two quaternions q1 = [ q01 , q v1]⊤ and q2 =[q02 , q v2]⊤ is given as 
+
+q = q1 ⊙ q2 =
+
+ q01 q02 − q⊤
+
+> v1
+
+qv2
+
+q01 qv2 + q02 qv1 + [ qv1]×qv2
+
+
+
+∈ S3 (7) The identity quaternion is defined as qI = [1 , 0, 0, 0] ⊤ such that q ⊙ q−1 = qI . The rotation matrix can be extracted from the quaternion via Rq : S3 → SO (3) [35]: 
+
+Rq (q) = I3 + 2 q0[qv ]× + 2[ qv ]2 
+
+> ×
+
+∈ SO (3) (8) 
+
+B. Dual Quaternions 
+
+Dual quaternions provide a compact representation of the coupled rotational and translational motion of a rigid body [24]. A dual quaternion ˜q consists of 8 elements and can be written as 
+
+˜q = q ⊞ ϵq ′ = [ q0, q x, q y , q z , q ′
+
+> 0
+
+, q ′
+
+> x
+
+, q ′ 
+
+> y
+
+, q ′ 
+
+> z
+
+]⊤ ∈ R8 (9) where q = [ q0, q x, q y , q z ]⊤ ∈ R4 and q′ = [ q′
+
+> 0
+
+, q ′
+
+> x
+
+, q ′ 
+
+> y
+
+, q ′ 
+
+> z
+
+]⊤ ∈
+
+R4 are quaternions representing the real and dual parts, respectively. The identity dual quaternion is defined as ˜qI =
+
+qI ⊞ ϵ⃗ 0 ∈ R8. The conjugate of a dual quaternion is given by ˜q∗ = q∗ ⊞ ϵq ′∗ . The product of two dual quaternions 
+
+˜q1 = q1 ⊞ ϵq ′ 
+
+> 1
+
+and ˜q2 = q2 ⊞ ϵq ′ 
+
+> 2
+
+is given by 
+
+˜q1 ⊗ ˜q2 = q1 ⊙ q2 ⊞ ϵ(q1 ⊙ q′ 
+
+> 2
+
++ q′ 
+
+> 1
+
+⊙ q2) (10) where ⊗ is the dual quaternion multiplication operator. A dual quaternion represents a rigid body transformation when it satisfies the unit dual quaternion constraint. A unit dual quaternion satisfies 
+
+˜q ⊗ ˜q∗ = q ⊙ q∗ ⊞ ϵ(q ⊙ q′∗ + q′ ⊙ q∗) = qI ⊞ ϵ⃗ 0
+
+This implies || q|| = 1 and q ⊙ q′∗ + q′ ⊙ q∗ =⃗ 0, which are the two unity constraints for dual quaternions. The inverse of a unit dual quaternion is mathematically defined as 
+
+˜q−1 = ( q ⊞ ϵq ′)−1 = q∗ ⊟ ϵ(q∗ ⊙ q′ ⊙ q∗) (11) similar to quaternions, the inverse and conjugate coincide for unit dual quaternions. A unit dual quaternion can be used to represent a rigid body transformation given by 
+
+T =
+
+ R t
+
+01×3 1
+
+
+
+∈ SE (3) 
+
+This transformation encodes a rotation R ∈ SO (3) followed by a translation t ∈ R3. Let ˜qR = q ⊞ ϵ⃗ 0 be a dual quaternion for a pure rotation and ˜qt = qI ⊞ ϵ 12⃗ t be a unit dual quaternion for the translation, where ⃗ t = [0 , t ⊤]⊤ ∈ R4. Then, the dual quaternion representation for the transformation T has the following form 
+
+˜q = ˜ qt ⊗ ˜qR = q ⊞ ϵ(⃗ t ⊙ q
+
+2 ) (12) From (12) q′ =⃗ t⊙q 
+
+> 2
+
+which can be used to recover the translation vector using the relation ⃗t = 2 q′ ⊙ q∗ (13) 
+
+C. Twistors 
+
+To represent rigid-body motion in a minimal form, a six-dimensional twistor parameterization is employed. While unit dual quaternions provide a globally valid representation of pose, they are constrained and therefore not directly suit-able for uncertainty representation in filtering frameworks. A twistor is defined as 
+
+˜τ = ˜q − ˜qI
+
+˜q + ˜ qI
+
+= (˜ q − ˜qI ) ⊗ (˜ q + ˜ qI )−1 (14) The twistor can be expressed in dual form as 
+
+˜τ = [0 μ] ⊞ ϵ[0 ρ] (15) where μ is the MRP corresponding to the rotation quaternion 
+
+q defined as 
+
+μ = qv
+
+1 + q0
+
+∈ R3
+
+and ρ is the translational component of the twistor defined by 
+
+ρ = Ψ t ∈ R3
+
+with t ∈ R3 being the translation vector associated with rigid-body transformation and the matrix Ψ is given by 
+
+Ψ = 14 (1 − μ⊤μ)I3 − 12 [μ]× + 12 μμ ⊤ ∈ R3×3 (16) The inverse mapping from the twistor to the corresponding unit dual quaternion is obtained from (14) as 
+
+˜q = ˜qI + ˜ τ
+
+˜qI − ˜τ ∈ R8 (17) 4
+
+from (15), the twistor contains six independent parameters and the normalization constraint of ˜q is satisfied for any value of 
+
+˜τ
+
+˜q∗ ˜q =
+
+ ˜qI + ˜ τ
+
+˜qI − ˜τ
+
+∗  ˜qI + ˜ τ
+
+˜qI − ˜τ
+
+
+
+=
+
+ ˜qI − ˜τ
+
+˜qI + ˜ τ
+
+  ˜qI + ˜ τ
+
+˜qI − ˜τ
+
+
+
+= ˜ qI
+
+(18) III. D UAL QUATERNION -BASED UKF The UKF leverages the concept of the Unscented Transform (UT) to approximate the mean and covariance of a random variable undergoing a nonlinear transformation [17]. Given a random variable C with a known distribution and applying a nonlinear transformation fnl (·), the resulting approximated random variable D and its distribution can be obtained 
+
+D = fnl (C) (19) The transform in (19) works by selecting a set of sample points, known as sigma points, from the initial known distribu-tion. The sigma points are chosen in a specific way to represent the spread (mean and covariance) of the state’s probability distribution. These sigma points are then passed through the nonlinear system model. After this transformation, the UKF calculates a new mean and covariance based on the trans-formed sigma points. This process provides an approximation of the priori distribution. 
+
+A. Filter Initialization 
+
+The proposed DQUKF framework is based on the con-ventional UKF [36] with certain modifications in specific areas that enable efficient dual quaternion handling. In the Bayesian filtering framework, the UKF recursively estimates the posterior probability distribution given as 
+
+p(xk|zk) = p(zk|xk)p(xk|zk−1)
+
+p(zk|zk−1) (20) where the predicted a priori distribution and marginal likeli-hood in (20) are defined as 
+
+(
+
+p(xk|zk−1) = R p(xk|xk−1)p(xk−1|zk−1)dx k−1
+
+p(zk|zk−1) = R p(zk|xk)p(xk|zk−1)dx k
+
+(21) calculating the integrals in (21) is not possible, they can only be estimated. To follow the standard UKF notations, let the estimated posterior and priori distribution p(xk|zk) and 
+
+p(xk|zk−1) be ˆxk|k and ˆxk|k−1, respectively. Let the estimated marginal likelihood p(zk|zk−1) be ˆzk|k−1. Before starting the filter, the state vector or parameters being estimated should be clearly known. For navigation purposes the state vector can be defined as 
+
+x = ˜q⊤ v⊤ b⊤ 
+
+> ω
+
+b⊤
+
+> α
+
+⊤ ∈ R17 (22) where ˜q ∈ R8 is the nominal dual quaternion pose encoding both orientation and position, v ∈ R3 is the linear velocity, 
+
+bω ∈ R3 and bα ∈ R3 are the gyroscope and accelerometer biases, respectively. Although the nominal pose is represented by the unit dual quaternion, the UKF is not applied directly to the 8-dimensional dual quaternion coordinates. Instead, the filter is formulated in an error-state manner. The nominal state is propagated in dual quaternion form, whereas the associated uncertainty is represented in a 6-dimensional local twistor coordinate. Consequently, sigma point generation, covariance propagation, and measurement correction are all performed in the local error space, while the nominal pose remains on the unit dual quaternion manifold. To start the filter, the state and covariance initial estimates need to be established. To initialize the filter, let the initial state estimate be defined as 
+
+ˆx0|0 = ˆ˜q⊤ 
+
+> 0
+
+ˆv⊤ 
+
+> 0
+
+ˆb⊤
+
+> ω0
+
+ˆb⊤
+
+> α0
+
+⊤ ∈ R17 (23) The initial pose and velocity are obtained by perturbing the ground truth with deliberately large errors, including a significant attitude misalignment, a position error of 3.46 m ,and a velocity error of 0.37 m /s in order to demonstrate the convergence capability of the proposed filter under significant initialization uncertainty. Such initialization conditions are consistent with large misalignment scenarios commonly en-countered in inertial navigation systems, where attitude errors exceeding several degrees invalidate small-angle assumptions and challenge linearized estimation methods [37].The initial nominal pose dual quaternion is constructed from the initial attitude and position estimates using the rigid-body transfor-mation relation in (12), rather than by assigning the dual part directly, which establishes the coupling between the rotation and translation components. The state covariance represents the current uncertainty in the state estimate. The large val-ues indicate that the filter is uncertain of the estimate. The covariance is generally computed based on the deviation of the nominal state from the mean value. This deviation in dual quaternions is defined by the relative change in pose. Defining the side dependent subtraction operator ⊖ and utilizing the relations in (10),(11) the pose error is given by 
+
+δ ˜q = ˜ q1 ⊖ ˜q2 = ˜ q1 ⊗ ˜q−12 ∈ R8 (24) Equation (24) represents the relative error between two dual quaternions ˜q1 and ˜q2. In this error dual quaternion the real part is attitude error and the dual part is the translational error. Moreover, dual quaternions are represented by eight compo-nents, but due to both orthogonality and unit-norm constraints, it effectively encodes only six independent degrees of freedom. The relative pose between two nominal dual quaternions is first computed as a unit dual quaternion error. However, this error is not used directly in the covariance recursion. In-stead, it is mapped to the corresponding 6-dimensional twistor coordinates, which provide the local Euclidean coordinates used for covariance representation and sigma point generation. The goal of the filter is to estimate the state vector in (22) while handling dual quaternions properly within the recursive framework. The initial covariance associated with the state vector (23) and takes into account the reduced dimensionality is given by 
+
+P0|0 =
+
+η1I6 06×3 06×6
+
+03×6 η2I3 03×6
+
+06×6 06×3 η3I6
+
+ ∈ R15 ×15 (25) 5
+
+Where η1, η 2, η 3 are empirically tuned constants for the initial state covariance. There are also two additional covariance matrices, namely, the process noise and measurement noise covariance matrices, which models the uncertainty in the system dynamics and measurements, respectively. 
+
+R = μ ∗ I3nx ∈ R3nx×3nx (26) 
+
+Q =
+
+
+
+09×9 09×3 09×3
+
+03×9 Qω 03×3
+
+03×9 03×3 Qα
+
+ ∈ R15 ×15 (27) where 
+
+Qω = σb2 
+
+> ω
+
+I3 and Qα = σb2 
+
+> α
+
+I3
+
+where μ, σ bω , σ bα are tuning parameters for the measurement and process noise covariances. The parameters for the process noise covariance are obtained via hardware specifications such as spectral densities of the sensors provided in the dataset. 
+
+Qω and Qα represent the uncertainty in the bias evolution for the angular velocity and acceleration respectively. These covariance matrices are essential for the calculation of the state estimate and the covariance associated with the predicted mea-surements. The measurement prediction is performed within the VIO framework, hence the associated covariance relies on the initialized measurement noise covariance matrix in (26). The dimension of the measurement covariance assumes that there are nx landmarks observed in every frame and each landmark has a x, y and z coordinate. From (27), it is also clear that the uncertainty in evolution of the pose and velocity is zero. The dimension of the process noise covariance matrix reflects the reduced dimensionality formulated via twistors. There is also an additional process covariance to account for sensor noise. 
+
+Qn =
+
+diag (¯bω ) 03×3
+
+03×3 diag (¯bα)
+
+
+
+∈ R6×6 (28) where 
+
+¯bω = σg I3 and ¯bα = σaI3
+
+σg and σa are scaling parameters for the mean gyroscope and accelerometer noise, respectively. These parameters are obtained from the IMU hardware specification provided for the dataset. Following the initialization of the state in (23) and the corresponding covariance in (25), the sigma points are generated. The UKF heavily relies on the augmented state and covariance matrix for sigma point generation. Sigma points are generated in the twistor parameterization of the local error state, as it provides a minimal, unconstrained representation that avoids the normalization constraints associated with dual quaternions. This enables the unscented transform to be ap-plied in a Euclidean space. The resulting sigma points are then mapped back to the nominal state using the relation in (17) to obtain the corresponding sigma points in the state space. The local twistor error state can be defined as 
+
+δx k = δτ ⊤ 
+
+> k
+
+δv⊤ 
+
+> k
+
+δb ⊤ 
+
+> ω,k
+
+δb ⊤
+
+> α,k
+
+ ∈ R15 (29) the local error state is initialized as δx 0|0 = 0 1×15 . IMU readings are noisy and this noise should be modeled as a part of the state vector alongside the IMU biases. Let’s define the noise vector as 
+
+xn = n⊤ 
+
+> ω,k
+
+n⊤
+
+> α,k
+
+⊤ ∈ R6 (30) The augmented state vector is formed by combining the local error-state vector in (29), rather than the nominal state, with the expected value of the noise vector in (30), which is zero under the assumption of white Gaussian noise 
+
+δˆxak−1|k−1 =
+
+h
+
+δx ⊤
+
+> k−1|k−1
+
+, 0⊤
+
+> 6×1
+
+i⊤
+
+∈ R21 (31) In developing the filter, the initial gyroscope and accelerometer bias estimates are initialized from sample averages, after which both biases are treated as filter states and recursively estimated. For the augmented state covariance, the matrices in (25) and (28) are diagonalized as follows 
+
+P ak−1|k−1 =
+
+Pk−1|k−1 015 ×6
+
+06×15 Qn
+
+
+
+∈ R21 ×21 (32) Both the augmented state and covariance are expressed in the same minimal representation, ensuring that uncertainty is consistently defined and propagated within the local error-state space. 
+
+B. Sigma Point Generation 
+
+In the standard UKF, the number of sigma points depends on the dimension of the augmented state vector. The total number of sigma points is given by the following relation 
+
+n = 2 L + 1 (33) where L is the dimension of the augmented state vector. The total number of sigma points becomes n = 43 . There are also additional parameters that serve as arbitrary constants to determine suitable characteristics for the generated sigma points. These parameters can impact the filter performance and must be chosen wisely. These parameters are defined as follows: α is the spread of sigma points, κ is the secondary scaling parameter and β incorporates prior knowledge. In the designed filter, the exact values of these parameters are 
+
+α = 10 −4, κ = 0 and β = 2 (34) The parameters in (34) are used in calculating important quantities needed for weight calculation and sigma point generation. 
+
+λ = 3 − L and γ = √L + λ (35) The weights control how much each sigma point contributes to the predicted mean and covariance. There are two weighting constants for every sigma point. The first is the mean weight 
+
+(W mi )⊤ ∈ Rn and the second is the covariance weight 
+
+(W ci )⊤ ∈ Rn. These weights are defined in terms of the parameters in (35) 
+
+W m 
+
+> 0
+
+= λL + λ and W mi = 12( L + λ) (36) where i = 1 , 2, 3 . . . n − 1. The covariance weights are defined in terms of parameters in (34) and (35) as 
+
+W c 
+
+> 0
+
+= λL + λ + (1 − α2 + β) and W ci = W mi (37) 6
+
+The sigma points are generated around the mean using the following relation 
+
+X ak−1|k−1 = {¯x, ¯x + γ√P a, ¯x − γ√P a} (38) Substituting the value of γ from (35) and the mean in (31), the expression for the sigma points can be rewritten as 
+
+
+
+X a, (0)  
+
+> k−1|k−1
+
+= δˆxak−1|k−1
+
+X a, (j) 
+
+> k−1|k−1
+
+= δˆxak−1|k−1 +
+
+q
+
+(L + λ)P ak−1|k−1
+
+X a, (j+L) 
+
+> k−1|k−1
+
+= δˆxak−1|k−1 −
+
+q
+
+(L + λ)P ak−1|k−1
+
+∈ R43 ×21 
+
+(39) where j = 1 , . . . , L . To find the square root quantity in (39) two common approaches are used. The first approach is using the Cholesky decomposition to obtain a lower triangular matrix that satisfies the following 
+
+(L + λ)P ak−1|k−1 = BB ⊤ (40) Equation (40) is only valid if the scaled augmented covariance matrix under the square root is always symmetric positive definite. The second approach is using Singular Value De-composition (SVD) to obtain the square root of a matrix. SVD decomposes the matrix as follows. 
+
+(L + λ)P ak−1|k−1 = U SV ⊤ (41) where U , S and V are matrices of the left singular vectors, singular values and right singular vectors, respectively. The SVD method only works if the matrix being decomposed is symmetric positive semi-definite. This means that the matrices consisting of right and left singular vectors are identical. Then (41) can be written as 
+
+(L + λ)P ak−1|k−1 = U SU ⊤
+
+where U U ⊤ = I, hence 
+
+p(L + λ)P a = U √S ∈ R21 ×21 (42) In this paper, (42) is used for finding the square root as it does not strictly require the scaled augmented covariance to be positive definite and provides better numerical stability. Each sigma point is a 21-dimensional perturbation vector expressed entirely in Euclidean coordinates. Therefore, the addition and subtraction operations used in sigma point generation are standard vector operations and do not involve dual quaternion algebra especially since the perturbations produced by the square root of the covariance in (42) are already expressed in the same Euclidean space. 
+
+X a, (i) 
+
+> k−1|k−1
+
+=
+
+h
+
+δτ (i)⊤
+
+> k−1|k−1
+
+, δ v(i)⊤
+
+> k−1|k−1
+
+, δb (i)⊤
+
+> ω,k −1|k−1
+
+,δb (i)⊤
+
+> α,k −1|k−1
+
+, n (i)
+
+> ω,k −1|k−1
+
+, n (i)
+
+> α,k −1|k−1
+
+i⊤
+
+∈ R21 
+
+(43) where i = 0 , . . . , 2L. The resulting sigma points perturbations are subsequently mapped to the nominal state through dual quaternion composition. 
+
+δ ˜q(i) 
+
+> k−1|k−1
+
+= T −1(δτ (i)
+
+> k−1|k−1
+
+) (44) where T −1(·) denotes the inverse twistor to unit dual quater-nion map given in (17). The nominal pose is obtained by using (24) and (44) as 
+
+˜q(i) 
+
+> k−1|k−1
+
+= ˆ ˜qk−1|k−1 ⊗ δ ˜q(i) 
+
+> k−1|k−1
+
+(45) where ˆ˜qk−1|k−1 is obtained from initial state estimate in (23) for the first iteration. The resulting nominal state sigma points can be separated into state and measurement noise components as follows. 
+
+X ak−1|k−1 =
+
+h
+
+X xk−1|k−1 X ωk−1|k−1 X αk−1|k−1
+
+i⊤
+
+∈ R43 ×23 
+
+(46) where X xk−1|k−1 = [ X ˜qk−1|k−1, X v
+
+> k−1|k−1
+
+, X bω
+
+> k−1|k−1
+
+, X bα
+
+> k−1|k−1
+
+] ∈
+
+R43 ×17 are the sigma points corresponding to the state 
+
+X ωk−1|k−1 ∈ R43 ×3 are the sigma points for the gyroscope noise and X αk−1|k−1 ∈ R43 ×3 are those for accelerometer noise. This sectioning is useful when propagating the sigma points. 
+
+C. Dual Quaternion Kinematics 
+
+For each sigma point, only the nominal state components are propagated through the nonlinear process model. The sigma-point components associated with IMU noise are not propa-gated as independent states. Instead, they are used within the same time step to form corrected gyroscope and accelerometer inputs for that sigma point. Only those associated with the state vector X xk−1|k−1 are evolved according to the system dynamics. The dynamics are driven by IMU measurements that have been corrected for sensor bias and noise, achieved by subtracting the estimated bias and noise from both gyroscope and accelerometer readings. 
+
+(
+
+ω(i) 
+
+> k
+
+= ωm,k − b(i) 
+
+> ω,k
+
+− n(i)
+
+> ω,k
+
+a(i) 
+
+> k
+
+= am,k − b(i) 
+
+> α,k
+
+− n(i)
+
+> α,k
+
+(47) The accuracy of the propagation step is dependent on the quality of the inertial measurements and the fidelity of the bias and noise modeling. Since the corrected inputs are obtained by subtracting estimated bias and noise terms from raw IMU measurements, any residual bias or high noise density directly affects the state evolution and leads to increased uncertainty during prediction. High-grade inertial sensors, such as those used in aerospace navigation systems, exhibit significantly lower noise densities and bias instability, resulting in more accurate state propagation and reduced drift [38]. In contrast, low-cost IMUs introduce larger stochastic errors, which ac-cumulate over time and degrade estimation accuracy unless sufficiently corrected by measurement updates. The biases and noise terms in (47) are obtained from the generated sigma instead of the random walk model. 
+
+bω = X x,b ω
+
+> k−1|k−1
+
+, nω = X ωk−1|k−1
+
+bα = X x,b α
+
+> k−1|k−1
+
+, nα = X αk−1|k−1
+
+(48) 7
+
+Let X x, ˜qk−1|k−1 = [ X x,q k−1|k−1, X x,q ′
+
+> k−1|k−1
+
+] ∈ R43 ×8. For this filter, the continuous-time system dynamics are defined as follows [29]. 
+
+
+
+˜˙qB/W = 12 ˜qB/W ⊗ ˜ωBB/W
+
+˙v = g + Rq (X x,q (i)
+
+> k
+> k−1|k−1
+
+)a(i) 
+
+> k
+
+∈ R3 (49) where ˜qB/W is dual quaternion representation for the motion in the body frame, ˜ωBB/W = ωBB/W ⊞ ϵvBB/W is the dual vector for the twist in the body frame and Rq is the rotation matrix corresponding to the real part of the dual quaternion. The angular velocity is obtained from the IMU measurements in (47) and the linear velocity comes from the state sigma points in X x, v
+
+> k−1|k−1
+
+. Since the filter operates in discrete time, it is essential to discretize the continuous dynamics. For a displacement given by a constant twist ˜ω within a time interval 
+
+∆t, the screw motion ˜θ˜k = ∆ t˜ω of this displacement is given by the unit dual quaternion 
+
+˜q = exp ( ∆t˜ωk
+
+2 )
+
+Thus, for the given system, the discrete time dynamics can written as 
+
+(˜q(i) 
+
+> k+1
+
+= exp( ∆t˜ωk 
+
+> 2
+
+)˜ q(i)
+
+> k
+
+v(i) 
+
+> k+1
+
+= v(i) 
+
+> k
+
++ ∆ t(g + Rq (X x,q (i)
+
+> k
+> k−1|k−1
+
+)a(i) 
+
+> k
+
+) (50) To solve the discrete dual quaternion dynamics neatly in matrix form without dealing with the exponential of the dual vector 
+
+˜ω, consider the following 
+
+Γ( ω) = 
+
+"
+
+0 −ω(i)⊤
+
+> k
+
+ω(i) 
+
+> k
+
+−[ω(i) 
+
+> k
+
+]×
+
+#
+
+, Γ( v) = 
+
+ 0 −(vB 
+
+> k
+
+)⊤
+
+vB 
+
+> k
+
+−[vB 
+
+> k
+
+]×
+
+
+
+∈ R4×4
+
+where v B 
+
+> k
+
+= Rq (X q(i) 
+
+> k
+
+)⊤v(i) 
+
+> k
+
+. Using the previous matrices, the combined matrix is given by 
+
+M (i) 
+
+> k
+
+=
+
+"
+
+Γ( ω(i) 
+
+> k
+
+) 04×4
+
+Γ( vB 
+
+> k
+
+) Γ( ω(i) 
+
+> k
+
+)
+
+#
+
+∈ R8×8 (51) The matrix in (51) can be used instead of the dual vector, resulting in the following simplified expression 
+
+˜q(i) 
+
+> k+1
+
+= exp( ∆t
+
+2 M (i) 
+
+> k
+
+)˜ q(i) 
+
+> k
+
+(52) In (50), the gravity vector is given by g = [0 , 0, −9.81] ⊤ and the time step used for propagating the sigma points through the system dynamics is ∆t = 0 .05 s. The output of propagating each sigma point through the process model is a new state vector 
+
+ˆxk|k−1 =
+
+h
+
+˜q⊤ 
+
+> k|k−1
+
+v⊤ 
+
+> k|k−1
+
+b⊤ 
+
+> ω
+
+b⊤
+
+> α
+
+i
+
+∈ R17 (53) repeating the same process for all 43 sigma points produces the propagated sigma point matrix for the current iteration. 
+
+X ak|k−1 = f (X ak−1|k−1, u k−1) ∈ R43 ×17 (54) The next step is to use these propagated sigma points to find the predicted state and covariance matrices. The a priori state estimate is obtained by multiplying the sigma points with the corresponding weights from (36). This is done as follows: 
+
+ˆxk|k−1 =
+
+> n−1
+
+X
+
+> i=0
+
+W mi ∗ f (X ak−1|k−1, u k−1)=
+
+> n−1
+
+X
+
+> i=0
+
+W mi ∗ X ak|k−1 ∈ R17 
+
+(55) Since the propagated sigma points contain dual quaternion elements. The weighted average in (55) can be done for dual quaternions by setting the first propagated sigma points as the reference and computing the relative pose for the remaining sigma point with respect to this reference. 
+
+˜qref  
+
+> k|k−1
+
+= ˜ q(0)  
+
+> k|k−1
+
+(56) using (56) the relative pose can be calculated as follows 
+
+δ ˜q(i) 
+
+> k|k−1
+
+= ˜ qref −1 
+
+> k|k−1
+
+⊗ ˜q(i) 
+
+> k|k−1
+
+(57) After obtaining the relative dual quaternions, they are mapped to twistor representations. 
+
+δ˜τ (i) 
+
+> k|k−1
+
+= T (δ ˜q(i)
+
+> k|k−1
+
+) (58) The averaging for the twistor can then be done in the Euclidean space as follows 
+
+δτ avg  
+
+> k|k−1
+
+=
+
+> n−1
+
+X
+
+> i=0
+
+W mi δ˜τ (i) 
+
+> k|k−1
+
+(59) The average twistor then needs to be mapped back to global pose represented via dual quaternions. 
+
+δq avg  
+
+> k|k−1
+
+= T −1(δτ avg 
+
+> k|k−1
+
+)
+
+then the predicted pose is given by 
+
+ˆ˜qk|k−1 = ˜ qref  
+
+> k|k−1
+
+⊗ δq avg  
+
+> k|k−1
+
+(60) The remaining states do not require this special handling and can be averaged algebraically 
+
+
+
+ˆvk|k−1 = Pn−1 
+
+> i=0
+
+W mi v(i)
+
+> k|k−1
+
+ˆbω,k |k−1 = Pn−1 
+
+> i=0
+
+W mi b(i)
+
+> ω
+
+ˆbα,k |k−1 = Pn−1 
+
+> i=0
+
+W mi b(i)
+
+> α
+
+(61) The a priori state estimate is then defined as 
+
+ˆxk|k−1 =
+
+hˆ˜q⊤ 
+
+> k|k−1
+
+ˆv⊤ 
+
+> k|k−1
+
+ˆb⊤ 
+
+> ω,k |k−1
+
+ˆb⊤
+
+> α,k |k−1
+
+i⊤
+
+∈ R17 
+
+(62) The a priori covariance estimate can also be computed using the weights in (37), the propagated sigma point in (54) and the 
+
+a priori state estimate in (62). The process covariance matrix in (27) is also added to the predicted covariance to account for the uncertainty due to unmodeled process dynamics. 
+
+Pk|k−1 =
+
+> n−1
+
+X
+
+> i=0
+
+W ci ∗(X ak|k−1 − ˆxk|k−1)( X ak|k−1 − ˆxk|k−1)⊤ +Q
+
+(63) where Pk|k−1 ∈ R15 ×15 and W ci is being applied element wise to each entry of matrix. The deviation between the propagated sigma points and the a priori state estimate in (63) 8
+
+is performed in the local error space. The pose uncertainty is obtained by computing the relative transformation between the propagated sigma point and the predicted state, and mapping this relative dual quaternion to its corresponding twistor repre-sentation. The deviation for non-pose elements are computed using standard algebraic differences. The subtraction in (63) can then be expressed as 
+
+X ak|k−1 − ˆxk|k−1 =
+
+
+
+δ˜τ (i) 
+
+> k|k−1
+
+− δτ avg 
+
+> k|k−1
+
+v(i) 
+
+> k|k−1
+
+− ˆvk|k−1
+
+b(i) 
+
+> ω
+
+− ˆbω,k |k−1
+
+b(i) 
+
+> α
+
+− ˆbα,k |k−1
+
+ ∈ R15 (64) The developed filter uses fixed landmarks as global reference points to obtain measurements. This is an intuitive and simple approach used in the standard UKF. These landmarks provide correction against sensor drift, thereby improving the accuracy and consistency of the state estimates. At the beginning of each run, nx landmarks are detected with an upper bound of 60 landmarks. These landmarks are global anchors and have 
+
+x, y and z coordinates that can be structured in a matrix form as 
+
+lk = l1, l 2, . . . , l nx
+
+ =
+
+
+
+l1,x l2,x . . . lnx,x 
+
+l1,y l2,y . . . lnx,y 
+
+l1,z l2,z . . . lnx,z 
+
+ ∈ R3×nx
+
+(65) The state vector contains the pose and velocity which are not directly observable. These quantities are deduced from sensor measurements like angular velocity (gyroscope) and acceleration (accelerometer). These sensor measurements are indirect, noisy observations of these states. The measurement model is used to relate the sensor measurements to the state and is generally defined as 
+
+zk = h(xk) + vk (66) where h(xk) represent the nonlinear function that relates the measurements to the states and vk is the sensor or measure-ment noise. The fixed landmarks in (65) are observed through a camera, which provides a position-based observation, the nonlinear function in the measurement model should be a function of orientation and position since the camera measures the location of the landmark relative to itself. This requires transforming the orientation from the world frame to the camera frame and subtracting the camera position from the landmark position. The measurement model representing this transformation is given by 
+
+zk = vec  Rq (qk)⊤(lk − pk) ∈ R3nx×1 (67) where qk ∈ S3 and pk ∈ R3 denote the ground truth attitude quaternion and position, respectively. Using the landmarks defined in (65), the true measurement vector can be obtained. In real world scenarios, the ground truth is obtained via camera observation. For the predicted measurement vector, the propagated sigma points are used instead of the ground truth to acquire the measurement prediction. This is done by further propagating the sigma points through the measurement model. 
+
+Zk = h(X ak|k−1, u k, X a,v k|k−1) ∈ R43 ×3nx (68) it is worth noting that the propagated sigma points in X ak|k−1
+
+consist of dual quaternion, velocity and biases. It does not contain any noise terms, which means that X a,v k|k−1 = 0 . Then the measurement model is just a function of the sigma point corresponding to the state, specifically X a,q k|k−1 and X a,q ′
+
+> k|k−1
+
+. Let 
+
+Z(i) 
+
+> k
+
+denote the i-th row of Zk, the predicted measurement model can be written as 
+
+Z(i) 
+
+> k
+
+= vec 
+
+
+
+Rq (X a,q (i)
+
+> k|k−1
+
+)⊤(lk − X a, t(i)
+
+> k|k−1
+
+)
+
+
+
+(69) where X a, t(i) 
+
+> k|k−1
+
+∈ R3 is the position extracted from the dual part of the propagated sigma points X a,q ′(i) 
+
+> k|k−1
+
+. The predicted measurement vector is obtained via weighted sum of the relation in (69). 
+
+ˆzk =
+
+> n−1
+
+X
+
+> i=0
+
+W mi Z(i) 
+
+> k
+
+∈ R(3 ∗nx)×1 (70) Using the predicted measurement in (70) it is possible to compute the measurement covariance as follows 
+
+P zk =
+
+> n−1
+
+X
+
+> i=0
+
+W ci ∗(Z(i) 
+
+> k
+
+−ˆzk)( Z(i) 
+
+> k
+
+−ˆzk)⊤ +R ∈ R3nx×3nx (71) where R is the measurement noise covariance. It is also important to establish the relation between the predicted states and predicted measurements by computing the uncertainty state variables and camera observations. This is done by finding the cross covariance matrix defined as 
+
+P xz k|k−1 =
+
+> n−1
+
+X
+
+> i=0
+
+W ci ∗(X ak|k−1 − ˆxk|k−1)( Z(i) 
+
+> k
+
+− ˆzk)⊤ ∈ R15 ×3nx
+
+(72) 
+
+Fig. 1: Feature extraction and stereo matching using Shi-Thomasi on the EuRoC dataset. Subtracting the a priori state vector from the propagated sigma points requires the same special handling as the one done in (63). The measurement prediction ˆzk is subtracted algebraically from the output of the measurement model in (69). In the update phase, the predicted state is corrected using the true measurement obtained using the camera or ground truth in the case of simulation. A useful quantity used in the update step is the innovation, which represents the dif-ference between the true and model predicted measurements. Another quantity that is essential in all Kalman-type filters 9
+
+is the Kalman gain. The Kalman gain controls the amount of correction required based on the uncertainty present in the dynamical and measurement models. If the uncertainty in the measurements is high, the Kalman gain will be small, which means the filter trusts the dynamical model more. The Kalman gain can be formally written in terms of the measurement and cross covariances as follows 
+
+Lk = P xz k|k−1 ∗ (P zk )−1 ∈ R15 ×3nx (73) where P xz k|k−1 and P zk are obtained from (72) and (71), respectively. Using the Kalman gain in (73) and innovation, the state can be updated as follows 
+
+ˆxk|k = ˆ xk|k−1 + Lk (zk − ˆzk)
+
+| {z }
+
+> Innovation
+
+(74) The addition is not straightforward since the innovation term is constructed using twistor representation while the a priori 
+
+state estimate consists of a dual quaternion. To resolve this issue the twistor is mapped to a dual quaternion perturbation using (17). 
+
+ψk = Lk(zk − ˆzk) ∈ R15 (75) Let ψτk ∈ R6 be the twistor for the pose innovation, then the addition of the dual quaternion elements in (74) can be done as follows 
+
+δ ˜qk = T −1(ψτk )ˆ˜qk|k = ˆ ˜qk|k−1 ⊗ δ ˜qk (76) The remaining non-dual quaternion elements are added alge-braically. 
+
+ˆvk|k = ˆ vk|k−1 + ψv
+
+> k
+
+ˆbω,k |k = ˆbω,k |k + ψbω
+
+> k
+
+ˆbα,k |k = ˆbα,k |k + ψbα
+
+> k
+
+(77) Combining the relation in (76) and (77), the updated state is given by 
+
+ˆxk|k =
+
+hˆ˜q⊤ 
+
+> k|k
+
+ˆv⊤ 
+
+> k|k
+
+ˆb⊤ 
+
+> ω,k |k
+
+ˆb⊤
+
+> α,k |k
+
+i⊤
+
+∈ R17 
+
+Lastly, the covariance is updated using the following relation 
+
+Pk|k = Pk|k−1 − LkP zk L⊤ 
+
+> k
+
+∈ R15 ×15 (78) The computational complexity of the proposed DQUKF is dominated by covariance propagation and matrix operations. For an augmented state dimension L, the filter requires 2L +1 
+
+sigma points, leading to a propagation cost that scales as 
+
+O(L2). However, the dominant computational burden arises from covariance updates, SVD-based square root computation, and matrix inversion in the Kalman gain, which scale as 
+
+O(L3). Additionally, the measurement update depends on the number of observed features, with complexity scaling as O(n3 
+
+> z
+
+). Compared to EKF-based approaches, the DQUKF incurs higher computational cost due to multiple sigma point evaluations, but avoids Jacobian computation and provides improved performance in nonlinear estimation. IV. VIO FRAMEWORK 
+
+In most filtering frameworks, the landmarks used in the pre-dicted measurement model (70) are typically treated as fixed quantities. This means that the filter’s visual update becomes a direct observation of pose relative to those anchors. This makes it a map-based Visual Inertial-Navigation (VIN). To transition from VIN to a VIO framework, the fixed anchors are replaced by visual features extracted from incoming images. The camera should be employed to correct the drift imposed on the IMU propagated states. As camera images arrive, a feature detection algorithm is used to extract image features such as corners and edges as illustrated in figure 1. Numerous feature detection methods have been proposed in the literature, including Harris, SIFT, SURF, FAST, and ORB, each offering different trade offs between computational complexity, invariance properties, and matching robustness [39]. In this work, however, the focus is placed on a detector that provides stable and well conditioned features for frame to frame tracking within a stereo video stream. For a MAV moving within a confined indoor environment, the camera provides images from a synchronized video stream at fixed scale with small relative frame to frame motion. Therefore, scale invariance and descriptor based matching are not pri-mary requirements. Instead, it is important to obtain stable, repeatable corners that can be reliably tracked across frames. Since tracking stability is prioritized, the proposed DQUKF framework employs Shi-Tomasi feature detector, which can be interpreted as a refinement of the Harris corner detector [40]. Rather than relying on the Harris response function, Shi-Tomasi directly evaluates the eigenvalues of the image structure tensor and selects points with strong gradients in two orthogonal directions. For a local image window W the second-moment matrix is defined as 
+
+H = X
+
+> (x,y )∈W
+
+ I2 
+
+> x
+
+IxIy
+
+IxIy I2
+
+> y
+
+
+
+where Ix and Iy denote the image intensity gradients along the horizontal and vertical directions, respectively. Let λ1 and 
+
+λ2 be the eigenvalues of H. A pixel location is classified as a corner if min( λ1, λ 2) > τ . where τ is a predefined threshold. This criterion ensures that both eigenvalues are sufficiently large, meaning that the intensity variation is significant in both directions. After extracting the features, sparse stereo feature-based matching is performed between the rectified left and right images. Since the stereo pair is rectified, valid correspondences are constrained by the epipolar geometry and are expected to lie along corresponding image rows. For each detected feature in one stereo image, the corresponding location in the other rectified image is obtained using point tracking. In this work, point tracking is performed using KLT optical flow. KLT assumes that small patches of pixels look very similar in consecutive frames. It tracks features by minimizing the sum of squared differences in pixel intensity between patches in frame k and k + 1 . For a small window 10 
+
+Fig. 2: Schematic of the proposed DQUKF. 
+
+W , KLT solves the following least squares problem 
+
+E(u, v ) = X
+
+> (x,y )∈W
+
+[I(x + u, y + v, k + 1) − I(x, y, k )] 2
+
+(79) where I(x, y, k ) represents the image intensity at pixel coor-dinates (x, y ) in frame k and (u, v ) represent the horizontal and vertical displacement of pixels between frame k and 
+
+k + 1 . Geometric constraints are then used to filter out poorly tracked features. This is done by running a RANSAC algorithm [41]. The remaining valid feature pairs are tracked across subsequent camera frames using the same KLT-based point tracking procedure. These valid stereo correspondences are then used for triangulation. To incorporate the resulting visual features into the filter update, the measurement model in (67) requires the feature positions to be expressed in the world frame. Given the valid 2D stereo correspondences, the corresponding 3D feature positions in the camera frame are first obtained through stereo triangulation. Using the rectified stereo images, the feature depth is computed with respect to the left camera as 
+
+z = fxBd (80) where fx is the focal length in the x direction, B is the stereo baseline distance and d is the disparity. With the depth value, the 2D pixel coordinates of the features can be projected into 3D space using the following relations. 
+
+x = uL − cx
+
+fx
+
+z and y = v − cy
+
+fy
+
+z (81) where ( uL, v) are the 2D feature location and ( cx, cy ) denotes the principal point of the image. It is worth noting that for a rectified stereo pair, both focal lengths fx and fy are the same. The resulting 3D feature vector in camera frame can then be expressed as 
+
+pC 
+
+> f
+
+= [x , y, z] ⊤ = z K−1 [uL, v, 1] ⊤ (82) with K denoting the intrinsic calibration matrix of the left camera. Finally, the feature position in the world frame is obtained by transforming from the camera frame using the following relation 
+
+pW 
+
+> f
+
+= RWC pC 
+
+> f
+
++ pWC ∈ R3 (83) where RWC is the rotation matrix from camera to world frame, pC 
+
+> f
+
+is the feature location in the camera frame and 
+
+pWC is the 3D coordinates of the camera center in the global frame. Since the camera and IMU are rigidly attached, the camera center position in the world frame is taken directly from the propagated IMU states. Performing the previous transformations to all features yields 
+
+pW 
+
+> f,i
+
+= pW
+
+> f, 1
+
+, p W
+
+> f, 2
+
+, . . . , p W
+
+> f,m
+
+ (84) where m is the total number of stereo feature matches in the current image frame. This way, the dimension of (84) becomes 
+
+pW 
+
+> f,i
+
+∈ R3×nx , which is similar to that in (65). Using the 3D position of the features from (84), the measurement model in (67) can be rewritten as 
+
+zk = vec  Rq (qk)⊤(pW 
+
+> f,i
+
+− pk) ∈ R3nx×1 (85) The filter update step then proceeds as described in Section (III). Figure 2 summarizes the proposed filter with lines show-ing how information is being processes inside the DQUKF. The framework in figure 2 follows a centralized estimation architecture, which is standard for single-agent visual inertial 11 
+
+navigation. Distributed fusion strategies are primarily relevant to multi-agent systems and are beyond the scope of this work. 
+
+Algorithm 1 DQUKF with VIO for Navigation. 
+
+Input :1: UKF parameters α, β, κ, γ, λ , weights W (m) 
+
+> i
+
+, W (c) 
+
+> i
+
+, pro-cess covariance Q, and measurement covariance R.
+
+Initialization :2: ˆx0|0 = [ˆ ˜q⊤ 
+
+> 0
+
+, ˆv⊤ 
+
+> 0
+
+, ˆb⊤ 
+
+> ω0
+
+, ˆb⊤ 
+
+> α0
+
+]⊤ , P0|0 ∈ R15 ×15 (see (23), (25)) and set k = 1 
+
+while IMU data exists 
+
+3: δˆxak−1|k−1 = [ δˆx⊤
+
+> k−1|k−1
+
+, 0⊤
+
+> 6×1
+
+]⊤ /* Prediction */ Aug-mentation 
+
+4: P ak−1|k−1 =
+
+Pk−1|k−1 015 ×6
+
+06×15 Qn
+
+
+
+(see (31), (32)) 
+
+Sigma Point Generation 
+
+5: X ak−1|k−1 = {δˆxak−1|k−1, δ ˆxak−1|k−1 ± γqP ak−1|k−1}
+
+6: map error-state sigma points to nominal state using T −1
+
+(see (44),(45)) 7: for each sigma point i
+
+˜q(i) 
+
+> k|k−1
+
+= exp 
+
+ ∆t 
+
+> 2
+
+M (i)
+
+> k
+
+
+
+˜q(i)
+
+> k−1|k−1
+
+v(i) 
+
+> k|k−1
+
+= v(i) 
+
+> k−1|k−1
+
++ ( g + Rq (q(i)
+
+> k−1|k−1
+
+)a(i) 
+
+> k
+
+)∆ t
+
+Bias terms remain constant (see (50), (52)) 
+
+end for 
+
+8: Compute predicted mean 9: Find ˆ˜qk|k−1 by mapping δτ avg  
+
+> k|k−1
+
+= Pn−1 
+
+> i=0
+
+W mi δ˜τ (i)
+
+> k|k−1
+
+,and ˆvk|k−1, ˆbω,k |k−1, ˆbα,k |k−1 using weighted sums (see (56)-(61)) 10: Compute predicted covariance Pk|k−1 (see (63), (64)) 
+
+if image data available /* Update */ Measurement Prediction 
+
+11: for each sigma point i
+
+Triangulate stereo features to obtain pC
+
+> f
+
+pW 
+
+> f
+
+= RWC pC 
+
+> f
+
++ pWC
+
+Z(i) 
+
+> k
+
+= vec 
+
+
+
+Rq (X a,q (i)
+
+> k|k−1
+
+)⊤(pW 
+
+> f,i
+
+− X a, t(i)
+
+> k|k−1
+
+)
+
+
+
+end for 
+
+12: ˆzk = P W (m) 
+
+> i
+
+Z(i)
+
+> k
+
+13: P zk = P W (c) 
+
+> i
+
+(Z(i) 
+
+> k
+
+− ˆzk)( Z(i) 
+
+> k
+
+− ˆzk)⊤ + R
+
+14: P xz k|k−1 = P W (c) 
+
+> i
+
+(X ak|k−1 − ˆxk|k−1)( Z(i) 
+
+> k
+
+− ˆzk)⊤
+
+Update Step 
+
+15: Lk = P xz k|k−1(P zk )−1
+
+16: ψk = Lk(zk − ˆzk)
+
+17: δ ˜qk = T −1(ψτk ) → ˆ˜qk|k = ˆ ˜qk|k−1 ⊗ δ ˜qk
+
+18: ˆxk|k = ˆ xk|k−1 + Lk(zk − ˆzk) (see (76), (77)) 19: Pk|k = Pk|k−1 − LkP zk L⊤
+
+> k
+
+else No visual update 
+
+20: ˆxk|k = ˆ xk|k−1 and Pk|k = Pk|k−1
+
+end if 
+
+24: k = k + 1 
+
+end while 
+
+V. V ALIDATION 
+
+To assess the performance of the proposed DQUKF naviga-tion algorithm, experiments were conducted using the EuRoC dataset [42]. This dataset contains recordings from an Ascetec Firefly hex-rotor MAV operating in a static indoor envi-ronment, including IMU measurements, stereo images, and ground truth data. The stereo images consist of simultaneous monochrome frames captured by an Aptina MT9V034 global shutter sensor at 20 Hz. The MAV’s linear acceleration and angular velocity were measured by an ADIS16448 IMU at 200 Hz. Since the camera and IMU operate at different sampling frequencies, image measurements are not available at every IMU timestamp. To handle this, the DQUKF navigation algorithm performs the update step only when image data is available; otherwise, the estimated state is propagated, setting 
+
+ˆxk|k equal to the predicted state ˆxk|k−1 as shown in figure 2. To assess the filter performance, the estimated state vector must closely match the ground truth data provided in the dataset. The navigation error can thus be defined component wise as 
+
+˜Rk = qk ⊖ ˆqk
+
+pe,k = pk − ˆpk
+
+ve,k = vk − ˆvk
+
+(86) These errors provide detailed insight into the estimation per-formance of each state variable, allowing axis specific analysis of attitude, position, and velocity. To provide a benchmark for future studies, the proposed filter is tested on three different datasets: V1 01 easy, V1 02 medium, V1 03 difficult. Fig-ure 3 shows the specific axis errors for orientation (column 1), position (column 2) and velocity (column 3) for the V1 02 medium sequence. From the figure it is clear that all errors converge to near zero, which indicates that the estimated quantities are in track with the ground truth. In 
+
+Fig. 3: MAV navigation error addition to these individual errors, an overall scalar perfor-mance metric can be defined through the error magnitude. This magnitude compresses the error information (e.g. px, p y , p z )into a single quantity, enabling straightforward comparison of filter accuracy and convergence behavior across different estimators or datasets. Figure 4 illustrates the filter estimated navigation trajectory for the MAV inside the GPS denied confined space of a room. The navigation error magnitudes, i.e. || ˜Rk|| , || pe,k || , || ve,k || , on the right of the trajectory plot highlight the effectiveness of the proposed DQUKF. Although the initial estimation error is significant, the filter stabilizes quickly, achieving near-zero error within a few seconds. An-12 
+
+Fig. 4: 3D navigation trajectory of the MAV for experiment 2 (medium). The estimated trajectory (black) is overlaid with the ground truth (green). The corresponding attitude, position, and velocity error magnitudes are presented on the right. other important quantity that is useful in assessing the filter’s performance is the Root Mean Squared Error (RMSE). The RMSE can be defined as RMSE =
+
+vuut 1
+
+mkmkX
+
+> k=1
+
+e2 
+
+> k
+
+(87) where, ek is the magnitude of the errors in (86). Notice that the biases were not included in RMSE calculation as the primary focus is the navigation problem, which is sufficiently described by the orientation, position and velocity. Table I shows the RMSE comparison between the Multiplicative EKF (MEKF), Quaternion UKF (QUKF) and the DQUKF. Experiments 1, 2 and 3 refer to the easy, medium and difficult datasets respectively. From Table I, the baseline filters (MEKF and TABLE I: Performance comparison of DQUKF (Proposed) vs MEKF and QUKF on EuRoC datasets.                                       
+
+> Experiment 1 Experiment 2 Experiment 3 Filter Att. Pos. Vel. Att. Pos. Vel. Att. Pos. Vel. MEKF 0.5742 2.0246 2.4397 0.1484 0.3346 0.6625 0.2331 0.4340 0.4769 QUKF 0.2676 1.6258 1.6084 0.0806 0.2764 0.4459 0.1519 0.3347 0.4748 DQUKF 0.2893 1.0280 1.0261 0.1112 0.2843 0.5011 0.1053 0.2584 0.4237
+
+QUKF) exhibit a broader spread in RMSE values compared to the proposed DQUKF, particularly in the more challenging scenarios. In Experiment 1, the baselines show large errors, with attitude ranging from approximately 0.27 to 0.57 rad, position from 1.63 to 2.02 m, and velocity from 1.61 to 2.44 m/s. The DQUKF achieves the lowest RMSE in both position and velocity, with a substantial reduction compared to the baselines, while maintaining competitive attitude accuracy close to the QUKF. This indicates a clear advantage of the proposed method under aggressive initialization conditions. In Experiment 2, all filters operate within a tighter performance range, with attitude below 0.15 rad, position below 0.34 m, and velocity below 0.66 m/s. The QUKF achieves the lowest RMSE across all three states, while the DQUKF remains competitive but does not consistently outperform the baselines in this scenario. In Experiment 3, the spread increases again, with attitude ranging from 0.10 to 0.23 rad, position from 0.26 to 0.43 m, and velocity from 0.42 to 0.48 m/s. The DQUKF achieves the lowest RMSE in all three categories, outperforming both MEKF and QUKF, indicating improved robustness under more challenging conditions. Overall, the DQUKF exhibits more consistent performance across exper-iments, with clear gains in position and velocity estimation while maintaining competitive attitude accuracy. The improve-ment is most evident under aggressive initialization, where the increased nonlinearity challenges the MEKF and QUKF. In these cases, all filters exhibit strong transient oscillations before convergence, which elevates the reported RMSE. With less aggressive initialization, the transient response becomes shorter and less pronounced since the filters start closer to the true state and require less correction. Thus, the RMSE values reported in the table would be lower. To complement the RMSE results, a top-down (XY-plane) trajectory comparison in figure 5 is provided to visually illustrate horizontal drift and path consistency of the MEKF, QUKF, and proposed DQUKF relative to the ground truth for V1 03 difficult sequence. 13 
+
+Fig. 5: Top-down (XY-plane) MAV trajectory comparison with ground truth. figure 6 illustrates the temporal evolution in the transient phase of the attitude error magnitude (top), position error magnitude (middle), and velocity error magnitude (bottom) for the V1 03 difficult sequence, comparing the MEKF, QUKF, and the proposed DQUKF. As observed, the MEKF exhibits 
+
+Fig. 6: Error magnitude comparison between MEKF, QUKF and DQUKF (proposed) For Experiment 3. the largest transient errors, especially in the attitude and position components, and requires a longer interval to settle compared with the unscented filters. The QUKF improves the initial response relative to the MEKF, but still shows noticeable fluctuations and error peaks during the transient phase. In contrast, the proposed DQUKF maintains lower attitude and position errors over most of the transient in-terval and demonstrates a smoother convergence trend. The velocity errors of the three filters become more comparable after the initial transient, although the DQUKF generally avoids some of the larger spikes observed in the baseline filters. At steady state, all three filters eventually converge to near-zero error with only small residual fluctuations. To evaluate the computational complexity, Table II reports the total execution time, the average time per iteration, and the relative computational cost for experiment 3. The MEKF is TABLE II: Average Computational Cost Of The Evaluated Filters.             
+
+> Filter Total Time (s) Avg. Time/Step (ms) Relative Cost MEKF 95 5.04 1.00 ×
+> QUKF 330 17.52 3.47 ×
+> DQUKF 180 9.55 1.89 ×
+
+the most computationally efficient among the evaluated filters. The DQUKF requires more computation than the MEKF, but remains less computationally demanding than the QUKF for the considered simulation. Lastly, to highlight the robustness of the established VIO framework, the attitude, position, and velocity RMSE are computed under varying feature avail-ability, as shown in Table III. Relative to the 60-feature baseline, the 40-feature case shows only a modest change in performance, with slightly higher attitude and position RMSE but lower velocity RMSE. A clearer degradation appears at 20 features, where the attitude and position RMSE increase to 0.1829 rad and 0.3507 m, respectively, indicating that estimation accuracy deteriorates when the number of reliable visual constraints becomes limited. The RMSE in the 10-feature case does not increase further because the feature set is repeatedly reinitialized once the number of tracked features falls below six. This frequent reinitialization limits long-term error accumulation, so the extreme case should not be interpreted as improved observability. Overall, the results show that the DQUKF remains stable under reduced feature availability, while performance degradation becomes evident as visual measurement constraints are depleted. TABLE III: DQUKF Estimation performance under feature degradation                     
+
+> Case Features Attitude Position Velocity
+> Baseline 60 0.1053 0.2584 0.4237 Moderate 40 0.1229 0.2699 0.3672 Severe 20 0.1829 0.3507 0.3043 Extreme 10 0.1242 0.3433 0.3444
+
+VI. C ONCLUSION 
+
+This paper introduced a Dual Quaternion Unscented Kalman Filter integrated with a tightly coupled Visual Inertial Odom-etry framework for navigation in GPS-denied environments. The proposed formulation represents the nominal pose using unit dual quaternions while describing the local pose uncer-tainty through a six-dimensional twistor parameterization. This provides a geometrically consistent error-state formulation that avoids applying Euclidean corrections directly to the con-strained dual quaternion pose. By combining high-rate IMU propagation with visual feature-based updates, the framework corrects inertial drift and maintains consistent estimation of attitude, position, velocity, and bias states. Simulation results on the EuRoC MAV dataset showed that the proposed DQUKF converges under high initialization uncertainty and maintains reliable accuracy across the tested flight sequences. The DQUKF achieved the lowest position and velocity RMSE in Experiment 1, with 1.0280 m and 1.0261 m/s, respectively, and 14 
+
+achieved the lowest attitude, position, and velocity RMSE in the difficult sequence, with 0.1053 rad, 0.2584 m, and 0.4237 m/s, respectively. The trajectory and error plots showed close agreement with the ground truth after convergence, while the computational and feature-degradation studies demonstrated moderate computational cost and stable performance with position RMSE below 0.36 m under reduced visual feature availability. The results indicate that the proposed framework provides a consistent and robust filtering structure for visual-inertial navigation in GPS-denied environments. Future work will focus on (i) developing methods for adaptively tuning the noise covariance matrices, (ii) incorporating loop-closure detection to enforce global map consistency, moving the system toward a full SLAM formulation rather than pure navigation, and (iii) validate the framework in real-world flight experiments. REFERENCES [1] G. Huang, “Visual–inertial navigation: A concise review,” in Proceed-ings of the IEEE International Conference on Robotics and Automation (ICRA) , Montreal, QC, Canada, 2019, pp. 9572–9582. [2] H. A. Hashim, “Exponentially Stable Observer-based Controller for VTOL-UAVs without Velocity Measurements,” International Journal of Control , vol. 96, no. 8, pp. 1946–1960, 2023. [3] R. Mur-Artal and J. D. Tardos, “Visual-inertial monocular slam with map reuse,” IEEE Robotics and Automation Letters , vol. 2, no. 2, pp. 796–803, Apr 2017. [4] H. A. Hashim and A. E. E. Eltoukhy, “Nonlinear Filter for Simultaneous Localization and Mapping on a Matrix Lie Group using IMU and Feature Measurements,” IEEE Transactions on Systems, Man, and Cybernetics: Systems , vol. 52, no. 4, pp. 2098–2109, 2022. [5] H. A. Hashim, “Advances in uav avionics systems architecture, classifi-cation and integration: A comprehensive review and future perspectives,” 
+
+Results in Engineering , vol. 25, p. 103786, 2025. [6] A. I. Mourikis and S. I. Roumeliotis, “A multi-state constraint kalman filter for vision-aided inertial navigation,” in Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) , Rome, Italy, 2007, pp. 3565–3572. [7] C. Chen, H. Zhu, M. Li, and S. You, “A review of visual–inertial simul-taneous localization and mapping from filtering-based and optimization-based perspectives,” Robotics , vol. 7, no. 3, p. 45, Aug 2018. [8] H. A. Hashim, “From insects to bio-inspired micro flapping wing aerial vehicles intelligent flight: A review, design principles, and future prospects,” Digital Engineering , p. 100114, 2026. [9] Z. Xu, G. Yi, X. Zhang, Y. Xie, and O. Kaynak, “Enhancing attitude availability in star-depleted cases: An inertial/star sensor fusion method,” 
+
+IEEE/ASME Transactions on Mechatronics , 2026. [10] H. A. Hashim, “GPS-denied Navigation: Attitude, Position, linear Ve-locity, and Gravity Estimation with Nonlinear Stochastic Observer,” in 
+
+2021 American Control Conference (ACC) . IEEE, 2021, pp. 1146– 1151. [11] V. Usenko, J. Engel, J. St¨ uckler, and D. Cremers, “Direct visual-inertial odometry with stereo cameras,” in Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) , Singapore, May 2017, pp. 3472–3478. [12] S. J. Julier and J. K. Uhlmann, “Unscented filtering and nonlinear estimation,” Proceedings of the IEEE , vol. 92, no. 3, pp. 401–422, 2004. [13] H. Schaub and J. L. Junkins, “Stereographic orientation parameters for attitude dynamics: A generalization of the rodrigues parameters,” 
+
+Journal of the Astronautical Sciences , vol. 51, no. 2, pp. 165–180, 2003. [14] N. Filipe, M. H. S. Bazzi, and P. Oliveira, “Pose estimation using dual quaternions: A review,” IEEE Transactions on Robotics , vol. 30, no. 1, pp. 1–14, 2014. [15] R. E. Kalman, “A new approach to linear filtering and prediction problems,” Journal of Basic Engineering , vol. 82, no. 1, pp. 35–45, 1960. [16] M. Gruber, “An approach to target tracking,” MIT Lincoln Laboratory, Lexington, Massachusetts, Tech. Rep., 1967. [17] S. J. Julier and J. K. Uhlmann, “New extension of the kalman filter to nonlinear systems,” in Signal Processing, Sensor Fusion, and Target Recognition VI , I. Kadar, Ed., vol. 3068. SPIE, 1997, pp. 182–193. [18] J. L. Farrell, “Attitude determination by kalman filtering,” Automatica ,vol. 6, pp. 419–430, 1970. [19] E. J. Lefferts, F. L. Markley, and M. D. Shuster, “Kalman filtering for spacecraft attitude estimation,” Journal of Guidance, Control, and Dynamics , vol. 5, no. 5, pp. 417–429, Sep 1982. [20] J. L. Crassidis and F. L. Markley, “Unscented filtering for spacecraft attitude estimation,” Journal of Guidance, Control, and Dynamics ,vol. 26, no. 4, pp. 536–542, Jul 2003. [21] M. D. Shuster, “A survey of attitude representations,” Navigation , vol. 8, no. 9, pp. 439–517, 1993. [22] J. L. Crassidis, F. L. Markley, and Y. Cheng, “Survey of nonlinear atti-tude estimation methods,” Journal of Guidance, Control, and Dynamics ,vol. 30, no. 1, pp. 12–28, Jan 2007. [23] F. L. Markley, “Attitude error representations for kalman filtering,” 
+
+Journal of Guidance, Control, and Dynamics , vol. 26, no. 2, pp. 311– 317, 2003. [24] A. S. Rangaprasad, G. Rosen, D. Hadi, and H. Choset, “Estimating se(3) elements using a dual quaternion based linear kalman filter,” in 
+
+Proceedings of Robotics: Science and Systems , 2016. [25] J. S. Goddard and M. A. Abidi, “Pose and motion estimation using dual quaternion-based extended kalman filtering,” in Photonics West’98 Electronic Imaging , 1998, pp. 189–200. [26] E. Bayro-Corrochano and Y. Zhang, “The motor extended kalman filter: A geometric approach for rigid motion estimation,” Journal of Mathematical Imaging and Vision , vol. 13, no. 3, pp. 205–228, 2000. [27] Y. Zu, U. Lee, and R. Dai, “Distributed motion estimation of space objects using dual quaternions,” in Proceedings of the AIAA/AAS Astro-dynamics Specialist Conference , Aug 2014, p. 4296. [28] N. Filipe, M. Kontitsis, and P. Tsiotras, “Extended kalman filter for spacecraft pose estimation using dual quaternions,” Journal of Guidance, Control, and Dynamics , vol. 38, no. 9, pp. 1625–1641, Sep 2015. [29] A. Sveier and O. Egeland, “Dual quaternion particle filtering for pose estimation,” IEEE Transactions on Control Systems Technology , vol. 29, no. 5, pp. 2012–2025, 2021. [30] Y. Deng, Z. Wang, and L. Liu, “Unscented kalman filter for spacecraft pose estimation using twistors,” Journal of Guidance, Control, and Dynamics , vol. 39, no. 8, pp. 1844–1856, Aug 2016. [31] H. A. Hashim, L. J. Brown, and K. McIsaac, “Nonlinear Stochastic At-titude Filters on the Special Orthogonal Group 3: Ito and Stratonovich,” 
+
+IEEE Transactions on Systems, Man, and Cybernetics: Systems , vol. 49, no. 9, pp. 1853–1865, 2019. [32] H. A. Hashim and F. L. Lewis, “Nonlinear Stochastic Estimators on the Special Euclidean Group SE(3) using uncertain IMU and Vision Measurements,” IEEE Transactions on Systems, Man, and Cybernetics: Systems , vol. 51, no. 12, pp. 7587–7600, 2022. [33] G. R. Veldkamp, “On the use of dual numbers, vectors and matrices in instantaneous, spatial kinematics,” Mechanism and Machine Theory ,vol. 11, no. 2, pp. 141–156, Jul 1976. [34] J. B. Kuipers, Quaternions and Rotation Sequences: A Primer with Applications to Orbits, Aerospace, and Virtual Reality . Princeton, NJ, USA: Princeton University Press, 1999. [35] H. A. Hashim, “Special orthogonal group so(3), euler angles, angle-axis, rodriguez vector and unit-quaternion: Overview, mapping and challenges,” 2019. [36] S. Haykin, Kalman Filtering and Neural Networks . John Wiley & Sons, 2004. [37] Z. Xu, X. Zhang, L. Zhang, Y. Xie, Z. Chen, and D. Wang, “Fault diag-nosis and initial alignment of redundant sins under large misalignment angle,” IEEE Transactions on Industrial Informatics , 2026. [38] Z. Xu, B. Xi, G. Yi, and C. K. Ahn, “High-precision control scheme for hemispherical resonator gyroscopes with application to aerospace navigation systems,” Aerospace Science and Technology , vol. 119, p. 107168, 2021. [39] E. Rublee, V. Rabaud, K. Konolige, and G. Bradski, “Orb: An efficient alternative to sift or surf,” in International Conference on Computer Vision (ICCV) , Barcelona, Spain, 2011, pp. 2564–2571. [40] J. Shi and C. Tomasi, “Good features to track,” Cornell University, Tech. Rep., 1993. [41] G. H. Lee, F. Fraundorfer, and M. Pollefeys, “Rs-slam: Ransac sampling for visual fastslam,” in IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , San Francisco, CA, USA, 2011, pp. 1655– 1660. [42] M. Burri, J. Nikolic, P. Gohl, T. Schneider, J. Rehder, S. Omari, M. W. Achtelik, and R. Siegwart, “The euroc micro aerial vehicle datasets,” 
+
+The International Journal of Robotics Research , vol. 35, no. 10, pp. 1157–1163, 2016.
