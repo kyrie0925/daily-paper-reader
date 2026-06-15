@@ -6,62 +6,52 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-14
-- 运行时间：2026-06-14 21:39:12 UTC
+- 最新运行日期：2026-06-15
+- 运行时间：2026-06-15 23:00:43 UTC
 - 运行状态：成功
-- 本次总论文数：14
-- 精读区：6
-- 速读区：8
+- 本次总论文数：10
+- 精读区：5
+- 速读区：5
 
 ### 今日简报（AI）
-今日精读聚焦异常检测新范式，涵盖自解释时间序列分析与海事离线模仿学习两大高分突破。最值得关注ProtoX-AD可解释异常检测（9.0分）与Rarity-Gated海事异常检测（9.0分），二者分别以显式表征和条件建模提升检测可靠性。建议跟进自解释模型原理及离线学习在弱监督场景的应用细节，后续可对比其与速读中遥感检测框架的适用边界。
-- 详情：[/202606/14/README](/202606/14/README)
+今日精读两篇高分论文：深零膨胀模型助力北大西洋露脊鲸保护，值序分解实现通用异常检测。  
+最值得关注方向：海洋生态管理中零膨胀数据的深度学习建模，以及无需特定假设的异常检测新范式。  
+建议普通读者关注相关开源项目，并思考自然场景与工业场景的迁移应用。
+- 详情：[/202606/15/README](/202606/15/README)
 
 ### 精读区论文标签
-1. [ProtoX-AD: Self-Explainable Time Series Anomaly Detection and Characterization](/202606/14/2606.13277v1-protox-ad-self-explainable-time-series-anomaly-detection-and-characterization)  
+1. [A Deep Zero-Inflated Model of North Atlantic Right Whale Presence To Support Blue Economy Management in the U.S. East Coast](/202606/15/2606.14403v1-a-deep-zero-inflated-model-of-north-atlantic-right-whale-presence-to-support-blue-economy-management-in-the-us-east-coast)  
+   标签：评分：9.0/10、query:ocean-obs
+   evidence：自主水下航行器用于鲸类监测
+2. [Value-order Decomposition for Generalist Anomaly Detection](/202606/15/2606.14475v1-value-order-decomposition-for-generalist-anomaly-detection)  
    标签：评分：9.0/10、query:anomaly-id
-   evidence：自解释时间序列异常检测方法
-2. [Rarity-Gated Context Conditioning for Offline Imitation Learning-Based Maritime Anomaly Detection](/202606/14/2606.13311v1-rarity-gated-context-conditioning-for-offline-imitation-learning-based-maritime-anomaly-detection)  
-   标签：评分：9.0/10、query:ocean-qc
-   evidence：基于稀有门控条件调节的海洋异常检测
-3. [CRAFTIIF: Cross-Resolution Analytic Four-Type Interpretable Isolation Forest for Multivariate Time Series Anomaly Detection](/202606/14/2606.13486v1-craftiif-cross-resolution-analytic-four-type-interpretable-isolation-forest-for-multivariate-time-series-anomaly-detection)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：多变量时间序列异常检测方法
-4. [Scalable anomaly detection via a univariate Christoffel function](/202606/14/2606.12483v1-scalable-anomaly-detection-via-a-univariate-christoffel-function)  
+   evidence：提出价值阶分解用于通用异常检测，一种跨域检测异常的新方法
+3. [D2H-AD: A Hybrid Model Utilizing Hyperdimensional Computing for Advanced Anomaly Detection](/202606/15/2606.13754v1-d2h-ad-a-hybrid-model-utilizing-hyperdimensional-computing-for-advanced-anomaly-detection)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：利用克里斯托费尔函数实现可扩展异常检测，克服了维度灾难问题
-5. [Computationally tractable robust differentially private mean estimation](/202606/14/2606.12654v1-computationally-tractable-robust-differentially-private-mean-estimation)  
+   evidence：提出基于超维计算的通用异常检测框架
+4. [BoRAD: Bootstrap your Own Representations for Multi-class Anomaly Detection](/202606/15/2606.14129v1-borad-bootstrap-your-own-representations-for-multi-class-anomaly-detection)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：具有异常值鲁棒性的均值估计，可用于离群点检测
-6. [A Zero-shot Generalized Graph Anomaly Detection Framework via Node Reconstruction](/202606/14/2606.12673v1-a-zero-shot-generalized-graph-anomaly-detection-framework-via-node-reconstruction)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：零样本图异常检测
+   evidence：通过自监督表示学习进行多类异常检测
+5. [Wind vector retrieval from miniaturized wave-enabled sea-surface drifters](/202606/15/2606.14520v1-wind-vector-retrieval-from-miniaturized-wave-enabled-sea-surface-drifters)  
+   标签：评分：8.0/10、query:ocean-obs
+   evidence：波浪感应漂流器用于海洋风观测
 
 ### 速读区论文标签
-1. [Taming Perception Jitter: Uncertainty-Aware LiDAR Object Detection for Reliable Motion Classification](/202606/14/2606.09350v1-taming-perception-jitter-uncertainty-aware-lidar-object-detection-for-reliable-motion-classification)  
+1. [Deep learning for echo sounder data](/202606/15/2606.10811v1-deep-learning-for-echo-sounder-data)  
+   标签：评分：7.0/10、query:ocean-qc
+   evidence：探讨深度学习在回声测深数据中的应用并强调高质量数据集的需求
+2. [Finding Novel Precursors for Solar Wind Stream Interaction Regions with Interpretable Deep Learning](/202606/15/2606.12661v1-finding-novel-precursors-for-solar-wind-stream-interaction-regions-with-interpretable-deep-learning)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：在运动分类中使用z检验进行异常检测
-2. [iSAGE: A Human-in-the-Loop Framework for Remote Sensing Semantic Segmentation via Sparse Point Supervision](/202606/14/2606.10136v1-isage-a-human-in-the-loop-framework-for-remote-sensing-semantic-segmentation-via-sparse-point-supervision)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：遥感影像人机交互语义分割框架
-3. [ZODS-RS -- Zero-training Oriented Detection & Segmentation for Remote Sensing](/202606/14/2606.10769v1-zods-rs----zero-training-oriented-detection--segmentation-for-remote-sensing)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：遥感零训练目标检测与分割流程
-4. [Physics-Guided Spatiotemporal Learning for Coastal Wave Peak Period Estimation from Video](/202606/14/2606.13302v1-physics-guided-spatiotemporal-learning-for-coastal-wave-peak-period-estimation-from-video)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：基于物理引导深度学习从海岸视频估计波浪参数，实现自主海洋观测
-5. [Dual Quaternion-Based Unscented Kalman Filter with Visual Inertial Odometry for Navigation in GPS-Denied Environments](/202606/14/2606.09292v1-dual-quaternion-based-unscented-kalman-filter-with-visual-inertial-odometry-for-navigation-in-gps-denied-environments)  
-   标签：评分：6.0/10、query:ocean-obs
-   evidence：自主系统导航算法
-6. [TSseek: Regular Expression-Based Similarity Search for Distributed Time Series Datasets](/202606/14/2606.09824v1-tsseek-regular-expression-based-similarity-search-for-distributed-time-series-datasets)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：基于正则表达式的时间序列相似性搜索，可支持模式驱动的异常检测
-7. [Deep learning for echo sounder data](/202606/14/2606.10811v1-deep-learning-for-echo-sounder-data)  
+   evidence：使用Transformer模型逐时间步检测太阳风流相互作用区域，属于时间序列中的异常/事件检测
+3. [Least Absolute Deviations Estimation for Sinusoidal Models](/202606/15/2606.13242v1-least-absolute-deviations-estimation-for-sinusoidal-models)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：正弦模型的最小绝对偏差鲁棒估计，有效处理异常值
+4. [Inferring resource selection and utilization distributions from irregular and error-prone animal tracking data](/202606/15/2606.12566v1-inferring-resource-selection-and-utilization-distributions-from-irregular-and-error-prone-animal-tracking-data)  
    标签：评分：6.0/10、query:ocean-qc
-   evidence：深度学习用于水下声学数据质量问题
-8. [Least Absolute Deviations Estimation for Sinusoidal Models](/202606/14/2606.13242v1-least-absolute-deviations-estimation-for-sinusoidal-models)  
+   evidence：处理海洋系统中不规则和带有误差的数据，与海洋数据质量控制相关
+5. [Cauchy Aggregation of Ridge-Regularized Hotelling Tests for High-Dimensional Change-Point Detection](/202606/15/2606.14092v1-cauchy-aggregation-of-ridge-regularized-hotelling-tests-for-high-dimensional-change-point-detection)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：鲁棒的最小绝对偏差估计，适用于含异常值的数据集
+   evidence：使用柯西聚合的变点检测方法，与时间序列异常检测相关
 
 
 <div class="dpr-home-promo-card">

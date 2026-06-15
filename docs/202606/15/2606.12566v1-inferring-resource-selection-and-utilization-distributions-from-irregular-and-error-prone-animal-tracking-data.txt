@@ -1,0 +1,938 @@
+Title: Inferring resource selection and utilization distributions from irregular and error-prone animal tracking data
+
+URL Source: https://arxiv.org/pdf/2606.12566v1
+
+Published Time: Fri, 12 Jun 2026 00:09:09 GMT
+
+Number of Pages: 50
+
+Markdown Content:
+# Inferring resource selection and utilization distributions from irregular and error-prone animal tracking data 
+
+## Fanny Dupont 1∗, Brett T. McClintock 2,3, Jan-Ole Fischer 4, Marianne Marcoux 5,Nigel E. Hussey 6, Marie Auger-M´ eth´ e1,7
+
+> 1
+
+Department of Statistics, University of British Columbia, Vancouver, British Columbia, Canada 
+
+> 2
+
+Marine Mammal Laboratory, NOAA-NMFS Alaska Fisheries Science Center, Seattle, WA, USA 
+
+> 3
+
+School of Environmental and Forest Sciences, University of Washington, Seattle, WA, USA 
+
+> 4
+
+Department of Business Administration and Economics, Bielefeld University, Bielefeld, North Rhine-Westphalia, Germany 
+
+> 5
+
+Freshwater Institute, Fisheries and Oceans Canada, Winnipeg, Manitoba, Canada 
+
+> 6
+
+Department of Integrative Biology, University of Windsor, Windsor, Ontario, Canada 
+
+> 7
+
+Institute for the Oceans and Fisheries, University of British Columbia, Vancouver, British Columbia, Canada 
+
+> ∗
+
+Corresponding author: fanny.dupont@stat.ubc.ca 
+
+Open Research Statement: 
+
+An R package for simulating and fitting the Langevin SSM is available on GitHub at 
+
+https://github.com/bmcclintock/langevinSSM and all code to reproduce the simulation study and data analysis is available publicly at https://github.com/Fanny-Dupont/Langevin_SSM .
+
+Key words/phrases: animal movement; Argos; Fastloc GPS; habitat selection; Langevin diffusion; measurement error; step selection analysis 
+
+> arXiv:2606.12566v1 [stat.ME] 10 Jun 2026
+
+Abstract 
+
+Habitat selection and space use are fundamental to understanding animal distribution and inform-ing conservation strategies. Traditional methods for quantifying habitat preferences and deriving uti-lization distributions from location data obtained from telemetry devices assume regular sampling and negligible measurement error. These assumptions are routinely violated in marine systems and prac-titioners typically regularize and filter data before fitting models. These two-step procedures fail to propagate uncertainty from the filtering stage into subsequent analyses and can yield biased estimates. Habitat-driven Langevin diffusion models offer an elegant alternative by representing movement as a stochastic process driven by habitat-selection dynamics in continuous time, naturally accommodat-ing irregular sampling. However, a state-space formulation that incorporates measurement error by treating true locations as latent variables remains challenging because habitat data depending on these locations are no longer observed. We facilitate the use of such state-space formulation by using the Laplace approximation to simultaneously integrate over the true locations and account for the habi-tat covariates encountered along those latent paths, yielding a single-stage framework that can be ef-ficiently implemented with Template Model Builder (TMB). By doing so, we provide the first TMB implementation capable of handling covariates that depend on latent variables, allowing inference via fast and efficient maximum likelihood estimation. Simulation studies demonstrated our approach out-performs the two-step method, recovering the sign and overall magnitude of habitat-selection parame-ters even under substantial measurement error and missing data (both common in marine studies) and yielding more accurate utilization distribution and trajectory reconstructions. An application to nar-whal telemetry data demonstrates that the two-step method masks the habitat selection coefficient substantially towards zero selection, while our unified approach recovers a much stronger selection signal. By providing a solution for both measurement error and temporal irregularity when inferring habitat selection and utilization distributions, our approach addresses several long-standing challenges and offers a computationally efficient, flexible framework for movement ecologists that is applicable across a wide range of taxa and environments. 
+
+# 1 Introduction 
+
+Animals do not move uniformly across their habitat, and mapping the probability of species presence across a landscape is fundamental in ecology, and for informing conservation and ecosystem management (Cagnacci et al., 2010; Northrup et al., 2022; Matthiopoulos et al., 2023). Habitat selection analyses aim to uncover these dynamics by quantifying which environmental features animals select relative to what is available to them, thereby indicating relative preference (or avoidance) for particular habitats (Manly et al., 2002; Matthiopoulos et al., 2023). This idea underlies the concept of the utilization distribution (UD; Anderson, 11982), which provides a spatial map of relative intensity of space use, showing where the animal is most likely to be. The UD thus helps identifying home ranges (Sprogis et al., 2016), key habitats (Hebblewhite and Merrill, 2009), migration corridors (Sawyer et al., 2009), and zones of potential overlap with human activities (Halliday et al., 2021). Such insights are vital for better understanding animal space use and guiding conservation and management efforts (McWhinnie et al., 2018). Advances in tracking technology have allowed ecologists to collect extensive fine-scale movement data for many species across diverse en-vironments (Patterson et al., 2017; Nathan et al., 2022). Movement data are rich multivariate time series that can offer insights into how animals respond to environmental conditions (Hebblewhite and Merrill, 2009), disturbance (e.g., presence of predator; Fortin et al., 2005), and social factors (Strandburg-Peshkin et al., 2017), thereby helping us understand patterns of space use. Many methods have been developed to estimate habitat selection and UDs from telemetry data. Standard approaches fit a resource selection function (RSF) to quantify habitat selection (Boyce and McDonald, 1999; Boyce et al., 2002; Manly et al., 2002; Johnson et al., 2013; Hooten et al., 2017; Hazen et al., 2021; Matthiopoulos et al., 2023), and the UD is then derived as the normalized product of the RSF and an availability distribution, which describes the distribution of habitat covariates over locations accessible to the animal (Hooten et al., 2017; Matthiopou-los et al., 2023). Although multiple methods exist for fitting RSFs to telemetry data, the most common are use–available logistic regression (Freitas et al., 2016; Florko et al., 2023) and point process models (Warton and Shepherd, 2010; Johnson et al., 2013; Hooten et al., 2017). Despite their widespread use, RSFs rely on the assumption of spatio-temporal independence among locations, which is increasingly vi-olated by modern high-resolution movement data (Patterson et al., 2017). Statistical methods have there-fore been developed to model how animals respond to environmental conditions while accounting for the inherent spatio-temporal structure of movement data. Although several approaches have been proposed to account for autocorrelation in RSFs, such as data thinning (Northrup et al., 2013), weighted likelihood (Alston et al., 2023), generalized estimating equa-tions (Prima et al., 2017), and variance inflation (Nielsen et al., 2002), step-selection functions (SSFs) have emerged as a prominent solution by conditioning habitat selection on the animal’s current location and movement capacity (Forester et al., 2009; Thurfjell et al., 2014; Avgar et al., 2016; Fieberg et al., 2021; Florko et al., 2025). Specifically, at each step, habitat availability is constrained by the animal’s move-ment, such that selection is evaluated only among locations that are reachable given the preceding posi-tion and movement characteristics. Step-selection functions therefore describe habitat selection at a local scale, and the parameter estimates are inherently tied to the temporal resolution of the sampled obser-vations (Schl¨ agel and Lewis, 2016). While some ecological questions are precisely focused on such local, 2short-term selection, for example, how the immediate presence of a predator affects prey habitat selection (Matthews et al., 2020), this dependence is limiting in the many ecological applications that focus on char-acterizing the species’ broad scale space use, which is more naturally described by a spatial UD (Michelot et al., 2019). Although step-scale selection can be translated into long-term space use, both theoretical and empirical work have shown that SSFs do not recover the UD implied by an RSF (Signer et al., 2017; Michelot et al., 2019). Moreover, since parameter estimates depend directly on the sampling interval, SSF-derived inferences are not directly comparable across datasets collected at different temporal resolutions, nor easily related to broader-scale species distribution models. Several approaches have been proposed to upscale inference from SSFs to the UD (see Potts and B¨ orger, 2023 for a review), though the most commonly used rely on simulation-based procedures (Signer et al., 2024) rather than explicit theoretical formulations. This reliance on simulation makes it difficult to obtain a simple parametric representation of the UD and complicates the quantification of uncertainty, which is typically ignored (Michelot and Hanks, 2024). Continuous-time stochastic processes have recently provided an elegant solution to these issues, naturally accommodating irregularly sampled data while yielding a global UD from local movement decisions via their limiting distribution (e.g., Calabrese et al., 2016; Scharf et al., 2017; Wilson et al., 2018; Michelot et al., 2019). Among them, the habitat-driven Langevin diffu-sion (Michelot et al., 2019; Michelot and Hanks, 2024) has emerged as a particularly promising approach for habitat selection and UD inference across temporal scales. At the fine scale, the Langevin stochastic differential equation models continuous movement dynamics, with a drift driven by local gradients in the habitat potential surface. This potential surface is defined by a standard RSF, ensuring that the station-ary distribution of the location process (i.e., the UD) is strictly proportional to the RSF. This broad-scale UD emerges from continuous, fine-scale movement responses to these gradients over time. In recent years, growing interest in the Langevin model has led to multiple extensions (McClintock and Lander, 2024; Del-porte et al., 2025). Standard habitat selection models, including the Langevin diffusion, do not account for location measure-ment error. However, such error is pervasive in animal telemetry studies, particularly in marine systems (Costa et al., 2010; Service Argos, 2017; Wildlife Computers Inc., 2024). Commonly used tracking data that are subject to measurement error include the Advanced Research and Global Observation Satellite (Argos; Service Argos, 2017) and Fastloc GPS systems (Bryant, 2007; Costa et al., 2010). Inferring habi-tat selection from noisy locations can result in bias and, ultimately, misleading conclusions. To address this issue, state-space models (SSMs) are routinely used as a preliminary filtering step. Implemented via 
+
+R packages such as aniMotum (Jonsen et al., 2020), ctmm (Calabrese et al., 2016) and crawl (Johnson and 3London, 2018; Jonsen et al., 2020), these models incorporate measurement error and aim to predict the true movement track, typically modeled as a random walk. This two-step approach, which first corrects for measurement error and then performs ecological inference using the corrected locations, has become a standard analysis pipeline in habitat selection analyses of error-prone data (e.g., Matthews et al., 2020; Martin et al., 2024; Florko et al., 2025). However, most users do not propagate the uncertainty from the filtering stage into subsequent analyses, which may therefore introduce bias, the extent of which has not been thoroughly investigated (Michelot et al., 2019). Such bias may arise, for example, when the move-ment model used for filtering is overly simplistic. Building on the Langevin diffusion framework, we explicitly express the stationary distribution as an RSF and incorporate measurement error into the model via an SSM. We propose a highly efficient likelihood-based fitting method implemented within the Template Model Builder (TMB; Kristensen et al., 2016) framework. By combining automatic differentiation with the Laplace approximation, TMB enables effi-cient and scalable maximum likelihood inference in complex SSMs, while simultaneously recovering un-observed true trajectories. Crucially, our setting differs from standard state-space TMB implementations (e.g., Auger-M´ eth´ e et al., 2017) because the habitat covariates must be evaluated at the unobserved true locations. Specifically, we account for the unobserved covariate values while integrating over the true lo-cations during the optimization process within TMB. To our knowledge, this is the first TMB implemen-tation of SSMs to handle covariates that depend on latent variables, resolving a fundamental challenge in ecology. The proposed approach is therefore fast, intuitive, and powerful, making it well-suited for esti-mating habitat-selection parameters and UDs from complex tracking data. We evaluate our method’s ability to recover the UD and habitat selection parameters in a simulation study spanning a wide range of measurement-error and missing-data scenarios. We also compare its performance with that of a standard two-step approach. We then illustrate our approach with tracking data from nar-whal ( Monodon monoceros ), a species vulnerable to the effects of climate change such as declines in sea ice and rising shipping traffic (Pizzolato et al., 2014; Halliday et al., 2022). Previous studies have shown that bathymetry plays a significant role in narwhal habitat selection (Laidre et al., 2004; Kenyon et al., 2018; Hornby et al., 2025). In this context, our objective is to assess our method’s ability to identify this relationship and to compare it with the results from a two-step approach. 42 Methods 
+
+## Langevin diffusion model for animal movement 
+
+Movement, represented as the joint velocity and location process, is modeled as a underdamped Langevin diffusion process (Michelot et al., 2019; Michelot and Hanks, 2024), which generalizes correlated random walks by allowing movement to be directed towards regions of higher values of a potential function de-noted as log π. The stationary distribution π represents the (time-invariant) steady-state distribution of the location process. In habitat selection analyses, π is typically written as a function of an RSF and cor-responds to a UD (Manly et al., 2002; Michelot et al., 2019). Local movement decisions in the Langevin framework reflect habitat selection preferences (drift towards higher log π), with resource availability dy-namically constrained by the movement process itself. Since π is the limiting distribution of the location process, the animal’s long-term pattern of space use stabilizes to π, creating a direct link between local habitat selection and broad-scale space use. This model is referred to as the Langevin movement model throughout. Let μt = ( μxt , μ yt )⊤ and vt = ( vxt , v yt )⊤ denote the location and velocity in the x and y directions at time t ≥ 0. Given initial conditions μ0, v0, their joint dynamics are governed by the following system of stochastic differential equations (SDEs; Michelot and Hanks, 2024): 
+
+dμt = vt dt, dvt = −γvt dt + σ2∇ log π(μt) dt + √2γσ d Bt,
+
+(1) where ∇(·) refers to the gradient operator. Within the framework defined in (1), the location process μt
+
+follows the standard position-velocity relationship. In contrast, the equation that drives the velocity pro-cess describes more complex patterns that result from three driving forces. First, a friction force −γvt,with γ > 0, damps the velocity and governs its autocorrelation structure, with large γ leading to a rapid decrease of autocorrelation, and low γ yielding more persistent movement. Second, a standard Brownian noise Bt captures unexplained variation in the system (e.g., variability in movement and behavior). Third, an environmental drift σ2∇ log π(μt) pulls the animal along environmental gradients and towards regions of higher π, with speed parameter σ. Since all components of (1) are isotropic (with scalar γ and σ and an isotropic gradient), the joint process is isotropic (see Delporte et al. (2025) for an anisotropic formulation). Under mild regularity conditions (Cheng et al., 2018), the joint process (1) has a unique stationary distri-bution π⋆(μ, v) ∝ π(μ)e−|| v|| 22/2σ2
+
+(Michelot and Hanks, 2024), where the location marginal is π, linking local movement decisions to the long-term UD, while the velocity marginal is a zero-mean Gaussian in-5dependent of location and carries no information about habitat selection. Consequently, throughout this manuscript, π is referred to simply as the stationary distribution of the (location) process. The function 
+
+π(μ) captures how the environment influences animal movement. Following Michelot and Hanks (2024), we specify π(μ) ∈ R, as a function of an RSF: 
+
+π(μ) = exp 
+
+PKk=1 βkck(μ)
+
+R 
+
+> Ω
+
+exp 
+
+PKk=1 βkck(μ⋆)
+
+
+
+dμ⋆
+
+, (2) where each ck is a differentiable spatial covariate and βk is its associated selection coefficient. This formu-lation assumes that, at a broad scale, all locations in the study area are equally accessible, and thus the selection coefficients are interpreted as in a standard RSF (Manly et al., 2002; Signer et al., 2019): positive values of βk indicate preference for higher values of ck, negative values indicate avoidance of higher values of ck and βk = 0 indicates no response. The exponential term in the numerator in equation (2) is what is commonly referred to as an RSF (Manly et al., 2002; Signer et al., 2019). The gradient driving the move-ment process is then 
+
+∇ log π(μ) = 
+
+> K
+
+X
+
+> k=1
+
+βk∇ck(μ). (3) The long-term distribution emerging from these local decisions is captured by the stationary distribution 
+
+π, which reflects space use at a broad scale. The stationary distribution π is therefore a UD proportional to the RSF (equation (2)). Specifically, π corresponds to the UD derived from an RSF when the availabil-ity distribution is uniform across the study area (Hooten et al., 2017; Matthiopoulos et al., 2023). We use the location data to infer behavior and estimate the dynamics of the unobserved velocity process. Specifically, we are interested in estimating the movement parameters σ and γ, along with the habitat se-lection parameters β1, . . . , β K . Let ( Zt)t≥0 = ( μxt , v xt , μ yt , v yt )⊤ 
+
+> t≥0
+
+denote the joint process of location and velocity. Suppose ( Zt)t≥0 is observed at discrete times t0 < t 1 < · · · < t n. We write zi = ( μxi , v xi , μ yi , v yi )⊤
+
+for the realization of the process at time ti, where μxi := μxti and similarly for the remaining components. The time elapsed between consecutive observations is denoted ∆ i = ti+1 − ti for i = 0 , . . . , n − 1. We approximate the joint process of location and velocity by assuming that ∇ log π(μ) is constant over the movement path connecting an observation at time ti with the subsequent observation at ti+1 . With this approximation, Zt is a Markov process with Gaussian transition densities. Specifically, we have (see Mich-elot and Hanks, 2024 for more details): 6Zti+1 | { Zti = zi} ∼ N (ηi, Qi), 0 ≤ i ≤ n − 1 (4) with mean vector 
+
+ηi =
+
+
+
+μxi + vxi (1 − e−γ∆i )
+
+γ + σ2 ∂x log π(μi)
+
+γ
+
+
+
+∆i − 1 − e−γ∆i
+
+γ
+
+
+
+vxi e−γ∆i − σ2 ∂x log π(μi)
+
+γ
+
+ 1 − e−γ∆i
+
+
+
+μyi + vyi (1 − e−γ∆i )
+
+γ + σ2 ∂y log π(μi)
+
+γ
+
+
+
+∆i − 1 − e−γ∆i
+
+γ
+
+
+
+vyi e−γ∆i − σ2 ∂y log π(μi)
+
+γ
+
+ 1 − e−γ∆i
+
+ ,
+
+
+
+(5) where ∇ log π(μi) = ( ∂x log π(μi), ∂ y log π(μi)) ⊤. Since the x and y dimensions evolve independently, the covariance matrix is block diagonal and can be written as follows: 
+
+Qi =
+
+
+
+Q1D  
+
+> i
+
+00 Q1D 
+
+> i
+
+ , (6) where each 2 × 2 block is the covariance matrix Q1D  
+
+> i
+
+written as follows: 
+
+Q1D  
+
+> i
+
+=
+
+
+
+σ2
+
+ 2∆ i
+
+γ − e−2γ∆i
+
+γ2 − 3
+
+γ2 + 4e−γ∆i
+
+γ2
+
+ σ2
+
+γ
+
+ 1 − 2e−γ∆i + e−2γ∆i
+
+
+
+σ2
+
+γ
+
+ 1 − 2e−γ∆i + e−2γ∆i
+
+ σ2  1 − e−2γ∆i
+
+
+
+. (7) In reality, since the underlying movement process operates in continuous time, ∇ log π(μ) varies contin-uously along the true path between observations. Discretizing this process therefore introduces a bias, which grows as the time interval between observations increases (Blackwell and Matthiopoulos, 2024). Thus, in our case study, we choose to mitigate this bias by splitting large gaps into independent track seg-7ments. 
+
+## Measurement model for error-prone observed location data 
+
+The Langevin movement model traditionally assumes that locations are observed without error. However, most tracking data are recorded with some degree of uncertainty. For example, Argos data are typically accompanied by error estimates derived from least-squares or Kalman filtering, while Fastloc GPS data are characterized by circular error (McClintock, 2017; Service Argos, 2017; Wildlife Computers Inc., 2024). To address this, we couple the Langevin movement model with an observation model that accounts for mea-surement error, specifically for Kalman-filtered Argos and Fastloc GPS data (Jonsen et al., 2020). The core idea is that the observed locations correspond to the true locations with additive noise, the magni-tude and distribution of which depends on the type of data and the associated uncertainty estimates. Fol-lowing standard practice in the animal movement literature, we use a Gaussian observation model (Mc-Clintock et al., 2015; Jonsen et al., 2020). Therefore, we consider the observed location yi as a realization of the observation process Yi with the following conditional distribution: 
+
+Yi | μi ∼ N (μi, Σi) . (8) For Argos locations, we define Σi using the error ellipses associated with the location recorded at time ti.Therefore, for a two-dimensional observation process Yi, we use: 
+
+Σi =
+
+ σ21,i σ12 ,i 
+
+σ21 ,i σ22,i 
+
+ (9) with 
+
+σ21,i =
+
+ Mi
+
+√2
+
+2
+
+sin 2 ri +
+
+ miψ
+
+√2
+
+2
+
+cos 2 ri, (10) 
+
+σ22,i =
+
+ Mi
+
+√2
+
+2
+
+cos 2 ri +
+
+ miψ
+
+√2
+
+2
+
+sin 2 ri (11) and 8σ12 ,i = σ21 ,i = (M 2 
+
+> i
+
+− m2 
+
+> i
+
+ψ2)2 cos( ri) sin( ri), (12) where Mi and mi correspond to the semi-major and semi-minor axis lengths, respectively, ri corresponds to the orientation of the semi-major axis associated with the observation recorded at time ti and ψ scales the semi-minor axis of the error ellipse (McClintock et al., 2015; Service Argos, 2017; Jonsen et al., 2020). Thus, model (8) requires that the measurement error associated with each location point (i .e., Mi and mi
+
+for ti ∈ [t0, t n]) is known and accurate. For Argos data, these are provided directly with each observation (Service Argos, 2017; Jonsen et al., 2020). For Fastloc GPS data, we assume a circular error of 50 meters which translates to mi = Mi = 50 with ψ = 1 (Wildlife Computers Inc., 2024). However, the parameter 
+
+ψ is generally recommended to be estimated rather than fixed, as this corrects for potential inaccuracies in the reported location uncertainties, such as systematic underestimation from the Kalman filter and the circular error assumption (Jonsen et al., 2020). Henceforth, we will refer to the Langevin movement model with measurement error simply as the Langevin SSM. 
+
+## 2.1 Inference 
+
+As both the true positions μi and the velocities vi are not observed, they need to be integrated out of the joint likelihood function. Crucially, this also means the spatial covariates, which depend on the latent posi-tions, are not observed. We account for this covariate uncertainty by extracting the covariate values ck(μ)and calculating the gradients ∇ck(μ) from raster data during the optimization within TMB (Kristensen et al., 2016), a technique that, to our knowledge, has not been previously used in this framework. Because the spatial covariates are a function of the latent locations, they are integrated over all possible true paths via the Laplace approximation. We conduct inference by maximizing the marginal likelihood function of the observed locations under the Langevin movement model. Specifically the exact marginal likelihood function for the vector of model pa-rameters θ = ( ψ, β, σ, γ ) is 
+
+L(θ) = 
+
+Z
+
+fθ (y, z) dz =
+
+Z
+
+gψ (y | z)hβ, σ, γ (z) dz, (13) where z = ( z1, . . . , zn) denotes the stacked latent variables (i.e., true location and velocity process) in the multidimensional case, β = ( β1, . . . , β K )⊤, gψ (· | z) is the product of Gaussian observation densities defined in equation (8), and hβ, σ, γ (·) is the product of transition densities given in equation (4). Equa-tion (13) is written for a single track. For M independent tracks sharing model parameter θ, the full likeli-9hood is QMm=1 Lm(θ), where each Lm takes the same form as equation (13) applied to the m-th individual track. Due to the inherent nonlinearities, the high-dimensional integral is analytically intractable. An attrac-tive candidate for numerically efficient approximate frequentist inference is given by the Laplace approx-imation (Erkanli, 1994; Van der Vaart, 2000). The Laplace method approximates the log-integrand by a second-order Taylor expansion (with respect to z) centered at its mode, for a given parameter vector θ.Plugging this approximation back into equation (13) results in a Gaussian integral with an explicit ana-lytical solution. Conveniently, the approach is fully automated and readily available in TMB (Kristensen et al., 2016), provided the user defines the joint negative log likelihood (see Appendix S1: Theoretical background on the Laplace approximation but also see Additional implementation details on the Laplace approximation). Once the model is fitted, TMB provides model parameter estimates and, conveniently, predictions of the random effects (true locations and velocity in our case) as well as uncertainties for both, respectively. The package is numerically highly efficient by using automatic differentiation to compute first and second derivatives required for the Laplace approximation, as well as by automatically detecting spar-sity in the second derivative function. The Laplace approximation is exact when the state-space model is linear and Gaussian, such that the joint distribution of all random effects is multivariate Gaussian (Tierney and Kadane, 1986). Here, the non-linearity introduced by πUD (·) in equation (5) violates this condition, hence in our case, the procedure is approximate. Nevertheless, the Laplace approximation often performs remarkably well in practice, partic-ularly when the integrand fθ (y, z) is dominated by a single mode and the sample size provides sufficient information to concentrate the distribution (Tierney and Kadane (1986); further theoretical details on the Laplace approximation, including potential sources of bias and implementation details, are provided in Ap-pendix Appendix S1: Theoretical background on the Laplace approximation and Additional implementa-tion details on the Laplace approximation). We assess any potential bias introduced by the approximation in our simulation study. After fitting the model, we obtain the estimated UD from the estimated selection coefficients as follows: ˆπ(μ) ≈
+
+exp 
+
+PKk=1 ˆβkck(μ)
+
+PMj=1 exp 
+
+PKk=1 ˆβkck(μ⋆j )
+
+ , (14) where {μ⋆
+
+> 1
+
+, . . . , μ⋆M } is a set of locations spanning the study domain Ω. In practice, the μ⋆j
+
+> ′
+
+s correspond to the center of each grid cell of the covariate rasters. As the UD is a simple function of the habitat selec-10 tion coefficients and the covariates, uncertainty in π(μ) can be quantified from the estimated covariance matrix using the Delta method (e.g., Oehlert, 1992) or Monte Carlo methods (Michelot and Hanks, 2024). We provide an open-source package with all the necessary functions for fitting the Langevin SSM model, available on GitHub ( https://github.com/bmcclintock/langevinSSM ). 
+
+## 2.2 Simulation 
+
+We investigated several simulated scenarios to evaluate the performance of our model in estimating both the model parameters and the UD. We also compared its performance with that of a two-step method. Across all scenarios, data are generated from the discretized Langevin movement model in equation (4) with a constant time interval ∆ i = 0 .01, using 5 × 5000 = 25 ,000 observations, with a specified propor-tion of measurement error and missing data. Note the smaller the ∆ i, the more accurate the discrete-time approximation of the continuous-time process. Three habitat covariates were simulated with Gaussian ran-dom fields and associated selection coefficients β = ( −4, 6, 5) (implementation details are provided in Ta-ble 1). Observation noise was added to the simulated locations using equation (8), with the semi-major axis Mi and semi-minor axis mi held constant within each scenario. Throughout, μ denotes the true simu-lated locations and y the noisy observed locations provided as input to each of the compared methods. 11 Table 1: Simulation setting across all scenarios 
+
+Parameter Value Description 
+
+nsims 100 Number of simulation runs 
+
+nbAnimals 5 Number of tracks per simulation 
+
+obsPerAnimal 5000 Observations per track ∆i 0.01 Simulation time step 
+
+β c(-4, 6, 5) Selection coefficients for cov 1, cov 2, cov 3
+
+σ 5 Speed parameter of the Langevin movement model 
+
+γ 0.5 Friction parameter 
+
+ψ 1 Measurement-error scaling 
+
+propMissing varies Proportion of missing observations 
+
+Mi varies (constant within each scenario) SD of major axis of error ellipse 
+
+mi Mi/2 SD of minor axis 
+
+ri c(0, 180) Error-ellipse orientation (degrees) 
+
+covRange c(0.1, 0.5) Covariate spatial range We explored different levels of missing data and measurement error (with respect to the speed of the move-ment). Specifically, we varied the percentage of missing observations (0, 15, 20, 25, 40, 45, 60, 70) under two error conditions: (1) 20% of error (i.e., Mi = 1), and (ii) 40% of error (i.e., Mi = 2). Missing data were assigned completely at random to the simulated track ( μ), with the missing locations replaced by 
+
+NA values in the observed track data ( y). When fitting the observed data using TMB, setting missing ob-servations to NA (instead of removing entirely) results in the true locations being estimated during peri-ods of missing data. We also explored different levels of measurement error without any missing data, us-ing the following values (as percentages of error with respect to the speed ( σ) of the movement model): (1 , 10 , 20 , 25 , 30 , 40 , 50 , 60). To compare the estimated UD with the true simulated UD, we use the Bhattacharyya’s affinity (BA; Bhat-tacharyya, 1943). The BA is a measure that can be used to compare the overlap between two different es-timates of the same UD (Fieberg and Kochanny, 2005). Specifically, it is defined as follows: 
+
+BA =
+
+Z Z ∞−∞ 
+
+q
+
+U D true (x, y )
+
+qdU D (x, y ) dx dy, (15) such that the statistic equals 1 when the two UDs are identical and is 0 when there is no overlap. While intermediate values can be difficult to interpret in absolute terms, we use the BA as a relative measure of similarity between the estimated and true UDs (Fieberg and Kochanny, 2005): values closer to 1 indicate better recovery of the true UD, and differences in BA across scenarios reflect differences in estimation ac-12 curacy. Intuitively, a higher BA indicates that the two UDs assign similar probabilities of use to the same locations, meaning that an animal simulated from the true UD and one simulated from the estimated UD would be likely to be found in the same areas. The procedure requires initial values for both the model parameters θ and the latent process z (true loca-tions and velocities), as estimation is carried out by jointly maximizing the likelihood over parameters and the latent process. In particular, since observed locations are treated as noisy measurements of the true positions, the true location trajectory is latent. Since complex models can be sensitive to initialization in likelihood-based optimization (Auger-M´ eth´ e et al., 2016), we adopt a strategy informed by preliminary simulations. Latent locations are initialized at the observed positions, with missing values filled by linear interpolation separately for each track, and velocities are initialized at zero. For the model parameters, we consider two approaches: a neutral initialization, where γ and σ are estimated from the data and all selec-tion coefficients are set to zero, and an initialization at the true parameter values. To improve numerical stability, an initial optimization over the latent states is performed conditional on fixed model parameters before proceeding to joint optimization over both states and parameters. For the two-step method, we first apply a pre-filtering step, fitting a correlated random walk with aniMotum 
+
+as is standard in ecological studies (e.g., Florko et al., 2025). In the second step, we then fit the Langevin movement model, treating the predicted locations from the correlated random walk as the “true” loca-tions. When data are missing, aniMotum provides predicted locations at both observed and missing time points, effectively imputing the missing data such that the two-step method is fitted on a complete se-quence of predicted locations. Model fitting is performed using TMB. 
+
+## 2.3 Narwhal movement data 
+
+To demonstrate the practical performance of our method, we apply it to a narwhal case study in Qik-iqtaaluk, Nunavut, Canada, focusing on estimating habitat selection parameters and the UD from the whales’ movement patterns. A secondary goal is to enforce spatial constraints and push estimated loca-tions from land into water, rather than discarding or rerouting such points during preprocessing. We opt for a simple, global solution, and incorporate spatial constraints directly into π as an additional covariate, while biological knowledge is introduced through penalty terms. Using the same gψ and hβ,σ,γ 
+
+as defined in equation (13), we get: 
+
+− log fp, θ (y, z) = − log gψ (y | z) − log hβ,σ,γ (z) + log p1(z) + n log p2(ψ) + n log p3(σ), (16) 13 where p1 is a spatial penalty term, p2, p 3 are penalty terms on ψ and σ respectively, and z = ( z1, . . . , zn)are the latent locations and velocities treated as random effects. The model parameters θ are estimated by minimizing the Laplace approximation to − log Lp(θ) = − log R fp, θ (y, z) dz. More details about the Laplace approximation and implementation in TMB are given in Appendix S1: Additional details on the Laplace approximation in the narwhal case study. The squared distance to water, d2water (μ), is included as a covariate in π, with a selection coefficient con-strained to be negative, encoding the knowledge that narwhal avoid land. To further enforce this con-straint, we incorporate d2water (μ) as a penalty on the latent locations, penalizing locations increasingly as their distance from water grows while assigning no penalty to locations on water. Setting λ = 10 5 leads to the explicit penalty term log p1(z) = λ d 2water (μ). (17) The penalty function p1 depends on z only through the location component μ, and formalizes our knowl-edge that locations on land are impossible. In the case study and preliminary simulations (Appendix S1: Additional simulations), we observed that including only p1 can lead to compensatory behavior in the movement parameters. In particular, large values of σ reduce the time spent in penalized habitats by in-creasing movement speed. To prevent such unrealistic parameter inflation, we introduce penalties on model parameters p2 and p3.The parameter ψ scales the measurement error ellipse, and larger values allow the ellipse to cover a greater range of water locations. However, unrealistically large values of ψ should be discouraged. We therefore add a linear penalty on ψ, giving log p2(ψ) = ψ
+
+2 . (18) The function log p3 takes the form of a quadratic penalty on log σ, centered at log 4 with scaling parameter 0.3, to incorporate biological knowledge about narwhal average speed, log p3(σ) = 12
+
+ log σ − log 4 0.3
+
+2
+
+. (19) Specifically, under the Langevin movement model, an average speed of approximately 5 km .h−1 for nar-whal (Dietz and Heide-Jørgensen, 1995) implies σ ≈ p2/π × 5 ≈ 4 km .h−1 (Michelot and Blackwell, 2019; Michelot and Hanks, 2024). We believe that the scaling of 0 .3 provides sufficient flexibility to explore val-ues away from log 4 while accounting for ecological knowledge and preventing unrealistically large speeds. 14 In practice, since ψ and σ are strictly positive, we work with the log-transformed parameters lψ = log ψ
+
+and lσ = log σ throughout the optimization, such that p2 and p3 are evaluated directly in terms of lψ and 
+
+lσ . We do not include a penalty on γ, as the penalty on σ implicitly ensures identifiability (see Michelot and Hanks, 2024). More details on the effect of these penalty terms on parameter estimation are provided in Appendix S1: Additional simulations. In the summer of 2017, 18 narwhal were equipped with electronic tags in Tremblay Sound under approval from the Fisheries and Oceans Canada Animal Care Committee (permit #AUP 40, S-17/18-1017-NU; see Shuert et al., 2022). We evaluate the Langevin SSM using location data from the 12 narwhal equipped with satellite tags recording Fastloc GPS and ARGOS location data over a two month period (1st Au-gust–2nd October; Figure 1). Tracks with gaps longer than two hours were split into separate individual tracks (i .e., their likelihood contributions are calculated separately), resulting in time gaps between con-secutive locations ranging from 3 .6 seconds to 2 hours (with an average of approximately 15 minutes). Location uncertainty was handled differently for each type of location data (i.e. Fastloc GPS vs . Argos). We used the Kalman-filter-derived error ellipses provided with Argos data and a standard 50 meters er-ror radius for Fastloc GPS data. Most Argos observations were associated with large uncertainty (the semi-major axis has a median of 5 km and a third quartile of 15 km). We used raw location data (with associated error) directly in the Langevin SSM without prefiltering to allow a direct comparison of both methods in capturing covariate effects and placing locations on water. For the two-step method, we min-imized prefiltering and fitted a correlated random walk, using the R package aniMotum , with automatic prefiltering disabled ( spdf = FALSE ). For both models, we investigated the effects of bathymetry on nar-whal habitat selection, as it has been identified as an important covariate to explain narwhal movement (Laidre et al., 2004; Kenyon et al., 2018; Hornby et al., 2025). Bathymetry was obtained from the Interna-tional Bathymetric Chart of the Arctic Ocean (GEBCO 2024 grid). Our goal was to assess the ability of both models to infer space use from real-world data collected in aquatic environments subject to temporal irregularity, location measurement error, and complex non-convex landscapes. For both methods, we explored 15 sets of randomly drawn initial values for the habitat selection coeffi-cients to reduce the risk of convergence to a local maximum. Initial values for σ and γ were sampled from the absolute value of a normal distribution with mean 0 and standard deviation 3, while ψ was initialized at one and tracks were initialized at the observed locations. We also considered a neutral initialization, which sets the habitat selection coefficients and velocity to zero and initializes σ and γ from the data. The model yielding the highest likelihood across all 16 initialization sets (15 random and one neutral) was re-tained. 15 Figure 1: Location data of 12 narwhal movement data from the 1st of August to the 2nd of October 2017, colored by individual. 
+
+# 3 Results 
+
+## 3.1 Simulation study 
+
+The Langevin SSM outperforms the two-step method in estimating parameters for both movement and habitat selection (Figure 2). The Langevin SSM consistently maintains a high Bhattacharyya’s affinity (BA ≈ 1), demonstrating its strong performance in preserving space-use information, even with large mea-surement error in the location data. In all scenarios, the Langevin SSM yields substantially less biased es-timates of habitat selection parameters, whereas the two-step approach systematically underestimates the strength of habitat selection. The Langevin SSM recovers trajectories nearly identical to the true (simu-lated) ones, whereas the two-step method still carries much of the added noise (Figure S2). This residual noise also impacts the underlying movement-habitat relationship, leading the two-step approach to inflate estimates of the speed parameter ( γ) (Figure S3). 16 Measurement error is the main driver of attenuation bias in both methods (Figures 2a-c). As measure-ment error increases, estimated selection parameters in both methods are increasingly biased towards zero, though this bias is severe for the two-step method even at low error levels, while it grows more gradually for the Langevin SSM. This bias likely occurs because larger measurement errors degrade the signal in the data, making it harder to capture true habitat selection patterns. However, our method exhibits substan-tially less bias than the two-step approach. With 50% measurement error, the two-step bias reaches −3.53 for β3 (i .e., 60% of the true value) compared to −0.15 (2 .5%) for the Langevin SSM (Tables S1-S3). More-over, beyond 20% measurement error, the two-step method achieves zero coverage (95% CIs) for all habi-tat selection parameters, while the Langevin SSM maintains coverage between 0 .85 and 0 .97. In scenarios with 20% and 40% measurement error and increasing missing data, the Langevin SSM out-performs the two-step method in terms of bias and BA (Figure 2b-c). The two-step method consistently yields zero coverage, while the Langevin SSM maintains more satisfying coverage, ranging from 81% to 97% (see Tables S1-S3). However, both methods remain robust to missingness, with bias staying relatively stable. 17 Figure 2: Estimated selection parameters and BA from the Langevin SSM and two-step method. The dashed horizontal line indicates the true parameter value −6 −4 −2 
+
+1 10 20 25 30 40 50 60 
+
+> Estimate
+
+β1
+
+2468
+
+1 10 20 25 30 40 50 60 
+
+β2
+
+0246
+
+1 10 20 25 30 40 50 60 
+
+β3
+
+0.6 0.7 0.8 0.9 1.0 
+
+1 10 20 25 30 40 50 60 
+
+Method 
+
+SSM 
+
+Two−step 
+
+Bhattacharyya's affinity 
+
+(a) Proportion of error w.r.t speed −6 −4 −2 
+
+0 15 20 25 40 45 60 70 
+
+> Estimate
+
+β1
+
+2468
+
+0 15 20 25 40 45 60 70 
+
+β2
+
+0246
+
+0 15 20 25 40 45 60 70 
+
+β3
+
+0.6 0.7 0.8 0.9 1.0 
+
+0 15 20 25 40 45 60 70 
+
+Method 
+
+SSM 
+
+Two−step 
+
+Bhattacharyya's affinity 
+
+(b) Proportion of missing data with 20% of error w.r.t speed −6 −4 −2 
+
+0 15 20 25 40 45 60 70 
+
+> Estimate
+
+β1
+
+2468
+
+0 15 20 25 40 45 60 70 
+
+β2
+
+0246
+
+0 15 20 25 40 45 60 70 
+
+β3
+
+0.6 0.7 0.8 0.9 1.0 
+
+0 15 20 25 40 45 60 70 
+
+Method 
+
+SSM 
+
+Two−step 
+
+Bhattacharyya's affinity 
+
+(c) Proportion of missing data with 40% of error w.r.t speed 
+
+18 3.2 Case study 
+
+The Langevin SSM identifies bathymetry as an important driver of narwhal habitat selection, with an es-timated coefficient ˆβ1 = −3.1 (95% CI [ −4.0, −2.2]), suggesting a preference for deeper waters. The two-step approach yields a weaker estimate ( ˆβ1,two-step = −1.1, 95% CI [ −1.6, −0.7]). The habitat selection estimates are consistent with the simulation results, which show that the two-step method tends to under-estimate covariate effects on habitat selection in the presence of measurement error, whereas the Langevin SSM is more reliable. The wider confidence intervals of the Langevin SSM reflect the propagation of loca-tion uncertainty into parameter estimation, whereas the two-step approach ignores this uncertainty, lead-ing to narrower intervals. In Qikiqtaaluk, the areas with the 10% highest estimated UD from the Langevin SSM on the log scale (i.e., the top 10% of log-UD values), correspond to depths lower than 780 meters (Figure 3). The estimated speed parameter from the Langevin SSM model is 5 .5, which corresponds to an average movement speed of 6 .9km .h−1 (Michelot and Hanks, 2024). In contrast, the two-step approach yields an implausibly high value of ˆ σtwo-step = 416 ,831 (i.e., 522 ,420 km .h−1). A similar discrepancy is observed for the persistence parameter. The two-step approach produces an implausibly large γ estimate, further high-lighting its instability. The Langevin SSM model estimates ˆ γ = 12 .4, leading to a persistence time scale of approximately 15 minutes (calculated as 3 /ˆγ), which reflects the duration over which the velocity au-tocorrelation decreases by about 95% (Michelot and Hanks, 2024). The extreme discrepancy between the two methods’ estimates mirrors the patterns observed in the simulation study, where the two-step method yields exploding estimates for both the speed and persistence parameters, making the results unstable and unreliable. 19 Figure 3: Left: bathymetry raster from the International Bathymetric Chart of the Arctic Ocean (GEBCO Compilation Group, 2024). Middle: logarithm of the estimated utilization distribution from the two-step model. Right: logarithm of the estimated utilization distribution based on the Langevin SSM. 8000 8050 8100 8150 8200        
+
+> 480 520 560 600
+> Easting (km)
+> Northing (km)  Depth
+> −1000 −750 −500 −250 08000 8050 8100 8150 8200
+> 500 550 600
+> Easting (km)
+> Northing (km)  logUD
+> 0.0 0.2 0.4 0.6 8000 8050 8100 8150 8200
+> 500 550 600
+> Easting (km)
+> Northing (km)  logUD
+> 0.0 0.2 0.4 0.6
+
+20 The raw location data contain 1 , 825 unrealistic locations on land. The two-step method performed no cor-rection, maintaining all 1 , 825 points on land. In contrast, the Langevin SSM successfully pushed a sub-stantial number of these points into water (Figure S4c). Specifically, 1 , 381 locations were pushed to water and 193 from water to land, resulting in a total of 637 points left on land. Thus the Langevin SSM also outperforms the two-step approach at pushing locations to water. The locations moved from water to land are largely concentrated in areas of complex coastal geometry, such as fjords, where the land-water bound-ary is intricate and small displacements can cross it. 
+
+# 4 Discussion 
+
+We proposed a Langevin state-space model to infer animal habitat selection and utilization distributions from irregular, error-prone, and complex movement data. Maximum likelihood inference is carried out ef-ficiently using the Laplace approximation and automatic differentiation as implemented in TMB, with an R package for simulating and fitting the model available on GitHub ( https://github.com/bmcclintock/ langevinSSM ). The proposed method greatly improves upon the traditional two-step approach, which con-sists of first fitting a simpler model to account for measurement error and/or temporal irregularity and then fitting a more complex model to the predicted locations from the first stage. Our simulations showed that the Langevin SSM better preserves the UD, minimizes bias in habitat selection parameters, and im-proves the recovery of individual trajectories. When applied to narwhal data, our method preserves more of the information contained in the raw observations than the two-step approach, enabling the recovery of a stronger effect of bathymetry. Narwhal tracking data are highly irregular, combine multiple data sources (Fastloc GPS and Argos), and are collected in complex landscapes such as fjord systems. The strong per-formance of our method reflects its suitability for accommodating these data complexities. As measurement error increases, we found that both methods tend to underestimate the strength of habi-tat selection, with parameter estimates increasingly biased towards zero selection. This bias reflects a loss of information arising from greater uncertainty, leading to a weaker habitat-selection signal. However, this bias is consistently larger and more substantial for the two-step method, even with low measurement er-ror, whereas it grows only gradually with the Langevin SSM. This discrepancy in bias suggests that two-step approaches are not well suited to accommodate substantial measurement error. By remaining robust to such uncertainty, our method provides a more reliable framework for estimating utilization distribu-tions and associated habitat-selection parameters. Both methods appeared robust to missing data, likely because they are formulated in continuous time and evaluated on a fine temporal grid, such that spo-21 radic removals of observations have only a negligible impact on inference. Although we examined a broad range of scenarios to represent realistic animal movement patterns, our analysis was not exhaustive and future research should investigate the effect of introducing missing data in blocks. Additionally, the effect of sampling rate and covariate correlation on the performance of the proposed method should be explored. Coarser sampling intervals may introduce bias (e.g., Michelot et al. 2019; McClintock and Lander 2024; Michelot and Hanks 2024, but see Blackwell and Matthiopoulos 2024 for an approach to mitigating such attenuation bias), while correlated covariates can reduce inferential power. Fortunately, the speed with which our Langevin SSM can be fitted with TMB facilitates further simulation studies investigating the properties of the model. For example, simulations with n = 25 ,000 observations on average required only 14 sec per model fit on an Apple M2 Max with 64GB RAM. Extensive simulation studies for the Langevin SSM simply are not practical using sampling-based approaches (e.g., Markov chain Monte Carlo, particle filtering). The relatively poor performance of the two-step method was not surprising because the true data-generating model was a Langevin diffusion, whereas the movement model fitted in the first step of the two-step ap-proach was a correlated random walk that ignored habitat selection. However, it is common practice in movement ecology to use a simpler model in the first step to filter and regularize raw tracking data, and subsequently fit a more complex model to the processed tracks for habitat selection analysis. The two-step approach could in principle be improved by using a more flexible movement model in the first step, such as a move persistence model (Auger-M´ eth´ e et al., 2017; Jonsen et al., 2020), which extends the correlated random walk by allowing behavioral persistence to vary over time. However, we found that even the more modest upgrade from a simple random walk to a correlated random walk did not greatly improve model performance, with comparable levels of bias in the selection coefficients and inflation in γ and σ (see Ap-pendix S1: Additional results). Besides, more complex models are often harder to fit. Together, these re-sults suggest that the core limitation of the two-step approach lies not in the choice of movement model but in the decoupling of movement from habitat selection. Since habitat selection inherently influences movement, estimating movement independently in a first step necessarily introduces bias. Jointly estimat-ing both, as in the Langevin SSM, is therefore inherently better suited to account for measurement error and temporal irregularity in the data. Our findings from the narwhal movement data align with previous works identifying bathymetry as an important covariate in narwhal habitat selection (Laidre et al., 2004; Kenyon et al., 2018; Hornby et al., 2025). The relatively low persistence velocity estimate of approximately 15 minutes is likely due to the complex geography of the area. The intricate fjord system requires frequent directional changes, which 22 prevents narwhal from maintaining straight trajectories and limits the model’s ability to detect prolonged periods of persistence in movement. Despite these frequent directional changes, our results revealed a clear pattern in depth preference and suggest an increased use of deep-water habitats. These findings are consis-tent with previous studies (Richard et al., 1994; Nunavut Planning Commission (NPC), 2000; Watt et al., 2017), and align with Watt et al. (2017) who estimated a summer kernel utilization distribution focused along the deep central section of Eclipse Sound. As deep-diving marine mammals, narwhal likely use these areas primarily for foraging (Watt and Ferguson, 2015; Watt et al., 2017). However, deep diving may also be associated with other behaviors. For example, bottom contact during dives could help molting (Watt et al., 2017), or alternatively deep diving may reflect a behavioral response to disturbance (Dupont et al., 2026). Furthermore, the association between deep-water habitat use and deep-diving should be interpreted with caution, as narwhal may also spend considerable time at shallow depths within deep-water areas, such as during social interactions (Watt et al., 2017; Hornby et al., 2025). It is also important to note that our model assumes a linear relationship between bathymetry and habitat selection, which may not fully capture the complexity of narwhal space use. The true relationship could be non-linear, with narwhal selecting for a particular depth range rather than responding uniformly across the bathymetric gradient. Moreover, additional environmental covariates such as distance to shore and seafloor slope are expected to influence habitat selection (Hornby et al., 2025). After developing our approach, we became aware of the related work by Delporte et al. (2025), who inde-pendently incorporate measurement error into the Langevin framework via an SSM. However, their for-mulation does not express the stationary distribution in terms of habitat covariates, and their focus and methods differ considerably from ours. Specifically, Delporte et al. (2025) propose a Langevin movement model with a Gaussian mixture potential surface that explicitly incorporates measurement error to esti-mate true tracks from noisy data. Their approach models observations as Student’s t deviations around the true locations, using a mixture of t-distributions to accommodate both heavy-tailed and X-shaped error structures. Particle filtering is then used to recover the underlying trajectories given the model pa-rameters. While their method effectively reconstructs true trajectories from noisy observations, it assumes model parameters are known and does not use the Langevin movement model for habitat selection infer-ence, leaving both parameter estimation and habitat selection inference unexplored. Building on the same modeling framework, we explicitly express the stationary distribution as a resource selection function and simultaneously estimate all model parameters and unobserved processes via maximum likelihood. To re-duce the computational costs of particle filtering (Doucet and Johansen, 2011), we opt for a TMB Laplace approximation, offering a faster and more scalable solution. 23 Adding a penalty term to the negative log-likelihood discouraged locations from being estimated on land and substantially improved location estimation compared with the two-step approach. The method pro-posed by Delporte et al. (2025), which enforces spatial constraints directly within the stochastic differ-ential equation, is closely related to our approach. Specifically, their (exact) formulation can be approxi-mated by including d2water as a covariate in π(μ), where βwater = 1 /2λ and λ is the penalty term of Del-porte et al. (2025). Differences in performance between the two approaches are likely attributable to differ-ent modeling choices. In particular, Delporte et al. (2025) use a potential surface with attraction towards activity centers, which further pulls locations towards the center of the feasible domain and may help keep them away from land. However, such a hotspot may not be ecologically appropriate for narwhal in Qikiq-taaluk. Additionally, their simulation study is conducted with known model parameters, thereby remov-ing an additional source of variability. The rotational component in their SDE, however, is a particularly promising extension for species moving through spatially constrained environments such as narwhal in nar-row fjords Delporte et al. (2025). We did not explicitly address the potential bias that can be introduced by the discretization in equation (4), which assumes that ∇ log π(μ) remains constant along the movement path between consecutive obser-vations at times ti and ti+1 . This bias should not be an issue in our simulation study, since we use a very fine temporal grid to minimize it, but it may be problematic in applications to real data with irregular and sometimes large observation gaps. In practice, the magnitude of this bias is difficult to assess since it de-pends jointly on the speed of the animal’s movement, the strength of the drift term, and the rate at which environmental covariates change across space. As such, we recommend that practitioners working with coarser temporal resolutions (e.g., a couple of observations a day) consider the method proposed by Black-well and Matthiopoulos (2024) to reduce this discretization bias, which can be readily incorporated within our framework, though it comes at an increased computational cost. Future work could explore whether the trade-off is worthwhile for improving parameter estimates in practical applications. An alternative so-lution is provided by Delporte et al. (2025), who directly tackle this limitation using splitting schemes, which split the non-linear SDE into a linear part with an exact Gaussian solution and a non-linear ordi-nary differential equation solved separately. Their approach elegantly handles non-linearity, although it would also likely increase computational cost. The Langevin movement model provides a natural and powerful framework for quantifying habitat selec-tion and deriving utilization distributions from spatial covariates. We focused on bathymetry in our nar-whal example, although numerous other spatial features are relevant in marine systems, such as foraging “hotspots”, distance to colony, or distance to shore (e.g., Auger-M´ eth´ e et al., 2025). Habitat selection 24 analyses using the Langevin movement model typically do not account for the temporal dynamics inher-ent in many environmental covariates (e.g., sea-ice concentration, temperature). Allowing covariates to vary over time violates the stationarity assumption of the Langevin movement model defined in equation (1). Consequently, the resulting potential surface represents instantaneous habitat selection rather than a true long-term utilization distribution, but this can still provide valuable insights into animal movement patterns (Michelot and Hanks, 2024). One simple approach to address this limitation is to incorporate av-erage covariate values over the course of a study, as is frequently done in habitat selection studies (e.g., sea surface temperature in Johnson et al. (2013), shipping traffic density in Wynn-Simmonds et al., 2025). Ex-ploring formulations with time-varying covariates while preserving some form of stationarity (e.g., period-ically varying covariates as shown by Koslik et al., 2025 in hidden Markov models) would be a promising direction for future work. Time-varying habitat-selection coefficients that allow space use to change over time (e.g., by season Chambault et al., 2018; Michelot and Hanks, 2024) is another promising avenue for future research. 
+
+# Acknowledgments 
+
+We would like to thank the Natural Sciences and Engineering Research Council of Canada (NSERC), the Canada Research Chairs program, BC Knowledge Development Fund and Canada Foundation for Innova-tion’s John R. Evans Leaders Fund, the Canadian Statistical Sciences Institute (CANSSI), Fisheries and Oceans Canada (DFO) and the Arctic Section of the Society of Naval Architects and Marine Engineers for their support. We thank the community of Mittimatalik (Pond Inlet) for its support in tagging operations and the devoted people who led operations in the field. Fieldwork was supported by the Polar Continen-tal Shelf Program, Fisheries and Oceans Canada, the Nunavut Wildlife Management Board, the Nunavut Implementation Fund, and World Wildlife Fund Canada. We are grateful to Dr . Th´ eo Michelot for the constructive discussions. 
+
+# Author Contributions 
+
+Brett McClintock, Marie Auger-M´ eth´ e and Fanny Dupont conceived the study; Brett McClintock devel-oped the model-fitting code, the simulation framework, and integrated the method into a software pack-age; Nigel Hussey and Marianne Marcoux conducted the fieldwork; Fanny Dupont prepared the data, contributed to model-fitting and computational implementation, performed all the analyses and led the writing of the manuscript; Marie Auger-M´ eth´ e and Marianne Marcoux supervised and mentored Fanny 25 Dupont; Jan-Ole Fischer assisted with computational implementation and contributed to the writing. All authors provided constructive feedback on manuscript drafts and approved the final version. 
+
+# References 
+
+Alston, J. M., C. H. Fleming, R. Kays, J. P. Streicher, C. T. Downs, T. Ramesh, B. Reineking, and J. M. Calabrese (2023). Mitigating pseudoreplication and bias in resource selection functions with autocorrelation-informed weighting. Methods in Ecology and Evolution 14 (2), 643–654. Anderson, D. J. (1982). The home range: A new nonparametric estimation technique. Ecology 63 (1), 103–112. Auger-M´ eth´ e, M., F. Dupont, A. Eby, K. H. Elliott, N. E. Hussey, D. A. Lyons, M. Marcoux, A. Patter-son, S. Shadloo, and C. R. Shuert (2025). Including fitness and health proxies can alter our understand-ing of habitat selection. bioRxiv , 2025–11. Auger-M´ eth´ e, M., C. Albertsen, I. Jonsen, A. Derocher, D. Lidgard, K. Studholme, W. Bowen, G. Crossin, and J. Mills Flemming (2017). Spatiotemporal modelling of marine movement data using Template Model Builder (TMB). Marine Ecology Progress Series 565 , 237–249. Auger-M´ eth´ e, M., C. Field, C. M. Albertsen, A. E. Derocher, M. A. Lewis, I. D. Jonsen, and J. Mills Flemming (2016). State-space models’ dirty little secrets: even simple linear Gaussian models can have estimation problems. Scientific Reports 6 (1), 26677. Auger-M´ eth´ e, M., K. Newman, D. Cole, F. Empacher, R. Gryba, A. A. King, V. Leos-Barajas, J. Mills Flemming, A. Nielsen, G. Petris, and L. Thomas (2021). A guide to state–space modeling of ecological time series. Ecological Monographs 91 (4). Avgar, T., J. R. Potts, M. A. Lewis, and M. S. Boyce (2016). Integrated step selection analysis: Bridging the gap between resource selection and animal movement. Methods in Ecology and Evolution 7 (5), 619– 630. Bhattacharyya, A. (1943). On a measure of divergence between two statistical populations defined by their probability distribution. Bulletin of the Calcutta Mathematical Society 35 , 99–110. Blackwell, P. G. and J. Matthiopoulos (2024). Joint inference for telemetry and spatial survey data. Ecol-ogy 105 (12), e4457. 26 Boyce, M. S. and L. L. McDonald (1999). Relating populations to habitats using resource selection func-tions. Trends in ecology & evolution 14 (7), 268–272. Boyce, M. S., P. R. Vernier, S. E. Nielsen, and F. K. Schmiegelow (2002). Evaluating resource selection functions. Ecological modelling 157 (2-3), 281–300. Breivik, O. N., H. J. Skaug, M. Jullum, and M. Biuw (2025). Spatial variation on multiple scales in line transect data: The case of Antarctic fin whales. Journal of the American Statistical Association (just-accepted), 1–19. Bruijn, N. G. d. (1961). Asymptotic methods in analysis (2 ed.). Bibliotheca mathematica. Amsterdam: North-Holland Publ. Bryant, E. (2007). 2d location accuracy statistics for Fastloc ® cores running firmware versions 2.2 & 2.3. 
+
+Wildtrack Telemetry Systems Ltd 6 .Cagnacci, F., L. Boitani, R. A. Powell, and M. S. Boyce (2010). Animal ecology meets GPS-based ra-diotelemetry: A perfect storm of opportunities and challenges. Philosophical Transactions of the Royal Society B: Biological Sciences 365 (1550), 2157–2162. Calabrese, J. M., C. H. Fleming, and E. Gurarie (2016). ctmm: an R package for analyzing animal reloca-tion data as a continuous-time stochastic process. Methods in Ecology and Evolution 7 (9), 1124–1132. Chambault, P., C. M. Albertsen, T. A. Patterson, R. G. Hansen, O. Tervo, K. L. Laidre, and M. P. Heide-Jørgensen (2018). Sea surface temperature predicts the movements of an Arctic cetacean: The bowhead whale. Scientific reports 8 (1), 9658. Cheng, X., N. S. Chatterji, P. L. Bartlett, and M. I. Jordan (2018). Underdamped langevin MCMC: A non-asymptotic analysis. In Conference on learning theory , pp. 300–323. PMLR. Costa, D. P., P. W. Robinson, J. P. Y. Arnould, A.-L. Harrison, S. E. Simmons, J. L. Hassrick, A. J. Hoskins, S. P. Kirkman, H. Oosthuizen, S. Villegas-Amtmann, and D. E. Crocker (2010). Accuracy of Argos locations of pinnipeds at-sea estimated using Fastloc GPS. PLoS ONE 5 (1), e8677. Delporte, A., S. Ditlevsen, and A. Samson (2025). Spatial constraints improve filtering of measurement noise from animal tracks. arXiv preprint arXiv:2511.22430 .Dietz, R. and M. Heide-Jørgensen (1995). Movements and swimming speed of narwhals, Monodon mono-ceros , equipped with satellite transmitters in Melville Bay, northwest Greenland. Canadian Journal of Zoology 73 (11), 2106–2119. 27 Doucet, A. and A. M. Johansen (2011). A tutorial on particle filtering and smoothing: fifteen years later. In D. Crisan and B. Rozovskii (Eds.), The Oxford Handbook of Nonlinear Filtering , pp. 656–704. New York: Oxford University Press. Dupont, F., M. Marcoux, N. E. Hussey, J. Dawson, and M. Auger-M´ eth´ e (2026). Estimating the distance at which narwhal ( Monodon monoceros ) respond to disturbance: a penalized threshold hidden Markov model. arXiv preprint arXiv:2602.09267 .Erkanli, A. (1994). Laplace approximations for posterior expectations when the mode occurs at the bound-ary of the parameter space. Journal of the American Statistical Association 89 (425), 250–258. Fieberg, J. and C. O. Kochanny (2005). Quantifying home-range overlap: The importance of the utiliza-tion distribution. Journal of Wildlife Management 69 (4), 1346–1359. Fieberg, J., J. Signer, B. Smith, and T. Avgar (2021). A ‘how to’ guide for interpreting parameters in habitat-selection analyses. Journal of Animal Ecology 90 (5), 1027–1043. Florko, K. R., T. R. Ross, S. H. Ferguson, J. M. Northrup, M. E. Obbard, G. W. Thiemann, D. J. Yurkowski, and M. Auger-M´ eth´ e (2023). The dynamic interaction between predator and prey drives mesopredator movement and foraging ecology. bioRxiv , 2023–04. Florko, K. R., R. R. Togunov, R. Gryba, E. Sidrow, S. H. Ferguson, D. J. Yurkowski, and M. Auger-M´ eth´ e(2025). An introduction to statistical models used to characterize species-habitat associations with ani-mal movement data. Movement Ecology 13 (1), 27. Forester, J. D., H. K. Im, and P. J. Rathouz (2009). Accounting for animal movement in estimation of resource selection functions: Sampling and data analysis. Ecology 90 (12), 3554–3565. Fortin, D., H. L. Beyer, M. S. Boyce, D. W. Smith, T. Duchesne, and J. S. Mao (2005). Wolves influence elk movements: Behavior shapes a trophic cascade in Yellowstone national park. Ecology 86 (5), 1320– 1330. Freitas, C., E. M. Olsen, H. Knutsen, J. Albretsen, and E. Moland (2016). Temperature-associated habitat selection in a cold-water marine fish. Journal of Animal Ecology 85 (3), 628–637. GEBCO Compilation Group (2024). GEBCO 2024 Grid (doi:10.5285/1c44ce99-0a0d-5f4f-e063-7086abc0ea0f). Halliday, W. D., J. Dawson, D. J. Yurkowski, T. Doniol-Valcroze, S. H. Ferguson, C. Gjerdrum, N. E. Hussey, Z. Kochanowicz, M. L. Mallory, M. Marcoux, C. A. Watt, and S. N. Wong (2022). Vessel risks 28 to marine wildlife in the Tallurutiup Imanga National Marine Conservation Area and the eastern en-trance to the Northwest Passage. Environmental Science & Policy 127 , 181–195. Halliday, W. D., M. K. Pine, J. J. Citta, L. Harwood, D. D. Hauser, R. C. Hilliard, E. V. Lea, L. L. Los-eto, L. Quakenbush, and S. J. Insley (2021). Potential exposure of beluga and bowhead whales to un-derwater noise from ship traffic in the Beaufort and Chukchi Seas. Ocean & Coastal Management 204 ,105473. Hazen, E. L., B. Abrahms, S. Brodie, G. Carroll, H. Welch, and S. J. Bograd (2021). Where did they not go? Considerations for generating pseudo-absences for telemetry-based habitat models. Movement Ecol-ogy 9 (1), 5. Hebblewhite, M. and E. H. Merrill (2009). Trade-offs between predation risk and forage differ between migrant strategies in a migratory ungulate. Ecology 90 (12), 3445–3454. Hooten, M. B., D. S. Johnson, B. T. McClintock, and J. M. Morales (2017). Animal Movement: Statistical models for telemetry data . Boca Raton: CRC press. Hornby, C. A., R. R. Togunov, B. T. McClintock, and C. A. Watt (2025). Behavioural analysis of multi-year satellite telemetry data provides insight into narwhal (Monodon monoceros) winter prey selection in Baffin Bay. Plos one 20 (9), e0330928. Johnson, D. and J. London (2018). crawl: an R package for fitting continuous-time correlated random walk models to animal movement data. Zenodo 10 .Johnson, D. S., M. B. Hooten, and C. E. Kuhn (2013). Estimating animal resource selection from teleme-try data using point process models. Journal of Animal Ecology 82 (6), 1155–1164. Jonsen, I. D., T. A. Patterson, D. P. Costa, P. D. Doherty, B. J. Godley, W. J. Grecian, C. Guinet, X. Hoenner, S. S. Kienle, P. W. Robinson, S. C. Votier, S. Whiting, M. J. Witt, M. A. Hindell, R. G. Harcourt, and C. R. McMahon (2020). A continuous-time state-space model for rapid quality control of Argos locations from animal-borne tags. Movement Ecology 8 (1), 31. Kenyon, K. A., D. J. Yurkowski, J. Orr, D. Barber, and S. H. Ferguson (2018). Baffin Bay narwhal (Mon-odon monoceros) select bathymetry over sea ice during winter. Polar Biology 41 (10), 2053–2063. Koslik, J.-O., C. C. Feldmann, S. Mews, R. Michels, and R. Langrock (2025). Inference on the state pro-cess of periodically inhomogeneous hidden Markov models for animal behavior. The Annals of Applied Statistics 19 (4), 2724–2737. 29 Kristensen, K., A. Nielsen, C. W. Berg, H. Skaug, and B. M. Bell (2016). TMB: Automatic differentiation and Laplace approximation. Journal of statistical software 70 , 1–21. Laidre, K. L., M. P. Heide-Jørgensen, M. Logdson, R. C. Hobbs, P. Heagerty, R. Dietz, O. A. Jørgensen, and M. Treble (2004). Seasonal narwhal habitat associations in the high Arctic. Marine Biology 145 (4), 821–831. Manly, B. F., L. L. McDonald, D. L. Thomas, T. L. McDonald, and W. P. Erickson (2002). Resource se-lection by animals: Statistical design and analysis for field studies . Springer. Martin, M. J., W. D. Halliday, S. H. Ferguson, B. G. Young, R. Charish, J. Dawson, S. M. E. Fortune, F. Juanes, L. Qaunaq, and S. J. Insley (2024). Exposure of satellite tagged bowhead whales ( Bal-aena mysticetus ) to transiting vessels in the Eastern Canadian Arctic. Marine Mammal Science 40 (4), e13125. Matthews, C. J., G. A. Breed, B. LeBlanc, and S. H. Ferguson (2020). Killer whale presence drives bow-head whale selection for sea ice in Arctic seascapes of fear. Proceedings of the National Academy of Sci-ences 117 (12), 6590–6598. Matthiopoulos, J., J. R. Fieberg, and G. Aarts (2023). Species-Habitat Associations: Spatial Data, Predic-tive Models, and Ecological Insights (2 ed.). University of Minnesota Libraries Publishing. McClintock, B. T. (2017). Incorporating telemetry error into hidden Markov models of animal movement using multiple imputation. Journal of Agricultural, Biological and Environmental Statistics 22 (3), 249– 269. McClintock, B. T. (2021). Worth the effort? A practical examination of random effects in hidden Markov models for animal telemetry data. Methods in Ecology and Evolution 12 (8), 1475–1497. McClintock, B. T. and M. E. Lander (2024). A multistate Langevin diffusion for inferring behavior-specific habitat selection and utilization distributions. Ecology 105 (1), e4186. McClintock, B. T., J. M. London, M. F. Cameron, and P. L. Boveng (2015). Modelling animal movement using the Argos satellite telemetry location error ellipse. Methods in Ecology and Evolution 6 (3), 266– 277. McWhinnie, L. H., W. D. Halliday, S. J. Insley, C. Hilliard, and R. R. Canessa (2018). Vessel traffic in the Canadian Arctic: Management solutions for minimizing impacts on whales in a changing northern region. Ocean & Coastal Management 160 , 1–17. 30 Michelot, T. and P. G. Blackwell (2019). State-switching continuous-time correlated random walks. Meth-ods in Ecology and Evolution 10 (5), 637–649. Michelot, T., P. G. Blackwell, and J. Matthiopoulos (2019). Linking resource selection and step selection models for habitat preferences in animals. Ecology 100 (1), e02452. Michelot, T., P. Gloaguen, P. G. Blackwell, and M. ´Etienne (2019). The Langevin diffusion as a continuous-time model of animal movement and habitat selection. Methods in Ecology and Evolu-tion 10 (11), 1894–1907. Michelot, T. and E. M. Hanks (2024). Multiscale modelling of animal movement with persistent dynamics. 
+
+arXiv preprint arXiv:2406.15195 .Nathan, R., C. T. Monk, R. Arlinghaus, T. Adam, J. Al´ os, M. Assaf, H. Baktoft, C. E. Beardsworth, M. G. Bertram, A. I. Bijleveld, et al. (2022). Big-data approaches lead to an increased understanding of the ecology of animal movement. Science 375 (6582), eabg1780. Nielsen, S. E., M. S. Boyce, G. B. Stenhouse, and R. H. Munro (2002). Modeling grizzly bear habitats in the yellowhead ecosystem of Alberta: taking autocorrelation seriously. Ursus , 45–56. Northrup, J. M., M. B. Hooten, C. R. Anderson, and G. Wittemyer (2013). Practical guidance on charac-terizing availability in resource selection functions under a use–availability design. Ecology 94 (7), 1456– 1463. Northrup, J. M., E. Vander Wal, M. Bonar, J. Fieberg, M. P. Laforge, M. Leclerc, C. M. Prokopenko, and B. D. Gerber (2022). Conceptual and methodological advances in habitat-selection modeling: Guidelines for ecology and evolution. Ecological Applications 32 (1), e02470. Nunavut Planning Commission (NPC) (2000). North Baffin regional land use plan. Technical report, Nunavut Planning Commission, Cambridge Bay, NU, Canada. Oehlert, G. W. (1992). A note on the delta method. The American Statistician 46 (1), 27–29. Patterson, T. A., A. Parton, R. Langrock, P. G. Blackwell, L. Thomas, and R. King (2017). Statistical modelling of individual animal movement: An overview of key methods and a discussion of practical challenges. AStA Advances in Statistical Analysis 101 (4), 399–438. Pizzolato, L., S. E. L. Howell, C. Derksen, J. Dawson, and L. Copland (2014). Changing sea ice condi-tions and marine transportation activity in Canadian Arctic waters between 1990 and 2012. Climatic Change 123 (2), 161–173. 31 Potts, J. R. and L. B¨ orger (2023). How to scale up from animal movement decisions to spatiotemporal patterns: An approach via step selection. Journal of Animal Ecology 92 (1), 16–29. Prima, M.-C., T. Duchesne, and D. Fortin (2017). Robust inference from conditional logistic regression applied to movement and habitat selection analysis. PloS one 12 (1), e0169779. Richard, P., P. Weaver, L. Dueck, and D. Barber (1994). Distribution and numbers of Canadian high Arc-tic narwhals ( Monodon monoceros ) in August 1984. Medd Groenl, Biosci 39 , 41–50. Rue, H., S. Martino, and N. Chopin (2009). Approximate Bayesian inference for latent Gaussian models by using integrated nested Laplace approximations. Journal of the Royal Statistical Society Series B: Statistical Methodology 71 (2), 319–392. Sawyer, H., M. J. Kauffman, R. M. Nielson, and J. S. Horne (2009). Identifying and prioritizing ungulate migration routes for landscape-level conservation. Ecological Applications 19 (8), 2016–2025. Scharf, H., M. B. Hooten, and D. S. Johnson (2017). Imputation approaches for animal movement model-ing. Journal of Agricultural, Biological and Environmental Statistics 22 (3), 335–352. Schl¨ agel, U. E. and M. A. Lewis (2016). Robustness of movement models: Can models bridge the gap between temporal scales of data sets and behavioural processes? Journal of Mathematical Biology 73 (6-7), 1691–1726. Service Argos (2017). Argos User’s Manual .Shuert, C. R., M. Marcoux, N. E. Hussey, M. P. Heide-Jørgensen, R. Dietz, and M. Auger-M´ eth´ e (2022). Decadal migration phenology of a long-lived Arctic icon keeps pace with climate change. Proceedings of the National Academy of Sciences 119 (45), e2121092119. Signer, J., J. Fieberg, and T. Avgar (2017). Estimating utilization distributions from fitted step-selection functions. Ecosphere 8 (4), e01771. Signer, J., J. Fieberg, and T. Avgar (2019). Animal movement tools (amt): R package for managing track-ing data and conducting habitat selection analyses. Ecology and Evolution 9 (2), 880–890. Signer, J., J. Fieberg, B. Reineking, U. Schl¨ agel, B. Smith, N. Balkenhol, and T. Avgar (2024). Simulating animal space use from fitted integrated step-selection functions (issf). Methods in Ecology and Evolu-tion 15 (1), 43–50. 32 Sprogis, K. R., H. C. Raudino, R. Rankin, C. D. MacLeod, and L. Bejder (2016). Home range size of adult Indo-Pacific bottlenose dolphins ( Tursiops aduncus ) in a coastal and estuarine system is habitat and sex-specific. Marine Mammal Science 32 (1), 287–308. Strandburg-Peshkin, A., D. R. Farine, M. C. Crofoot, and I. D. Couzin (2017). Habitat and social factors shape individual decisions and emergent group structure during baboon collective movement. elife 6 ,e19505. Thurfjell, H., S. Ciuti, and M. S. Boyce (2014). Applications of step-selection functions in ecology and conservation. Movement Ecology 2 (1), 4. Tierney, L. and J. B. Kadane (1986). Accurate approximations for posterior moments and marginal densi-ties. Journal of the American Statistical Association 81 (393), 82–86. Van der Vaart, A. W. (2000). Asymptotic statistics , Volume 3. Cambridge university press. Warton, D. I. and L. C. Shepherd (2010). Poisson point process models solve the “pseudo-absence prob-lem” for presence-only data in ecology. The Annals of Applied Statistics 4 (3). Watt, C., J. Orr, and S. Ferguson (2017). Spatial distribution of narwhal ( Monodon monoceros ) diving for Canadian populations helps identify important seasonal foraging areas. Canadian Journal of Zool-ogy 95 (1), 41–50. Watt, C. A. and S. H. Ferguson (2015). Fatty acids and stable isotopes ( δ13 C and δ15 N) reveal tempo-ral changes in narwhal ( Monodon monoceros ) diet linked to migration patterns. Marine Mammal Sci-ence 31 (1), 21–44. Wildlife Computers Inc. (2024). Fastloc ® GPS. https://wildlifecomputers.com/data/technologies/ fastloc/ .Wilson, K., E. Hanks, and D. Johnson (2018). Estimating animal utilization densities using continuous-time Markov chain models. Methods in Ecology and Evolution 9 (5), 1232–1240. Wynn-Simmonds, S., G. Richard, and C. Vincent (2025). Assessing shipping noise as a potential driver of harbour seal ( Phoca vitulina ) habitat selection. NAMMCO Scientific Publications 14 .33 Appendix S1 
+
+Title: Inferring resource selection and utilization distributions from irregular and error-prone animal tracking data Fanny Dupont, Brett T. McClintock, Jan-Ole Fischer, Marianne Marcoux, Nigel E. Hussey, Marie Auger-M´ eth´ e
+
+# A Mathematical details 
+
+In this section, we detail the joint negative log-likelihood (i .e., the negative log-integrand in equation (13)) to provide further insight into the structure of the model. Let y = ( y0, . . . , yn) denote the vector of obser-vations at times t0, . . . , t n, and let z = ( z0, . . . , zn) denote the associated vector of latent states, where zi
+
+comprises location and velocity for 0 ≤ i ≤ n. Then we have: log( gψ (y | z)hβ, σ, γ (z)) = 
+
+> n
+
+X
+
+> i=0
+
+log gψ (yi | zi) + 
+
+> n−1
+
+X
+
+> i=0
+
+log q(zi+1 ; ηi, Qi),
+
+=
+
+> n
+
+X
+
+> i=0
+
+log q(yi; μi, Σi) + 
+
+> n−1
+
+X
+
+> i=0
+
+log q(zi+1 ; ηi, Qi),
+
+(S1) where q(·; μ, Σ) denotes the probability density function of a multivariate Gaussian distribution with mean vector μ and covariance matrix Σ. The observation model covariance matrix Σi is defined in equation (9), and ηi and Qi are defined in equations (5) and (6), respectively. 
+
+# B Theoretical background on the Laplace approximation 
+
+In this section, we provide further details on the theoretical foundations of the Laplace approximation and discuss potential sources of bias. The Laplace approximation assumes that the integrand fθ (y, z), viewed as a function of z, is well approx-imated by a Gaussian centred at its mode (Tierney and Kadane, 1986). Since gψ (y | z) is Gaussian in z
+
+by equation (8), the only source of non-Gaussianity in the integrand is the density hβ,σ,γ (z). When the transition function between consecutive latent variables is Gaussian and linear in z, the integrand is ex-34 actly Gaussian and the Laplace approximation is exact (Tierney and Kadane, 1986). However, the non-linearity introduced by π(·) in equation (4) renders the integrand non-Gaussian in z, which can intro-duce bias in the approximated marginal likelihood. While the approximation generally fails when the in-tegrand has multiple modes, a Gaussian approximation can remain appropriate even when the integrand is non-Gaussian, provided it is unimodal and well-concentrated around its mode (Bruijn, 1961; Tierney and Kadane, 1986). An additional theoretical consideration is that standard asymptotic justifications for the Laplace approx-imation do not apply when the number of random effects grows with the sample size (Rue et al., 2009), as is the case here since both locations and velocities are treated as latent variables. However, the Markov structure implies that each latent state zi depends only on its neighbors and its associated observation 
+
+yi, such that the approximation relies on the local rather than global behavior of the integrand. Thus the Laplace approximation is expected to perform well when time intervals ∆ i are short, such that ∇ log π
+
+varies little between consecutive observations and the transition density between consecutive latent states is close to Gaussian. We therefore recommend limiting large time gaps in the data and performing track segmentation when necessary (e.g., as described in Section 2.3). 
+
+# C Additional implementation details on the Laplace approxima-tion 
+
+Conveniently, the Laplace approximation is fully automated in the TMB R package (Kristensen et al., 2016), requiring only that the user provides the negative log-integrand from equation (13) as a C++ script. The package then returns the (negative) logarithm of the Laplace approximation to equation (13) along with its gradient as a standard R function, which can be directly used for numerical optimization with quasi-Newton methods. During each optimization step—i.e., each call to the function or its gradient—TMB automatically performs an inner optimization over z, required for the Taylor expansion in the Laplace approximation. For users familiar with C++ , TMB provides a flexible framework to implement fast, auto-matic Laplace approximations for a wide range of models, requiring only the specification of the negative log-likelihood (Kristensen et al., 2016; Auger-M´ eth´ e et al., 2017; Auger-M´ eth´ e et al., 2021; McClintock, 2021; Breivik et al., 2025). 35 D Additional details on the Laplace approximation in the nar-whal case study 
+
+In this section, we provide details on the Laplace approximation used to evaluate the penalized marginal likelihood Lp(θ) in the narwhal case study. The model parameters θ are estimated by minimizing the Laplace approximation to − log Lp(θ) = − log R fp, θ (y, z) dz,given by: 
+
+− log Lp(θ) ≈ − n log √2π + 12 log det H(θ) − log fp, θ (y, ˆz(θ)) , (S2) where ˆ z(θ) is the mode of − log fp, θ (y, z) with respect to z for fixed θ, and H(θ) is the Hessian of − log fp, θ (y, z)with respect to z, evaluated at ˆ z(θ). In practice, this approximation is fully automated by TMB (Kristensen et al., 2016) and the user sup-plies the negative log-integrand − log fp, θ (y, z) as a C++ function, and TMB internally computes the mode ˆz(θ), the Hessian H(θ), and returns − log Lp(θ) along with its gradient with respect to θ.
+
+# E Additional results 
+
+## Simulation study 
+
+This section provides additional figures and tables from the simulation study. 36 Figure S1: Histogram of Langevin SSM estimates for β1, β2, and β3 across varying percentage of error with respect to movement speed, over 100 simulated datasets. The percentages are given at the top. The red lines indicate the true parameter values. 1 10 20 25 30 40 50 60 
+
+> β1 β2 β3
+> 010 20 30
+> 010 20
+> 010 20
+> Count
+
+37 Figure S2: Example of tracks estimated using the Langevin SSM and the two-step method. The simulated true tracks (green) are shown without error, while 50% location error was added to the simulated tracks before model fitting. −175       
+
+> −150
+> −125
+> −100
+> −50 050 100
+> −175
+> −150
+> −125
+> −100
+> −50 050 100
+
+(a) Estimated tracks using the SSM (pink) (b) Estimated tracks using the two -step method (blue) 
+
+38 Figure S3: Comparison of Langevin SSM and two-step method for estimating log ( σ) (left) and log ( γ) (right) 0              
+
+> 10
+> 20
+> 30
+> 40
+> 50
+> 110 20 25 30 40 50 60
+> Estimate
+> 0
+> 25
+> 50
+> 75
+> 100
+> 110 20 25 30 40 50 60
+
+(a) Proportion of error w.r.t speedr 0              
+
+> 10
+> 20
+> 30
+> 015 20 25 40 45 60 70
+> Estimate
+> 0
+> 20
+> 40
+> 60
+> 015 20 25 40 45 60 70
+
+(b) Proportion of missing data with 20% of error 10               
+
+> 20
+> 015 20 25 40 45 60 70
+> Estimate
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 015 20 25 40 45 60 70
+
+(c) Proportion of missing data with 40% of error 
+
+39 Table S1: Simulation results: bias, standard deviation (SD), and coverage for each parameter across different proportions of missing data with 20% measurement error with respect to speed. Values correspond to both methods (Langevin SSM, two-step method). Parameter Proportion of missing data Bias SD Coverage 
+
+SSM two-step SSM two-step SSM two-step 
+
+β1 15 0.08 2.18 0.37 0.56 0.96 0.00 20 0.10 2.21 0.36 0.56 0.95 0.00 25 0.10 2.25 0.37 0.53 0.92 0.00 30 0.10 2.21 0.36 0.57 0.98 0.00 40 0.12 2.18 0.37 0.58 0.88 0.02 45 0.13 2.19 0.37 0.59 0.86 0.00 60 0.25 2.25 0.37 0.56 0.85 0.009 70 0.18 2.35 0.37 0.53 0.82 0.00 
+
+β2 15 -0.10 -3.24 0.53 0.55 0.92 0.00 20 -0.11 -3.25 0.52 0.55 0.95 0.00 25 -0.11 -3.29 0.53 0.53 0.94 0.00 30 -0.13 -3.27 0.52 0.54 0.95 0.00 40 -0.16 -3.24 0.52 0.54 0.94 0.00 45 -0.16 -3.24 0.53 0.55 0.94 0.00 60 -0.21 -3.33 0.52 0.51 0.92 0.00 70 -0.25 -3.43 0.53 0.53 0.89 0.00 
+
+β3 15 -0.07 -2.73 0.44 0.44 0.97 0.00 20 -0.08 -2.74 0.43 0.44 0.97 0.00 25 -0.08 -2.78 0.44 0.43 0.97 0.00 30 -0.09 -2.76 0.43 0.46 0.97 0.00 40 -0.12 -2.75 0.42 0.45 0.96 0.00 45 -0.11 -2.76 0.44 0.44 0.95 0.00 60 -0.14 -2.79 0.42 0.49 0.95 0.00 70 -0.20 -2.95 0.43 0.48 0.94 0.00 40 Table S2: Simulation results: bias, standard deviation (SD), and coverage for each parameter across different proportions of missing data with 40% measurement error with respect to speed. Values correspond to both methods (Langevin SSM, two-step method). Parameter Proportion of missing data Bias SD Coverage 
+
+SSM two-step SSM two-step SSM two-step 
+
+β1 15 0.12 2.69 0.38 0.38 0.95 0.00 20 0.14 2.72 0.38 0.38 0.92 0.00 25 0.14 2.76 0.38 0.40 0.91 0.00 30 0.13 2.72 0.38 0.39 0.92 0.00 40 0.18 2.70 0.38 0.40 0.89 0.00 45 0.19 2.64 0.38 0.43 0.90 0.00 60 0.25 2.76 0.38 0.37 0.90 0.00 70 0.29 2.83 0.38 0.34 0.87 0.00 
+
+β2 15 -0.16 -3.99 0.52 0.37 0.90 0.00 20 -0.17 -4.05 0.51 0.37 0.91 0.00 25 -0.17 -4.04 0.51 0.38 0.90 0.00 30 -0.19 -4.05 0.51 0.39 0.92 0.00 40 -0.25 -3.93 0.52 0.38 0.89 0.00 45 -0.25 -3.93 0.48 0.37 0.88 0.00 60 -0.35 -4.05 0.51 0.37 0.86 0.00 70 -0.42 -4.18 0.53 0.33 0.81 0.00 
+
+β3 15 -0.12 -3.37 0.44 0.33 0.93 0.00 20 -0.14 -3.40 0.44 0.34 0.92 0.00 25 -0.14 -3.39 0.44 0.34 0.92 0.00 30 -0.15 -3.41 0.44 0.32 0.94 0.00 40 -0.20 -3.30 0.42 0.34 0.93 0.00 45 -0.18 -3.34 0.44 0.36 0.93 0.00 60 -0.26 -3.44 0.42 0.37 0.90 0.00 70 -0.33 -3.56 0.44 0.34 0.84 0.00 41 Table S3: Simulation results: bias, standard deviation (SD), and coverage for each parameter across different percentages of measurement error with respect to speed. Values correspond to both methods (Langevin SSM, two-step method). Parameter Percentage of error w.r.t speed Bias SD Coverage 
+
+SSM two-step SSM two-step SSM two-step 
+
+β1 1 0.03 -0.29 0.35 1.21 0.95 0.99 10 0.07 1.69 0.36 0.84 0.96 0.21 20 0.08 2.19 0.47 0.55 0.96 025 0.09 2.36 0.37 0.49 0.95 030 0.11 2.55 0.38 0.42 0.95 040 0.12 2.69 0.38 0.38 0.85 050 0.14 2.84 0.39 0.37 0.90 060 0.17 2.96 0.39 0.35 0.90 0
+
+β2 1 -0.02 -0.54 0.52 1.19 0.97 0.98 10 -0.07 -2.35 0.53 0.82 0.97 0.08 20 -0.10 -3.24 0.53 0.55 0.92 025 -0.11 -3.51 0.54 0.50 0.92 030 -0.14 -3.79 0.52 0.44 0.91 040 -0.16 -3.99 0.50 0.37 0.90 050 -0.20 -4.21 0.50 0.34 0.90 060 -0.26 -4.37 0.50 0.31 0.88 0
+
+β3 1 -0.01 -0.28 0.42 1.18 0.97 0.99 10 -0.05 -2.04 0.43 0.66 0.97 0.09 20 -0.07 -2.73 0.44 0.44 0.97 025 -0.07 -2.95 0.44 0.44 0.97 030 -0.10 -3.22 0.45 0.37 0.94 040 -0.12 -3.37 0.44 0.33 0.93 050 -0.15 -3.53 0.44 0.30 0.93 060 -0.20 2.66 0.45 0.26 0.90 0
+
+## Case study: additional results 
+
+This section provides additional figures from the case study. 42 Figure S4: Raw (orange) and estimated (green) locations after fitting an Langevin SSM. 
+
+(a) locations remaining on land (raw in orange, estimated in green) with associated uncertainty ellipses 
+
+(b) locations originally on water (orange) that were pushed onto land (green) 
+
+(c) locations originally on land (orange) that were pushed onto water (green) 
+
+When the error ellipses do not overlap with any water, the penalty cannot push the associated locations toward water (Figure S4a). The uncertainty ellipses shown in Figure S4a correspond to the original Argos and Fastloc GPS estimates and were not adjusted using the estimated correction factor ψ in equation (10). Since ˆψ ≈ 5, the Langevin SSM effectively assumed larger uncertainty ellipses for the observation equation. In addition, the squared distance-to-water penalty produces a steep gradient for locations far from the shore, but this gradient becomes nearly null close to complex shorelines, such as within narrow fjords. As a result, some positions may be insufficiently corrected. This mechanism also likely explains why certain locations that were originally on water but very close to land were pushed onto land, as the penalty in these areas was not strong enough to counteract spurious movement toward land. While a linear distance penalty could improve adjustments near the coast, its gradient is too weak to correct distant terrestrial points, often pushing them beyond the study area rather than into viable aquatic habitat. 43 F Additional simulation 
+
+## Spatial constraint in the Langevin SSM 
+
+We conducted a simulation study to assess whether habitat selection patterns are preserved and accurately recovered when a spatial constraint is incorporated into the model as in equation (16). We use the same framework as in the main simulation study, with an additional covariate consisting of fourteen polygons of varying sizes representing landmasses, together with the boundary of the study area buffered by 20 units to represent the surrounding coastline, to which a strongly negative selection coefficient ( −100) was as-signed to enforce strict avoidance. Movement was then simulated under high measurement error (50% and 60%) to ensure that a proportion of observed locations fell within the constrained regions. During esti-mation, a negative selection coefficient was included for the constraint covariate in π in addition to the penalty written as a function of d2water in equation (16), with ψ fixed at its true value. We additionally examined the effect of placing a prior on σ. However, the UD was computed without the constraint covari-ate, as it represents a hard spatial constraint rather than a genuine avoidance process, yielding the same UD as in the previous simulation study. Figure S5 illustrates examples of the constrained UD and simu-lated tracks under 60% measurement error (note that the figure displays the UD and observed locations only), where the dark patches represent constrained regions. On average, the proportion of land-based data in the 100 simulated datasets is 37%, compared to 10% in the narwhal dataset. 44 −200 
+
+−100 
+
+0
+
+100 
+
+200 
+
+−200 −100 0 100 200 
+
+x
+
+> y
+
+c4
+
+> −75
+> −50
+> −25
+> 0
+
+−200 
+
+−100 
+
+0
+
+100 
+
+200 
+
+−200 −100 0 100 200 
+
+x
+
+> y
+
+c4
+
+> −75
+> −50
+> −25
+> 0
+
+−200 
+
+−100 
+
+0
+
+100 
+
+200 
+
+−200 −100 0 100 200 
+
+x
+
+> y
+
+c4
+
+> −75
+> −50
+> −25
+> 0
+
+−200 
+
+−100 
+
+0
+
+100 
+
+200 
+
+−200 −100 0 100 200 
+
+x
+
+> y
+
+c4
+
+> −75
+> −50
+> −25
+> 0
+
+−200 
+
+−100 
+
+0
+
+100 
+
+200 
+
+−200 −100 0 100 200 
+
+x
+
+> y
+
+c4
+
+> −75
+> −50
+> −25
+> 0
+
+−200 
+
+−100 
+
+0
+
+100 
+
+200 
+
+−200 −100 0 100 200 
+
+x
+
+> y
+
+c4
+
+> −75
+> −50
+> −25
+> 0
+
+logUD 
+
+logUD 
+
+logUD 
+
+logUD 
+
+logUD 
+
+logUD Figure S5: Six simulated tracks with 60% measurement error with respect to speed 45 −7.5 −5.0 −2.5 0.0 2.5 5.0 
+
+50 60 
+
+Percentage of error with respect to sigma 
+
+> Estimate
+
+β1
+
+−10 010 20 
+
+50 60 
+
+Percentage of error with respect to sigma 
+
+> Estimate
+
+β2
+
+04812 
+
+50 60 
+
+Percentage of error with respect to sigma 
+
+> Estimate
+
+β3Figure S6: Habitat selection parameter estimates for the Langevin SSM with added penalty for varying levels of measurement error (50%, 60%), with (pink) and without (blue) an additional penalty on the speed parameter ( ψ is fixed). 46 Figure S7: Estimates of γ and σ for the Langevin SSM with added penalty for varying levels of measurement error (50% and 60%), without (blue) and with (pink) an additional penalty on the speed parameter ( ψ is fixed). 0510 15 20  
+
+> 50 60
+> Estimates
+> γ
+
+(a) γ0510 15 20   
+
+> 50 60
+> Estimates
+> σ
+
+(b) σ
+
+47 The introduction of a spatial constraint leads to an increase in bias and standard deviations in parameter estimates compared with the unconstrained Langevin SSM. Nevertheless, this bias remains substantially lower than that of the two-step method without spatial constraints. Under 60% measurement error, the two-step approach exhibits considerably larger bias (2 .96, −4.37, and 2 .66) than the constrained Langevin SSM (1 .6, −2.27 and −1.96). An increase in standard deviation is also observed, with values of 1 .91, 2 .59, and 2 .22 for β1, β2, and β3 under 50% error, and 1 .97, 2 .66, and 2 .29 under 60% error. The increase in variance likely reflects the additional complexity introduced by the spatial constraint: when observations fall on land, latent locations must be relocated to water, leading to greater variability in the estimation of habitat selection parameters as the model reconciles these invalid locations with the stationary distri-bution covariate. However, the average BA is lower for the two-step approach (0 .72 and 0 .71) compared with the constrained Langevin SSM (0 .84 and 0 .82). Therefore, our method is able to accommodate spa-tial constraints while maintaining a higher BA and lower bias than the two-step approach. A number of simulations produced unusually large estimates of γ and σ (≥ 100, not represented in Fig-ure S7 for display purposes; note that when one parameter explodes the other does too). We believe this is because when observations with large measurement error fall on land, the constraint forces the latent lo-cations to be relocated towards water and, in some cases, this relocation is accommodated by inflating the movement speed, leading to larger estimates of σ and a corresponding increase in γ to preserve the habi-tat selection patterns (Michelot and Hanks, 2024). This phenomenon is observed in approximately 30% of simulations with 50% measurement error and 34% with 60% measurement error (Figure S7). This behav-ior also occurred in the narwhal case study, motivating our interest in addressing it. Adding an explicit penalty on the speed parameter improves the results. The bias in the selection parame-ters decreased, with values of 0 .32, −0.32, and −0.27 for β1, β2, and β3, respectively, under 50% measure-ment error and of 0 .39, −0.36, and −0.30 under 60% measurement error. No simulations produced explod-ing ( ≥ 100) movement parameters. The decrease in bias was accompanied by an increase in average BA across simulated datasets from 0 .84 to 0 .94 with 50% error and from 0 .82 to 0 .94 with 60% error. We compared the constrained Langevin SSM to the standard two-step approach without any spatial con-straint, rather than to a version that removes on-land locations before fitting, as is often done in ecological studies (Auger-M´ eth´ e et al., 2025). Some other preprocessing approaches exist, such as rerouting locations around land (e.g., path rerouting function in aniMotum ), but we did not explore these alternatives. This reflects a key goal of our work: to avoid pre-filtering the data and retain as much information as possible. The main objective of this simulation study is to evaluate how the penalty influences the Langevin SSM 48 estimates. Even when compared with the unconstrained two-step method, the constrained Langevin SSM consistently outperforms the two-step approach. 
+
+## Two-step method with simple random walk 
+
+Figure S8: Habitat selection parameter estimates for the two-step method with a simple random walk, with varying levels of measurement error. −6       
+
+> −4
+> −2
+> 110 20 25 30 40 50 60
+> Estimate
+
+β1       
+
+> 2
+> 4
+> 6
+> 8
+> 110 20 25 30 40 50 60
+
+β2       
+
+> 0
+> 2
+> 4
+> 6
+> 110 20 25 30 40 50 60
+
+β3       
+
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> 110 20 25 30 40 50 60
+
+Method 
+
+Two −step 
+
+Bhattacharyya's affinity 
+
+(a) Proportion of error w.r.t speed 
+
+Figure S9: Estimates of γ and σ for the two-step method with a simple random walk, with varying levels of measurement error. 010 20 30 40               
+
+> 110 20 25 30 40 50 60
+> Estimate
+> 020 40 60 80
+> 110 20 25 30 40 50 60
+
+49

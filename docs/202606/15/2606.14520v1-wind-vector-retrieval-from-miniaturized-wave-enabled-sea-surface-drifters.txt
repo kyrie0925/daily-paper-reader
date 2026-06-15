@@ -1,0 +1,1319 @@
+Title: Wind vector retrieval from miniaturized wave-enabled sea-surface drifters
+
+URL Source: https://arxiv.org/pdf/2606.14520v1
+
+Published Time: Mon, 15 Jun 2026 01:11:57 GMT
+
+Number of Pages: 30
+
+Markdown Content:
+Generated using the official AMS L ATEX template v6.1 two-column layout. This work has been submitted for publication. Copyright in this work may be transferred without further notice, and this version may no longer be accessible. 
+
+## Wind vector retrieval from miniaturized wave-enabled sea-surface drifters 
+
+Alexey Mironov a 
+
+> a
+
+eOdyn, Plouzan´ e, France 
+
+ABSTRACT: The open ocean lacks systematic in situ wind observations, and satellite scatterometer calibration depends on collocated surface measurements largely absent away from coastlines. Compact wave-sensing drifters already retrieve the open-ocean wind vector, but at modest accuracy— ∼1–2 m s −1 in speed and with unreliable direction at low wind. We show that a compact freely drifting GNSS/IMU drifter (MELODI) improves both components at a small fraction of the cost of moored platforms. Wind speed is read from the full shape of the measured wave acceleration spectrum rather than a single equilibrium-range level. A supervised model (Wind Inversion using Tikhonov Regularization, WITR—a regularized regression with a gated residual correction), trained against scatterometer winds and evaluated by leave-one-buoy-out cross-validation (ASCAT MetOp-B/C, HY-2B/C; ERA5 used during feature development), reaches an RMSE of 0.90 m s −1 and defines the empirical skill ceiling of the feature set; it serves both directly as a wind retrieval and as a teacher model for distillation. Symbolic regression then distills this teacher into compact, interpretable closed-form laws suited to onboard implementation—a spectrum-only law (RMSE ≈1.0 m s −1) and a motion-enhanced reduced drag law (0.93–0.94 m s −1)—that reproduce the teacher’s skill within the present validation uncertainty. Wind direction is recovered independently from IMU-derived directional wave moments in the wind-sea band, with a mean absolute error of 9.4 ◦ against scatterometer winds. These accuracies are scatterometer-consistent (comparable to published scatterometer–buoy differences) and close to a factor-of-two improvement over the traditional single-band Toba inversion; winds are retrieved plausibly up to ∼18 m s −1, with higher winds flagged as lower confidence. 
+
+SIGNIFICANCE STATEMENT: Most of the ocean has no routine wind measurements, yet calibrating and validating satellite wind sensors depends on surface ob-servations matched in space and time to each overpass— precisely what is missing over the open ocean. Com-pact drifting buoys already estimate the open-ocean wind vector from the waves they ride, but not very accurately; we show that a small, low-cost GNSS/IMU drifter can do markedly better—sharpening both wind speed (from the wave spectrum) and direction (from the buoy’s own mo-tion) to an accuracy consistent with scatterometer winds and comparable to published scatterometer–buoy differ-ences, close to a factor-of-two improvement over earlier single-band drifter methods. Because the governing rela-tionships are simple enough to run onboard, fleets of these biodegradable drifters could affordably fill the open-ocean wind-observation gap. 
+
+1. Introduction 
+
+Knowledge of the near-surface wind vector over the ocean is essential for weather forecasting, climate mon-itoring, air–sea flux estimation, and maritime operations. Yet the global ocean wind observing system has a funda-mental gap: wind speed and direction are not measured systematically over most of the world ocean. The ex-isting in situ network of moored meteorological buoys— approximately 400 stations operated by the National Data Buoy Center (NDBC), M´ et´ eo-France, the tropical moored    
+
+> Corresponding author :Alexey Mironov, alexey.mironov@eodyn.com
+
+arrays (TAO/TRITON, PIRATA, RAMA), and partner agencies—is concentrated along coastlines and in the trop-ics, covering less than 1% of the ocean surface area (Kent et al. 2019; Villas Bˆ oas et al. 2019). Vast regions includ-ing the Southern Ocean, remote Pacific, and much of the Indian Ocean lack any sustained in situ wind observations (Bourassa et al. 2019). Satellite remote sensing partially fills this gap. Scatterometers—the Advanced Scatterometer (ASCAT), the Haiyang-2 series (HY-2B/C), and ScatSat—retrieve the ocean surface wind vector from microwave backscatter with typical accuracy of 1–2 m s −1 in speed and 15–20 ◦
+
+in direction (Stoffelen 1998). Synthetic aperture radars (SAR) provide high-resolution wind fields but with lim-ited temporal sampling (Mouche et al. 2019). Altimeters deliver along-track wind speed estimates (Young 1999; Zieger et al. 2009; Ribal and Young 2019). The SWOT mission requires knowledge of the local wind-wave field for sea-state bias corrections (Morrow et al. 2019). How-ever, all satellite measurements are snapshots: a given location is revisited only every 2–3 days, and calibration and validation (cal/val) of these sensors depends on col-located in situ observations matched in space and time to within about half an hour—precisely the observations that are absent over most of the open ocean (Bourassa et al. 2019). Surface drifters offer a potential solution. The Global Drifter Program (GDP) maintains approximately 1 500 ac-tive drifters measuring sea surface temperature and near-surface currents (Centurioni 2018). These platforms are inexpensive, globally distributed, and already demonstrate 1
+
+> arXiv:2606.14520v1 [physics.ao-ph] 12 Jun 2026
+
+299% data return rates. If drifters could also measure wind, they would provide the missing open-ocean in situ obser-vations at a fraction of the cost of moored buoys. The physical basis for this is the equilibrium-range scal-ing of wind-generated gravity waves (Toba 1973; Phillips 1985; Donelan et al. 1985), reviewed in section 2: the spectral level in the wind-sea range is set by the wind fric-tion velocity, so the wind can in principle be recovered by inverting the measured wave spectrum. Recent advances in miniaturized wave-sensing drifters have made this practical. Herbers et al. (2012) showed that GPS-tracked drifters reliably measure directional wave spectra; Thomson (2012); Thomson et al. (2024) developed the SWIFT and microSWIFT platforms; and Yurovsky and Dulov (2020); Yurovsky and Kudinov (2026) used MEMS-based buoys to resolve the short wind-wave spectrum from a very small platform. Building on this, several studies have retrieved wind from such spectra: Voermans et al. (2020) obtained ∼2 m s −1 speed RMSE from the Sofar Spotter (40 cm diameter), Dorsay et al. (2023) reached 
+
+∼1 m s −1 across a global Spotter fleet (physics-based, spectral-balance, and neural approaches), Shimura et al. (2022) confirmed the method for small GPS buoys, and Jiang (2022) trained neural networks on NDBC directional coefficients (1.1 m s −1 speed, 14 ◦ direction above 7 m s −1). Despite this progress, existing drifter retrievals share important limitations. The traditional approach applies the Toba relationship to a single spectral band, ignor-ing that different frequencies respond to wind changes on different timescales and that spectral shape depends on wave age, atmospheric stability, and swell contamina-tion; the equilibrium-range level is moreover not purely dynamical—Belcher and Vassilicos (1997) show the 𝑓 −4
+
+tail can arise kinematically from breaking-crest geometry. Published single-band retrievals accordingly show speed RMSE ≥2 m s −1 and unreliable direction, especially at low wind: Voermans et al. (2020) reported ∼20 ◦ accuracy only above 10 m s −1, and the yearlong evaluation of Beck-man and Long (2022) found a Spotter direction RMSE of 95 .7◦ (𝑅 2 = 0.32). Our aim is therefore not to estab-lish that drifters can sense the wind vector—by now well demonstrated, most prominently by the Sofar Spotter net-work (Dorsay et al. 2023)—but to improve the accuracy of both components, especially the low-wind direction, on a smaller platform, and to cross-validate the result indepen-dently against multi-mission scatterometer winds. This paper presents a wind vector retrieval method for the MELODI (Miniaturized Electronics Lagrangian Oceanographic DrIfter) buoy (Mironov and Charron 2023, 2024), a compact freely drifting platform (240 mm hull di-ameter, smaller than the 40–42 cm Spotter) that measures the surface wave field with a multi-constellation Global Navigation Satellite System (GNSS) receiver and a 9-axis inertial measurement unit (IMU). Our contribution is four-fold. First, we retrieve wind speed with a multi-band spec-tral inversion—the Wind Inversion using Tikhonov Reg-ularization (WITR; Hoerl and Kennard 1970), a regular-ized linear inversion with a gated gradient-boosted residual correction—that exploits the full shape of the measured acceleration spectrum rather than a single equilibrium-range level, and we distill the trained model into com-pact, interpretable analytical expressions through sym-bolic regression (PySR; Cranmer 2023), recovering inter-pretable wind–wave structure including wave-age modula-tion, smooth-to-rough transition behaviour, and high-wind drag reduction. Second, we retrieve wind direction inde-pendently from directional wave moments derived from the IMU, sharpening the component where existing drifter re-trievals are weakest, especially at low wind. Third, we eval-uate both components against multi-mission scatterometer winds—independently for the physics-based direction re-trieval, and by leave-one-buoy-out cross-validation for the scatterometer-trained speed model. Fourth, to show that the retrievals can be applied at fleet scale, we demonstrate how the speed and direction estimates are assembled and quality-controlled into a wind-vector dataset spanning a multi-buoy fleet across four ocean basins. The method is developed and evaluated on three comple-mentary datasets of increasing sensor fidelity—satellite-transmitted acceleration spectra, recovered high-rate IMU records, and a dedicated GPS+IMU field deployment— calibrated against scatterometer winds with ERA5 reanal-ysis used during feature development. Cross-validated by leave-one-buoy-out against Level-2 scatterometer colloca-tions (ASCAT MetOp-B/C, HY-2B/C), WITR achieves a wind-speed RMSE of 0.90 m s −1, and the IMU-derived wind direction a mean absolute error (MAE) of 9.4 ◦ against ASCAT L2—close to a factor-of-two improvement over traditional single-band Toba inversions. Applied across the fleet, the retrievals yield a quality-controlled wind-vector dataset of 29 775 sessions from 28 buoys. The remainder of this paper is organized as follows. Sec-tion 2 reviews the equilibrium-range scaling that underlies spectral wind inversion. Section 3 describes the MELODI drifter and its sensor payload, and section 4 introduces the buoy datasets together with the satellite and reanaly-sis references. Section 5 details the omnidirectional and directional spectral processing. Sections 6 and 7 develop the wind-speed and wind-direction retrievals, respectively, and section 8 presents the validation against the scatterom-eter reference. Section 9 demonstrates how the retrievals are assembled and quality-controlled at fleet scale, and section 10 places the results in the context of established observing networks before concluding. 
+
+2. Theoretical background and motivation 
+
+The physical basis for wind estimation from wave ob-servations is well established. Toba (1973) showed that the spectral energy density in the equilibrium range of 3
+
+wind-generated gravity waves scales with the wind fric-tion velocity as 𝑆 ( 𝑓 ) ∝ 𝑔 𝑢 ∗ 𝑓 −4. Phillips (1985) and Kitaigorodskii (1983) provided complementary theoreti-cal frameworks linking the equilibrium spectral level to wind forcing through energy cascades and wave breaking; Donelan et al. (1985) and Thomson et al. (2013) confirmed the relationship with field data, the latter documenting the equilibrium range and its friction-velocity scaling directly at Ocean Weather Station P. From a measured wave spec-trum the wind can therefore, in principle, be recovered by inverting this scaling. We next formalize it, set out the established single-band inversion, and explain why a single spectral level is insufficient—motivating the multi-band, data-calibrated speed retrieval and the IMU-based direction retrieval developed below. Formally, in the equilibrium range the displacement spectral density follows the Toba scaling: 
+
+𝑆 𝜂 ( 𝑓 ) = 𝛼 𝑔 𝑢 ∗ (2𝜋 )−3 𝑓 −4 , (1) where 𝑔 is gravitational acceleration, 𝑢 ∗ is the wind fric-tion velocity, and 𝛼 = 0.062 is the equilibrium constant. This relationship means that the spectral level in the equi-librium range is directly proportional to the wind friction velocity, providing the physical basis for wind speed re-trieval. Different frequency ranges within the equilibrium range respond to wind changes on different time scales: low-frequency waves (0.12–0.30 Hz) require 2–3 hours to reach equilibrium, while high-frequency waves (0.70– 1.0 Hz) respond in approximately 15 minutes (Fig. 1). Equilibration is strongly frequency-dependent: with the Plant (1982) wind-input growth rate ( 𝛾 ∝ ( 𝑢 ∗/𝑐 )2 𝜔 , phase speed 𝑐 = 𝑔 /2𝜋 𝑓 ), the input timescale 𝜏 ∼ 1/𝛾 ∝ 𝑓 −2 falls sharply with frequency. Anchored to a multi-hour memory near the spectral peak ( ∼0.2 Hz), this predicts equilibration within ∼10–15 min in the 0.6–0.9 Hz wind-sea band but multi-hour lags at low frequency (Fig. 1). These sub-hour timescales cannot be confirmed against reanalysis— the hourly ERA5 cadence and ∼22-min session spacing floor the resolvable lag near one hour—but they are the physical basis for restricting the high-resolution retrieval to the high-frequency bands, where the spectral level is an instantaneous wind proxy. The Toba spectral level parameter is computed for each of four frequency bands—low (LO, 0.12–0.30 Hz), mid (MID, 0.25–0.50 Hz), high (HI, 0.45–0.75 Hz), and very high (VHI, 0.70–1.00 Hz): 
+
+𝛽 4 = median 𝑆 𝜂 ( 𝑓 ) 𝑓 4  
+
+> 𝑓 ∈band
+
+, (2) and the corresponding 10-m wind speed estimate 𝑈 Toba 10 
+
+is obtained by inverting Eq. (1). Because the band level 
+
+𝛽 4 = median [𝑆 𝜂 ( 𝑓 ) 𝑓 4] = 𝛼 𝑔 𝑢 ∗ (2𝜋 )−3 is linear in 𝑢 ∗, the friction velocity follows directly from the spectral level: 
+
+𝑢 ∗ = 𝛽 4 (2𝜋 )3
+
+𝛼 𝑔 . (3) Converting 𝑢 ∗ to 𝑈 10 uses the wind-dependent neutral drag coefficient of Large and Pond (1981), 𝐶 𝐷 = (0.49 +
+
+0.065 𝑈 10 ) × 10 −3 with 𝑈 10 = 𝑢 ∗/√𝐶 𝐷 , solved by fixed-point iteration (3–5 steps). Equation (3) underlies the established reference method operational on the Sofar Spotter network (Voermans et al. 2020; Dorsay et al. 2023), which locates the equilibrium range, extracts 𝑢 ∗ from that single level, and takes direc-tion from the band-averaged (𝑎 1, 𝑏 1). It performs well at moderate winds (RMSE ≈ 2 m s −1 over 3–12 m s −1;Voermans et al. 2020) but, reading a single level, inher-its two limitations. First, the 𝑓 −4 shape is not uniquely dynamical—Belcher and Vassilicos (1997) show it also arises kinematically from breaking-crest geometry—so a fixed equilibrium constant 𝛼 cannot be optimal across sea states. Second, the level-to-𝑢 ∗ mapping saturates at high winds (Davis et al. 2023). Rather than commit to one band and a fixed 𝛼 , we retain the four-band levels of Eq. (2) as candidate features and let the regression of section 6b learn their wind dependence from collocated reference winds, absorbing the wave-age, stability, and breaking-amplitude effects the analytic inversion ignores. 
+
+3. MELODI drifter system 
+
+a. Design and sensor payload 
+
+MELODI is a low-cost, expendable surface drifter devel-oped by eOdyn (Plouzan´ e, France) for operational sea-state monitoring (Fig. 2). The hull is formed by two symmetrical half-shells, 240 mm in diameter and 100 mm in height, with a total mass of approximately 1.3 kg including a 200 mm stabilizing pole and ballast weight (307 mm overall height; Fig. 2). It is moulded from polybutylene succinate (PBS), a bio-sourced bioplastic that degrades into water and CO 2
+
+through natural enzymatic processes, avoiding persistent microplastic release (Xu and Guo 2010; Aliotta et al. 2022; Mironov and Charron 2024). The low underwater profile (∼100 mm) minimizes direct wind forcing on the hull; laboratory and field tests indicate that wind-induced drift amounts to less than 1.2% of the 10-m wind speed. The sensor payload and onboard electronics comprise six components (Table 1): 1. A multi-constellation GNSS receiver (2.5 m fix ac-curacy); on Tier-C hardware it runs at 4 Hz, yielding the horizontal velocities from which wave spectra are derived. 2. A 9-axis IMU (accelerometer, gyroscope, magne-tometer; Table 1), acquired at 3.2 Hz and processed 40.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 
+
+Frequency f (Hz)                
+
+> 10
+> 20
+> 30
+> 60
+> 120
+> 240
+> Adaptation timescale  (min)
+> 0.6-0.9 Hz
+> fast-response band
+> shorter waves
+> adapt faster
+> 13 min at 0.8 Hz
+> Plant (1982) f2slope (norm.; u*=0.28)
+> Fig. 1. Spectral adaptation timescale 𝜏 as a function of frequency. The Plant (1982) wind-input growth rate gives 𝜏 ∼1/𝛾 ∝𝑓 −2, here nor-malised to a multi-hour memory near the 0.2 Hz spectral peak: shorter, higher-frequency waves equilibrate within minutes, whereas the ener-getic low-frequency bands lag the wind by hours. This motivates re-stricting the high-resolution retrieval to the high-frequency bands. Only the theoretical scaling is shown; the lag resolvable from reanalysis collo-cation ( ≳1 h, set by the hourly ERA5 cadence) is too coarse to measure the fast-band timescales directly.
+
+onboard into an attitude and heading reference sys-tem (AHRS) output for the recovered fleet (Tier B), or logged raw at 100 Hz on the newest hardware (Tier C). 3. A DS18B20 sea surface temperature (SST) sensor. 4. A 6 W solar array (MPPT) charging 14 000 mAh of lithium-ion cells; solar recharge gives a virtually unlimited power lifetime, the deployment duration being set by fouling, damage, or loss rather than by energy. 5. An Iridium Short Burst Data (SBD) modem provid-ing bidirectional global communication (99.8% data return) and remote reconfiguration of acquisition pa-rameters. 6. A micro-SD card buffering raw data locally and stor-ing the full-rate records retrieved from recovered units. The onboard microcontroller reconstructs vertical ac-celeration from the raw IMU via a Kalman filter and com-putes the omnidirectional acceleration spectrum 𝑆 acc ( 𝑓 ) 
+
+> Fig. 2. The MELODI surface drifter: (left) exterior view showing the solar-panel array and biodegradable PBS hull; (right) cross-section with principal dimensions in millimetres (240 mm hull diameter, 307 mm overall height, 100 mm disc spacing, 200 mm stabilizing pole, and the ballast weight that maintains vertical orientation). Sensor specifications are listed in Table 1.
+
+over ∼22-min windows (0.02–1 Hz, 128 bins), converted to displacement spectral density via 
+
+𝑆 𝜂 ( 𝑓 ) = 𝑆 acc ( 𝑓 )(2𝜋 𝑓 )4 , (4) from which 𝐻 𝑠 = 4√𝑚 0 (𝑚 0 = ∫ 𝑆 𝜂 d 𝑓 ). Surface cur-rents are estimated from successive GNSS fixes (600-s finite differences, median-filtered). Section 5 describes the analysis-side processing applied to both onboard and recovered spectra. 
+
+b. Data transmission and recovery 
+
+MELODI operates in two data modes that define the information content available for wind retrieval: 
+
+Satellite-transmitted mode (Tier A). Iridium SBD mes-sages are emitted every 30 minutes and carry three consec-utive GNSS positions (10-min effective resolution), one SST value, and the significant wave height 𝐻 𝑠 . The full 128-bin acceleration spectrum 𝑆 acc ( 𝑓 ) is transmitted sep-arately on a configurable cadence of one or three hours, compressed to fit within the SBD payload. No raw IMU data are available in this mode; consequently, only omnidi-rectional spectral features can be extracted for wind speed estimation. This is the standard operational mode for the deployed fleet used in this study. 
+
+Recovered data mode (Tier B and C). When buoys are physically recovered, the onboard micro-SD card provides full-rate sensor data. For Tier B buoys, this includes AHRS output (vertical acceleration, pitch, roll, heading) at 3.2 Hz and raw 9-axis IMU data at the same rate. For Tier C buoys (newest hardware), GNSS velocity is logged at 4 Hz and raw IMU at 100 Hz. Each acquisition session spans approximately 22 minutes ( ∼4 200 samples at 3.2 Hz) and is recorded to onboard memory every 30 minutes, so a re-covered buoy provides a continuous record at half-hourly 5                           
+
+> Table 1. MELODI onboard sensor specifications. Sensor Range Precision Rate Units GNSS receiver —2.5 m 4 Hz ∗mAccelerometer ±40.061 3.2–100 Hz g ( ×10 −3)Gyroscope ±250 4.375 3.2–100 Hz ◦s−1(×10 −3)Magnetometer ±800 0.02 3.2 Hz 𝜇 TTemperature −10 to +85 0.0625 0.03 Hz ◦C
+> ∗4 Hz for Tier C hardware; Tier B buoys use onboard AHRS at 3.2 Hz. Precision values are per least significant bit.
+
+cadence (the satellite link transmits a subset at the config-urable 1- or 3-hour cadence). The high-rate data enables extraction of directional wave moments from the IMU gy-roscope and magnetometer channels, which are essential for wind direction retrieval. 
+
+4. Datasets 
+
+The experimental dataset is organized into three tiers defined by the available sensor data, supplemented by two independent reference sources (Table 2). This section de-scribes the data; the procedure used to collocate the ref-erence products with the MELODI sessions is given in section 5d. 
+
+a. Satellite-transmitted spectra (Tier A) 
+
+Twenty-four MELODI buoys deployed during the 2024– 2025 ocean campaigns (section 4b) transmitted onboard-computed acceleration spectra 𝑆 acc ( 𝑓 ) via Iridium SBD, yielding approximately 8 000 sessions over deployment pe-riods of 2–7 months per buoy. Each session provides a 128-bin acceleration spectrum in the range 0.035–1.0 Hz, from which omnidirectional spectral features (band levels, spectral slopes, Toba wind estimates) can be computed. No raw IMU data are available; therefore, Tier A supports wind speed retrieval only. These buoys span the north-east Atlantic, Norwegian Sea, Mediterranean, and tropical Atlantic, providing the broadest geographic coverage and demonstrating that the wind retrieval method generalizes beyond the Tier B training set. 
+
+b. Recovered IMU data (Tier B) 
+
+Four buoys were physically recovered after their deploy-ments, providing full-rate sensor data from the onboard micro-SD storage. Three buoys were deployed during the ESA Ocean Training Courses 2025 (OTC25) campaign from the tall ship Statsraad Lehmkuhl , and one during the EXPLOI campaign (Exp´ edition Plastique Oc´ ean Indien; COI, AFD, FFEM; scientific partner: IRD). These four buoys constitute the primary dataset for model develop-ment and validation: 
+
+• OTC25 04 (Bay of Biscay, 47–49 ◦N, May–November 2025): 9 129 sessions over 6 months, capturing the full seasonal cycle from spring calms to autumn storms (wind speeds 0–21 m s −1). 
+
+• EXPLOI 06 (Indian Ocean, 18–22 ◦S, June– December 2025): 8 603 sessions over 6 months in the trade wind belt, providing the most stable condi-tions (mean wind 7.8 m s −1) and the lowest validation errors. 
+
+• OTC25 16 (northeast Atlantic, ∼54 ◦N, deployed at 54.9 ◦N, 17.0 ◦W and drifting east to 54.1 ◦N, 10.0 ◦Wby 28 July 2025): 3 384 sessions spanning 2 months, including several storm events with sustained winds above 15 m s −1.
+
+• OTC25 20 (Strait of Gibraltar, 35–36 ◦N, May–June 2025): 626 sessions over 2 weeks in a region charac-terized by strong tidal currents and channeled winds. Together these buoys provide 21 742 sessions with AHRS data at 3.2 Hz (vertical acceleration, pitch, roll, heading) and raw 9-axis IMU data, enabling both wind speed and direction retrieval. 
+
+c. GPS+IMU test deployment (Tier C) 
+
+In March 2026, four buoys of the newest hardware revision (N1–N4) were deployed in the Bay of Biscay (∼48.3 ◦N, 4.6 ◦W) for a 48-hour validation test. These buoys provide GNSS velocity at 4 Hz and raw IMU at 100 Hz, yielding 101 sessions with enhanced direc-tional wave moments. The along-axis directional moment reaches |𝑎 1 | ≈ 0.85 in the wind-sea band, compared to 
+
+|𝑎 1 | ≈ 0.65 for Tier B AHRS data, confirming that higher sampling rates improve directional accuracy. While the dataset is small, it demonstrates the capability of the next generation of MELODI hardware. 
+
+d. ERA5 reanalysis 
+
+All MELODI sessions are collocated with the ERA5 re-analysis (Hersbach et al. 2020) at its native 0.25 ◦, hourly resolution, providing 10-m wind speed 𝑈 10 , wind direction 6
+
+𝜃 𝑤 , wind gusts 𝑈 𝑔 , and 2-m air temperature 𝑇 air . The re-sulting collocation dataset comprises 21 742 matched ses-sions (100% yield) with ERA5 wind speeds ranging from 0 to 19 m s −1 (mean 7.2 m s −1). An air–sea temperature difference Δ𝑇 = 𝑇 SST − 𝑇 air is computed for each session as a proxy for atmospheric stability, which plays a role in the wind–wave coupling. ERA5 wind speed is used during feature development and feature scoping for the wind speed retrieval model (section 6); the final model is trained on the scatterometer winds described below and evaluated by leave-one-buoy-out (LOBO) cross-validation, so that each buoy is predicted only by a model trained on the other buoys. 
+
+e. Scatterometer winds 
+
+The retrieved winds are evaluated against Level-2 scatterometer products from four satellite instruments— ASCAT on MetOp-B and MetOp-C (C-band, 12.5 km; Stoffelen 1998) and HY-2B and HY-2C HSCAT (Ku-band, 25 km)—obtained as swath-level (L2B) data in the KNMI standard format (March 2025–March 2026; Ta-ble 2). These serve as the training target and leave-one-buoy-out cross-validation reference for the speed model and as an independent reference for the direction retrieval; the collocation procedure (section 5d) matches each ses-sion to the nearest quality-screened cells within 25 km and 30 min. The collocation yields 6 629 independent L2B matches from the four satellite instruments (Table 2), distributed across 26 buoys. Scatterometer winds are quality-screened below ∼3 m s −1, so the matched winds span 3–21 m s −1. ASCAT instruments contribute 2 699 col-locations at 12.5 km resolution, while the HY-2 instru-ments contribute 3 930 at 25 km resolution. The mean distance from a MELODI session to the nearest matched scatterometer cell is 8.5 km, and the mean temporal off-set is 15.1 minutes. This representativeness mismatch—a point measurement compared against a satellite footprint of 12.5–25 km—sets an irreducible error floor of approx-imately 0.7–1.0 m s −1 for wind speed comparisons (Stof-felen 1998), which must be considered when interpreting the validation statistics in section 8. 
+
+f. Sofar Spotter reference 
+
+The Sofar Spotter is the established commercial drifter for wave-based wind retrieval and serves as an indepen-dent reference for the MELODI product. The Spot-ter v3 is a compact (42 cm diameter), solar-powered buoy that measures surface displacement directly from multi-constellation GNSS tracking at 2.5 Hz; unlike the accelerometer-based MELODI it avoids the double-integration step and its associated low-frequency noise. Each nominally hourly cycle yields a directional wave spectrum (39 frequency bins over 0.029–0.654 Hz, 120 az-imuthal bins) and operationally derives wind speed and direction from the equilibrium range of that spectrum us-ing the single-band inversion of Voermans et al. (2020), now deployed across a global fleet (Dorsay et al. 2023). As the most widely used drifter wind solution, it is the natural benchmark for our retrieval. During the OTC25 campaign one Spotter (SPOT-32265C) drifted alongside the recovered MELODI buoy OTC25 16 for 14 days (14– 28 May 2025) in the northeast Atlantic ( ∼55 ◦N, 17 ◦W), within <30 km for the first week, providing 665 co-located hourly samples; this co-deployment supports the direct in-tercomparison in section 10b. 
+
+5. Data processing 
+
+This section describes the processing applied to the data of section 4: first the spectral estimation pipeline that con-verts the raw drifter records into the omnidirectional and directional spectra and the features used for wind retrieval, then the collocation of the reference wind products with the MELODI sessions. The key physical principle on the drifter side is that the equilibrium range of the wind-wave spectrum encodes wind speed, while the directional dis-tribution of high-frequency waves carries wind direction information. Figure 3 summarizes the full chain from raw records to the assembled wind vector. 
+
+a. Omnidirectional spectrum 
+
+Omnidirectional displacement spectra are estimated by a modified Welch method (Welch 1967): each 22-min ses-sion is split into 256-s segments (75% overlap, ∼17 effec-tive), sine-tapered with variance correction, periodogram-averaged, and merged in 3-bin groups to a resolution of 
+
+∼0.012 Hz (median spectral degrees of freedom 𝜈 ≈ 102). For Tier A buoys, the onboard-computed acceleration spectrum 𝑆 acc ( 𝑓 ) is converted to displacement spectral density via Eq. (4). For Tier B buoys with recovered AHRS data, the vertical acceleration is first despiked (10-𝜎 thresh-old) and high-pass filtered using a first-order IIR filter with 
+
+𝜏 RC = 3.5 s (cutoff ∼0.045 Hz) before spectral estimation. For Tier C buoys, displacement spectra are computed from GPS horizontal velocities via 𝑆 𝜂 ( 𝑓 ) = 𝑆 𝑣 ( 𝑓 )/( 2𝜋 𝑓 )2. In all cases, a half-cosine low-frequency taper is applied be-tween 0.025 and 0.04 Hz to suppress noise amplification from the 𝜔 −4 or 𝜔 −2 transfer functions at long periods. The tapered spectra retain useful energy over 0.035– 1.0 Hz, the analysis band for all feature extraction; the four-band Toba parameters and single-band inversion of section 2 are evaluated on it, and the wind-sensitive features are catalogued in Appendix A. Figure 4 illustrates this processing on two contrasting sessions from the OTC25 16 buoy. 7
+
+Table 2. Summary of MELODI datasets and reference collocations. 𝑁 denotes number of sessions (or collocations for reference sources). Wind speed range refers to the reference (ERA5 or scatterometer). Tier / Source Buoys 𝑁 Period Sensors Resolution Wind (m s −1)
+
+MELODI buoy data 
+
+A (satellite spectra) 24 8 033 2024–2025 𝑆 acc 128 bins 30 min —B (recovered IMU) 4 21 742 May–Dec 2025 AHRS 3.2 Hz + raw IMU 22 min —C (GPS+IMU test) 4 101 Mar 2026 GPS 4 Hz + IMU 100 Hz 22 min —
+
+Reference collocations 
+
+ERA5 reanalysis — 21 742 May–Dec 2025 0.25 ◦, hourly ±30 min 0–19 ASCAT MetOp-B L2 25 1 424 Mar 2025–Mar 2026 C-band, 12.5 km ±30 min 3–20 ASCAT MetOp-C L2 25 1 275 Mar 2025–Mar 2026 C-band, 12.5 km ±30 min 3–17 HY-2B HSCAT L2 26 1 906 Mar 2025–Mar 2026 Ku-band, 25 km ±30 min 3–21 HY-2C HSCAT L2 25 2 024 Mar 2025–Mar 2026 Ku-band, 25 km ±30 min 3–20 
+
+All L2B 26 6 629 3–21 
+
+The four L2B instruments above form the full collocation set. The tight quality-controlled subset used for cross-validation additionally draws on the ASCAT MetOp-B OSI-104 coastal product, giving five scatterometer products across the same four satellites. Raw GNSS + IMU records       
+
+> Welch spectra
+> Sacc (f),E(f)
+> cross-spectra
+> 9 acceleration features
+> TR (Ridge)
+> +gated GBM
+> =WITR
+> Symbolic laws (spectral, drag)
+> Directional moments
+> a1, b 1
+> (0.6–0.9 Hz)
+> Wind-sea
+> Dp
+> QC flags
+> +temporal filtering
+> Wind-vector dataset
+> WIND SPEED
+> WIND DIRECTION
+
+Fig. 3. Processing chain from raw drifter records to the assembled wind-vector dataset. The wind-speed branch (blue) extracts acceleration-spectrum features, maps them to speed with the Tikhonov-regularized model plus gated GBM correction (WITR), and distills the result into closed-form analytical laws; the wind-direction branch (orange) forms the wind-sea directional moments and peak direction 𝐷 𝑝 . Both are quality-flagged and temporally filtered before assembly. 
+
+b. Directional spectrum from IMU 
+
+For Tier B and C buoys, directional wave information is extracted from the IMU gyroscope and magnetometer channels. The body-frame roll and pitch angles 𝜃 𝑥 , 𝜃 𝑦 are first recovered by integrating the gyroscope 𝑥 and 𝑦 angu-lar rates (then high-pass filtered, fourth-order Butterworth, 0.02 Hz cutoff, to remove integration drift). Under the small-slope approximation the sea-surface slope equals the buoy tilt angle, 𝜕𝜂 /𝜕𝑥 ≈ tan 𝜃 ≈ 𝜃 (rad, dimensionless), so the geographic east and north slope components follow by rotating the body-frame angles through the buoy heading 
+
+𝜓 :
+
+𝜕𝜂 𝜕𝑥 = 𝜃 𝑦 cos 𝜓 + 𝜃 𝑥 sin 𝜓 , 𝜕𝜂 𝜕𝑦 = 𝜃 𝑦 sin 𝜓 − 𝜃 𝑥 cos 𝜓 , (5) where 𝜃 𝑥 , 𝜃 𝑦 are the integrated, high-pass-filtered roll and pitch angles and 𝜓 is the buoy heading. This is the stan-dard pitch–roll slope formulation of heave–tilt directional-wave analysis. The heading is obtained from the AHRS firmware output (Tier B) or from a complementary filter fusing magnetometer heading with integrated gyroscope yaw rate (time constant 𝜏 = 2.0 s; Tier C). The directional distribution at each frequency is sum-marized by its first four Fourier coefficients 𝑎 1, 𝑏 1, 𝑎 2, 𝑏 2,computed from the auto- and cross-spectra of the two slope 810 7      
+
+> 10 6
+> 10 5
+> 10 4
+> 10 3
+> 10 2
+> 10 1
+> 10 0
+> 10 1
+> Sa(f) (m 2 s 4 Hz  1)
+> fc=0.043 Hz
+
+(a) 
+
+CNES16_75 -- U ERA5 10 = 6.0 m s 1          
+
+> raw Sa(f)
+> filtered Sa(f)
+> noise floor Af
+> 10 7
+> 10 6
+> 10 5
+> 10 4
+> 10 3
+> 10 2
+> 10 1
+> 10 0
+> 10 1
+> Sa(f) (m 2 s 4 Hz  1)
+> fc=0.055 Hz
+
+(b) 
+
+CNES16_75 -- U ERA5 10 = 14.0 m s 1  
+
+> 10 110 0
+
+Frequency f (Hz)      
+
+> 10 3
+> 10 2
+> 10 1
+> 10 0
+> 10 1
+> 10 2
+> E(f) (m 2 Hz  1)
+> f4taper
+> 0.025-0.04 Hz
+
+(c) raw-derived E(f)    
+
+> filtered E(f)(Hs=1.5 m)
+> 10 110 0
+
+Frequency f (Hz)      
+
+> 10 3
+> 10 2
+> 10 1
+> 10 0
+> 10 1
+> 10 2
+> E(f) (m 2 Hz  1)
+> f4taper
+> 0.025-0.04 Hz
+
+(d) 
+
+Fig. 4. Acceleration spectrum 𝑆 acc ( 𝑓 ) and the derived elevation spectrum 𝐸 ( 𝑓 ) for a ∼6 m s −1 and a ∼14 m s −1 session (OTC25 16), illustrating the adaptive filtering chain: the noise-floor model, the high-pass filter, the Wiener gain, and the low-frequency 𝑓 4 taper applied between 0.025 and 0.04 Hz. 
+
+components and the vertical acceleration (Kuik et al. 1988): 
+
+𝑎 1 ( 𝑓 ) = Im [𝐶 𝑠 𝑥 𝑧 ( 𝑓 )] √︁ 
+
+[𝑃 𝑠 𝑥 ( 𝑓 ) + 𝑃 𝑠 𝑦 ( 𝑓 )] 𝑃 𝑧 ( 𝑓 ) ,𝑏 1 ( 𝑓 ) = Im [𝐶 𝑠 𝑦 𝑧 ( 𝑓 )] √︁ 
+
+[𝑃 𝑠 𝑥 ( 𝑓 ) + 𝑃 𝑠 𝑦 ( 𝑓 )] 𝑃 𝑧 ( 𝑓 ) ,𝑎 2 ( 𝑓 ) = 𝑃 𝑠 𝑥 ( 𝑓 ) − 𝑃 𝑠 𝑦 ( 𝑓 )
+
+𝑃 𝑠 𝑥 ( 𝑓 ) + 𝑃 𝑠 𝑦 ( 𝑓 ) ,𝑏 2 ( 𝑓 ) = 2 Re [𝐶 𝑠 𝑥 𝑠 𝑦 ( 𝑓 )] 
+
+𝑃 𝑠 𝑥 ( 𝑓 ) + 𝑃 𝑠 𝑦 ( 𝑓 ) ,
+
+(6) where 𝑃 𝑠 𝑥 , 𝑃 𝑠 𝑦 , 𝑃 𝑧 are the auto-spectra of the east slope, north slope, and vertical acceleration, and 𝐶 𝑠 𝑥 𝑧 ,
+
+𝐶 𝑠 𝑦 𝑧 , 𝐶 𝑠 𝑥 𝑠 𝑦 the corresponding cross-spectra. The first-order pair (𝑎 1, 𝑏 1) fixes the mean wave direction 𝜃 𝑝 ( 𝑓 ) =
+
+arctan2 (𝑏 1, 𝑎 1) (mapped to the compass convention) and the directional coherence 𝑟 1 ( 𝑓 ) =√︃ 𝑎 21 + 𝑏 21, while the second-order pair (𝑎 2, 𝑏 2) constrains the angular width of the directional lobe. The retrieval uses these directional moments directly; the full two-dimensional spectrum 𝑆 ( 𝑓 , 𝜃 ) is not recon-structed. The moments are filtered before use—a noise floor at 1% of peak energy, 5-band running-mean smooth-ing, and clipping to the physical range [− 1, 1].The directional coherence 𝑟 1 in the high-frequency wind-sea band (0.6–0.9 Hz) serves as a quality metric: val-9
+
+ues of 𝑟 1 ≥ 0.4 indicate a well-defined wind-sea direction, while 𝑟 1 < 0.2 flags sessions with ambiguous directional-ity (e.g., during swell–wind-sea coupling transitions). For Tier B data (AHRS at 3.2 Hz), the typical along-axis mo-ment in the wind-sea band is |𝑎 1 | ≈ 0.65; Tier C data (raw IMU at 100 Hz) achieves |𝑎 1 | ≈ 0.85 (Fig. 5). 
+
+c. High-frequency response 
+
+A distinctive feature of the MELODI platform is its abil-ity to resolve waves up to 1.0 Hz (1-s period), well beyond the range of most operational wave buoys (typically lim-ited to 0.5 Hz). These high-frequency waves are generated locally by the wind and reach equilibrium rapidly: the VHI band (0.70–1.00 Hz) responds to wind speed changes within approximately 15 minutes, compared to 1–2 hours for the standard Toba MID band (0.25–0.50 Hz) (Young 1999). This fast equilibration is what makes the high-frequency bands the most informative for instantaneous wind retrieval. The WITR speed series is post-processed with a two-stage temporal filter applied independently to each session sequence: a median-absolute-deviation (MAD) spike test removes isolated outliers (threshold 4 𝜎 MAD ), followed by a short Savitzky–Golay smoother (window 5, order 2). This smoother, and the directional one of section 7b, use centered (non-causal) windows and are therefore applied in post-processing to the assembled record rather than in strict real time; a real-time variant would use a one-sided causal filter, at a modest cost in noise suppression. 
+
+d. Reference collocation 
+
+The reference wind products of section 4 are collocated with the MELODI sessions as follows. 
+
+ERA5 reanalysis. ERA5 10-m winds are bilinearly inter-polated from the native 0.25 ◦ fields to each buoy position and linearly in time to each session (ERA5T near-real-time fields for 2025). ERA5 serves as a secondary reference, the tightly collocated scatterometer winds being the primary one. 
+
+Scatterometers. For each overpass the swath cells are screened to reject non-finite and rain-contaminated re-trievals (rain being especially important for the Ku-band HY-2 instruments). Cells within a great-circle distance 
+
+𝑑 ≤ 25 km and |Δ𝑡 | ≤ 30 min of a session are retained; the matched wind speed is their arithmetic mean and the direc-tion their circular mean. All directions are placed on the common meteorological convention (direction from which the wind blows) before comparison. Duplicate session matches to one overpass are resolved by smallest 𝑑 .Table 3 reconciles the buoy tiers and collocation subsets. The operational product is the 28 buoys returning retriev-able data (24 Tier-A, speed only; 4 Tier-B, speed and di-rection); the four Tier-C buoys (N1–N4) are a separate co-located test deployment, not part of the product. The full L2B set (6 629 collocations, 26 buoys) trains the spectrum-only WITR; the tight-QC subset ( ≤8 km, ≤25 min; 2 433, 25 buoys) drives the leave-one-buoy-out cross-validation, with per-buoy errors reported for the 17 buoys carrying 
+
+≥10 collocations; and the motion-based reduced drag law is restricted to the four recovered buoys (4 437 / 1 942 col-locations). 
+
+6. Wind speed retrieval 
+
+Wind speed is retrieved in a sequence of three stages of increasing physical transparency, built on a common fea-ture basis. We first extract a compact set of acceleration-spectrum features (section 6a). A Tikhonov-regularized linear model ( TR ; section 6b) then maps these features to wind speed, providing the baseline inversion. The linear model carries a systematic residual bias—most notably the saturation of equilibrium-range energy at storm winds— which is removed by a sigmoid-gated nonlinear correction, giving the rectified model ( TR-rectified ; section 6c) re-ferred to as WITR (Wind Inversion using Tikhonov Regu-larization). WITR can be deployed directly as a standalone wind-speed retrieval and additionally serves as the teacher 
+
+model from which the compact analytical laws are dis-tilled (section 6d); both uses are reported in this paper. Both stages are trained against the scatterometer winds, with ERA5 reanalysis used during feature development. Finally, the trained model is distilled into closed-form an-alytical equations by symbolic regression (section 6d)—a spectrum-only law and a dimensionless drag law—that ex-pose the learned wind–wave relationships and remain com-putable on the buoy microcontroller. All three stages are evaluated against the reference observations in section 8. 
+
+a. Feature extraction and selection 
+
+From each MELODI session, a broad set of candidate spectral features is extracted to characterize the wind-sea state. The initial candidate pool comprises approximately 52 features organized into five categories: band-level spec-tral features ( 𝛽 4, spectral slope, level, and Toba wind es-timate in each of the four bands; 16 features), acceler-ation spectrum features (five fine-band mean levels be-tween 0.12 and 0.70 Hz, slopes, moments, and frequency percentiles; ∼20 features), global spectral shape ( 𝐻 𝑠 , 𝑓 𝑝 ,spectral width; 8 features), high-frequency noise floor and signal-to-noise ratios (5 features), and environmental vari-ables (SST, drift speed, Δ𝑇 ; 3 features). The complete candidate list is given in Appendix A. Backward elimination using LOBO cross-validation against scatterometer wind speeds reduces this pool to a minimal set of 9 acceleration-spectrum features (the rela-tive skill of the reduced and full feature sets is quantified in section 8). The selected WITR features are: 10                                       
+
+> Table 3. Dataset and collocation hierarchy: buoy counts, sample sizes, and the retrieval evaluated on each. The operational product is Tier A + B (28 buoys); Tier C (N1–N4) is a separate co-located test deployment, not part of the product. “Recovered” denotes the four Tier-B buoys that carry IMU motion data. Subset Buoys 𝑁 Used by Operational product (Tier A + B) 28 29 775 speed (all); direction (Tier B) Tier A (satellite spectra) 24 8 033 wind speed only Tier B (recovered IMU) 421 742 speed + direction; feature dev. Tier C (GPS+IMU test) 4101 directional cross-check (not in product) ERA5 collocations (Tier B) 421 742 feature dev.; ERA5 validation L2B scatterometer collocations 26 6 629 WITR (full L2B) recovered-buoy subset 44 437 reduced drag law (L2B) Tight-QC scat ( ≤8 km, ≤25 min) 25 2 433 WITR LOBO; spectral laws per-buoy LOBO reported 17 —per-buoy speed errors recovered-buoy subset 41 942 reduced drag law (tight-QC) Direction collocations (ASCAT L2) 4521 wind-direction validation
+
+1. Five acceleration band-mean levels: 𝑆 acc , the mean of 𝑆 acc ( 𝑓 ) over each band, in the bands 0.12–0.18, 0.18–0.25, 0.25–0.35, 0.35–0.50, and 0.50–0.70 Hz. 2. The high-frequency noise floor at 0.60–0.80 Hz. 3. Acceleration spectral slopes in 0.25–0.50 and 0.50– 1.00 Hz. 4. The 25th-percentile cumulative frequency 𝑓 25 .These features are all derived from the acceleration spec-trum 𝑆 acc ( 𝑓 ) and require no conversion to displacement, no motion sensor data (pitch, roll), and no environmental inputs (SST). This makes the WITR model applicable uni-formly to all three data tiers, including satellite-transmitted Tier A spectra. We note that feature selection was performed on the same scatterometer collocation corpus subsequently used for the leave-one-buoy-out evaluation. Although each test buoy is held out at the model-fitting stage—so the reported errors are not in-sample—the feature set was chosen with knowledge of the full corpus, which can render the headline RMSE mildly optimistic. The buoy-level holdout limits this effect, but we flag it explicitly; a fully nested cross-validation (inner-loop feature selection) is left for future work. 
+
+b. Tikhonov regression (TR) 
+
+The baseline retrieval is a Tikhonov-regularized (Ridge) linear model (Hoerl and Kennard 1970) mapping the 9 se-lected acceleration features X to scatterometer wind speed 
+
+y, with coefficients minimizing 
+
+ˆβ = arg min 
+
+> β
+
+∥y − Xβ∥22 + 𝛼 ∥β∥22 , (7) where 𝛼 = 1.0 is the regularization parameter, selected by cross-validation. Features enter the model as their raw                                                      
+
+> Table 4. WITR model parameters. Parameter Value Description
+> Feature selection
+> Candidate features 52 spectral +environ. pool Final WITR features 9acc. spectrum only Selection method backward elim. LOBO vs scat. Cand. motion feats. ∼11 pitch, roll, 𝜎 𝑎 𝑧 , yaw (not in WITR) Reduced-drag inputs 2𝜎 𝑎 𝑧 ,pitch (recov-ered only)
+> Tikhonov regularization (TR)
+> Regularization 𝛼 1.0 L2 penalty Feature scaling StandardScaler zero mean, unit var. Cross-validation LOBO leave-one-buoy-out
+> Regime gating (sigmoid)
+> Storm threshold 9.0 sigmoid centre (m s −1)Transition width 1.5 sigmoid width (m s −1)Storm upweighting 2–5 ×≥10 to ≥14 m s −1
+> Analytical fitting (symbolic regression)
+> Max complexity 50 / 12 nodes (full/simple) Iterations 2000 evol. cycles Operators +,−,×,÷binary
+> √·,log ,| · | ,(·) 2unary Parsimony penalty 0.003 / 0.01 complexity cost Populations 40 ×50 parallel search
+
+(linear, not log-transformed) physical values and are stan-dardized to zero mean and unit variance before fitting. The fitted linear-stage coefficients, together with the per-feature standardization constants needed to apply them, are listed in Table 5; they make the dominant predictors explicit (the mid-band acceleration levels and the 25th-percentile fre-quency carry the largest positive weight) and allow the linear stage to be evaluated by hand. 11                                              
+
+> Table 5. Linear (TR) stage parameters of the WITR wind-speed model. Each acceleration-spectrum feature is standardized using the listed scaler mean and standard deviation, then combined with the stan-dardized Ridge (Tikhonov) coefficient and intercept. These parameters define the linear (TR) stage only; the gated gradient-boosted (GBM) residual stage is not hand-reproducible and is provided with the archived model (Zenodo; see Data Availability). Bands are in Hz; 𝑆 acc is the band-mean acceleration-spectral density (linear, standardized as listed), and the 0.60–0.80 entry is the high-frequency noise floor (band-median). Scaler Scaler Std. Ridge Feature mean std coeff.
+> 𝑆 acc 0.18–0.25 1.6536 0.9755 0.9775
+> 𝑆 acc 0.25–0.35 1.7847 0.7992 1.0767
+> 𝑆 acc 0.35–0.50 1.6600 0.5625 0.7048
+> 𝑆 acc 0.50–0.70 1.3436 0.3166 −0.2328
+> 𝑆 acc 0.12–0.18 1.2494 0.9793 0.4894 Noise floor 0.60–0.80 0.4478 0.5791 −0.1388 Slope 0.50–1.00 −1.1007 0.4704 −0.3297 Slope 0.25–0.50 −0.0201 0.8105 −0.0647
+> 𝑓 25 peak freq. 0.3147 0.0576 0.7221 Intercept (m s −1)7.8166
+
+c. Scatterometer rectification (TR-rectified) 
+
+The linear TR stage cannot represent the nonlinear de-pendencies of the wind–wave relationship, particularly the saturation of equilibrium-range energy at high winds, and consequently underestimates storm winds. This residual bias is rectified by a second, nonlinear stage. A gradient-boosted decision tree (GBM; 150 iterations, max depth 3, learning rate 0.05, L2 regularization 2.0) is trained on the TR residuals y − ˆyTR against the same scatterometer refer-ence. Storm samples ( ≥10 m s −1) are upweighted during GBM training (2 × at ≥10, 3 × at ≥12, 5 × at ≥14 m s −1). The final prediction blends the two stages via a sigmoid gate: ˆ𝑈 10 = ˆ𝑈 TR + 𝑤 𝑠 ˆ𝑈 GBM ,𝑤 𝑠 = 11 + exp −( ˆ𝑈 TR − 𝑐 )/ 𝜎  , (8) where 𝑐 = 9.0 m s −1 and 𝜎 = 1.5 m s −1 are the sigmoid center and width. The GBM correction is progressively activated as the linear prediction exceeds 𝑐 , providing a smooth transition from the purely linear regime at moderate winds to the nonlinear correction at storm winds. The final prediction is clipped to [0, 35 ] m s −1.The model is trained directly against scatterometer winds (section 4e), not ERA5, and evaluated by leave-one-buoy-out cross-validation: each buoy is predicted by a model trained on the others, testing geographic gener-alization across basins. Because the scatterometer is the training target, this held-out-by-buoy design—rather than a test against a different sensor—is what guards the reported skill against in-sample optimism. 
+
+d. Analytical distillation 
+
+WITR serves here as a supervised teacher model: it learns the mapping between acceleration-spectrum shape and scatterometer wind speed and defines the empirical skill ceiling of the available feature set. The operationally useful retrieval is then obtained by distilling it into closed form. Using symbolic regression (PySR; Cranmer 2023), the trained WITR model is distilled into compact analyt-ical expressions that are transparent, dimensionally inter-pretable, and cheap enough to run onboard; the algorithm searches for Pareto-optimal equations balancing prediction accuracy against expression complexity (number of nodes in the expression tree). The distillation target is the WITR model prediction (not the ERA5 reference directly), so that the symbolic search discovers the structure learned by the regularized inversion without being confounded by representativeness noise. The input feature set comprises ∼35 variables: the physics-first spectral features, SHAP-selected top pre-dictors from the WITR model, and eight composite fea-tures encoding known physical relationships (Toba proxy √︁ 
+
+𝐻 𝑠 𝑓 𝑝 , stress proxy 𝐻 𝑠 𝑓 2 
+
+> 𝑝
+
+, roughness length 𝑧 0 = 𝑢 2
+
+> ∗
+
+/𝑔 ,and the explicit Toba inversion 𝑈 Toba with iterative drag). The search yields a hierarchy of equations of increasing complexity. Three equations of particular interest emerge at distinct complexity levels: 
+
+Proportional scaling (complexity 3). The simplest use-ful equation is a direct proportionality between wind speed and the zeroth moment of the acceleration spectrum: 
+
+𝑈 10 = 7.1 𝑚 acc 0 . (9) This captures the bulk relationship but lacks regime sensi-tivity. 
+
+Spectral law (the spectrum-only headline equation). Awave-age correction to the standard Toba inversion, requir-ing only the omnidirectional acceleration spectrum, yields a substantial improvement: 
+
+𝑈 10 = 𝑈 Toba MID 
+
+
+
+0.236 + 0.0164 𝑈 Toba LO 
+
+
+
++ 2.59 , (10) where 𝑈 Toba MID and 𝑈 Toba LO are Toba inversions from the MID and LO bands [Eq. (3)]. The LO term acts as a wave-age correction: young, actively growing seas have elevated LO-band energy relative to equilibrium, amplifying the MID-band estimate. This two-variable form requires only the omnidirectional acceleration spectrum yet captures the leading wave-age dependence in analytically transparent form, attaining RMSE 1 .07 m s −1 against the scatterometer winds (1 .20 against ERA5). 12 
+
+Extended spectral law. Adding the high-frequency band through a spectral-equilibrium-deficit term yields 
+
+𝑈 10 = 0.388 𝑈 Toba MID + 1.77 
+
++ 0.00868 
+
+
+
+𝑈 Toba LO 2 +  𝑈 Toba LO − 𝑈 Toba HI 
+
+2
+
+, (11) where the squared LO −HI difference measures the depar-ture from spectral equilibrium (active wind-sea growth or swell decay). This improves to RMSE 1 .00 m s −1 against the scatterometer winds (1 .17 against ERA5) while still using only the omnidirectional spectrum, so it remains ap-plicable to all data tiers including the satellite-transmitted Tier A. 
+
+Reduced drag law (with buoy motion; the headline an-alytical retrieval). Drawing additionally on internal buoy-motion measurements ( 𝜎 𝑎 𝑧 and pitch RMS) beyond the spectrum alone, the symbolic search—run with PySR’s dimensional-consistency constraint over Buckingham-𝜋 
+
+groups—discovers a compact dimensionless drag closure: 
+
+𝑈 10 
+
+𝑢 ∗
+
+= 26 .9 − 0.829 
+
+𝜎 𝑎 𝑧 /𝑔 + 68 .3
+
+√Re ∗ + 0.46 − 3.11 𝑟 
+
+− 0.310 
+
+𝜃 − 0.00243 Re ∗ ,
+
+(12) where 𝑢 ∗ is the friction velocity from 𝛽 4(MID) via Eq. (3), 𝜎 𝑎 𝑧 /𝑔 is the vertical-acceleration standard de-viation (RMS) normalized by gravity 𝑔 , Re ∗ = 𝑢 3
+
+> ∗
+
+/( 𝑔 𝜈 𝑎 )
+
+is the dimensionless roughness Reynolds number ( 𝜈 𝑎 =
+
+1.5 × 10 −5 m2 s−1), 𝑟 = 𝑢 ∗,LO /𝑢 ∗,HI is the spectral-maturity ratio, and 𝜃 is the buoy pitch RMS in radians. All four groups are dimensionless, so the law is dimensionally consistent by construction, and it is reduced-order —four groups rather than the five of earlier drafts. We call it the reduced drag law for a second, phys-ical reason: the leading constant 26.9 is the canonical neutral log-law value of 𝑈 10 /𝑢 ∗ (≈25–30; Smith 1980), and the high-wind term −0.00243 Re ∗ (which grows as 𝑢 3
+
+> ∗
+
+)bends the implied drag coefficient over so that it peaks near 8–11 m s −1 (𝐶 𝑑 ≈ 3.3 × 10 −3) and then decreases 
+
+at higher winds ( 𝐶 𝑑 ≈ 2.3 × 10 −3 by 14–18 m s −1)— reproducing the observed saturation and reduction of the air–sea drag coefficient at high wind (Powell et al. 2003; Donelan et al. 2004). The sea-state term −0.829 /( 𝜎 𝑎 𝑧 /𝑔 )
+
+and the viscous–maturity term |68 .3/√Re ∗ + 0.46 − 3.11 𝑟 |
+
+encode, respectively, the energy level and the smooth-to-rough/maturity transition. The reduced drag law is most valuable at the extremes: against the scatterometer winds it attains a leave-one-buoy-out RMSE of 0.94 m s −1 (0.93 in sample) and cuts the storm-wind ( >12 m s −1) RMSE to 1.28 m s −1, at the cost of requiring the IMU motion inputs available only for the recovered buoys. The convergence of these structures across independent runs with different initializations suggests they reflect gen-uine wind–wave coupling physics rather than statistical artifacts. The reduced drag law [Eq. (12)] uses 𝛽 4 in three bands (giving 𝑢 ∗ and the maturity ratio 𝑟 ) together with 
+
+𝜎 𝑎 𝑧 and pitch RMS—four dimensionless groups—requires 
+
+∼20 floating-point operations, and is fully implementable on the buoy’s onboard microcontroller; its accuracy is as-sessed in section 8. 
+
+7. Wind direction retrieval 
+
+Unlike wind speed, which is derived statistically from spectral energy levels, wind direction is estimated from the directional properties of the high-frequency wind-sea using a physics-based approach that requires no training data. 
+
+a. Windsea directional moments 
+
+The wind direction is inferred from the peak direction of high-frequency wind waves, which are generated lo-cally by the wind and align with the wind vector within minutes. The key insight is that selecting a sufficiently high frequency band—above the swell-dominated peak— isolates the locally generated wind-sea whose propagation direction reflects the current wind. The directional Fourier coefficients 𝑎 1 ( 𝑓 ) and 𝑏 1 ( 𝑓 )
+
+are computed from IMU-derived surface slopes and verti-cal acceleration as described in section 5b [Eq. (6)]. For wind direction retrieval, these moments are averaged over a wind-sea frequency band with energy weighting: ¯𝑎 1 =
+
+Í 𝑓 ∈band 𝑎 1 ( 𝑓 ) 𝑃 𝑧 ( 𝑓 )
+
+Í 𝑓 ∈band 𝑃 𝑧 ( 𝑓 ) , ¯𝑏 1 =
+
+Í 𝑓 ∈band 𝑏 1 ( 𝑓 ) 𝑃 𝑧 ( 𝑓 )
+
+Í 𝑓 ∈band 𝑃 𝑧 ( 𝑓 ) ,
+
+(13) and the wind-sea peak direction is 
+
+𝐷 𝑝 =  90 ◦ − arctan2 ( ¯𝑏 1, ¯𝑎 1) mod 360 ◦ , (14) in compass convention (clockwise from north, direction from which the wind blows). The mapping from the truncated Fourier moments to the directional distribution is standard (Longuet-Higgins 1975; Kuik et al. 1988): the full spectrum 𝐷 ( 𝑓 , 𝜃 ) uses all four coefficients (𝑎 1, 𝑏 1, 𝑎 2, 𝑏 2), but the mean wave di-rection and its coherence are fixed by the first-order pair 
+
+(𝑎 1, 𝑏 1) alone, the second pair (𝑎 2, 𝑏 2) only setting the angular width of the lobe (Kuik et al. 1988; Lygre and Krogstad 1986). For wind-sea direction the first pair is not merely sufficient but more robust, as documented in Fig. 5: comparing the four coefficients from the GNSS-velocity and IMU heave-tilt methods on the co-located N4 (Tier-C) deployment, the quadrature coefficients 𝑏 1, 𝑏 2 de-grade sharply for both sensors in the wind-sea band (the inter-session scatter of 𝑏 1 roughly quadruples between the swell and wind-sea bands), whereas the along-axis 𝑎 1 stays 13 
+
+the best-behaved moment. Although the quadrature coef-ficients thus become noisier at high frequency, the energy-weighted first-order direction remains stable after coher-ence screening and temporal filtering, as confirmed by the scatterometer validation (section 8c). On N4, where both sensors are available, the IMU and GNSS (𝑎 1, 𝑏 1) directions agree to within −1.8◦ in the mean (standard deviation 8 ◦) across the energetic swell band, so the IMU heave-tilt estimate recovers the same first-moment direction as the GNSS orbital velocity—the configuration used by the recovered Tier B buoys, which carry no GNSS. Because N4 itself drifted under swell with little wind-sea energy, the decisive wind-sea-band test is the collocation of the IMU-only 𝐷 𝑝 against scatterometer winds (Fig. 7; circular MAE 8 .3◦). The choice of frequency band is critical. The standard approach of using the 0.35–0.60 Hz band suffers from swell contamination in mixed sea states, where long-period swell energy leaks into the directional moments and biases the retrieved direction. We instead use the 0.60–0.90 Hz band, where the higher frequencies are dominated by locally gen-erated wind-sea and are effectively free of swell influence; the resulting reduction in direction error relative to the con-ventional 0.35–0.60 Hz choice is quantified in section 8 (Table 10). As with the speed model, the band limits, coherence threshold, and despiking/smoothing parame-ters were selected against the same scatterometer direc-tion collocations later used to report performance; because the direction retrieval is otherwise untrained (no fitted re-gression), this tuning involves only a handful of discrete choices, but the resulting direction errors should likewise be read as mildly optimistic upper-bound estimates of skill rather than fully out-of-sample. The directional coherence 𝑟 1 =√︃ ¯𝑎 21 + ¯𝑏 21 quantifies the quality of the directional estimate. Values of 𝑟 1 ≥ 0.4indicate a well-defined unimodal wind-sea, while 𝑟 1 < 0.2signals ambiguous conditions such as swell–wind-sea cou-pling transitions or rapidly turning winds. 
+
+b. Filtering and quality control 
+
+The raw session-by-session 𝐷 𝑝 series carries iso-lated outliers from transient coherence drops, heading-calibration errors, or brief swell intrusions. These are removed by a multi-stage pipeline operating on 
+
+(sin 𝐷 𝑝 , cos 𝐷 𝑝 ) to respect the 0 ◦/360 ◦ wrap: iterative Savitzky–Golay outlier detection (window 11, order 2, 35 ◦
+
+threshold, three passes) and consecutive-jump flagging, linear interpolation of the flagged points, a final Savitzky– Golay smooth (window 5), and a two-pass median de-spike. Applied twice per buoy, it yields a continuous, 100%-coverage series while preserving genuine direction changes. Sessions with 𝑟 1 < 0.2 in the wind-sea band are assigned a quality flag ( quality flag = 1), indicating reduced confidence. These sessions are retained in the product but may be filtered by downstream applications. 
+
+8. Results and validation 
+
+This section validates the retrievals developed above against the independent reference observations of sec-tion 4. We present wind speed and wind direction together, stepping through the three headline speed retrievals in or-der of increasing physical transparency—the classic Toba baseline, the data-driven WITR model (introduced via its 52-feature precursor and the distilled 9-feature production form), and the reduced drag law—then the direction re-trieval, the combined wind-vector time series spanning the model progression and the scatterometer overpasses, and finally an error summary that consolidates the per-reference statistics. 
+
+a. Speed validation 
+
+Table 6 summarizes the wind speed validation against both ERA5 reanalysis and the scatterometer collocations (by leave-one-buoy-out cross-validation, since the speed model is trained on the scatterometer winds) pooled across all five tight-QC scatterometer products, spanning four satellites (ASCAT MetOp-B/C, HY-2B/C; MetOp-B con-tributes both a 12.5 km coastal and an L2B product). For comparison, a traditional single-band Toba inversion (𝑈 Toba LO , on the LO band) is included as a baseline, along with the four analytical fits of increasing complexity de-rived in section 6d. Table 6 shows a clear progression from the traditional single-band Toba inversion (1.83 m s −1 vs. pooled scat) through the analytical fits to WITR (0.90 m s −1 scat, 1.21 m s −1 ERA5)—a factor-of-two improvement over the spectrum-only baseline. The classic Toba level saturates at high winds (Fig. 6a,b), consistent with the ∼2 m s −1
+
+reported for the single-band Sofar method (Voermans et al. 2020; Beckman and Long 2022). WITR was de-veloped as a Ridge+GBM model on the full 52-feature pool ( ∼0.99 m s −1 leave-one-buoy-out) then distilled by backward elimination to the nine acceleration-spectrum features used throughout ( ∼0.90 m s −1; Fig. 6c,d), which are available for all data tiers. Its sigmoid-gated architec-ture holds storm-wind ( >12 m s −1) RMSE at 1.21 m s −1
+
+where the single-band inversion saturates (Table 7); across sources the C-band ASCAT instruments give slightly lower RMSE (0.85 m s −1) than the larger-footprint Ku-band HY-2 (0.96 m s −1; Table 8). The closed-form reduced drag law [Eq. (12)] reaches 0.93 m s −1 vs. scat (0.94 leave-one-buoy-out, so not over-fit) with four dimensionless groups (Fig. 6e,f); its high-wind term holds storm RMSE at 1.28 m s −1—far below the spectrum-only spectral law’s 2.00—so only WITR’s gradient-boosted residual correc-tion still separates the two. 14 1.00 
+
+> 0.75
+> 0.50
+> 0.25
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> a1
+
+(a)   
+
+> a1tight, usable
+> across full band
+> swell:
+> IMU envelope
+> wider
+> GNSS (median)
+> IMU (median) 1.00
+> 0.75
+> 0.50
+> 0.25
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> b1
+
+(b) b1 scatter widens        
+
+> at high f(both sensors)
+> 0.05 0.1 0.2 0.4 0.7 1.0
+
+Frequency [Hz] 
+
+> 1.00
+> 0.75
+> 0.50
+> 0.25
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> a2
+
+(c)      
+
+> 0.05 0.1 0.2 0.4 0.7 1.0
+
+Frequency [Hz] 
+
+> 1.00
+> 0.75
+> 0.50
+> 0.25
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> b2
+
+(d)   
+
+> b2buried in noise
+> at high f
+
+N4 directional Fourier coefficients: GNSS vs IMU (median of 85 sessions) 
+
+Fig. 5. Directional Fourier coefficients 𝑎 1 , 𝑏 1 , 𝑎 2 , 𝑏 2 versus frequency, comparing GNSS and IMU on the same N4 (Tier C) sessions (median of 85). In the long-wave (swell) band the GNSS coefficients are clean and the IMU noisier but consistent; the 𝑏 -coefficients degrade at high frequency for both sensors, whereas the 𝑎 -coefficients (hence the energy-weighted peak direction 𝐷 𝑝 ) stay usable, so the IMU alone suffices for wind-sea direction. 
+
+The bias structure is wind-speed dependent: WITR overestimates by +0.5 m s −1 at calm winds (0–5 m s −1)and underestimates by −0.1 m s −1 at moderate winds (5– 15 m s −1), with a larger negative bias of −0.8 m s −1 above 15 m s −1. The calm-wind overestimation is partly an ar-tifact of comparing against scatterometers, which have re-duced sensitivity below 3 m s −1; the storm underestimation reflects incomplete equilibrium at the highest wind speeds, where the spectral level lags the rapidly increasing wind forcing. We caution that the collocated scatterometer sam-ple thins rapidly toward both wind-speed extremes—calm winds below 3 m s −1 and storms above 15 m s −1—so the per-bin bias and RMSE at the tails rest on too few matchups to support a robust fine-grained error model across the full wind-speed range; we therefore report the bias structure only at the coarse regime level of Table 6 and refrain from over-interpreting the extremes. Within the well-populated moderate-to-fresh range (5–12 m s −1), where the bulk of the collocations lie, all three retrievals are near-unbiased. 
+
+b. Analytical equation performance 
+
+The reduced drag law [Eq. (12)] provides an indepen-dent assessment of the wind retrieval because it uses an entirely different set of input variables (four dimension-less groups derived from 𝛽 4 in three bands, 𝜎 𝑎 𝑧 , and pitch RMS) compared to the nine acceleration-band features of WITR. Because the closed form requires the IMU motion inputs 𝜎 𝑎 𝑧 and pitch RMS, it can be evaluated only on the 15 
+
+Table 6. Wind speed validation for the three headline retrievals—WITR (the full 9-feature transfer-relation model, section 6b); the spectral law [Eq. (10)], the best spectrum-only form; and the reduced drag law that additionally uses buoy motion [Eq. (12)]—together with the traditional Toba baseline and the intermediate analytical fits, listed in order of increasing complexity. RMSE in m s −1; 𝑟 is Pearson correlation; 𝑁 𝑣 is the number of input variables. “Scat” denotes the scatterometer reference pooled across all five tight-QC products (four satellites: ASCAT MetOp-B/C, HY-2B/C). The spectral laws use only the acceleration spectrum; the reduced drag law ( 𝑁 𝑣 = 4) additionally requires the IMU vertical acceleration and pitch; WITR uses nine acceleration-spectrum features. vs. ERA5 vs. scat (pooled) Model 𝑁 𝑣 RMSE 𝑟 RMSE 𝑟 Eq. Toba law (single-band) † 1 1.82 0.88 1.80 0.88 (3) Proportional 1 1.30 0.91 — — (9) Spectral law 2 1.20 0.91 1.07 0.93 (10) Extended spectral law 3 1.17 0.92 1.00 0.94 (11) 
+
+Reduced drag law 4 1.17 0.92 0.93 0.94 (12) 
+
+WITR 9 1.21 0.92 0.90 0.94 —Sample sizes: vs. ERA5, 𝑁 = 21 742 recovered-IMU sessions; vs. scat, 𝑁 = 2 433 tight-QC collocations (WITR by leave-one-buoy-out, the spectral laws in closed form), reducing to the 𝑁 = 1 942 recovered-buoy subset for the motion-based reduced drag law. The reduced-drag-law scat RMSE is the closed-form in-sample value (0.93); leave-one-buoy-out gives 0.94, so the form is not over-fit. †Toba is the classic single-band equilibrium inversion [Eq. (3)] on the LO band with one equilibrium constant fit on the ERA5 corpus (physics-only, no per-buoy recalibration). 
+
+Table 7. Wind-speed RMSE (m s −1) by wind regime against the scatterometer reference pooled over all five tight-QC products. Toba, the spectral law, and WITR are evaluated on the full 2 433-collocation tight-QC corpus; the motion-based reduced drag law on its 1 942-collocation recovered-buoy subset. The reduced drag law and WITR are the most storm-robust (storm RMSE 1.28 and 1.21 m s −1), whereas the single-band Toba inversion and the spectrum-only spectral law saturate and degrade at high wind ( >12 m s −1). All four are within ∼0.2 m s −1 in the common 5–12 m s −1 range. Wind regime Toba Spectral Reduced drag WITR 0–5 m s −1 2.03 1.02 0.63 0.91 5–8 m s −1 2.09 0.91 0.86 0.83 8–12 m s −1 1.45 0.97 1.03 0.88 
+
+>12 m s −1 1.56 2.00 1.28 1.21 
+
+four recovered buoys (4 437 collocations, 67% of the L2B set); the 22 historical satellite-transmitted buoys record spectra but not motion data. On that subset the reduced drag law achieves RMSE = 0.97 m s −1 (Table 8), about 0.05 m s −1 above WITR. It is closest to WITR for the C-band ASCAT instruments (0.90–0.93 m s −1) and higher for the Ku-band HY-2 instruments (1.00 m s −1), consis-tent with the larger representativeness noise of the 25-km Ku-band footprint. Per-regime, the reduced drag law tracks WITR within 
+
+∼0.1 m s −1 across most of the wind range, including storm winds where its high-wind drag-reduction term holds the 
+
+>12 m s −1 RMSE at 1.28 m s −1 (versus WITR’s 1.21); only WITR’s nonlinear gradient-boosted correction above the sigmoid threshold separates them. Nevertheless, for operational applications where onboard computation is re-quired and an accuracy of ∼1 m s −1 is sufficient, the an-alytical equation provides a viable alternative that can be implemented on a microcontroller in ∼20 floating-point operations. 
+
+c. Direction validation 
+
+Table 9 validates wind direction against independent scatterometer collocations using the circular mean absolute error (MAE, the mean of the wrapped angular difference); the GNSS drift bearing (over a ±1.5 h centered window) and ERA5 are included for comparison. The IMU 𝐷 𝑝 achieves a circular MAE of 9.4 ◦ against 521 ASCAT L2 collocations (best at the trade-wind EX-PLOI 06, 5.8 ◦), versus 52 ◦ for the drift bearing—surface currents are not a usable wind-direction proxy. The error is wind-speed dependent (MAE exceeding 25 ◦ near 3 m s −1,falling to ∼7◦ at 13 m s −1), as stronger winds raise the wind-sea coherence 𝑟 1 and sharpen the directional moments. On the larger multi-satellite L2B set the MAE is 9.6 ◦, falling to 8.8 ◦ above 4 m s −1; against the other references the MELODI 𝐷 𝑝 reaches 8.9 ◦ versus ERA5 and 8.3 ◦ versus the tight-QC scatterometer winds for winds above 4 m s −1
+
+(Fig. 7). 
+
+Band sensitivity. The choice of the 0.60–0.90 Hz wind-sea band is justified quantitatively in Table 10, which re-extracts 𝐷 𝑝 in three candidate bands through the identical pipeline on the same recovered-buoy sessions. Moving from the conventional 0.35–0.60 Hz band to 0.60–0.90 Hz lowers the circular MAE from 9.4 ◦ to 8.9 ◦ against ERA5 and from 9.3 ◦ to 8.3 ◦ against the scatterometer; pushing higher (0.70–1.00 Hz) yields no further gain. Tellingly, the conventional band carries the highest directional coher-ence (median 𝑟 1 = 0.56 versus 0 .43) yet the largest error— the fingerprint of long-period swell leaking coherent but mis-aligned energy into the directional moments, precisely 16 0 5 10 15 20 
+
+0
+
+5
+
+10 
+
+15 
+
+20 
+
+> Classic Toba
+> retrieved  U10  (m s  1)
+
+RMSE = 1.82 
+
+MAE = 1.42 
+
+r = 0.878 
+
+N = 21742 
+
+(a) 
+
+vs ERA5 
+
+0 5 10 15 20 
+
+0
+
+5
+
+10 
+
+15 
+
+20 
+
+RMSE = 1.80 
+
+MAE = 1.39 
+
+r = 0.882 
+
+N = 2433 
+
+(b) 
+
+vs scatterometer 
+
+0 5 10 15 20 
+
+0
+
+5
+
+10 
+
+15 
+
+20 
+
+> WITR
+> retrieved  U10  (m s  1)
+
+RMSE = 1.21 
+
+MAE = 0.88 
+
+r = 0.924 
+
+N = 21742 
+
+(c) 
+
+0 5 10 15 20 
+
+0
+
+5
+
+10 
+
+15 
+
+20 
+
+RMSE = 0.90 
+
+MAE = 0.69 
+
+r = 0.944 
+
+N = 2433 
+
+(d) 
+
+0 5 10 15 20 
+
+Reference U10 (m s 1)
+
+0
+
+5
+
+10 
+
+15 
+
+20 
+
+> Reduced drag law
+> retrieved  U10  (m s  1)
+
+RMSE = 1.17 
+
+MAE = 0.89 
+
+r = 0.917 
+
+N = 21742 
+
+(e) 
+
+0 5 10 15 20 
+
+Reference U10 (m s 1)
+
+0
+
+5
+
+10 
+
+15 
+
+20 
+
+RMSE = 0.93 
+
+MAE = 0.70 
+
+r = 0.939 
+
+N = 1942 
+
+(f) 
+
+10 0
+
+10 1
+
+10 2
+
+> count (log scale)
+
+Fig. 6. Wind-speed validation for the three headline retrievals against both references, as fine-scale density hexbins (log colour scale) with the 1:1 line and statistics. Rows: classic Toba (a, b), WITR (c, d), reduced drag law (e, f). Columns: retrieved versus ERA5 (left) and versus the pooled scatterometer winds (right). RMSE (m s −1): Toba 1.82/1.80, WITR 1.21/0.90, reduced drag law 1.17/0.93 (ERA5/scat). The classic inversion shows the characteristic high-wind saturation; the data-driven and analytical retrievals tighten markedly about the 1:1 line. 
+
+the contamination the higher band avoids. The aggre-gate improvement is modest because it is concentrated in mixed seas where swell and wind-sea coexist: at the swell-exposed OTC25 16 buoy the ERA5 MAE falls from 10.2 ◦17 
+
+Table 8. Per-satellite validation of the WITR model and the reduced drag law [Eq. (12)]. RMSE and bias in m s −1; 𝑟 is Pearson correlation. WITR uses acceleration-spectrum features available for all buoys and is evaluated here on the full L2B set, which includes the four recovered training buoys in-sample; the held-out (leave-one-buoy-out) estimate is the 0.90 m s −1 value in Table 6. The reduced drag law additionally requires the IMU motion inputs ( 𝜎 𝑎 𝑧 , pitch RMS), recorded only by the four recovered buoys, so it is evaluated on that subset (4 437 collocations, 67% of the L2B set); the 22 historical satellite-transmitted buoys provide spectra but not motion data. WITR (full L2B) Reduced drag law (recovered subset) Satellite 𝑁 RMSE Bias 𝑟 𝑁 RMSE Bias 𝑟 
+
+ASCAT MetOp-B (12.5 km) 1 424 0.85 +0.07 0.952 926 0.90 +0.04 0.942 ASCAT MetOp-C (12.5 km) 1 275 0.84 +0.07 0.951 838 0.93 +0.07 0.938 HY-2B HSCAT (25 km) 1 906 0.96 +0.09 0.942 1 257 1.00 +0.04 0.935 HY-2C HSCAT (25 km) 2 024 0.96 +0.02 0.942 1 416 1.00 +0.04 0.934 
+
+All 6 629 0.92 +0.06 0.945 4 437 0.97 +0.05 0.936 
+
+Table 9. Wind direction validation. MAE and bias in degrees. The 
+
+≥4 m s −1 filter excludes light winds where scatterometer direction is unreliable. OTC25 20 contributes the remaining 8 of the 521 ASCAT L2 collocations—too few for a separate per-buoy row. Method Buoy 𝑁 MAE ( ◦) Bias ( ◦)
+
+IMU 𝐷 𝑝 (0.6–0.9 Hz) vs. ASCAT L2 
+
+OTC25 04 250 10.5 +2.5 EXPLOI 06 155 5.8 −0.5 OTC25 16 108 9.3 +7.4 All L2 521 9.4 +3.1 
+
+Reference baseline vs. ASCAT L2 (ERA5 reanalysis) 
+
+ERA5 All 521 10.8 +1.2 
+
+IMU 𝐷 𝑝 (0.6–0.9 Hz) vs. multi-satellite L2B 
+
+All L2B 4 437 9.6 +2.4 All L2B ( ≥4 m s −1) 4 085 8.8 +2.2 
+
+Table 10. Wind-direction band sensitivity. Circular MAE (winds 
+
+≥4 m s −1) of the filtered 𝐷 𝑝 against ERA5 and the tight-QC scatterom-eter reference, the fraction of low-coherence ( 𝑟 1 < 0.2) sessions, and the median 𝑟 1, for three candidate wind-sea bands. All bands, and the headline validation (Table 9, Fig. 7), are computed through the identical pipeline on the same 21 742 recovered-buoy sessions, so the chosen-band values match the headline exactly and the columns are directly comparable. Band (Hz) MAE/ERA5 MAE/scat flagged median (◦) (◦) (%) 𝑟 1
+
+0.35–0.60 (conventional) 9.4 9.3 1.0 0.56 0.60–0.90 ( chosen ) 8.9 8.3 1.7 0.43 0.70–1.00 (high) 9.1 8.5 1.8 0.39 
+
+(0.35–0.60 Hz) to 8.2 ◦ (0.60–0.90 Hz), whereas the trade-wind EXPLOI 06 record, dominated by a clean wind-sea, is essentially band-independent (7.2 ◦ versus 7.3 ◦). 
+
+d. Wind-vector time series 
+
+Figure 8 assembles the speed and direction retrievals into a single wind-vector time series for the OTC25 04 buoy during a moderate-wind period in September 2025 (ERA5 peak ∼15 m s −1). The speed panel overlays the ERA5 ref-erence, the classic Toba inversion, the WITR production model, the reduced drag law, and the collocated scatterom-eter overpasses: WITR tracks ERA5 and the scatterometer passes closely across the full range of wind variations, the reduced drag law follows within ∼1 m s −1, and the clas-sic Toba inversion is noisier and tends to underestimate the stronger winds. The direction panel overlays ERA5, the filtered MELODI 𝐷 𝑝 , and the scatterometer passes, tracking the direction shifts closely. 
+
+e. Bias structure across the wind range 
+
+Figure 9 resolves the wind-speed-dependent bias of the three headline models in 2 m s −1 reference bins against both references—more diagnostic than a single pooled RMSE. All three over-estimate the lightest winds and under-estimate the strongest, but the high-wind under-estimate is ordered: the classic Toba inversion and the spectrum-only forms saturate first, while WITR and the reduced drag law hold longest, keeping a near-centred bias across the well-populated 4–14 m s −1 range against the scatterometer. The larger biases against ERA5 at the ex-tremes partly reflect ERA5’s own limitations there. The scatterometer sample thins to a handful of points above 16 m s −1 (shaded), so the strong-wind bias is poorly con-strained by either reference (section 10f). 
+
+9. Operational handling of the retrievals 
+
+To show that the retrievals scale to a multi-buoy fleet, this section demonstrates how the WITR wind speed and the IMU-based direction are combined, quality-flagged, and assembled into a single wind-vector dataset (written as a NetCDF file), and reports the resulting multi-buoy performance. 18 0 90 180 270 360 
+
+Reference direction (deg, met.)         
+
+> 0
+> 90
+> 180
+> 270
+> 360
+> MELODI  Dp (deg, met.)
+> circ-MAE =8.9 deg
+> bias =-0.2 deg
+> N=18467
+
+(a) 
+
+MELODI Dp vs ERA5 wind direction     
+
+> 090 180 270 360
+
+Reference direction (deg, met.)         
+
+> 0
+> 90
+> 180
+> 270
+> 360
+> MELODI  Dp (deg, met.)
+> circ-MAE =8.3 deg
+> bias =+2.5 deg
+> N=1821
+
+(b) 
+
+MELODI Dp vs scatterometer direction    
+
+> 10 0
+> 10 1
+> count (log scale)
+> Fig. 7. MELODI wind-sea 𝐷 𝑝 (0.6–0.9 Hz, filtered) versus (a) ERA5 direction (circular MAE 8.9 ◦) and (b) the scatterometer reference (circular MAE 8.3 ◦), for winds above 4 m s −1. The 1:1 line and circular statistics are shown.
+
+a. Dataset description 
+
+The assembled wind-vector dataset contains 29 775 ses-sions from 28 buoys, spanning March 2025 to March 2026 across four ocean basins: the northeast Atlantic (18 800 sessions), the Indian Ocean (8 600), the Mediterranean Sea (1 600), and the tropical Atlantic (700). Each session car-ries the following variables: WITR wind speed (m s −1), wind direction ( ◦, where available), friction velocity 𝑢 ∗
+
+(m s −1), latitude, longitude, buoy identifier, processing type, and a quality flag. Two processing types are distinguished: 
+
+• Type 1 (Tier A, 8 033 sessions, 24 buoys): wind speed from satellite-transmitted acceleration spectra only. No direction information is available. 
+
+• Type 2 (Tier B, 21 742 sessions, 4 buoys): wind speed and direction from recovered high-rate IMU data. Wind speed coverage is 100% (all sessions produce a valid estimate). Wind direction is available for 73% of the product (Type 2 sessions only). Quality flags are as-signed as follows: flag 0 (good, 88% of sessions) indicates 
+
+𝑟 1 ≥ 0.2 in the wind-sea band and no anomalous spectral features; flag 1 (10%) indicates reduced directional confi-dence ( 𝑟 1 < 0.2); flag 2 (2%) indicates missing or suspect spectral data. 
+
+b. Multi-buoy performance 
+
+The WITR model is validated per buoy by leave-one-buoy-out cross-validation against scatterometer winds (the per-reference bias structure is shown in Fig. 9). Across the 17 tight-QC buoys with at least 10 collocations, the per-buoy RMSE for wind speed ranges from 0.69 to 1.26 m s −1
+
+(median 0.93 m s −1). The four Tier B buoys with the most extensive collocation records—OTC25 04, EXPLOI 06, OTC25 16, and OTC25 20—retrieve at RMSE near or be-low 1.0 m s −1 (0.89, 0.76, 0.97, and 1.02 m s −1 respectively, with EXPLOI 06 in the Indian Ocean trade-wind belt the most accurate), demonstrating that the WITR model gen-eralizes across ocean basins. The largest per-buoy errors (>1.2 m s −1) occur at historical satellite-transmitted buoys with only a handful of collocations, where the small sample size dominates the RMSE. For Tier A buoys (satellite-transmitted spectra), the WITR model is applied using the same 9 acceleration-spectrum features extracted from the onboard-computed 
+
+𝑆 acc ( 𝑓 ). Evaluated against ERA5, the median per-buoy RMSE across the 24 Tier A buoys is 1.3 m s −1—above the sub-metre errors achieved against scatterometers on the recovered Tier B buoys, reflecting the lower spectral resolution of the satellite-transmitted data (128 bins, no merging) compared with the full Welch estimation from recovered data, and ERA5’s larger representativeness er-ror relative to the tight scatterometer collocation. 
+
+c. Combined wind vector quality 
+
+The combined wind-vector error, the magnitude of the vector difference |UWITR −Uscat |, has a median of 1.4 m s −1
+
+across all L2B collocations with valid direction (Fig. 8)— comparable to the vector error reported for moored NDBC anemometer buoys against scatterometers (1.1–1.5 m s −1;Yang et al. 2019). 19 0.0 
+
+> 2.5
+> 5.0
+> 7.5
+> 10.0
+> 12.5
+> 15.0
+> 17.5
+> Wind speed (m s  1)
+
+(a) ERA5 
+
+> Toba (LO, recal.)
+> WITR
+> Reduced drag law
+> ASCAT-B
+> ASCAT-C
+> HY-2B
+> HY-2C
+> Sep 08
+> Sep 15
+> Sep 22
+> Sep 29
+
+Date 
+
+> 0
+> 90
+> 180
+> 270
+> 360
+> Wind direction (deg from N)
+
+(b)     
+
+> ERA5
+> MELODI (0.6 0.9 Hz)
+> ASCAT-B
+> ASCAT-C
+> HY-2B
+> HY-2C
+> Fig. 8. Wind-vector time series at OTC25 04 (moderate-wind period, September 2025; ERA5 peak ∼15 m s −1). Top: wind speed from ERA5, the classic Toba inversion, WITR, the reduced drag law, and the collocated scatterometer overpasses. Bottom: wind direction from ERA5, the filtered MELODI 𝐷 𝑝 , and the scatterometer passes.
+
+10. Discussion 
+
+a. Comparison with established anemometer networks 
+
+Table 11 places the MELODI results in the context of published moored-buoy validation statistics. The global NDBC–TAO–PIRATA–RAMA anemometer net-work achieves RMSE of 1.11–1.24 m s −1 against ASCAT across 206 moored buoys and more than 1 .1 × 10 5 colloca-tions (Yang et al. 2019). The official KNMI/OSI SAF AS-CAT validation reports an equivalent scatter of ∼1.05 m s −1
+
+(Verhoef and Stoffelen 2013). Against the HY-2 series (Ku-band), moored buoys achieve 0.95–1.07 m s −1 (Zhao et al. 2021, 2023). The MELODI WITR model, despite lacking a dedicated wind sensor, achieves a pooled-scatterometer RMSE of 0.90 m s −1 by leave-one-buoy-out cross-validation (0.92 on the full L2B set, in-sample for the recovered buoys). This places its scatterometer difference at or below the lower end of the published moored-buoy–scatterometer range and on a par with the best HY-2 configurations. We stress that this is a comparison of differences against the same scatterom-eter reference , not a claim of equivalence to a calibrated mast anemometer: the moored figures are themselves buoy-minus-scatterometer scatter, and both terms carry representativeness and reference error. The reduced drag law (0.97 m s −1 on the recovered-buoy subset) matches the KNMI/OSI SAF scatterometer-difference benchmark (∼1.05 m s −1)—from four dimensionless groups and no machine-learning components. 
+
+b. Co-deployment with a Sofar Spotter 
+
+The Sofar Spotter is the established commercial drifter that operationally retrieves wind from the wave spectrum via the single-band inversion of Voermans et al. (2020), and is the natural benchmark for our retrieval. During the OTC25 campaign a Spotter (SPOT-32265C) drifted alongside the recovered MELODI buoy OTC25 16 for 14 days (14–28 May 2025, NE Atlantic, ∼55 ◦N 17 ◦W; within <30 km for the first week). We compare both against the same ERA5 reference on the 665 co-located hourly samples (Table 12), treating the Spotter as a peer instrument, not ground truth. 20 2.5 5.0 7.5 10.0 12.5 15.0 17.5 
+
+ERA5 wind speed (m s 1)
+
+> 3
+> 2
+> 1
+> 0
+> 1
+> 2
+> mean bias: model  reference (m s  1)
+
+(a) 
+
+vs ERA5 ( N = 21, 742 )    
+
+> 510 15 20 25
+
+scatterometer wind speed (m s 1)
+
+(b) scat  
+
+> 6 pts
+> 16 m s 1
+
+vs pooled scatterometer 
+
+> Toba
+> WITR
+> Reduced drag law
+
+Mean wind-speed bias by 2 m s 1 reference bin       
+
+> Fig. 9. Mean wind-speed bias (model −reference) in 2 m s −1reference bins, for Toba, WITR, and the reduced drag law, against (a) ERA5 and (b) the pooled scatterometer. All models over-estimate light winds and under-estimate strong winds; the reduced drag law and WITR resist the high-wind under-estimate longest. The shaded band in (b) marks ≥16 m s −1, where the scatterometer corpus has ≤6 collocations and none above 17.4 m s −1, so the strong-wind bias is not robustly constrained.
+
+Against ERA5, the two platforms show a comparable speed scatter, with the MELODI series the tighter here (RMSE 1.67 vs 2.10 m s −1; the Spotter consistent with the ∼2 m s −1 of Voermans et al. (2020)), though the Spot-ter is less biased ( +0.14 vs +0.88 m s −1, the MELODI offset reflecting its calm-wind overestimation). MELODI direction is substantially better (16.5 ◦, 𝑟 circ = 0.98 vs 40.0 ◦,0.83), the gap concentrated at low wind: below 5 m s −1
+
+the Spotter degrades to 81 ◦ RMSE—direction being poorly defined when the wind-sea is weak—whereas the despiked MELODI estimate holds at 29 ◦; above 8 m s −1 both are accurate (10 ◦ vs 16 ◦). The co-deployment time series (Fig. 10) shows the Spotter visibly noisier at low wind. The difference is methodological: the Spotter reads a single equilibrium level and the (𝑎 1, 𝑏 1) at that band, whereas MELODI combines a multi-band, scatterometer-trained speed regression with high-frequency directional moments and circular despiking. The comparison is nec-essarily illustrative (a single 14-day window, ERA5 as the common reference, and dependent on the Spotter pro-cessing version and deployment configuration), but within those limits MELODI is at least as accurate as the Spot-ter in both components, the difference being largest at low wind. The signature is not unique to this window: it is consistent with the yearlong moored-Spotter statistics of Beckman and Long (2022) (direction 95 .7◦ RMSE; speed 2.1 m s −1 with a low bias), suggesting the low-wind limi-tation is largely methodological rather than site-specific. 
+
+c. Accuracy floor and representativeness 
+
+The achievable accuracy for any buoy-based wind es-timate validated against scatterometers is bounded by the scatterometer’s own measurement error. Triple and quin-tuple collocation analyses (Vogelzang and Stoffelen 2021, 2022) estimate the ASCAT wind component error stan-dard deviation at approximately 0.7 m s −1, while ERA5 errors range from 0.8 to 1.1 m s −1 depending on latitude. Moored buoys exhibit the largest random errors among the three systems, primarily due to spatial representativeness: a point measurement is compared with a satellite footprint of 12.5–25 km, and subgrid-scale turbulent fluctuations contribute ∼0.5 m s −1 to the mismatch (Belmonte Rivas and Stoffelen 2021). The MELODI LOBO RMSE of 0.90 m s −1 thus in-cludes contributions from (i) the model retrieval error, (ii) the scatterometer measurement error ( ∼0.7 m s −1), and (iii) spatial and temporal representativeness noise. If the scatterometer measurement error contributes approx-imately 0.7 m s −1 in quadrature, the intrinsic MELODI retrieval error is of order √0.90 2 − 0.72 ≈ 0.6 m s −1, at or below the scatterometer’s own measurement accuracy. This suggests that further improvement beyond ∼0.9 m s −1
+
+RMSE would require either higher-resolution scatterome-ter references or a tighter collocation window. The tempo-ral part of this budget is already negligible: the scatterom-eter RMSE is essentially flat across the overpass time dif-ference (0.71–0.81 m s −1 across bins; rank correlation with 21 
+
+Table 11. Wind speed RMSE (m s −1) against scatterometer references: MELODI models compared with published moored-buoy benchmarks and triple collocation estimates. System RMSE Bias 𝑁 Reference 
+
+MELODI (this study) 
+
+WITR (LOBO) 0.90 +0.05 2 433 5 products ∗
+
+WITR (full L2B) 0.92 +0.06 6 629 4 satellites Reduced drag law 0.97 +0.05 4 437 4 satellites Extended spectral law 1.00 −0.02 4 437 4 satellites Toba (single-band) 1.75 −0.41 4 437 4 satellites 
+
+Moored anemometer buoys (literature) 
+
+NDBC + TAO (206 buoys) 1.11–1.24 — >110 000 Yang et al. (2019) KNMI/OSI SAF ∼1.05 — ∼2 300 Verhoef and Stoffelen (2013) HY-2B (Ku-band) 0.95–1.07 — — Zhao et al. (2021) HY-2C/D (Ku-band) 0.78–1.03 — — Zhao et al. (2023) 
+
+Drifter wind (literature) 
+
+Spotter fleet (global) ∼1.0 — >20 000 Dorsay et al. (2023) Spotter (Toba) ∼2.0 — — Voermans et al. (2020) 
+
+Triple collocation error SD 
+
+ASCAT (C-band) ∼0.7 — — Vogelzang and Stoffelen (2021) ERA5 0.8–1.1 — — Vogelzang and Stoffelen (2021) 
+
+> ∗
+
+The leave-one-buoy-out (LOBO) validation pools the tight-QC corpus of five scatterometer products spanning the same four satellites: MetOp-B contributes both a 12.5 km coastal (OSI-104) and an L2B product, plus MetOp-C and HY-2B/C. The full-L2B and analytical evaluations use only the four-satellite L2B products. The motion-based reduced drag law is evaluable on the 4 437 recovered-buoy collocations that carry the required IMU inputs. For a like-for-like comparison with the reduced drag law, the spectrum-only extended spectral law is also reported on this same 4 437-collocation recovered-buoy subset; being spectrum-only, it is in principle applicable to all 6 629 L2B collocations and to the Tier A satellite-transmitted spectra (where it is evaluated against ERA5 in section 8, median per-buoy RMSE 1.3 m s −1), but the matching L2B-collocated 
+
+𝛽 4 inputs were assembled only for the recovered buoys. 
+
+Table 12. Direct OTC25 16 (MELODI) versus Sofar Spotter (SPOT-32265C) wind comparison over their 14-day co-deployment (14– 28 May 2025, NE Atlantic; 𝑁 = 665 co-located samples). All columns use the same overlap and ERA5 as the common reference. Speed in m s −1, direction in degrees; 𝑟 circ is circular correlation. MELODI di-rection uses the validated 0.6–0.9 Hz windsea moments. MELODI/ERA5 Spotter/ERA5 MELODI/Spotter Speed RMSE 1.67 2.10 1.90 Speed bias +0.88 +0.14 +0.73 Speed 𝑅 2 0.83 0.60 0.75 Dir. RMSE 16.5 40.0 35.3 Dir. bias +7.2 −3.9 +5.7 Dir. 𝑟 circ 0.98 0.83 0.87 
+
+|Δ𝑡 | of 𝑟 = 0.01, 𝑁 = 1,942), so the residual ∼0.9 m s −1
+
+is limited by the scatterometer measurement and spatial representativeness, not temporal mismatch. 
+
+d. Physical interpretability: analytical equations 
+
+A notable result of this study is that the symbolic re-gression discovers a closed-form dimensionless drag law [Eq. (12); section 6d] that achieves RMSE = 0.93 m s −1
+
+against the scatterometer winds—within the range of moored anemometer buoys—from only four dimension-less groups. Written schematically, 
+
+𝑈 10 
+
+𝑢 ∗
+
+= base drag − sea-state level 
+
++ viscous–maturity − tilt − high-wind reduction ,
+
+(15) it corresponds to a modified logarithmic wind profile whose terms admit physical readings. Because the search was run under PySR’s dimensional constraint over Buckingham-𝜋 groups, with the dimensionless Re ∗ =
+
+𝑢 3
+
+> ∗
+
+/( 𝑔𝜈 𝑎 ), the law is dimensionally consistent by construc-tion. 
+
+The base drag ratio ( ≈26.9). The standard log profile gives 𝑈 10 /𝑢 ∗ = 𝜅 −1 ln (𝑧 10 /𝑧 0) ≈ 25–30 (Smith 1980); the leading constant lands squarely in this canonical range, so the spectral 𝑢 ∗ from 𝛽 4(MID) behaves as a physical friction velocity rather than an arbitrary scaling. 
+
+The viscous–maturity term |68 .3/√Re ∗ + 0.46 − 3.11 𝑟 |.
+
+The 1 /√Re ∗ piece is the classical smooth-to-rough vis-cous correction (Kader and Yaglom 1990)—large at low Re ∗ (light wind), small in rough seas—and is non-singular 22 0
+
+> 2
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+> 16
+> Wind speed (m s  1)
+
+(a) ERA5 
+
+> MELODI 22-min
+> Sofar Spotter
+> ASCAT-B
+> ASCAT-C
+> HY-2B
+> HY-2C
+> 2025-05-15
+> 2025-05-17
+> 2025-05-19
+> 2025-05-21
+> 2025-05-23
+> 2025-05-25
+> 2025-05-27
+> 2025-05-29
+
+Date (UTC) 
+
+> 0
+> 90
+> 180
+> 270
+> 360
+> Wind direction (deg from N)
+
+(b) ERA5    
+
+> MELODI 22-min
+> Sofar Spotter
+> ASCAT-B
+> ASCAT-C
+> HY-2B
+> HY-2C
+> Fig. 10. MELODI versus Sofar Spotter over their 14-day co-deployment (OTC25 16 ↔SPOT-32265C, 14–28 May 2025, NE Atlantic). The MELODI product is compared against the Sofar Spotter, ERA5, and the collocated scatterometer overpasses for (top) wind speed and (bottom) wind direction. The Spotter is noticeably noisier at low wind.
+
+by construction. The maturity ratio 𝑟 = 𝑢 ∗,LO /𝑢 ∗,HI 
+
+measures departure from a fully developed sea; the two combine inside an absolute value that gates the smooth-to-rough/maturity transition. Together with the 
+
+−0.829 /( 𝜎 𝑎 𝑧 /𝑔 ) sea-state-level term, this is what sharp-ens the light-wind regime (0–5 m s −1 scat RMSE 0.63, against 1.02 for the spectrum-only spectral law; section 8). We read 𝑟 as a sea-state-dependent modulation in the spirit of the wave-age-dependent drag of Donelan et al. (1985), with no mechanistic commitment to an action-balance or cascade-flux interpretation. 
+
+The high-wind reduction term −0.00243 Re ∗. This is the term that gives the law its name and its storm skill. Growing as 𝑢 3
+
+> ∗
+
+, it bends the implied drag coefficient over: 
+
+𝐶 𝑑 rises to a peak near 8–11 m s −1 (≈ 3.3 × 10 −3) and then 
+
+decreases toward 14–18 m s −1 (≈ 2.3 × 10 −3), reproducing the observed high-wind saturation and reduction of the air–sea drag coefficient (Powell et al. 2003; Donelan et al. 2004). It is why the reduced drag law cuts the storm-wind (>12 m s −1) RMSE to 1.28 m s −1, far below the 2.00 of the spectrum-only law. We caution, however, that this term is constrained by very few strong-wind collocations and is best regarded as a data-refinable parameter (section 10f). This layered structure—canonical logarithmic drag, smooth-to-rough viscous correction, wave-age mod-ulation, and high-wind drag reduction—mirrors the COARE 3.0 bulk-flux algorithm (Fairall et al. 2003), here rediscovered from buoy IMU data alone in a form exe-cutable onboard in ∼20 floating-point operations. 
+
+e. Coastal considerations 
+
+The MELODI deployments are located 30–60 km off-shore in the Bay of Biscay, where scatterometer data quality is relatively high. Coastal degradation is a known limita-tion of scatterometer validation: ASCAT retrievals within 35 km of the coast have elevated RMSE ( ∼1.6 m s −1), and Ku-band instruments (HY-2, ScatSat) degrade further due to rain contamination, with coastal RMSE exceed-ing 2.6 m s −1 (Yang et al. 2019). The present validation benefits from the Bay of Biscay’s offshore exposure, and performance may degrade in regions with stronger coastal effects (land contamination, orographic channeling, fetch 23 
+
+limitation). Conversely, a drifter-based wind sensor that moves with the surface current is less affected by the fixed-point representativeness errors inherent to moored buoys, potentially providing more representative spatial sampling for satellite validation. 
+
+f. Limitations and future refinements 
+
+Several limitations bound the present results. (1) The inversion relies on the equilibrium-range assumption, which breaks down under rapid wind changes (timescales 
+
+<∼30 min), strong swell–wind-sea coupling, and very light winds ( <3 m s −1); the calm-wind regime accordingly car-ries the largest relative error (RMSE 0.91 m s −1, ∼30% of the bin mean). This floor is intrinsic to any wave-based proxy—at low winds momentum exchange shifts from form drag to viscous drag over the smooth surface (Kudryavtsev and Makin 2001)—and the reference-trained regression reduces but cannot eliminate it, the same mech-anism invoked for the single-band Spotter’s low-wind un-derestimation (Voermans et al. 2020; Beckman and Long 2022). (2) The WITR GBM residual correction limits full physical transparency, although the analytical drag law closes most of the gap (0.97 versus 0.92 m s −1 on the L2B set). (3) Wind direction requires IMU-derived moments, available only for Tier-B/C buoys; Tier-A spectra carry none. (4) The inversion reads sea state through the buoy’s own motion, so hull response and platform dynamics enter the high-frequency spectrum; band selection and filtering mitigate but cannot remove this, and it is expected to differ across hull designs. Most importantly, the calibration samples a limited en-velope. The reference data thin out steeply with wind speed—the tight-QC scatterometer corpus holds only a few dozen collocations above 14 m s −1 and effectively none above ∼17 m s −1—while ERA5, the only reference reaching 21 m s −1, is itself least reliable there. Strong-wind behaviour is therefore an extrapolation rather than a validated result; accordingly, winds above 18 m s −1 are flagged as low-trust extrapolation in the product. Targeted storm collocations would directly constrain the high-wind drag-reduction term [ −0.00243 Re ∗ in Eq. (12)], presently fit on this sparse tail. Under-represented mixed and cross-sea states can likewise place swell energy in the wind-sea bands and bias both the speed level and the directional moments. Beyond these caveats, the avenues for improvement are incremental rather than corrective. Because the retrieval already operates near the scatterometer accuracy floor (section 10c), the clearest path to further improvement is a better validation reference—synchronous, co-located in situ anemometry—rather than added model complex-ity. Foreseeable extensions would make explicit the vari-ables now absorbed into the empirical fit—atmospheric stability (an air-temperature sensor with a COARE-type bulk-flux treatment; Fairall et al. 2003), barometric pres-sure, wave–current interaction (the GNSS velocity is al-ready recorded), growth/decay hysteresis of the equilib-rium level (Young 1999; Donelan et al. 1985), and explicit spectral-shape descriptors in the analytical law—each a self-contained refinement rather than a redefinition of the method. 
+
+11. Summary and conclusions 
+
+The open ocean lacks systematic in situ wind observa-tions, and the calibration and validation of satellite scat-terometers depends on the very collocated surface mea-surements that are absent over most of the world ocean. This paper has shown that a compact, freely drifting GNSS/IMU wave buoy—MELODI—can supply the miss-ing wind vector, at a scatterometer-consistent accuracy (comparable to published scatterometer–buoy differences) and at a small fraction of the cost of moored platforms. The wind speed retrieval (WITR) inverts the full shape of the measured acceleration spectrum through Tikhonov-regularized regression rather than reading a sin-gle equilibrium-range level, and wind direction is recov-ered independently from IMU-derived directional wave moments in the wind-sea band. Cross-validated by leave-one-buoy-out against Level-2 collocations from four scatterometer products (ASCAT MetOp-B/C, HY-2B/C), WITR attains a wind-speed RMSE of 0.90 m s −1, and the IMU-derived direction a MAE of 9.4 ◦ against AS-CAT L2, a factor-of-two improvement over the tradi-tional single-band Toba inversion. The combined wind-vector error is competitive with that reported for moored NDBC anemometer buoys against the same scatterome-ters. Per-buoy leave-one-buoy-out errors range from 0.69 to 1.26 m s −1 (median 0.93 m s −1) across 17 buoys span-ning four ocean basins, confirming that the retrieval gen-eralizes well beyond its training set. These figures are constrained over the well-populated 4–14 m s −1 range and remain plausible to ∼16 m s −1; the scatterometer reference holds almost no collocations above this, so stronger winds are an extrapolation and are flagged as reduced confidence in the product. A central result is that the data-driven model can be distilled—via symbolic regression—into compact analyt-ical expressions that retain nearly all of its skill (within 0.05–0.10 m s −1 of WITR) while remaining interpretable and cheap enough to evaluate onboard. These expressions expose physically meaningful structure, including wave-age modulation, smooth-to-rough transition behaviour, and high-wind drag reduction, linking the empirical retrieval back to equilibrium-range wind–wave theory. To illustrate how the retrieved variables can be handled at fleet scale, we assembled them into a quality-controlled wind-vector dataset of 29 775 sessions from 28 buoys, with wind speed available for every session and direction for the 24 73% of sessions carrying high-rate IMU data, at the buoys’ native 22-minute cadence. Wave-sensing drifters are already an established source of the open-ocean wind vector; these results show that a smaller platform can deliver both components—including a markedly more reliable direction at low wind—at a scatterometer-consistent accuracy comparable to published scatterometer–buoy differences, making it useful for satel-lite calibration and validation and for data assimilation. The retrieval already operates close to the accuracy floor set by the scatterometer reference, so the clearest path to sharpening it further is not added model complexity but a more precise validation reference—high-precision in situ anemometer measurements taken synchronously and co-located with the drifter. Because each MELODI is small, low-cost, and already returns data reliably over multi-month deployments, the natural next step is to scale the approach to a larger fleet, building the spatial and tempo-ral density of open-ocean wind vectors that routine cal/val and assimilation require—observations that are presently unavailable across most of the world ocean. 25 
+
+Acknowledgments. This work would not have been pos-sible without the involvement and help of many people and organizations. The author is grateful to Lucas Char-ron (eOdyn) for the design, development, manufacturing, and testing of the MELODI buoys, and to the wider eO-dyn team for their help with the MELODI project and for their administrative and technical support. The au-thor thanks Bertrand Chapron for valuable discussions and remarks, and Fabrice Collard (OceanDataLab) and Craig Donlon (ESA) for their help and support during the ESA Ocean Training Course 2025 (OTC25) deployment cam-paign. The OTC25 buoys were funded by CNES (Contract No. 5700012680); the EXPLOI buoy was funded through the Exp´ edition Plastique Oc´ ean Indien project (COI, AFD, and FFEM), with the IRD as scientific partner. This work was partially supported by the AI4COPSEC project under the Horizon Europe programme. 
+
+Competing interests. The author is employed by eO-dyn, the company that develops and operates the MELODI drifter evaluated in this study; the Sofar Spotter used as a comparison platform is a commercial product of a third party. eOdyn had no role in the design of the validation ref-erences (scatterometer and ERA5 products are produced by independent agencies) or in the leave-one-buoy-out eval-uation protocol. The author declares no other competing interests. 
+
+Data availability statement. The MELODI data from the OTC25 deployment campaign are publicly available from the SEANOE repository at https://doi.org/10. 17882/117337 . The trained WITR model is publicly archived on Zenodo at https://doi.org/10.5281/ zenodo.20607633 . The reference datasets are public: ERA5 reanalysis is distributed by the Copernicus Climate Data Store ( https://cds.climate.copernicus.eu ); the ASCAT (MetOp-B/C) and HY-2B/C Level-2 scat-terometer winds, in the KNMI standard format, are pro-duced by EUMETSAT and NSOAS. APPENDIX 
+
+Candidate Feature Set and Computation 
+
+This appendix lists the 52 candidate spectral features evaluated during the development of the WITR model (Ta-bles A1–A2), along with the mathematical definition of each feature. Features are ranked by importance in a pre-liminary Tikhonov-regularized model trained against scat-terometer winds, computed as | ˆ𝛽 𝑗 × 𝜎 𝑥 𝑗 |. The 9 features retained in the final WITR model are indicated in bold. All features are derived from the omnidirectional accel-eration spectrum 𝑆 acc ( 𝑓 ) estimated via the Welch method (section 5). Let 𝑓 1 < 𝑓 2 denote the bounds of a frequency band and Δ 𝑓 the frequency resolution. 
+
+Feature definitions 
+
+1) Band-mean acceleration level 
+
+The mean acceleration spectral density in a frequency band: 
+
+𝑆 [ 𝑓 1 , 𝑓 2 ] 
+
+> acc
+
+= mean [𝑆 acc ( 𝑓 )] 𝑓 1 ≤ 𝑓 ≤ 𝑓 2 [( m s −2)2 Hz −1] .
+
+(A1) Five bands are used: 0.12–0.18, 0.18–0.25, 0.25–0.35, 0.35–0.50, and 0.50–0.70 Hz. Higher bands carry pro-gressively faster wind-response information. 
+
+2) High-frequency noise floor 
+
+The median spectral level in high-frequency bands above the wind-sea peak, indicative of instrument noise and very short wind-waves: hf [ 𝑓 1 , 𝑓 2 ] = median [𝑆 acc ( 𝑓 )] 𝑓 1 ≤ 𝑓 ≤ 𝑓 2 [( m s −2)2 Hz −1] .
+
+(A2) Computed for 0.60–0.80 and 0.80–1.00 Hz. 
+
+3) Acceleration spectral slope 
+
+The log–log regression slope of 𝑆 acc ( 𝑓 ) in a frequency band, characterizing the spectral shape: 
+
+𝛼 [ 𝑓 1 , 𝑓 2 ] = 𝜕 log 10 𝑆 acc 
+
+𝜕 log 10 𝑓 𝑓 1 ≤ 𝑓 ≤ 𝑓 2
+
+[dB decade −1] . (A3) Computed for 0.25–0.50 and 0.50–1.00 Hz via ordinary least-squares regression. 
+
+4) Cumulative frequency percentile 
+
+The frequency below which a given fraction of the total acceleration variance is contained: 
+
+𝑓 𝑞 :
+
+∫ 𝑓 𝑞 
+
+> 0
+
+𝑆 acc ( 𝑓 ) 𝑑𝑓 = 𝑞 
+
+100 
+
+∫ 𝑓 max 
+
+> 0
+
+𝑆 acc ( 𝑓 ) 𝑑𝑓 . (A4) Percentiles 𝑞 = 25 , 50 , 75 , 90 are computed. Lower per-centiles shift toward lower frequencies in swell-dominated conditions and toward higher frequencies when wind-sea dominates. 
+
+5) Acceleration zeroth moment 
+
+The total variance of the acceleration spectrum: 
+
+𝑚 acc 0 =
+
+∫ 𝑓 max 
+
+> 0
+
+𝑆 acc ( 𝑓 ) 𝑑𝑓 [( m s −2)2] . (A5) 
+
+6) Toba spectral level and wind estimate 
+
+The Toba spectral parameter 𝛽 4 and the corresponding wind speed 𝑈 Toba 10 in each of the four displacement bands 26 (LO, MID, HI, VHI) are computed from the displacement spectrum 𝑆 𝜂 ( 𝑓 ) = 𝑆 acc ( 𝑓 )/( 2𝜋 𝑓 )4 via Eqs. (2)–(3). 
+
+7) Spectral shape features 
+
+Significant wave height: 𝐻 𝑠 = 4√𝑚 0 where 𝑚 0 =∫ 𝑆 𝜂 ( 𝑓 ) 𝑑𝑓 over the wave band [0.05, 1.0] Hz. Partitioned into swell ( 𝑓 < 0.10 Hz) and wind-sea ( 𝑓 ≥ 0.10 Hz) contributions. Peak frequency 𝑓 𝑝 =
+
+arg max 𝑆 𝜂 ( 𝑓 ); peak period 𝑇 𝑝 = 1/ 𝑓 𝑝 . Spectral width 
+
+𝜈 =√︃ 𝑚 0𝑚 2/𝑚 21 − 1 (Longuet-Higgins 1975). Peak-to-tail ratio: log 10 [𝑆 𝜂 ( 𝑓 𝑝 )/ 𝑆 𝜂 (3 𝑓 𝑝 )] . Spectral curvature: sec-ond derivative of log 10 𝑆 𝜂 at 𝑓 𝑝 .
+
+8) Signal-to-noise ratio 
+
+Ratio of the spectral level in a wave band to the high-frequency noise floor: SNR band = level band 
+
+hf [0.80 ,1.00 ]
+
+. (A6) Computed for LO, MID, and HI bands. 
+
+9) Environmental features 
+
+Sea surface temperature (SST) from the onboard sen-sor ( ◦C). Drift speed from sequential GNSS positions (m s −1). Air–sea temperature difference Δ𝑇 = 𝑇 SST − 𝑇 air 
+
+using ERA5 2-m air temperature ( ◦C). 
+
+Feature importance ranking 
+
+Tables A1–A2 list all 52 candidate features with their im-portance score and model usage. The “W” column marks the 9 features retained in the final WITR model; the “P” column marks features entering the analytical equations [Eqs. (9)–(12)]. 27 
+
+Table A1. Candidate features: acceleration spectrum and Toba inversions (26 features). Importance is | ˆ𝛽 𝑗 𝜎 𝑥 𝑗 |. W = in WITR; P = in analytical fit (complexity indicated). # Feature Imp. Computation W P
+
+Band-mean acceleration level [Eq. (A1)] 
+
+1 acc [.25 ,. 35 ] 0.84 mean 𝑆 acc , .25–.35 Hz •
+
+2 acc [.18 ,. 25 ] 0.62 mean 𝑆 acc , .18–.25 Hz •
+
+3 acc [.35 ,. 50 ] 0.29 mean 𝑆 acc , .35–.50 Hz •
+
+4 acc [.12 ,. 18 ] 0.08 mean 𝑆 acc , .12–.18 Hz •
+
+5 acc [.50 ,. 70 ] 0.07 mean 𝑆 acc , .50–.70 Hz •
+
+Acceleration moments and shape 
+
+6 𝑚 acc 0 0.34 ∫ 𝑆 acc 𝑑 𝑓 𝑐 37 acc median 0.33 median 𝑆 acc , .04–1.0 Hz 8 acc peak level 0.22 max [𝑆 acc ( 𝑓 ) ] 
+
+9 acc peak ratio 0.03 peak level / median 
+
+Acceleration slopes [Eq. (A3)] 
+
+10 𝛼 [.050 ,1.0] 0.17 log-log slope, .50–1.0 Hz •
+
+11 𝛼 [.025 ,. 050 ] 0.05 log-log slope, .25–.50 Hz •
+
+Cumulative frequency percentiles [Eq. (A4)] 
+
+12 𝑓 25 0.06 𝑞 = 25 •
+
+13 𝑓 50 0.05 𝑞 = 50 14 𝑓 75 0.04 𝑞 = 75 15 𝑓 90 0.03 𝑞 = 90 
+
+Acceleration peak frequencies 
+
+16 𝑓 acc  
+
+> 𝑝
+
+0.03 arg max 𝑆 acc 
+
+17 𝑓 acc ,lo  
+
+> 𝑝
+
+0.02 Peak in .08–.30 Hz 18 𝑓 acc ,hi  
+
+> 𝑝
+
+0.02 Peak in .30–.80 Hz 
+
+High-frequency noise [Eq. (A2)] 
+
+19 hf [.6,. 8] 0.06 median 𝑆 acc , .60–.80 Hz •
+
+20 hf [.8,1.0] 0.03 median 𝑆 acc , .80–1.0 Hz 
+
+Toba inversions [Eqs. (2)–(3)] 
+
+21 𝑈 Toba 10 (MID) 1.30 .25–.50 Hz 𝑐 8,15,26 22 𝑈 Toba 10 (VHI) 0.79 .70–1.0 Hz 23 𝑈 Toba 10 (LO) 0.13 .12–.30 Hz 𝑐 8,15,26 24 𝑈 Toba 10 (HI) 0.06 .45–.75 Hz 𝑐 26 25 𝛽 4(LO) 0.04 .12–.30 Hz 26 𝛽 4(MID/HI/VHI) .02–.03 per band 28 
+
+Table A2. Candidate features (continued): spectral shape, SNR, environmental, and motion (26 features). Columns as in Table A1. # Feature Imp. Computation W P
+
+Spectral shape (displacement domain) 
+
+27 spectral curvature 0.80 𝜕 2log 𝑆 𝜂 /𝜕 (log 𝑓 )2
+
+28 𝐻 𝑠 (total) 0.37 4√𝑚 0, .05–1.0 Hz 29 𝐻 𝑠 (swell) 0.25 4√𝑚 0, 𝑓 < . 10 Hz 30 𝑇 𝑝 0.20 1/ 𝑓 𝑝 
+
+31 slope (LO) 0.19 𝜕 log 𝑆 𝜂 /𝜕 log 𝑓 , .12–.30 Hz 32 slope (HI) 0.08 .45–.75 Hz 33 𝐻 𝑠 (wind-sea) 0.07 4√𝑚 0, 𝑓 ≥ .10 Hz 34 𝑓 𝑝 0.06 arg max 𝑆 𝜂 
+
+35 slope (MID) 0.05 .25–.50 Hz 36 slope (VHI) 0.04 .70–1.0 Hz 37 spectral width 0.04 √︃ 𝑚 0 𝑚 2/𝑚 21 − 138 peak-tail ratio 0.03 log 10 [𝑆 ( 𝑓 𝑝 )/ 𝑆 (3 𝑓 𝑝 ) ] 
+
+39 dslope (MID) 0.02 slope − (−4) 40 level (LO–VHI) .01–.02 Median 𝑆 𝜂 per band (4) 41 𝑇 𝑝 (swell) 0.01 1/ 𝑓 𝑝 , 𝑓 < . 10 Hz 
+
+Signal-to-noise ratio 
+
+42 SNR (MID) 3938 level / hf [.8,1.0] (QC gate) 43 SNR (LO) 1429 level / hf [.8,1.0] (QC gate) 44 SNR (HI) 6.41 level / hf [.8,1.0] (QC gate) 
+
+Environmental 
+
+45 𝑇 SST 0.02 Onboard sensor ( ◦C) 46 drift speed 0.01 GNSS positions (m s −1)47 Δ𝑇 0.01 𝑇 SST − 𝑇 air (ERA5) 
+
+Motion (analytical fits only) 
+
+48 𝜎 𝑎 𝑧 — Std dev. of acc 𝑧 (g) 𝑐 15,26 49 pitch RMS ( 𝜃 ) — RMS pitch (deg → rad) 𝑐 26 
+
+Notes. Total: 52 candidate features (rows 1–47) evaluated by backward elimination against scatterometer winds, plus 2 motion features (rows 48–49) used only by the analytical fits. SNR importance (rows 42–44) is inflated by negative QC-gate coefficients. The 9 WITR features ( •) achieve LOBO RMSE = 0.895 m s −1 vs. 0.988 for all 52 features—the distilled subset improves on the full set by suppressing overfitting. 29 
+
+References 
+
+Aliotta, L., M. Seggiani, A. Lazzeri, V. Gigante, and P. Cinelli, 2022: A brief review of poly(butylene succinate) (PBS) and its main copolymers: Synthesis, blends, composites, biodegrad-ability, and applications. Polymers , 14 (4) , 844, https://doi.org/ 10.3390/polym14040844. Beckman, J. N., and J. W. Long, 2022: Quantifying errors in wind and wave measurements from a compact, low-cost wave buoy. Frontiers in Marine Science , 9, 966 855, https://doi.org/10.3389/fmars.2022. 966855. Belcher, S. E., and J. C. Vassilicos, 1997: Breaking waves and the equilibrium range of wind-wave spectra. Journal of Fluid Mechanics ,
+
+342 , 377–401, https://doi.org/10.1017/S0022112097005740. Belmonte Rivas, M., and A. Stoffelen, 2021: Characterizing buoy wind speed error in high winds and varying sea state with ASCAT and ERA5. Remote Sens. , 13 , 4558, https://doi.org/10.3390/rs13224558. Bourassa, M. A., and Coauthors, 2019: Remotely sensed winds and wind stresses for marine forecasting and ocean modeling. Front. Mar. Sci. ,
+
+6, 443, https://doi.org/10.3389/fmars.2019.00443. Centurioni, L. R., 2018: Drifter technology and impacts for sea sur-face temperature, sea-level pressure, and ocean circulation studies. 
+
+Observing the Oceans in Real Time , Springer, 37–57, https://doi.org/ 10.1007/978-3-319-66493-4 3. Cranmer, M., 2023: Interpretable machine learning for science with PySR and SymbolicRegression.jl. arXiv preprint , arXiv:2305.01582. Davis, J. R., J. Thomson, I. A. Houghton, C. W. Fairall, E. J. Thompson, J. D. Doyle, W. A. Komaromi, and J. R. Moskaitis, 2023: Satura-tion of ocean surface wave slopes observed during hurricanes. Geo-physical Research Letters , 50 (18) , e2023GL104 139, https://doi.org/ 10.1029/2023GL104139. Donelan, M. A., J. Hamilton, and W. H. Hui, 1985: Directional spectra of wind-generated ocean waves. Philos. Trans. Roy. Soc. London ,
+
+315 , 509–562, https://doi.org/10.1098/rsta.1985.0054. Donelan, M. A., B. K. Haus, N. Reul, W. J. Plant, M. Stiassnie, H. C. Graber, O. B. Brown, and E. S. Saltzman, 2004: On the lim-iting aerodynamic roughness of the ocean in very strong winds. 
+
+Geophysical Research Letters , 31 (18) , L18 306, https://doi.org/ 10.1029/2004GL019460. Dorsay, C., G. Egan, I. Houghton, C. Hegermiller, and P. B. Smit, 2023: Proxy observations of surface wind from a globally distributed network of wave buoys. J. Atmos. Oceanic Technol. , 40 , 1403–1415, https://doi.org/10.1175/JTECH-D-23-0044.1. Fairall, C. W., E. F. Bradley, J. E. Hare, A. A. Grachev, and J. B. Edson, 2003: Bulk parameterization of air–sea fluxes: Updates and verification for the COARE algorithm. J. Climate , 16 , 571– 591, https://doi.org/10.1175/1520-0442(2003)016 ⟨0571:BPOASF ⟩
+
+2.0.CO;2. Herbers, T. H. C., P. F. Jessen, T. T. Janssen, D. B. Colbert, and J. H. MacMahan, 2012: Observing ocean surface waves with GPS-tracked buoys. J. Atmos. Oceanic Technol. , 29 , 944–959, https://doi.org/10. 1175/JTECH-D-11-00128.1. Hersbach, H., and Coauthors, 2020: The ERA5 global reanaly-sis. Quart. J. Roy. Meteor. Soc. , 146 , 1999–2049, https://doi.org/ 10.1002/qj.3803. Hoerl, A. E., and R. W. Kennard, 1970: Ridge regression: Biased estimation for nonorthogonal problems. Technometrics , 12 , 55–67, https://doi.org/10.1080/00401706.1970.10488634. Jiang, H., 2022: Wind speed and direction estimation from wave spectra using deep learning. Atmos. Meas. Tech. , 15 , 1–9, https://doi.org/ 10.5194/amt-15-1-2022. Kader, B. A., and A. M. Yaglom, 1990: Mean fields and fluctuation moments in unstably stratified turbulent boundary layers. J. Fluid Mech. , 212 , 637–662, https://doi.org/10.1017/S0022112090002129. Kent, E. C., L. R. Centurioni, and Coauthors, 2019: Global in situ ob-servations of essential climate and ocean variables at the air–sea in-terface. Front. Mar. Sci. , 6, 419, https://doi.org/10.3389/fmars.2019. 00419. Kitaigorodskii, S. A., 1983: On the theory of the equilibrium range in the spectrum of wind-generated gravity waves. J. Phys. Oceanogr. ,
+
+13 , 816–827, https://doi.org/10.1175/1520-0485(1983)013 ⟨0816: OTTOTE ⟩2.0.CO;2. Kudryavtsev, V. N., and V. K. Makin, 2001: The impact of air-flow separation on the drag of the sea surface. Bound.-Layer Meteorol. ,
+
+98 , 155–171, https://doi.org/10.1023/A:1018719917275. Kuik, A. J., G. Ph. van Vledder, and L. H. Holthuijsen, 1988: A method for the routine analysis of pitch-and-roll buoy wave data. J. Phys. Oceanogr. , 18 , 1020–1034, https://doi.org/10.1175/ 1520-0485(1988)018 ⟨1020:AMFTRA ⟩2.0.CO;2. Large, W. G., and S. Pond, 1981: Open ocean momentum flux mea-surements in moderate to strong winds. J. Phys. Oceanogr. , 11 , 324– 336, https://doi.org/10.1175/1520-0485(1981)011 ⟨0324:OOMFMI ⟩
+
+2.0.CO;2. Longuet-Higgins, M. S., 1975: On the joint distribution of the peri-ods and amplitudes of sea waves. J. Geophys. Res. , 80 , 2688–2694, https://doi.org/10.1029/JC080i018p02688. Lygre, A., and H. E. Krogstad, 1986: Maximum entropy estimation of the directional distribution in ocean wave spectra. J. Phys. Oceanogr. ,
+
+16 , 2052–2060, https://doi.org/10.1175/1520-0485(1986)016 ⟨2052: MEEOTD ⟩2.0.CO;2. Mironov, A. S., and L. Charron, 2023: Miniaturized drifting buoy platform for the creation of undersatellite calibration and validation network. OCEANS 2023 – Limerick , IEEE, 1–10, https://doi.org/ 10.1109/OCEANSLimerick52467.2023.10244401. Mironov, A. S., and L. Charron, 2024: Miniaturized drifting buoy for sea surface monitoring and remote sensing calibration and validation tasks. Proc. IEEE Int. Geosci. Remote Sens. Symp. (IGARSS) , Athens, Greece, https://doi.org/10.1109/IGARSS53475.2024.10642801. Morrow, R., and Coauthors, 2019: Global observations of fine-scale ocean surface topography with the Surface Water and Ocean To-pography (SWOT) mission. Front. Mar. Sci. , 6, 232, https://doi.org/ 10.3389/fmars.2019.00232. Mouche, A., B. Chapron, J. Knaff, Y. Zhao, B. Zhang, and C. Com-bot, 2019: Copolarized and cross-polarized SAR measurements for high-resolution description of major hurricane wind struc-tures. J. Geophys. Res. Oceans , 124 , 3905–3922, https://doi.org/ 10.1029/2019JC015056. Phillips, O. M., 1985: Spectral and statistical properties of the equi-librium range in wind-generated gravity waves. J. Fluid Mech. , 156 ,505–531, https://doi.org/10.1017/S0022112085002221. 30 
+
+Plant, W. J., 1982: A relationship between wind stress and wave slope. J. Geophys. Res. , 87 (C3) , 1961–1967, https://doi.org/10.1029/ JC087iC03p01961. Powell, M. D., P. J. Vickery, and T. A. Reinhold, 2003: Reduced drag co-efficient for high wind speeds in tropical cyclones. Nature , 422 (6929) ,279–283, https://doi.org/10.1038/nature01481. Ribal, A., and I. R. Young, 2019: 33 years of globally calibrated wave height and wind speed data based on altimeter observations. Sci. Data , 6, 77, https://doi.org/10.1038/s41597-019-0083-9. Shimura, T., N. Mori, Y. Baba, and T. Miyashita, 2022: Ocean sur-face wind estimation from waves based on small GPS buoy obser-vations in a bay and the open ocean. J. Geophys. Res. Oceans , 127 ,e2022JC018 786, https://doi.org/10.1029/2022JC018786. Smith, S. D., 1980: Wind stress and heat flux over the ocean in gale force winds. J. Phys. Oceanogr. , 10 , 709–726, https://doi.org/10. 1175/1520-0485(1980)010 ⟨0709:WSAHFO ⟩2.0.CO;2. Stoffelen, A., 1998: Toward the true near-surface wind speed: Error modeling and calibration using triple collocation. J. Geophys. Res. ,
+
+103 , 7755–7766, https://doi.org/10.1029/97JC03180. Thomson, J., 2012: Wave breaking dissipation observed with “SWIFT” drifters. J. Atmos. Oceanic Technol. , 29 , 1866–1882, https://doi.org/ 10.1175/JTECH-D-12-00018.1. Thomson, J., E. A. D’Asaro, M. F. Cronin, W. E. Rogers, R. R. Harcourt, and A. Shcherbina, 2013: Waves and the equilibrium range at Ocean Weather Station P. J. Geophys. Res.: Oceans , 118 (11) , 5951–5962, https://doi.org/10.1002/2013JC008837. Thomson, J., and Coauthors, 2024: Development and testing of microSWIFT expendable wave buoys. Coastal Eng. J. , 66 ,https://doi.org/10.1080/21664250.2023.2283325. Toba, Y., 1973: Local balance in the air–sea boundary processes. III. On the spectrum of wind waves. J. Oceanogr. Soc. Japan , 29 , 209–220, https://doi.org/10.1007/BF02108528. Verhoef, A., and A. Stoffelen, 2013: Validation of ASCAT 12.5-km winds. Tech. Rep. SAF/OSI/CDOP/KNMI/TEC/RP/147, KNMI, OSI SAF. Version 1.3. Villas Bˆ oas, A. B., and Coauthors, 2019: Integrated observations of global surface winds, currents, and waves: Requirements and chal-lenges for the next decade. Front. Mar. Sci. , 6, 425, https://doi.org/ 10.3389/fmars.2019.00425. Voermans, J. J., P. B. Smit, T. T. Janssen, and A. V. Babanin, 2020: Estimating wind speed and direction using wave spectra. 
+
+J. Geophys. Res. Oceans , 125 , e2019JC015 717, https://doi.org/ 10.1029/2019JC015717. Vogelzang, J., and A. Stoffelen, 2021: Quadruple collocation analysis of in-situ, scatterometer, and NWP winds. J. Geophys. Res. Oceans ,
+
+126 , e2021JC017 189, https://doi.org/10.1029/2021JC017189. Vogelzang, J., and A. Stoffelen, 2022: On the accuracy and consistency of quintuple collocation analysis of in situ, scatterometer, and NWP winds. Remote Sens. , 14 , 4552, https://doi.org/10.3390/rs14184552. Welch, P. D., 1967: The use of fast Fourier transform for the estimation of power spectra: A method based on time averaging over short, modified periodograms. IEEE Trans. Audio Electroacoust. , 15 , 70– 73, https://doi.org/10.1109/TAU.1967.1161901. Xu, J., and B.-H. Guo, 2010: Microbial succinic acid, its polymer poly(butylene succinate), and applications. Plastics from Bacte-ria: Natural Functions and Applications , G.-Q. Chen, Ed., Mi-crobiology Monographs, Springer, 347–388, https://doi.org/10.1007/ 978-3-642-03287-5 14. Yang, X., and Coauthors, 2019: Comparison of OceanSat-2 scatterome-ter wind data with global moored buoys and ASCAT observation. Adv. Meteor. , 2019 , 1651 267, https://doi.org/10.1155/2019/1651267. Young, I. R., 1999: Wind Generated Ocean Waves . Elsevier, 288 pp. Yurovsky, Y. Y., and V. A. Dulov, 2020: MEMS-based wave buoy: Towards short wind-wave sensing. Ocean Engineering , 217 , 108 043, https://doi.org/10.1016/j.oceaneng.2020.108043. Yurovsky, Y. Y., and O. B. Kudinov, 2026: A very small wave buoy: The challenges learned from a proof-of-concept field experiment. Ocean Engineering , 350 , 124 212, https://doi.org/10.1016/j.oceaneng.2026. 124212. Zhao, K., and Coauthors, 2021: Scatterometer sea surface wind product validation for HY-2C. IEEE J. Sel. Topics Appl. Earth Obs. Re-mote Sens. , 14 , 6968–6981, https://doi.org/10.1109/JSTARS.2021. 3085660. Zhao, K., and Coauthors, 2023: Evaluation of sea surface wind products from scatterometer onboard the Chinese HY-2D satellite. Remote Sens. , 15 , 852, https://doi.org/10.3390/rs15030852. Zieger, S., J. Vinoth, and I. R. Young, 2009: Joint calibration of mul-tiplatform altimeter measurements of wind speed and wave height over the past 20 years. J. Atmos. Oceanic Technol. , 26 , 2549–2564, https://doi.org/10.1175/2009JTECHA1303.1.

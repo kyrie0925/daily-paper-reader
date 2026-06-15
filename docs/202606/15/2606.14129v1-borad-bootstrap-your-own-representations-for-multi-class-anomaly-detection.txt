@@ -1,0 +1,964 @@
+Title: BoRAD: Bootstrap your Own Representations for Multi-class Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2606.14129v1
+
+Published Time: Mon, 15 Jun 2026 00:35:24 GMT
+
+Number of Pages: 26
+
+Markdown Content:
+# BORAD: B OOTSTRAP YOUR OWN REPRESENTATIONS FOR 
+
+# MULTI -CLASS ANOMALY DETECTION 
+
+A P REPRINT 
+
+Hoang Khuong Duy 
+
+Department of Artificial Intelligence FPT University Ho Chi Minh City, Vietnam 
+
+luythoangduy@gmail.com 
+
+Nguyen Minh Tri 
+
+Department of IT FPT University Ho Chi Minh City, Vietnam 
+
+minhtringuyen130205@gmail.com 
+
+Huynh Cong Viet Ngu 
+
+Department of Computing Fundamental FPT University Ho Chi Minh City, Vietnam 
+
+nguhcv@fe.edu.vn 
+
+June 15, 2026 
+
+## ABSTRACT 
+
+Reconstruction-based anomaly detection is attractive for industrial inspection, but scaling it from category-specific training to a one-for-all setting is challenging. A single model must reconstruct diverse normal appearances without copying abnormal details, which exposes two coupled fail-ure modes: identical shortcut, where anomalies pass through the reconstruction path, and mis-reconstruction, where normal categories are confused with one another. We propose BoRAD , a label-free training framework that treats this as a representation-capacity allocation problem. BoRAD uses a shared learnable prototype bank to impose two complementary regularizers: spatial prototype alignment contracts local within-prototype variation to suppress anomaly copying, while prototype-relative global alignment preserves between-prototype structure and improves sensitivity to abnormal angular deviations. The prototype bank and prediction heads are used only during training; inference remains a standard teacher-student feature discrepancy pass, with no class labels, negative pairs, memory retrieval, or prototype lookup. BoRAD achieves competitive one-for-all anomaly detection performance, including 86.2% mAD on MVTec AD, 80.7% mAD on VisA and 73.1% mAD on Real-IAD. Diagnostic analyses further show reduced anomaly leakage, improved normal-category separability, and stronger anomaly-normal score separation. 
+
+## 1 Introduction 
+
+Unsupervised anomaly detection plays an important role in high-reliability domains such as medical diagnosis [ 1, 2]and industrial inspection [ 3 , 4], where abnormal patterns are rare but can indicate critical diseases or manufacturing defects. Reconstruction-based industrial anomaly detection (IAD) learns normal visual patterns and identifies anomalies through reconstruction discrepancy at test time [ 3, 5, 6 , 7, 8]. In the conventional one-for-one setting, a separate detector is trained for each object category [ 4, 9 , 10 ]. This specialization often works well, but it is costly to scale: practical deployments may contain many categories, changing product lines, and limited tolerance for maintaining category-specific models or inference routing [11]. A more scalable alternative is multi-class, or one-for-all, anomaly detection, where a single model is trained on normal samples pooled from multiple categories [ 11 , 12 ]. This setting changes the nature of reconstruction because the model no longer needs to represent a single compact normal distribution, but must reconstruct the normal appearances of many categories at once. This induces two distinct failure modes. First, mis-reconstruction arises when category-specific 
+
+> arXiv:2606.14129v1 [cs.CV] 12 Jun 2026
+
+arXiv Template A P REPRINT 
+
+normal structures are not sufficiently separated in the representation: the decoder may reconstruct an input from one category using the appearance of another, producing inter-class confusion [ 12 ]. Second, identical shortcut occurs when the reconstruction path learns a near-identity mapping and preserves input details too faithfully, allowing abnormal regions to be reconstructed as normal [ 13 , 11 ]. This shortcut can appear in reconstruction models in general, but the multi-class setting makes it more severe because the reconstructor must cover a much broader normal distribution, making input copying an attractive optimization strategy. Prior work has addressed these two problems from complementary directions. To reduce mis-reconstruction, class-conditioned modules, prompts, memory mechanisms, and class-aware objectives improve category-level discriminabil-ity [ 14 , 15 , 16 , 17 , 18 , 19 , 12 ]. To reduce identical shortcut, masking-based methods hide partial visual evidence to prevent direct copying [ 20 ], attention-based reconstructors avoid overly direct local mappings [ 13 ], and memory or quantization mechanisms compress the latent representation so that it differs more strongly from the raw input [ 17 , 19 ]. However, small masking ratios impose only weak constraints, while many discriminability-oriented methods require class supervision, pseudo labels, negative pairs, or inference-time memory. These observations suggest that both failure modes are representation problems: the latent space must suppress input-copying factors while preserving category-specific normal structure. This is consistent with prior latent-space interventions in anomaly detection and with representation-learning studies linking shortcut behavior to which factors are preserved or suppressed [ 21 , 22 , 23 ]. Based on this view, we propose BoRAD (Bootstrap your Own Representations for Anomaly Detection), a label-free framework that uses a shared learnable prototype bank to shape the reconstruction representation during training. A spatial prototype alignment path contracts local within-prototype variation to reduce identical shortcuts, while a global coordinate-shift path preserves between-prototype structure to avoid mis-reconstruction. The prototype bank and prediction heads are used only during training; inference remains a standard teacher-student reconstruction pass without prototype lookup, clustering, or memory retrieval. To examine whether these mechanisms address the above failure modes, Section 4.5 reports diagnostics for anomaly leakage, normal-category separability, and anomaly-normal score separation beyond aggregate benchmark scores. Our contributions are summarized as follows: • A representation-dilemma view of one-for-all AD. We formulate multi-class reconstruction through two coupled failure modes, identical shortcut and mis-reconstruction, and relate them to bottleneck and variance decomposition principles [24]. • Prototype-guided representation bifurcation. We introduce a shared prototype bank incorporate with contrastive that contracts local within-prototype variation while preserving global discriminability, without class labels, negative pairs, or inference-time memory. • Training-only regularization with strong standard inference. BoRAD uses prototype alignment only during training; at test time, anomaly maps are computed by teacher-student feature discrepancy and achieve competitive one-for-all IAD performance. 
+
+## 2 Related Work 
+
+Unsupervised Anomaly detection methods. Anomaly detection aims to identify samples or regions that deviate from the normal data distribution. Existing methods [ 3] can be broadly divided into three categories: (1) Reconstruction-based methods that learn to reconstruct normal samples and detect anomalies through reconstruction failures [ 11 , 25 , 26 ,27 , 28 , 29 ]; (2) Distillation-based methods that train a student network to reconstruct the representations of a frozen teacher network using normal samples, and localize anomalies by teacher–student feature discrepancies [ 5, 30 , 31 , 32 ]; (3) Embedding-based methods that model normal feature distributions in a representation space and detect anomalies according to feature distance, density, or deviation from normal clusters [ 4, 33 , 34 ]. Most existing methods rely on ImageNet-pretrained [ 35 ] networks for feature extraction, as these models provide rich and transferable representations. However, industrial images often exhibit an inevitable distribution shift from natural images, which can limit the suitability of directly using pretrained features. To address this issue, recent methods introduce additional modules for feature adaptation [ 36 ], representation learning [ 37 , 38 ], or compact feature transformation [ 19 ]. Memory-based mechanisms [ 9] are also commonly used to store and retrieve representative normal patterns, enabling the model to better capture the normal data distribution. 
+
+Unified anomaly detection and Key challenges. Unified anomaly detection faces two key challenges: mis-reconstruction and identical shortcut .
+
+Mis-reconstruction. Mis-reconstruction arises when a model trained on mixed normal data reconstructs an input from one category using patterns from another, leading to inter-class confusion [12]. Prior methods mitigate this issue with 2arXiv Template A P REPRINT 
+
+class-conditioned modules [ 14 ], prompts [ 15 , 16 ], memory mechanisms [ 17 ], or class-aware objectives [ 18 , 19 , 12 ]. These methods generally make representations more diverse and discriminative at the category level. 
+
+Identical shortcut. Identical shortcut occurs when the model learns a near-identity mapping and faithfully reconstructs both normal and anomalous regions, thereby weakening anomaly signals. ADTR [ 13 ] attributes this behavior to the ease with which CNNs can learn identity mappings, e.g., a 1 × 1 convolution becomes x′ = x when W = I and 
+
+b = 0 , and argues that attention-based reconstructors may alleviate it by relying on token interactions instead of direct local mappings. In unified anomaly detection, multi-class reconstruction further increases the difficulty of learning category-specific normal patterns, making identical shortcut an attractive solution [ 11 ]. Masking-based methods therefore hide partial visual information and force the model to infer normal structures instead of simply copying the input, with methods such as [ 20 , 14 , 31 ] further improving the masking strategy. A complementary line of work views identical shortcut as a latent-space problem: memory-based methods constrain latent features through normal memory retrieval [ 17 ], while quantization-based approaches compress the latent space so that only normal patterns are preserved [19]. 
+
+Representation learning and shortcut behavior. Representation learning aims to encode the factors of variation that are useful for downstream tasks [ 39 ]. Shortcut learning can be viewed as a representation failure: the model preserves easily exploitable or spuriously correlated factors while suppressing more robust factors [ 40 , 23 ]. This view is useful for one-for-all anomaly detection, where the latent space must both preserve category-specific normal factors and prevent input-copying factors from dominating reconstruction. Contrastive learning provides one example of this trade-off: class-aware contrastive objectives can improve category separability [ 12 ], but instance discrimination can also rely on shortcut features and suppress other useful factors [ 23 ]. BoRAD therefore adopts a negative-free BYOL-style objective [ 41 ], but applies it through dense prototype alignment and shifted global residuals to shape reconstruction features without class labels or negative pairs. 
+
+## 3 Theoretical Framework 
+
+Figure 1: Overview of BoRAD. The framework uses prototype-guided training regularization to allocate representation capacity between local spatial contraction and global discriminability preservation. The reconstruction cosine loss denoted as Lcos in the figure corresponds to Lrecon in the text. At inference, anomaly maps are computed from teacher-student feature discrepancy without prototype lookup. BoRAD addresses the representation dilemma in multi-class reconstruction: the student must be capacity-limited enough to reject anomalous identity details, yet expressive enough to keep distinct normal clusters separated. As shown in Figure 2, an over-expressive latent space can pass anomalous features through the decoder, creating an 
+
+Identity Shortcut ; an over-compressed space can collapse distinct normal clusters, causing Inter-class Confusion . Our goal is to control the latent representation in a balanced way: contract local within-cluster variation while preserving global between-cluster structure. Because over-expressiveness and over-compression reflect excessive and insufficient information retention, respectively, we adopt an information-centric view and relate information to variance; constraining variance through contrastive objectives offers a simple way to guide the latent space away from both extremes. 3arXiv Template A P REPRINT 
+
+Figure 2: The Representation Dilemma. Setup. Given an image x, a frozen teacher ET extracts dense features 
+
+fe. As summarized in Figure 1, the online branch applies a learnable projector ϕθ and an MFF-OCE fusion module to obtain an intermediate feature f mid , which is decoded by the student DS into spatial features 
+
+fs; its pooled representation is g = GAP( f mid ). A momentum target branch ϕξ provides stable cross-view targets for augmented views (1) and 
+
+(2) . The reconstruction loss Lrecon and the test-time anomaly map are both computed from teacher-student cosine discrepancy, with high local discrepancy indicating anomalous regions. 
+
+3.1 Information Bottleneck View of Shortcut Learning 
+
+Shortcut learning can be viewed as a mismatch between what is sufficient for the training objective and what remains reliable under distribution shift. Let X denote the input, Y the intended target, and Z = fθ (X) the learned representation. The Information Bottleneck (IB) principle seeks a representation that preserves task-relevant information while discarding unnecessary input information: 
+
+min  
+
+> θ
+
+I(X; Z) − βI (Z; Y ), (1) or equivalently, a representation with minimal input information subject to sufficient predictive power for Y [24, 42]. In standard shortcut learning, the input can be decomposed into robust task factors Xc and shortcut factors Xs. Because 
+
+Xs can be easier to encode or optimize, a model may preserve I(Z; Xs) while suppressing harder but more reliable factors [ 23 ]. Thus, compression alone does not remove shortcuts: an IB objective can still preserve a shortcut if it is the cheapest sufficient statistic for the training distribution. Reconstruction-based anomaly detection has an analogous failure. The desired representation should preserve normal structure while discarding anomalous variation, but training observes only normal data and never explicitly defines what must be rejected. If the student pathway has excessive capacity, the representation can behave as a near-identity channel: 
+
+I(X; Z) ≈ H (X). (2) Here, H(X) denotes the entropy of the input representation, or differential entropy when X is modeled as a continuous feature variable. At test time, this channel can transmit anomalous components through the bottleneck, allowing the decoder to reconstruct Xa instead of projecting the input back to the normal manifold. We call this failure the Identity Shortcut : the model solves reconstruction by preserving input identity rather than learning a normality-constrained representation. This view clarifies why anomaly detection requires more than ordinary reconstruction accuracy. A useful reconstruction model should be sufficient for normal structure, not for arbitrary input identity. We therefore constrain the representation so that only normal-compatible information remains decodable: 
+
+min Lrecon s.t. I(X; Z) ≤ C , Z ∈ S normal , (3) where Snormal denotes the learned normal representation manifold. Since I(X; Z) = h(Z) − h(Z|X) and h(Z|X)
+
+is constant under our deterministic or fixed-noise encoder view, capacity control reduces to controlling the marginal differential entropy h(Z) up to an additive constant. Directly optimizing h(Z) is impractical, so we use the Maximum Entropy Principle and AM-GM inequality to upper-bound it with a monotonic function of the total variance Tr (Σ Z )
+
+(Appendix B.1). BoRAD implements this constraint through prototype-guided variance decomposition: local prototype-conditioned alignment contracts within-anchor variation, while global shifted alignment preserves between-anchor variation to avoid collapsing distinct normal clusters. 
+
+3.2 Geometric Bifurcation via the Law of Total Variance 
+
+To prevent the total collapse of the representation space—which would destroy between-cluster discriminability—we partition the Total Variance. Given a set of learnable prototype anchors P, the Law of Total Variance decomposes Tr (Σ Z ) into two orthogonal components: Var (Z) = EP [Var (Z|P )] + Var P (E[Z|P ]) (4) This decomposition dictates our architectural topology. We use a geometric bifurcation strategy: local alignment reduces the intra-cluster variance term to form a bottleneck against Identity Shortcuts, while shifted global alignment preserves the inter-cluster variance term needed for semantic separability across diverse normal clusters. 4arXiv Template A P REPRINT 
+
+Prototype and shifted-coordinate interpretation. BoRAD implements this bifurcation with prototype anchors. Prototype representations can regularize continuous feature spaces by providing learnable basis directions [ 19 ]; here, the same prototype bank serves two variance-specific roles. Locally, spatial routing through prototypes targets the con-ditional term EP [Var( Z|P )] : it contracts within-prototype variation and forms a low-rank normal-manifold bottleneck against Identity Shortcuts. Globally, prototype-relative shifting targets the between-prototype term Var P (E[Z|P ]) : it changes the coordinate system before angular alignment so that normal cluster directions remain separable instead of being uniformly collapsed. This follows the broader intuition behind mean-shifted representation learning [ 37 ], but differs in construction: BoRAD learns multiple anchors jointly with the reconstruction model rather than shifting by a single fixed mean. The prototypes are not an inference-time memory; they are discarded after training and only shape the teacher-student reconstruction pathway. 
+
+3.3 Spatial Prototype Alignment 
+
+To reduce the expected intra-cluster variance EP [Var (Z|P )] , we operate on the local spatial features. However, unconstrained continuous variance reduction can still preserve identical shortcuts for anomalous regions. We therefore introduce a learnable visual dictionary of spatially-indexed prototypes P ∈ R(H×W )×N × C to provide a low-rank training-time bottleneck. The spatial prototype BYOL block in Figure 1 illustrates this per-location prototype routing, Merge fusion, and spatial prediction path. We force the fusion outputs from both augmented views to query this prototype bank via a cosine-similarity weighted linear projection at each spatial location (i, j ):
+
+v(t)(i,j ) = ( f mid, (t) 
+
+> s, (i,j )
+
+P(i,j ))P(i,j ) for t ∈ { 1, 2} (5) where f mid, (t) 
+
+> s, (i,j )
+
+denotes the student-side intermediate feature of view t at location (i, j ), P(i,j ) denotes the corresponding location-specific prototype matrix, and v(t)(i,j ) is the prototype-routed feature at that location. After this prototype-guided projection, we enforce a predictive alignment between the two views. The final spatial latent representations are constructed by fusing the raw continuous features with these prototype-conditioned structural summaries: f (t) 
+
+> s
+
+=
+
+Merge (f mid, (t), v (i)). To directly execute the variance contraction, the online representation f (1)  
+
+> s
+
+is mapped through a spatial predictor network qs and aligned against the target representation f (2)  
+
+> s
+
+:
+
+Lspatial = 1 − cos 
+
+
+
+qs(f (1)  
+
+> s
+
+), f (2) 
+
+> s
+
+
+
+(6) Assuming an optimal spatial predictor, gradient descent on this predictive alignment reduces the conditional variance Var (f (2)  
+
+> s
+
+|f (1)  
+
+> s
+
+) (proof in Appendix B.2). Because the representation is mediated through the low-rank linear bottleneck of the prototype bank, this variance reduction is biased toward a low-dimensional normal sub-manifold (Appendix B.3). The learned decoder is therefore encouraged to favor normal-manifold directions Snormal = span (P) over out-of-distribution variations. 
+
+3.4 Global Alignment and Prototype-Relative Angular Sensitivity 
+
+Spatial alignment contracts local conditional variance, but multi-class reconstruction also needs to preserve the directions that separate normal clusters. We therefore add a global alignment loss in a prototype-relative coordinate system. Let δg = g(1) − g(2) denote the cross-view difference in global feature space. Directly aligning g(1) and g(2) measures angles from the global origin, which can blur between-cluster geometry. Instead, we mean-pool the spatial prototype bank into N normalized global anchors ˜pk and align residuals 
+
+r(i) 
+
+> k
+
+= g(i) − ˜pk, ∥˜pk∥2 = 1 . (7) The resulting BYOL-style global objective is 
+
+Lglobal = 1
+
+N
+
+> N
+
+X
+
+> k=1
+
+
+
+1 − cos 
+
+
+
+qg (r(1)  
+
+> k
+
+), r(2) 
+
+> k
+
+ 
+
+. (8) Here, qg is an online predictor. The shift preserves the cross-view difference, r(1)  
+
+> k
+
+− r(2)  
+
+> k
+
+= δg , but changes the angular coordinate system because cosine similarity is not translation invariant. When a feature direction approaches a prototype direction, the residual becomes 
+
+rk = ∥g∥˜g − ˜pk
+
+> ˜g→˜pk
+
+−−−−→ (∥g∥ − 1)˜ pk (9) 5arXiv Template A P REPRINT 
+
+Table 1: Comparison with state-of-the-art methods. Best results are highlighted in bold, and second-best results are underlined. Dataset Method Image Pixel mAD ↑                                                                                                                                                                                                                                                                                                                                                            
+
+> AU-ROC ↑AP ↑F1 ↑AU-ROC ↑AP ↑F1 ↑AU-PRO ↑
+> MVTec AD UniAD [NeurIPS’22] [11] 96.5 98.8 96.2 96.8 43.4 49.5 90.7 81.7 RD4AD [CVPR’22] [5] 94.6 96.5 95.2 96.1 48.6 53.8 91.1 82.3 SimpleNet [CVPR’23] [34] 95.3 98.4 95.8 96.9 45.9 49.7 86.5 81.2 DeSTSeg [CVPR’23] [30] 89.2 95.5 91.6 93.1 54.3 50.9 64.8 77.1 DiAD [AAAI’24] [27] 97.2 99.0 96.5 96.8 52.6 55.5 90.7 84.0 HVQ-Trans [NeurIPS’23] [19] 98.0 99.5 97.5 97.3 48.2 53.3 91.4 83.6 MambaAD [NeurIPS’24] [28] 98.6 99.6 97.8 97.7 56.3 59.2 93.1 86.0 ViTAD [CVIU’25] [29] 98.3 99.4 97.3 97.7 55.3 58.7 91.4 85.4 OmiAD [ICML’25] [31] 98.8 99.7 98.5 97.7 52.6 56.7 93.2 85.3
+> BoRAD (Ours) 99.1 ±0.13 99.6 ±0.04 98.1 ±0.16 97.8 ±0.04 56.0 ±0.40 59.4 ±0.27 93.8 ±0.05 86.2 ±0.07
+> VisA UniAD [NeurIPS’22] [11] 88.8 90.8 85.8 98.3 33.7 39.0 85.5 74.6 RD4AD [CVPR’22] [5] 92.4 92.4 89.6 98.1 38.0 42.6 91.8 77.8 SimpleNet [CVPR’23] [34] 87.2 87.0 81.8 96.8 34.7 37.8 81.4 72.4 DeSTSeg [CVPR’23] [30] 88.9 89.0 85.2 96.1 39.6 43.4 67.4 72.8 DiAD [AAAI’24] [27] 86.8 88.3 85.1 96.0 26.1 33.0 75.2 70.1 HVQ-Trans [NeurIPS’23] [19] 93.2 92.8 87.6 98.7 35.0 39.6 86.3 76.2 MambaAD [NeurIPS’24] [28] 94.3 94.5 89.4 98.5 39.4 44.0 91.0 78.7 ViTAD [CVIU’25] [29] 90.5 91.7 86.3 98.2 36.6 41.1 85.1 75.6 OmiAD [ICML’25] [31] 95.3 96.0 91.2 98.9 40.4 44.1 89.2 79.3
+> BoRAD (Ours) 95.5 ±0.08 96.1 ±0.12 91.9 ±0.06 98.7 ±0.03 43.4 ±0.18 46.7 ±0.15 93.0 ±0.13 80.7 ±0.02
+> Real-IAD UniAD [NeurIPS’22] [11] 83.0 80.9 74.3 97.3 21.1 29.2 86.7 67.5 RD4AD [CVPR’22] [5] 82.4 79.0 73.9 97.3 25.0 32.7 89.6 68.6 SimpleNet [CVPR’23] [34] 57.2 53.4 61.5 75.7 2.8 6.5 39.0 42.3 DeSTSeg [CVPR’23] [30] 82.3 79.2 73.2 94.6 37.9 41.7 40.6 64.2 DiAD [AAAI’24] [27] 75.6 66.4 69.9 88.0 2.9 7.1 58.1 52.6 HVQ-Trans [NeurIPS’23] [19] 86.6 84.9 79.4 98.0 27.6 34.4 88.7 71.4 MambaAD [NeurIPS’24] [28] 86.3 84.6 77.0 98.5 33.0 38.7 90.5 72.7 ViTAD [CVIU’25] [29] ––––––––OmiAD [ICML’25] [31] 90.1 88.6 82.8 98.9 37.7 42.6 93.1 76.3 BoRAD (Ours) 87.4 ±0.21 85.2 ±0.33 78.0 ±0.16 98.2 ±0.06 32.4 ±0.54 38.9 ±0.38 91.3 ±0.08 73.1 ±0.25
+
+and retains magnitude information through the energy gap (∥g∥ − 1) . Intuitively, the prototype shift does not erase the view difference δg ; it changes where the angle is measured from. A deviation that appears small around the global origin can become more visible when measured relative to nearby prototype anchors. This prototype-relative angular sensitivity helps the global loss preserve between-cluster directions while making off-manifold deviations easier to separate, without negative pairs or class labels. Its stationary behavior is analyzed in Appendix B.4. 
+
+3.5 Overall Objective and Synergistic Optimization 
+
+During training, the overall objective of the BoRAD framework is formulated as a weighted sum of the foundational reconstruction, spatial predictive alignment, and global alignment losses shown in Figure 1: 
+
+Ltotal = Lrecon + λsLspatial + λg Lglobal (10) where λs and λg are scalar coefficients dynamically balancing the structural optimization paths. The integration of these losses implements the Geometric Bifurcation strategy described in Section 3.2: 
+
+Lrecon (Base Knowledge Distillation): Establishes the foundational dense mapping from the frozen teacher. 
+
+Lspatial (Local Variance Contraction): By routing localized features through the prototype bottleneck and predictive alignment, it reduces intra-cluster conditional variance and discourages the decoder from copying high-frequency anomalous variations. 
+
+Lglobal (Between-Cluster Geometry Preservation): By aligning shifted residuals around the spatial prototype axes, it preserves inter-cluster variance while increasing sensitivity to prototype-relative angular changes. This discourages collapse of diverse semantic representations and reduces Inter-class Confusion in multi-category reconstruction. Together, these losses reduce anomalous reconstruction capacity while preserving diverse normal cluster structure. 
+
+## 4 Experimental Results 
+
+In this section, we evaluate BoRAD under a one-for-all setting across three industrial anomaly detection benchmarks. We compare against competitive reconstruction, memory, diffusion, and recent foundation-style anomaly detection baselines, then isolate the contribution of each training-time component through controlled ablations. 6arXiv Template A P REPRINT 
+
+Figure 3: Qualitative anomaly localization results. 
+
+Heatmaps, input images, and masks are shown from top to bottom. More detail results are in Appendix F Table 2: Ablation on λs.                                    
+
+> λsImage Pixel AUROC mAP mF1 mAUPRO mAUROC mAP mF1 0.1 98.97 99.51 97.76 93.68 97.72 55.78 59.48 0.5 98.99 99.58 97.72 93.85 97.78 55.75 59.10 199.19 99.63 98.15 93.77 97.78 55.98 59.30 298.96 99.54 98.00 93.96 97.82 56.08 59.58
+
+Table 3: Ablation on λg .                                    
+
+> λgImage Pixel AUROC mAP mF1 mAUPRO mAUROC mAP mF1 0.1 98.82 99.48 97.92 93.70 97.70 55.02 58.84 0.5 98.96 99.51 97.73 93.76 97.73 55.21 59.05 199.19 99.63 98.15 93.77 97.78 55.98 59.30 298.81 99.54 98.09 93.79 97.85 55.93 59.50
+
+Table 5: Ablation Study on Modules. Best results are highlighted. Proto Shift Masking Global Loss Spatial Loss Image Pixel mAD ↑                                                                
+
+> AUROC ↑mAP ↑mF1 ↑mAUPRO ↑mAUROC ↑mAP ↑mF1 ↑
+> 98.16 99.19 96.93 93.04 97.37 53.90 57.83 85.20
+> ✓✓✓99.01 99.52 97.91 93.65 97.70 54.36 58.66 85.83
+> ✓✓✓98.84 99.45 97.84 93.52 97.64 55.10 58.66 85.86
+> ✓✓✓98.98 99.51 98.10 93.76 97.76 55.25 59.04 86.06
+> ✓✓✓98.92 99.51 97.74 93.61 97.70 55.48 59.05 86.00
+> ✓✓✓✓99.08 99.59 98.05 93.79 97.78 56.01 59.41 86.24
+
+4.1 Experimental Setup Datasets. We evaluate on three benchmarks: (1) MVTec AD [43 ] (15 industrial categories), (2) VisA [ 44 ] (12 categories with complex structures), and (3) Real-IAD [ 45 ] (large-scale, 30 categories). For each benchmark, a single model is trained on normal images pooled across all categories and evaluated on the corresponding multi-class test split. For the main comparison in Table 1 and Table 5, we report the mean and standard deviation over three independent runs; for other experimental tables, we report single-run results using seed 42 due to the large number of ablation and diagnostic experiments. 
+
+Metrics. We report image-level AU-ROC, AP, and F1-max, together with pixel-level AU-ROC, AP, F1-max, and AU-PRO. mAD is the arithmetic mean of these seven metrics. 
+
+4.2 Comparison with Competitive Methods 
+
+Table 4: Parameter and computational efficiency. FPS evaluated on an NVIDIA RTX 4060 Ti. Mode Total (M) ↓ Trainable (M) ↓ GFLOPs ↓ FPS ↑        
+
+> Train + proto loss 120.894 80.544 52.4 62.172 Test inference 96.097 71.234 37.5 117.026
+
+Table 1 compares BoRAD with recent one-for-all anomaly detectors, and Table 4 reports its parameter and compute cost. BoRAD achieves the best mAD on MVTec AD ( 86.2% ) and VisA ( 80.7% ), and the second-best mAD on Real-IAD ( 73.1% ). It is especially strong on MVTec and VisA localization metrics, while OmiAD remains stronger on Real-IAD. 
+
+4.3 Ablation: Validating Components 
+
+Table 5 validates the contribution of each BoRAD com-ponent on MVTec AD. The base reconstruction model obtains 85.2% mAD, but its lower pixel AP/F1 indicates limited localization capacity control. Adding the proposed components consistently improves performance. Prototype shifting and feature masking mainly improve pixel-level metrics, suggesting that shifted alignment benefits from stochastic feature perturbations. The global and spatial losses provide complementary gains: the global loss improves overall separability, while the spatial loss achieves good scores in localization. The full model achieves the best results across all metrics, reaching 99.08% image AU-ROC, 56.01% pixel AP, 59.41% pixel F1-max, and 86.2% mAD. The ablation on the weighting between the spatial and global losses is reported in Table 2 and Table 3. Additional hyperparameter ablations are reported in Appendix E. 7arXiv Template A P REPRINT  
+
+> (a) t-SNE [46] of global features. (b) Feature channel activations.
+
+Figure 4: Qualitative validation of the two training effects. (a) t-SNE visualization shows preserved between-cluster separability across categories. (b) Feature channel activations show local variance contraction: with BoRAD, the student decoder no longer copies the teacher’s anomalous activations. 
+
+4.4 Qualitative Analysis 
+
+Figure 4 shows the two expected effects: global features remain category-separated, while local activations no longer copy anomalous teacher responses. Together with the localization examples in Figure 3, Figure 4 shows the two expected effects: global features remain category-separated, while local activations no longer copy anomalous teacher responses. 
+
+4.5 Diagnostic Analysis of the Representation Dilemma 
+
+Aggregate AUROC/AP scores do not reveal which part of the representation dilemma is being improved. We therefore keep one focused diagnostic for each question: CopySim/LeakageGap measure anomalous copying, Silhouette measures train-normal category separability, and score Separation/Pixel AP measure whether anomaly maps separate abnormal from normal pixels. Detailed definitions are in Appendix D. Table 6: Focused diagnostic measurements on MVTec AD. Arrows indicate the preferred direction. CopySim and LeakageGap measure anomalous copying, Silhouette measures normal-category separability in mid -GAP features, and Separation/Pixel AP measure anomaly-normal localization quality. Variant CopySim anom ↓ LeakageGap ↓ Silhouette ↑ Separation ↑ Pixel AP ↑                    
+
+> Baseline 0.914 -0.045 0.637 0.073 0.506 w/o Shift 0.905 -0.052 0.696 0.087 0.520 w/o Global 0.903 -0.053 0.718 0.089 0.529 Ours 0.887 -0.064 0.841 0.104 0.543
+
+Table 6 supports the intended behavior. BoRAD reduces anomalous copying, improves normal-category separability, and gives the strongest anomaly-normal score separation. 
+
+4.6 Empirical Analysis of Feature Statistics 
+
+To quantitatively validate our theoretical claims regarding spatial contraction and angular amplification, we analyze representation statistics on 100 random test samples. We compute the mean feature standard deviation and mean cosine similarity between online and target representations. As shown in Figure 5, BoRAD with shift reduces feature variation, supporting compactness, while decreasing cross-view cosine similarity, indicating stronger angular separation. 8arXiv Template A P REPRINT 
+
+## 5 Limitations  
+
+> (a) Mean Feature Std (b) Mean Cosine Sim.
+
+Figure 5: Empirical validation on 100 random test samples. BoRAD with shift reduces feature variation and decreases cross-view cosine similarity. BoRAD still inherits the inference cost of dense reverse distillation with a high-capacity teacher. Its prototype bottle-neck may also be less effective for subtle anomalies that lie close to the learned normal subspace Snormal . Finally, the shifted alignment relies on feature mask-ing to induce meaningful cross-view dif-ferences; poorly matched perturbations may emphasize sub-optimal directions for some edge-case anomalies. 
+
+## 6 Conclusion 
+
+We formulate multi-class anomaly detec-tion as an Information Bottleneck prob-lem governed by a fundamental Repre-sentation Dilemma. By analyzing the capacity–separability conflict through the Law of Total Variance, we propose BoRAD, a unified unsupervised frame-work that addresses this dilemma via Geometric Bifurcation. BoRAD uses a shared learnable visual dictionary: spatial predictive alignment contracts conditional variance through prototype-guided projection, forming a low-rank normal-manifold bottleneck that suppresses identical shortcuts, while global coordinate shift preserves prototype-relative angular structure and avoids the invariance paradox without external supervision or negative pairs. Across MVTec AD, VisA, and Real-IAD, BoRAD achieves highly competitive unsupervised anomaly localization performance. Empirical analyses further validate the complementarity between spatial prototype projection and shifted global alignment. In practice, stronger one-for-all inspection can reduce deployment and manual review costs, but deployment should still include threshold calibration, human review, and monitoring under domain shift to mitigate missed defects or unnecessary rejection. 
+
+## References 
+
+[1] Changhee Han, Leonardo Rundo, Kohei Murao, Tomoyuki Noguchi, Yuki Shimahara, Zoltán Ádám Milacski, Saori Koshino, Evis Sala, Hideki Nakayama, and Shin’ichi Satoh. Madgan: Unsupervised medical anomaly detection gan using multiple adjacent brain mri slice reconstruction. BMC bioinformatics , 22(Suppl 2):31, 2021. [2] Alvaro Gonzalez-Jimenez, Simone Lionetti, Ludovic Amruthalingam, Philippe Gottfrois, Fabian Gröger, Marc Pouly, and Alexander A Navarini. Is hyperbolic space all you need for medical anomaly detection? In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 312–322. Springer, 2025. [3] Jiaqi Liu, Guoyang Xie, Jinbao Wang, Shangnian Li, Chengjie Wang, Feng Zheng, and Yaochu Jin. Deep industrial image anomaly detection: A survey. Machine Intelligence Research , 21(1):104–135, 2024. [4] Karsten Roth, Latha Pemula, Joaquin Zepeda, Bernhard Schölkopf, Thomas Brox, and Peter Gehler. Towards total recall in industrial anomaly detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 14318–14328, 2022. [5] Hanqiu Deng and Xingyu Li. Anomaly detection via reverse distillation from one-class embedding. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9737–9746, 2022. [6] Bo Zong, Qi Song, Martin Renqiang Min, Wei Cheng, Cristian Lumezanu, Daeki Cho, and Haifeng Chen. Deep autoencoding gaussian mixture model for unsupervised anomaly detection. In International conference on learning representations , 2018. [7] Thomas Schlegl, Philipp Seeböck, Sebastian M Waldstein, Georg Langs, and Ursula Schmidt-Erfurth. f-anogan: Fast unsupervised anomaly detection with generative adversarial networks. Medical image analysis , 54:30–44, 2019. [8] Denis Gudovskiy, Shun Ishizaka, and Kazuki Kozuka. Cflow-ad: Real-time unsupervised anomaly detection with localization via conditional normalizing flows. In Proceedings of the IEEE/CVF winter conference on applications of computer vision , pages 98–107, 2022. 9arXiv Template A P REPRINT 
+
+[9] Dong Gong, Lingqiao Liu, Vuong Le, Budhaditya Saha, Moussa Reda Mansour, Svetha Venkatesh, and Anton van den Hengel. Memorizing normality to detect anomaly: Memory-augmented deep autoencoder for unsupervised anomaly detection. In Proceedings of the IEEE/CVF international conference on computer vision , pages 1705– 1714, 2019. [10] Qiyu Chen, Huiyuan Luo, Chengkan Lv, and Zhengtao Zhang. A unified anomaly synthesis strategy with gradient ascent for industrial anomaly detection and localization. In European Conference on Computer Vision , pages 37–54. Springer, 2024. [11] Zhiyuan You, Lei Cui, Yujun Shen, Kai Yang, Xin Lu, Yu Zheng, and Xinyi Le. A unified model for multi-class anomaly detection. In Advances in Neural Information Processing Systems , 2022. [12] Lei Fan, Junjie Huang, Donglin Di, Anyang Su, Tianyou Song, Maurice Pagnucco, and Yang Song. Salvaging the overlooked: Leveraging class-aware contrastive learning for multi-class anomaly detection. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 21419–21428, 2025. [13] Zhiyuan You, Kai Yang, Wenhan Luo, Lei Cui, Yu Zheng, and Xinyi Le. Adtr: Anomaly detection transformer with feature reconstruction. In International Conference on Neural Information Processing , pages 298–310. Springer, 2022. [14] Xincheng Yao, Chongyang Zhang, Ruoqi Li, Jun Sun, and Zhenyu Liu. One-for-all: Proposal masked cross-class anomaly detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 37, pages 4792–4800, 2023. [15] Wenxi Lv, Qinliang Su, and Wenchao Xu. One-for-all few-shot anomaly detection via instance-induced prompt learning. In The Thirteenth International Conference on Learning Representations , 2025. [16] Yiting Li, Adam Goodge, Fayao Liu, and Chuan-Sheng Foo. Promptad: Zero-shot anomaly detection using text prompts. In Proceedings of the IEEE/CVF winter conference on applications of computer vision , pages 1093–1102, 2024. [17] Hyunjong Park, Jongyoun Noh, and Bumsub Ham. Learning memory-guided normality for anomaly detection. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 14372–14381, 2020. [18] Jongheon Jeong, Yang Zou, Taewan Kim, Dongqing Zhang, Avinash Ravichandran, and Onkar Dabeer. Winclip: Zero-/few-shot anomaly classification and segmentation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 19606–19616, 2023. [19] Ruiying Lu, YuJie Wu, Long Tian, Dongsheng Wang, Bo Chen, Xiyang Liu, and Ruimin Hu. Hierarchical vector quantized transformer for multi-class unsupervised anomaly detection. Advances in Neural Information Processing Systems , 36:8487–8500, 2023. [20] Ruiying Lu, Gang Liu, Kang Li, Long Tian, and Junwei Zhang. Maskad: Parallel masked autoencoder for multi-class unsupervised anomaly detection. In Proceedings of the AAAI Conference on Artificial Intelligence ,volume 40, pages 15457–15465, 2026. [21] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Representation learning with contrastive predictive coding. 
+
+arXiv preprint arXiv:1807.03748 , 2018. [22] Xinlong Wang, Rufeng Zhang, Chunhua Shen, Tao Kong, and Lei Li. Dense contrastive learning for self-supervised visual pre-training. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 3024–3033, 2021. [23] Joshua Robinson, Li Sun, Ke Yu, Kayhan Batmanghelich, Stefanie Jegelka, and Suvrit Sra. Can contrastive learning avoid shortcut solutions? Advances in neural information processing systems , 34:4974–4986, 2021. [24] Kenji Kawaguchi, Zhun Deng, Xu Ji, and Jiaoyang Huang. How does information bottleneck help deep learning? In International conference on machine learning , pages 16049–16096. PMLR, 2023. [25] Paul Bergmann, Sindy Löwe, Michael Fauser, David Sattlegger, and Carsten Steger. Improving unsupervised defect segmentation by applying structural similarity to autoencoders. arXiv preprint arXiv:1807.02011 , 2018. [26] Jie Yang, Yong Shi, and Zhiquan Qi. Dfr: Deep feature reconstruction for unsupervised anomaly segmentation. 
+
+arXiv preprint arXiv:2012.07122 , 2020. [27] Haoyang He, Jiangning Zhang, Hongxu Chen, Xuhai Chen, Zhishan Li, Xu Chen, Yabiao Wang, Chengjie Wang, and Lei Xie. A diffusion-based framework for multi-class anomaly detection. In Proceedings of the AAAI conference on artificial intelligence , volume 38, pages 8472–8480, 2024. [28] Haoyang He, Yuhu Bai, Jiangning Zhang, Qingdong He, Hongxu Chen, Zhenye Gan, Chengjie Wang, Xiangtai Li, Guanzhong Tian, and Lei Xie. Mambaad: Exploring state space models for multi-class unsupervised anomaly detection. Advances in Neural Information Processing Systems , 37:71162–71187, 2024. 10 arXiv Template A P REPRINT 
+
+[29] Jiangning Zhang, Xuhai Chen, Yabiao Wang, Chengjie Wang, Yong Liu, Xiangtai Li, Ming-Hsuan Yang, and Dacheng Tao. Exploring plain vit features for multi-class unsupervised visual anomaly detection. Computer Vision and Image Understanding , 253:104308, 2025. [30] Xuan Zhang, Shiyu Li, Xi Li, Ping Huang, Jiulong Shan, and Ting Chen. Destseg: Segmentation guided denoising student-teacher for anomaly detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 3914–3923, 2023. [31] Yaoxuan Feng, Wenchao Chen, Yuxin Li, Bo Chen, Yubiao Wang, Zixuan Zhao, Hongwei Liu, and Mingyuan Zhou. Omiad: One-step adaptive masked diffusion model for multi-class anomaly detection via adversarial distillation. In Forty-second International Conference on Machine Learning , 2025. [32] Xinyue Liu, Jianyuan Wang, Biao Leng, and Shuo Zhang. Unlocking the potential of reverse distillation for anomaly detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 5640–5648, 2025. [33] Vitjan Zavrtanik, Matej Kristan, and Danijel Skoˇ caj. Draem-a discriminatively trained reconstruction embedding for surface anomaly detection. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 8330–8339, 2021. [34] Zhikang Liu, Yiming Zhou, Yuansheng Xu, and Zilei Wang. Simplenet: A simple network for image anomaly detection and localization. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 20402–20411, 2023. [35] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition , pages 248–255. Ieee, 2009. [36] Zhihao Gu, Jiangning Zhang, Liang Liu, Xu Chen, Jinlong Peng, Zhenye Gan, Guannan Jiang, Annan Shu, Yabiao Wang, and Lizhuang Ma. Rethinking reverse distillation for multi-modal anomaly detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 38, pages 8445–8453, 2024. [37] Tal Reiss and Yedid Hoshen. Mean-shifted contrastive loss for anomaly detection. In Proceedings of the AAAI conference on artificial intelligence , volume 37, pages 2155–2162, 2023. [38] Jia Guo, Shuai Lu, Lize Jia, Weihang Zhang, and Huiqi Li. Recontrast: Domain-specific anomaly detection via contrastive reconstruction. Advances in Neural Information Processing Systems , 36:10721–10740, 2023. [39] Yoshua Bengio, Aaron Courville, and Pascal Vincent. Representation learning: A review and new perspectives. 
+
+IEEE transactions on pattern analysis and machine intelligence , 35(8):1798–1828, 2013. [40] Piyapat Saranrittichai, Chaithanya Kumar Mummadi, Claudia Blaiotta, Mauricio Munoz, and Volker Fischer. Overcoming shortcut learning in a target domain by generalizing basic visual factors from a source domain. In 
+
+European Conference on Computer Vision , pages 294–309. Springer, 2022. [41] Jean-Bastien Grill, Florian Strub, Florent Altché, Corentin Tallec, Pierre Richemond, Elena Buchatskaya, Carl Doersch, Bernardo Avila Pires, Zhaohan Guo, Mohammad Gheshlaghi Azar, et al. Bootstrap your own latent-a new approach to self-supervised learning. Advances in neural information processing systems , 33:21271–21284, 2020. [42] Naftali Tishby, Fernando C Pereira, and William Bialek. The information bottleneck method. arXiv preprint physics/0004057 , 2000. [43] Paul Bergmann, Michael Fauser, David Sattlegger, and Carsten Steger. Mvtec ad–a comprehensive real-world dataset for unsupervised anomaly detection. In IEEE Conference on Computer Vision and Pattern Recognition ,2019. [44] Yang Zou, Jongheon Jeong, Latha Pemula, Dongqing Zhang, and Onkar Dabeer. Spot-the-difference self-supervised pre-training for anomaly detection and segmentation. In European conference on computer vision ,pages 392–408. Springer, 2022. [45] Chengjie Wang, Wenbing Zhu, Bin-Bin Gao, Zhenye Gan, Jiangning Zhang, Zhihao Gu, Shuguang Qian, Mingang Chen, and Lizhuang Ma. Real-iad: A real-world multi-view dataset for benchmarking versatile industrial anomaly detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 22883–22892, 2024. [46] Laurens Van der Maaten and Geoffrey Hinton. Visualizing data using t-sne. Journal of machine learning research ,9(11), 2008. [47] Sergey Zagoruyko and Nikos Komodakis. Wide residual networks. arXiv preprint arXiv:1605.07146 , 2016. [48] Dmitry Ulyanov, Andrea Vedaldi, and Victor Lempitsky. Instance normalization: The missing ingredient for fast stylization. arXiv preprint arXiv:1607.08022 , 2016. 11 arXiv Template A P REPRINT 
+
+[49] Andrew L Maas, Awni Y Hannun, Andrew Y Ng, et al. Rectifier nonlinearities improve neural network acoustic models. In Proc. icml , volume 30, page 3. Atlanta, GA, 2013. [50] Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 ,2014. 12 arXiv Template A P REPRINT 
+
+## A Inference Pseudocode 
+
+Algorithm 1 presents the inference pipeline of BoRAD. All training-time components—the prototype bank P, merge layer Φmerge , predictors ( Φpred , Φgpred ), and the momentum target branch—are discarded after training. These components serve as training regularizers that shape the projector and decoder weights during optimization. At test time, inference reduces to a single efficient forward pass: the frozen teacher features are compared against the student’s reconstruction via per-scale cosine distance. 
+
+Algorithm 1 BoRAD Inference  
+
+> 1:
+
+Input: Test image x; frozen encoder E; trained projector ϕθ , MFF-OCE, decoder Sω 
+
+> 2:
+
+Discarded: Prototypes P, predictors Φpred , Φgpred , merge Φmerge , target branch ϕξ 
+
+> 3:
+
+Output: Anomaly map M, image-level score simage  
+
+> 4:
+
+% 1. Feature extraction  
+
+> 5:
+
+{f (l) 
+
+> e
+
+}3 
+
+> l=1
+
+← E(x) ▷ Multi-scale teacher features (frozen)  
+
+> 6:
+
+{f (l) 
+
+> p
+
+}3 
+
+> l=1
+
+← ϕθ ({f (l) 
+
+> e
+
+}) ▷ Online projection  
+
+> 7:
+
+ffused ← MFF-OCE ({f (l) 
+
+> p
+
+}) ▷ Multi-scale fusion  
+
+> 8:
+
+{f (l) 
+
+> s
+
+}3 
+
+> l=1
+
+← Sω (ffused ) ▷ Decoder reconstruction  
+
+> 9:
+
+% 2. Anomaly scoring  
+
+> 10:
+
+M(l) ← 1 − cos( f (l) 
+
+> e
+
+, f (l) 
+
+> s
+
+) for each scale l ▷ Per-scale cosine distance  
+
+> 11:
+
+M ← Upsample  P  
+
+> l
+
+M(l) ▷ Fused anomaly map  
+
+> 12:
+
+simage ← max( M) 
+
+> 13:
+
+return M, s image 
+
+## B Mathematical Proofs and Theoretical Derivations 
+
+This appendix provides mathematical derivations for the theoretical framework presented in the main manuscript, covering the optimization dynamics, geometric constraints, and spectral properties of our Reverse Distillation with Prototype-based Coordinate Shifts architecture. 
+
+B.1 Information Capacity Bound via Total Variance Objective: Prove that minimizing the Total Variance Tr (Σ Z ) provides a monotonic upper bound on the Information Capacity I(X; Z).
+
+Proof: Let X be the input data and Z = ES (X) be the latent representation extracted by the student network. The Information Capacity of the latent space is defined by the Mutual Information: 
+
+I(X; Z) = h(Z) − h(Z|X) (11) In a deterministic implementation, Z|X is degenerate; under the common fixed-noise stochastic encoder interpretation, 
+
+h(Z|X) is finite but constant because the conditional covariance is fixed. In both cases, this conditional term is not optimized toward zero by the reconstruction objective. We therefore control I(X; Z) through the marginal differential entropy h(Z) up to an additive constant. By the Maximum Entropy Principle, for a random variable Z ∈ Rd with a known covariance matrix ΣZ , the differential entropy is strictly upper-bounded by that of a multivariate Gaussian distribution N (μ, ΣZ ):
+
+h(Z) ≤ 12 log  (2 πe )d det(Σ Z ) = d
+
+2 log(2 πe ) + 12 log(det(Σ Z )) (12) Because ΣZ is a symmetric and positive semi-definite covariance matrix, its determinant is the product of its eigenvalues 
+
+λi:
+
+det(Σ Z ) = 
+
+> d
+
+Y
+
+> i=1
+
+λi (13) To avoid the computational instability of optimizing the log-determinant in high-dimensional deep networks, we apply the Arithmetic Mean-Geometric Mean (AM-GM) inequality. The geometric mean of non-negative real numbers is 13 arXiv Template A P REPRINT 
+
+strictly bounded by their arithmetic mean: 
+
+> d
+
+Y
+
+> i=1
+
+λi
+
+!1/d 
+
+≤ 1
+
+d
+
+> d
+
+X
+
+> i=1
+
+λi (14) Recognizing that the sum of the eigenvalues equals the trace of the matrix ( Pdi=1 λi = Tr (Σ Z )), we rewrite the inequality as: 
+
+det(Σ Z )1/d ≤ 1
+
+d Tr (Σ Z ) (15) Taking the natural logarithm of both sides and multiplying by d:
+
+log(det(Σ Z )) ≤ d log 
+
+ 1
+
+d Tr (Σ Z )
+
+
+
+(16) Substituting this back into the entropy bound yields: 
+
+h(Z) ≤ d
+
+2 log(2 πe ) + d
+
+2 log 
+
+ Tr (Σ Z )
+
+d
+
+
+
+(17) Because the logarithm is a monotonically increasing function, minimizing the trace Tr (Σ Z ) strictly minimizes the upper bound of the latent space’s differential entropy, effectively compressing the representational volume. 
+
+B.2 Predictor Optimality and Conditional Variance Objective: Prove that the gradient updates of the predictive alignment minimize the expected conditional variance of the target given the online representation. 
+
+Proof: Let z(1) and z(2) be two augmented views of the same spatial representation. The alignment minimizes the Mean Squared Error (MSE) using a predictor network qϕ parameterized by ϕ, while the online encoder is parameterized by θ. The loss objective is: 
+
+L(θ, ϕ ) = EX, aug 
+
+h
+
+∥qϕ(f (1)  
+
+> θ
+
+) − f (2) ∥22
+
+i
+
+(18) Assuming the neural predictor qϕ has sufficient capacity and is optimized to its theoretical limit q∗, the optimal estimator for minimizing MSE is mathematically defined as the conditional expectation: 
+
+q∗(f (1)  
+
+> θ
+
+) = E
+
+h
+
+f (2) |f (1) 
+
+> θ
+
+i
+
+(19) Substituting this optimal predictor formulation back into the loss function, the objective for updating the online network parameters θ becomes: 
+
+L(θ) = EX, aug 
+
+
+
+E
+
+h
+
+f (2) |f (1) 
+
+> θ
+
+i
+
+− f (2) 22
+
+
+
+(20) By the statistical definition of variance, the expected squared L2 distance between a random vector and its conditional expectation is exactly the sum of the conditional variances of its components: 
+
+E ∥E[Y |X] − Y ∥22
+
+ = X
+
+> i
+
+Var (Yi|X) (21) Therefore, the loss function simplifies to the expected conditional variance: 
+
+L(θ) = E
+
+"X
+
+> i
+
+Var 
+
+
+
+f (2)  
+
+> i
+
+|f (1) 
+
+> θ
+
+#
+
+(22) Gradient descent on θ minimizes this conditional-variance objective under the optimal-predictor approximation. It encourages the online representation f (1)  
+
+> θ
+
+to act as a localized contraction mapping, stripping away high-frequency augmentation noise to reliably predict the smoothed centroid. 14 arXiv Template A P REPRINT 
+
+B.3 Prototype-Guided Linear Subspace Projection Objective: Show that routing the feature through the prototype bank P via linear projection restricts the continuous variance reduction to a low-dimensional sub-manifold, acting as an orthogonal rejection filter for anomalies. 
+
+Proof: Let f (1) ∈ RC be the continuous online feature vector at a specific spatial location. The prototype bank is defined as a matrix P ∈ RN × C , containing N learnable basis vectors. The activation-free spatial routing mechanism calculates the similarity scores and reconstructs the feature in a single linear operation: 
+
+v(1) = ( f (1) PT )P (23) Let S = f (1) PT ∈ R1×N be the linear projection coefficients. The routed feature v(1) can be explicitly rewritten as a linear combination of the prototype row vectors pk:
+
+v(1) =
+
+> N
+
+X
+
+> k=1
+
+skpk (24) Mathematically, this places the routed output in the linear span (the column space of PT ) of the prototype bank: 
+
+v(1) ∈ S normal = span (p1, p 2, . . . , p K ) (25) Assuming N < C , Snormal forms a low-dimensional linear subspace within the original feature space RC . Applying the optimal predictor principle (from Appendix B.2), the gradient dynamics minimize the conditional variance subject to this geometric bottleneck: 
+
+∇θ Lspatial ∝ ∇ θ EX
+
+h
+
+Var 
+
+
+
+f (2) |S normal , f (1) i 
+
+(26) This imposes a low-rank structural limit. By the Orthogonal Decomposition Theorem, any input feature f (1) can be decomposed into a parallel component f∥ ∈ S normal and an orthogonal component f⊥ ∈ S ⊥
+
+> normal
+
+. When the learned dictionary is close to a useful normal basis, the routing (f (1) PT )P favors components representable by Snormal over components outside that span. Because P is optimized on normal data, it is encouraged to span the principal directions of normal variation. If an out-of-distribution anomaly lies outside or weakly overlaps this span, the routing mechanism behaves as a low-rank rejection filter: it attenuates anomalous components that cannot be represented by the learned dictionary. This reduces 
+
+EP [Var (Z|P )] on normal data and establishes the intended dictionary bottleneck. 
+
+B.4 Implicit Eigenvalue Optimization Objective: Prove that minimizing the cosine distance of augmented residuals implicitly solves an eigenvalue problem for the covariance matrix Σ of cross-view feature differences. 
+
+Proof: Let r = 12 (r(1) + r(2) ) be the midpoint residual of two global views, and let δ = r(1) − r(2) be their cross-view feature difference with covariance E[δδ T ] = Σ . Equivalently, the two residual views can be written as r(1) = r + δ
+
+> 2
+
+and r(2) = r − δ 
+
+> 2
+
+. The objective is to minimize the expected cosine distance: 
+
+Lglobal (r) = Eδ
+
+
+
+1 − r(1) T r(2) 
+
+∥r(1) ∥∥ r(2) ∥
+
+
+
+(27) 1. Numerator Expansion: 
+
+r(1) T r(2) =
+
+
+
+r + δ
+
+2
+
+T 
+
+r − δ
+
+2
+
+
+
+= ∥r∥2 − 14 ∥δ∥2 (28) 2. Denominator Taylor Approximation: Assuming the cross-view difference is small ( ∥δ∥ ≪ ∥ r∥), we expand the product of the norms: 
+
+∥r(1) ∥∥ r(2) ∥ =
+
+s
+
+∥r∥2 + 14 ∥δ∥2
+
+2
+
+− (rT δ)2 (29) Using the first-order Taylor expansion √A2 − B ≈ A − B 
+
+> 2A
+
+:
+
+∥r(1) ∥∥ r(2) ∥ ≈ ∥ r∥2 + 14 ∥δ∥2 − 12(rT δ)2
+
+∥r∥2 (30) 15 arXiv Template A P REPRINT 
+
+3. Fractional Simplification: Applying the approximation A−ϵA+γ ≈ 1 − ϵ+γA for small ϵ, γ :
+
+∥r∥2 − 14 ∥δ∥2
+
+∥r∥2 + 14 ∥δ∥2 − 12(rT δ)2
+
+> ∥r∥2
+
+≈ 1 − ∥δ∥2
+
+2∥r∥2 + (rT δ)2
+
+2∥r∥4 (31) Thus, the cosine loss simplifies to: 
+
+Lglobal (r) ≈ Eδ
+
+ ∥δ∥2
+
+2∥r∥2 − (rT δ)2
+
+2∥r∥4
+
+
+
+(32) 4. Expectation over Cross-View Differences: Applying the expectation operator, noting that E[∥δ∥2] = Tr (Σ) and 
+
+E[( rT δ)2] = E[rT δδ T r] = rT Σr:
+
+Lglobal (r) ≈ 12
+
+ Tr (Σ) 
+
+∥r∥2 − rT Σr
+
+∥r∥4
+
+
+
+(33) 5. Gradient and Stationary Condition: Taking the derivative with respect to r using standard vector calculus identities (∇r (rT Σr) = 2Σ r and ∇r (∥r∥−n) = −n∥r∥−(n+2) r): 
+
+∇r Lglobal = 12
+
+ −2Tr (Σ) r
+
+∥r∥4 −
+
+ 2Σ r
+
+∥r∥4 − 4( rT Σr)r
+
+∥r∥6
+
+ 
+
+(34) Setting the stationary condition ∇r Lglobal = 0 :
+
+−2Tr (Σ) r
+
+∥r∥4 − 2Σ r
+
+∥r∥4 + 4( rT Σr)r
+
+∥r∥6 = 0 (35) Multiplying the entire equation by − 12 ∥r∥4 yields: Tr (Σ) r + Σ r − 2 rT Σr
+
+∥r∥2 r = 0 (36) Rearranging to isolate the covariance projection on r:
+
+Σr =
+
+
+
+2 rT Σr
+
+∥r∥2 − Tr (Σ) 
+
+
+
+r (37) The term within the parentheses evaluates to a data-dependent scalar value. Denoting this scalar as λ, the optimization trajectory rigorously resolves to: 
+
+Σr = λr (38) This confirms that gradient descent on the normalized angular distance in the shifted residual space inherently forces the residual vector r to align with eigenvectors of the local cross-view feature-difference covariance Σ.
+
+B.5 Low-Rank Dictionary Bottleneck vs. Rigid Projection 
+
+The spatial alignment mechanism employs the routing v(1) = ( f (1) PT )P, where P ∈ RN × C denotes the prototype bank. During network initialization, the rows of P are seeded as strictly orthonormal basis vectors using Singular Value Decomposition (SVD). However, during continuous end-to-end optimization via backpropagation, P is parameterized as an unconstrained parameter matrix without an explicit orthogonal regularization penalty (i.e., we do not definitively enforce PP T = I). Consequently, this operation is not a rigid orthogonal projection in the strict mathematical sense. Instead, it functions as an unconstrained low-rank linear bottleneck, analogous to a sparse dictionary lookup. Because the latent dictionary capacity is restricted ( N ≪ C) and P is optimized to reduce conditional variance on the normal data manifold, the gradient dynamics encourage the sub-manifold Snormal = span (P) to capture principal variations of the normal training density. When out-of-distribution variations (anomalies) emerge during inference, they may occupy high-frequency sub-spaces orthogonal or weakly aligned with Snormal . The routing mechanism acts as a rejection filter not because of an explicitly forced orthogonality constraint, but due to the limited capacity of the learned basis P to represent patterns absent from the normal training distribution. 16 arXiv Template A P REPRINT 
+
+B.6 Model Architecture and Stochastic Augmentation Details Spatial Predictor Architecture : The spatial query-and-predict pipeline consists of two sub-modules inside the 
+
+PrototypeBYOLLoss module. The Merge head is a single-layer 1 × 1 ConvNet that takes the concatenated (2 C)-channel feature and maps it back to C channels: 1 × 1 Conv → InstanceNorm2d → LeakyReLU . The Spatial Predictor qs is a two-layer MLP built with 1 × 1 convolutions: 
+
+qs : Conv2d(1x1) → InstanceNorm2d → LeakyReLU 
+
+→ Conv2d(1x1) → InstanceNorm2d → LeakyReLU .
+
+The use of instance-level normalizations keeps spatial patch statistics localized without intermingling them with macro-scopic mini-batch statistics. The Global Predictor qg is a symmetric two-layer MLP operating on C-dimensional vec-tors: Linear (C, C ) → InstanceNorm1d → LeakyReLU → Linear (C, C ) → InstanceNorm1d → LeakyReLU .
+
+Feature-level Bernoulli Masking Generator : In contrast to conventionally augmenting anomalous patterns directly within the input image RGB domain, our formulation applies perturbations within the raw teacher feature space, 
+
+before any student-side processing. Given the three intermediate feature maps {f1, f 2, f 3} extracted from the frozen Wide-ResNet-50-2 teacher at output indices {1, 2, 3}, two distinct symmetric views are generated independently at each scale using a per-spatial-location Bernoulli dropout tensor: Mask (i)1 ∼ Bernoulli (1 − pmask ) (39) Mask (i)2 ∼ Bernoulli (1 − pmask ) (40) where pmask = 0 .5 and i ∈ { 1, 2, 3} indexes each scale. The views are derived via element-wise spatial multiplication: 
+
+f (1)  
+
+> i
+
+= fi ⊙ Mask (i)1 and f (2)  
+
+> i
+
+= fi ⊙ Mask (i)2 . This masking is applied stochastically per training iteration : with probability 0.5, the full clean features are used for both views (i.e., f (1)  
+
+> i
+
+= f (2)  
+
+> i
+
+= fi) to prevent over-regularization during early training. The masked features are then passed independently through the MFF-OCE module to produce the two fused views f mid  
+
+> online
+
+and f mid 
+
+> target
+
+. This masking strategy induces the cross-view feature difference δ, whose covariance 
+
+Σ drives the shifted cosine alignment discussed in Theorem 1. 
+
+## C Implementation Details 
+
+Architecture. Wide-ResNet50-2 [ 47 ] pre-trained on ImageNet serves as the frozen encoder, extracting features from stages 2, 3, and 4. The decoder mirrors the encoder with transposed convolutions. All projection and prediction layers use Instance Normalization [48] and Leaky ReLU [49]. Table 7: Parameter breakdown by module. The teacher and EMA target branch are included in total parameters but are frozen during training. Module Total (M) ↓ Trainable (M) ↓ Role / reason net_t teacher WRN 24.863 0.000 Frozen teacher in train() mode. proj_layer 15.487 15.487 Trainable projection layer. proj_layer_momentum 15.487 0.000 EMA target branch; requires_grad=False .mff_oce 30.830 30.830 Trainable multi-scale fusion and OCE module. net_s decoder 24.918 24.918 Trainable student decoder. PrototypeBYOLLoss 9.310 9.310 Trainable prototype and prediction losses. 
+
+Optimizers. We use separate Adam [ 50 ] optimizers: (i) proj_opt for the predictor, (ii) distill_opt for the projector and decoder, and (iii) proto_opt for prototypes, merge layer, and prototype predictors. All use β1 = 0 .5, β2 = 0 .999 ,lr = 5 × 10 −3 with step decay ×0.1 at epoch 80. 
+
+Data augmentation. Image-level preprocessing uses resize and ImageNet normalization. The two training views used by the prototype alignment losses are generated in feature space using the stochastic Bernoulli masking described in Appendix B.6; no RGB-level anomaly synthesis is used. 
+
+## D Diagnostic Metric Definitions 
+
+This appendix specifies the diagnostic measurements used in Table 6. These measurements are not used for model selection or training; they are post-hoc analyses designed to test whether BoRAD reduces anomalous copying, preserves normal-category separability, and improves anomaly-normal score separation. 17 arXiv Template A P REPRINT 
+
+Identity Shortcut: anomaly leakage and copy score. We evaluate teacher-student copying on anomalous MVTec AD test images with ground-truth masks. For each feature scale s, let ft,s ∈ RCs×Hs×Ws denote the teacher feature and 
+
+fr,s ∈ RCs×Hs×Ws denote the student reconstruction. At each spatial location (x, y ), we compute 
+
+CopySim s(x, y ) = cos( ft,s [: , x, y ], f r,s [: , x, y ]) . (41) The binary ground-truth anomaly mask is resized to (Hs, W s) with nearest-neighbor interpolation. We then average CopySim over anomalous and normal locations: 
+
+CopySim anom,s = E(x,y ): Ms(x,y )=1 [CopySim s(x, y )] , (42) 
+
+CopySim norm,s = E(x,y ): Ms(x,y )=0 [CopySim s(x, y )] . (43) The reported leakage diagnostics are averaged over feature scales and images: 
+
+LeakageGap = CopySim anom − CopySim norm . (44) A lower anomalous CopySim indicates weaker teacher-student copying on abnormal pixels. A more negative Leakage-Gap indicates that anomalous regions are copied less faithfully than normal regions. 
+
+Inter-class Confusion: normal-category separability. We evaluate separability on train-normal samples. For each image, we use the fused projected feature f mid and compute the global representation 
+
+g = GAP( f mid )
+
+∥GAP( f mid )∥2
+
+. (45) Given category labels, we report the cosine silhouette score: 
+
+Silhouette = silhouette _score ( {gi}, {ci}, metric = cosine) , (46) where a higher value indicates clearer category-level clustering among normal samples. 
+
+Prototype-relative angular sensitivity: anomaly-normal score separation. We compute the final anomaly score map from multi-scale teacher-student discrepancies. At scale s,
+
+score s(x, y ) = 1 − cos( ft,s [: , x, y ], f r,s [: , x, y ]) . (47) Each score map is resized to the mask or image resolution with bilinear interpolation, and the final score is averaged across the S feature scales: 
+
+ScoreMap = 1
+
+S
+
+> S
+
+X
+
+> s=1
+
+Resize (score s) . (48) Using the nearest-neighbor resized ground-truth mask M , we compute 
+
+Score anom = E(x,y ): M (x,y )=1 [ScoreMap( x, y )] , (49) 
+
+Score norm = E(x,y ): M (x,y )=0 [ScoreMap( x, y )] , (50) 
+
+Separation = Score anom − Score norm . (51) Pixel AP is computed from the same score map and mask labels. To control memory and class imbalance, we sample at most 8192 pixels per anomalous image and use the corresponding ScoreMap values as anomaly scores. 
+
+## E Hyperparameter Ablation Studies 
+
+All ablations are conducted on MVTec AD with the default configuration unless otherwise stated. 
+
+## F Additional Qualitative Results 
+
+In this section, we provide extended qualitative visualizations of anomaly localization to further demonstrate the robustness and precision of BoRAD across different challenging benchmarks. For all visualizations, the top row displays our predicted anomaly score map (heatmap) overlaid on the input, the middle row shows the original anomalous input image, and the bottom row presents the ground-truth binary mask of the defect. Figure A.1 presents visualizations on the MVTec AD dataset, illustrating the effectiveness of BoRAD across diverse industrial textures and objects (e.g., pills, cables, wood, capsules). Figure A.2 showcases results on the VisA dataset, where our model accurately highlights anomalous features despite complex object structures and multi-object back-grounds. Finally, Figure A.3 demonstrates precise pixel-level localization capabilities on the challenging high-resolution Real-IAD benchmark. 18 arXiv Template A P REPRINT 
+
+Table 8: Ablation on number of prototypes N .
+
+N Image Pixel AUROC ↑ mAP ↑ mF1 ↑ mAUPRO ↑ mAUROC ↑ mAP ↑ mF1 ↑
+
+3 98.96 99.53 98.16 93.96 97.80 56.05 59.54 
+
+5 98.98 99.55 98.06 93.86 97.77 55.96 59.20 7 99.19 99.63 98.15 93.77 97.78 55.98 59.30 10 98.77 99.47 97.97 93.83 97.76 55.47 59.12 Table 9: Ablation on momentum schedule. Type Schedule Image Pixel AUROC ↑ mAP ↑ mF1 ↑ mAUPRO ↑ mAUROC ↑ mAP ↑ mF1 ↑
+
+Constant 0.9 98.92 99.46 97.74 93.69 97.70 55.27 58.77 0.99 99.07 99.63 98.15 93.95 97.84 56.56 59.61 
+
+0.999 98.99 99.55 97.92 93.81 97.80 55.63 59.00 Linear 0.99–0.999 99.19 99.63 98.15 93.77 97.78 55.98 59.30 Table 10: Ablation on masking ratio ρ.
+
+ρ Image Pixel AUROC ↑ mAP ↑ mF1 ↑ mAUPRO ↑ mAUROC ↑ mAP ↑ mF1 ↑
+
+0.1 98.91 99.47 97.94 93.68 97.73 55.45 58.97 0.3 99.15 99.65 98.13 93.88 97.73 55.87 59.26 0.5 99.19 99.63 98.15 93.77 97.78 55.98 59.30 0.7 99.14 99.64 98.06 94.03 97.83 56.32 59.97 
+
+0.9 98.67 99.47 97.94 93.92 97.74 55.75 59.41 
+
+## G Detailed Results per Category 
+
+In this section, we provide the detailed per-category performance for MVTec AD, VisA and Real-IAD datasets. All values are reported in percentages (%). 19 arXiv Template A P REPRINT 
+
+Figure A.1: Qualitative results on the MVTec AD dataset. Top row: Predicted anomaly maps. Middle row: Original anomalous images. Bottom row: Ground-truth masks. 20 arXiv Template A P REPRINT 
+
+Figure A.2: Qualitative results on the VisA dataset. Top row: Predicted anomaly maps. Middle row: Original anomalous images. Bottom row: Ground-truth masks. 21 arXiv Template A P REPRINT 
+
+Figure A.3: Qualitative results on the Real-IAD dataset. Top row: Predicted anomaly maps. Middle row: Original anomalous images. Bottom row: Ground-truth masks. 22 arXiv Template A P REPRINT 
+
+> Table 11:  Detailed Anomaly Detection results on MVTec AD and VisA.  Each cell contains three Image-level metrics: AU-ROC ( ↑) / AP ( ↑) / F1-max ( ↑). All values are rounded to one decimal place. The best result for each individual metric in a row is highlighted in  bold .
+> Category  UniAD  RD4AD  SimpleNet  DeSTSeg  DiAD  HVQ-Trans  MambaAD  ViTAD  OmiAD  BoRAD (Ours) MVTec AD Dataset
+> Bottle  99.7/ 100.0/100.0  99.6/99.9/98.4  100.0/100.0/100.0  98.7/99.6/96.8  99.7/96.5/91.8  100.0/100.0/100.0  100.0/100.0/100.0  100.0/100.0/100.0  100.0/100.0/100.0  100.0/100.0/100.0
+> Cable  95.2/95.9/88.0  84.1/89.5/82.5  97.5/98.5/94.7  89.5/94.6/85.9  94.8/98.8/95.2  99.0/98.8/95.1  98.8/99.2/ 95.7  99.7/99.9 /95.7  98.4/ 99.4 /95.6  97.6/98.5/94.2 Capsule  86.9/97.8/94.4  94.1/96.9/ 96.9  90.7/97.9/93.5  82.8/95.9/92.6  89.0/97.5/95.5  95.4/99.2/96.3  94.4/98.7/94.9  100.0/100.0 /100.0  94.7/99.3/96.8  98.9/99.8/97.7 Hazelnut  99.8/ 100.0 /99.3  60.8/69.8/86.4  99.9/99.9/99.3  98.8/99.2/98.6  99.5/99.7/97.3  100.0/100.0 /99.3  100.0/100.0/100.0  99.8/99.9/98.6  100.0/100.0/100.0  100.0/100.0/100.0
+> Metal Nut  99.2/99.9/ 99.5  100.0/100.0/99.5  96.9/99.3/96.1  92.9/98.4/92.2  99.1/96.0/91.6  99.9/99.9/98.9  99.9/ 100.0 /99.5  99.7/99.9/98.4  99.4/99.9/98.9  100.0/100.0/100.0
+> Pill  93.7/98.7/95.7  97.5/99.6/96.8  88.2/97.7/92.5  77.1/94.4/91.7  95.7/98.5/94.5  95.8/99.2/94.9  97.0/99.5/96.2  100.0/100.0/100.0  94.2/99.2/95.4  98.5/99.7/97.8 Screw  87.5/96.5/89.0  97.7 /99.3/95.8  76.7/90.6/87.7  69.9/88.4/85.4  90.7/ 99.7/97.9  95.6/97.9/92.1  94.7/97.9/94.0  98.5 /99.1/95.7  96.9/98.8/96.3  97.7/99.2/96.4 Toothbrush  94.2/97.4/95.2  97.2/99.0/94.7  89.7/95.7/92.3  71.7/89.3/84.5  99.7 /99.9/99.2  93.6/99.9/98.4  98.3/99.3/98.4  98.9/99.6/96.8  99.7/100.0/100.0  97.2/98.9/95.8 Transistor  99.8/98.0/93.8  94.2/95.2/90.0  99.2/98.7/97.6  78.2/79.5/68.8  99.8/99.6/97.4  99.7/99.5/96.4  100.0/100.0 /98.6  98.8/98.3/92.5  99.9/99.9/98.8  99.1/98.6/95.9 Zipper  95.8/99.5/97.1  99.5/99.9/99.2  99.0/99.7/98.3  88.4/96.3/93.1  95.1/99.1/94.4  97.9/99.6/98.3  99.3/99.8/97.5  97.6/99.3/97.1  99.8/ 100.0/99.6  99.9/100.0 /99.4 Carpet  99.8/99.9/99.4  98.5/99.6/97.2  95.7/98.7/93.2  95.9/98.8/94.9  99.4/99.9/98.3  99.9/100.0/100.0  99.8/99.9/99.4  99.5/99.9/99.4  99.6/ 100.0 /99.4  98.6/99.6/97.4 Grid  98.2/99.5/97.3  98.0/99.4/96.5  97.6/99.2/96.4  97.9/99.2/96.6  98.5/99.8/97.7  97.0/99.5/97.3  100.0/100.0 /99.1  91.3/97.0/93.0  99.8/99.9/99.1  99.8/99.9/98.6 Leather  100.0/100.0/100.0  100.0/100.0/100.0  100.0/100.0/100.0  99.2/99.8/98.9  99.8/99.7/97.6  100.0/100.0/100.0  100.0/100.0/100.0  100.0/100.0/100.0  100.0/100.0/100.0  100.0/100.0/100.0
+> Tile  99.3/99.8/98.2  98.3/99.3/96.4  99.3/99.8/ 98.8  97.0/98.9/95.3  96.8/ 99.9 /98.4  99.2/99.8/98.2  98.2/99.3/95.4  100.0/100.0 /92.5  100.0 /99.9/98.8  100.0/100.0 /100.0 Wood  98.6/99.6/96.6  99.2/99.8/98.3  98.4/99.5/96.7  99.9/100.0 /99.2  99.7/ 100.0/100.0  97.2/99.6/97.4  98.8/99.6/96.6  97.6/99.3/97.1  99.0/99.8/98.3  99.3/99.8/98.3
+> Mean  96.5/98.8/96.2  94.6/96.5/95.2  95.3/98.4/95.8  89.2/95.5/91.6  97.2/99.0/96.5  98.0/99.5/97.5  98.6/99.6/97.8  98.3/99.4/97.3  98.8/ 99.7/98.5  99.1 /99.6/98.1
+> VisA Dataset
+> PCB1  92.8/92.7/87.8  96.2/95.5/91.9  91.6/91.9/86.0  87.6/83.1/83.7  88.1/88.7/80.7  96.7/93.2/87.7  95.4/93.0/91.6  95.8/94.7/91.8  97.8/97.4/95.1  97.2/97.3/93.5 PCB2  87.8/87.7/83.1  97.8 /97.8/ 94.2  92.4/93.3/84.5  86.5/85.8/82.6  91.4/91.4/84.7  93.4/94.8/88.0  94.2/93.7/89.3  90.6/89.9/85.3  97.8/98.5/94.1  97.6 /97.7/ 95.1
+> PCB3  78.6/78.6/76.1  96.4/ 96.2/91.0  89.1/91.1/82.6  93.7/95.1/87.0  86.2/87.6/77.6  92.0/87.1/79.5  93.7/94.1/86.7  90.9/91.2/83.9  96.7/95.1/87.6  97.5/97.8/92.9
+> PCB4  98.8/98.8/94.3  99.9/99.9/ 99.0  97.0/97.0/93.5  97.8/97.8/92.7  99.6/99.5/97.0  99.5/99.0/97.0  99.9/99.9/98.5  99.1/98.9/96.6  100.0/100.0 /99.0  99.9/99.9/99.0 Macaroni 1  79.9/79.8/72.7  75.9/61.5/76.8  85.9/82.5/73.1  76.6/69.0/71.0  85.7/85.2/78.8  93.1/84.1/79.8  91.6/89.8/81.6  85.8/83.9/76.7  97.3/97.5/92.8  94.8/93.3/89.0 Macaroni 2  71.6/71.6/69.9  88.3/84.5/83.8  68.3/54.3/59.7  68.9/62.1/67.7  62.5/57.4/69.6  86.2/84.1/81.5  81.6/78.0/73.8  79.1/74.7/74.9  85.1/83.3/79.5  85.5/82.0/78.8 Capsules  55.6/55.6/76.9  82.2/90.4/81.3  74.1/82.8/74.6  87.1/93.0/84.2  58.2/69.0/78.5  77.1/83.4/77.5  91.8/95.0/88.8  79.2/87.6/79.8  85.7/89.0/78.8  88.9/94.1/85.8 Candles  94.1/94.0/86.1  92.3/92.9/86.0  84.1/73.3/76.6  94.9/94.8/89.2  92.8/92.0/87.6  96.8/98.0/93.1  96.8/96.9/90.1  90.4/91.2/83.7  97.4/98.6/93.4  95.2/95.4/89.9 Cashew  92.8/92.8/91.4  92.0/95.8/90.7  88.0/91.3/84.7  92.0/96.1/88.1  91.5/95.7/89.7  94.9/96.8/90.4  94.5/97.3/91.1  87.8/94.2/86.1  93.3/96.4/90.9  95.9/98.1/93.2
+> Chewing gum  96.3/96.2/95.2  94.9/97.5/92.1  96.4/98.2/93.8  95.8/98.3/94.7  99.1/99.5/95.9  99.4/99.6/97.5  97.7/98.9/94.2  94.9/97.7/91.4  99.2/ 99.8 /97.5  98.2/99.2/95.5 Fryum  83.0/83.0/85.0  95.3/97.9/91.5  88.4/93.0/83.3  92.1/96.1/89.5  89.8/95.0/87.2  90.4/94.5/84.9  95.2/97.7/90.5  94.3/97.4/90.9  94.0/96.5/88.5  95.6/98.0/92.0
+> Pipe fryum  94.7/94.7/93.9  97.9/98.9/96.5  90.8/95.5/88.6  94.1/97.1/91.9  96.2/98.1/93.7  98.5/98.4/94.0  98.7/99.3/97.0  97.8/99.0/94.7  98.9/99.4/97.0  99.7/99.8/98.4 Mean  85.5/85.5/84.4  92.4/92.4/89.6  87.2/87.0/81.8  88.9/89.0/85.2  86.8/88.3/85.1  93.2/92.8/87.6  94.3/94.5/89.4  90.5/91.7/86.3  95.3/96.0/91.2  95.5/96.1/91.9
+
+23 arXiv Template A P REPRINT 
+
+> Table 12:  Detailed Anomaly Localization results on MVTec AD and VisA.  Each cell contains four Pixel-level metrics: AU-ROC ( ↑) / AP ( ↑) / F1-max ( ↑) / AU-PRO ( ↑). All values are rounded to one decimal place. The best result for each individual metric in a row is highlighted in  bold .
+> Category  UniAD  RD4AD  SimpleNet  DeSTSeg  DiAD  HVQ-Trans  MambaAD  ViTAD  OmiAD  BoRAD (Ours) MVTec AD Dataset
+> Bottle  98.1/66.0/69.2/93.1  97.8/68.2/67.6/94.0  97.2/53.8/62.4/89.0  93.3/61.7/56.0/67.5  98.4/52.2/54.8/86.6  98.3/71.8/70.2/94.6  98.8/ 79.7/76.7 /95.2  99.0 /60.5/64.1/94.7  98.6/74.9/73.8/ 95.6  98.6/75.2/73.8/ 95.6
+> Cable  97.3/39.9/45.2/86.1  85.1/26.3/33.6/75.1  96.7/42.4/51.2/85.4  89.3/37.5/40.5/49.4  96.8/50.1/57.8/80.5  98.1/ 52.4/59.0 /87.5  95.8/42.2/48.1/90.3  98.6 /31.2/36.7/ 95.8  98.3/60.5/62.9/91.8  97.0/46.6/53.2/91.3 Capsule  98.5/42.7/46.5/92.1  98.8/43.4/50.0/94.8  98.5/5.4/44.3/84.5  95.8/47.9/48.9/62.1  97.1/42.0/45.3/87.2  98.8/45.3/49.7/90.7  98.4/43.9/47.7/92.6  98.3/42.7/47.8/92.0  98.9/48.1/52.0/92.5  99.0/49.6/52.5/96.0
+> Hazelnut  98.1/55.2/56.8/94.1  97.9/36.2/51.6/92.7  98.4/44.6/51.4/87.4  98.2/65.8/61.6/84.5  98.3/ 79.2/80.4 /91.5  98.8/62.7/63.2/92.5  99.0 /63.6/64.4/95.7  99.0 /64.6/64.0/95.2  98.6/59.6/59.9/94.3  98.9/59.9/61.0/ 96.4
+> Metal Nut  62.7/14.6/29.2/81.8  94.8/55.5/66.4/91.9  98.0/83.1 /79.4/85.2  84.2/42.0/22.8/53.0  97.3/30.0/38.3/90.6  96.3/67.1/75.5/90.9  96.7/74.5/79.1/93.7  96.4/75.1/77.3/92.4  96.5/66.6/75.6/90.3  97.0/74.8/ 80.4/94.3
+> Pill  95.0/44.0/53.9/95.3  97.5/63.4/65.2/95.8  96.5/72.4/67.7/81.9  96.2/61.7/41.8/27.9  95.7/46.0/51.4/89.0  97.1/50.1/57.6/94.9  97.4/64.0/66.5/95.7  98.7/77.8/75.2 /95.3  96.6/56.8/60.7/95.9  98.0/69.1/68.8/ 96.4
+> Screw  98.3/28.7/37.6/95.2  99.4/40.2/44.6/96.8  96.5/15.9/23.2/84.0  93.8/19.9/25.3/47.3  97.9/ 60.6/59.6 /95.0  98.9/28.8/36.2/94.3  99.5 /49.8/50.9/97.1  99.0/34.0/41.0/93.5  99.5 /38.7/43.5/97.2  98.8/44.9/47.8/ 97.4
+> Toothbrush  98.4/34.9/45.7/87.9  99.0/53.6/58.8/92.0  98.4/46.9/52.5/87.4  96.2/52.9/58.8/30.9  99.0/ 78.7/72.8 /95.0  98.6/40.8/51.4/89.2  99.0/48.5/59.2/91.7  99.1 /51.3/61.9/90.9  98.7/40.5/56.2/91.1  99.0/54.4/60.8/ 91.6
+> Transistor  97.9/59.5/64.6/93.5  85.9/42.3/45.2/74.7  95.8/58.2/56.0/83.2  73.6/38.4/39.2/43.9  95.1/15.6/31.7/90.0  97.9/71.2/67.2/95.4  96.5/69.4/67.1/87.0  93.9/58.4/55.3/76.8  98.4/ 73.4/72.5/96.1  91.6/51.6/54.2/83.2 Zipper  96.8/40.1/49.9/92.6  98.5 /53.9/60.3/94.1  97.9/53.4/54.6/90.7  97.3/64.7/59.2/66.9  96.2/60.7/60.0/91.6  97.5/38.7/48.8/91.7  98.4/60.4/61.7/94.3  97.6/99.3/97.1  98.6/52.7/59.3/ 95.6  98.4/55.2/59.9/95.2 Carpet  98.5/49.9/51.1/94.4  99.0/58.5/60.4/95.1  97.4/38.7/43.2/90.6  93.6/59.9/58.9/89.3  98.6/42.2/46.4/90.6  98.7/57.5/57.7/94.7  99.2 /60.0/63.3/ 96.7  99.5/99.9/99.4  98.5/52.9/54.8/94.6  99.0/56.8/61.1/95.5 Grid  63.1/0.7/1.9/92.9  96.5/23.0/28.4/97.0  96.8/20.5/27.6/88.6  97.0/42.1/46.9/86.8  96.6/ 66.0/64.1 /94.0  97.0/24.5/30.5/89.5  99.2 /47.4/47.7/97.0  99.7/ 100.0 /99.1  98.5/35.4/37.1/95.5  99.2 /46.5/48.8/ 97.2
+> Leather  98.8/32.9/34.4/96.8  99.3/38.0/45.1/97.4  98.7/28.5/32.9/92.7  99.5/ 71.5/66.5 /91.1  98.8/56.1/62.3/91.3  98.8/33.7/36.6/97.6  99.4/50.3/53.3/ 98.7  100.0/100.0/100.0  98.9/36.3/39.4/96.9  99.4/44.9/49.6/97.7 Tile  91.8/42.1/50.6/78.4  95.3/48.5/60.5/85.8  95.7/60.5/59.9/ 90.6  93.0/ 71.0/66.2 /87.1  92.4/65.7/64.1/ 90.7  92.2/41.6/52.9/81.2  93.8/45.1/54.8/80.0  100.0/100.0 /100.0  92.7/47.5/54.7/82.2  96.2 /53.8/63.9/88.2 Wood  93.2/37.2/41.5/86.7  95.3/47.8/51.0/90.0  91.4/34.8/39.7/76.3  95.9/ 77.3/71.3 /83.4  93.3/43.3/43.5/ 97.5  92.4/37.2/42.6/86.6  94.4/46.2/48.2/91.2  98.7/99.6/96.7  94.2/44.5/48.0/88.5  95.3/51.4/51.6/90.1
+> Mean  96.8/43.4/49.5/90.7  96.1/48.6/53.8/91.1  96.9/45.9/49.7/86.5  93.1/54.3/50.9/64.8  96.8/52.6/55.5/90.7  97.3/48.2/53.3/91.4  97.7/ 56.3 /59.2/93.1  98.3/99.4/97.3  97.7/52.6/56.7/93.2  97.8 /56.0/ 59.4/93.8 VisA Dataset
+> PCB1  93.3/3.9/8.3/64.1  99.4/66.2/62.4/95.8  99.2/86.1/78.8/83.6  95.8/46.4/49.0/83.2  98.7/49.6/52.8/80.2  99.4/63.1/58.8/87.4  99.8 /77.1/72.4/92.8  99.5/64.5/61.7/89.6  99.7/70.8/66.2/93.0  99.7/ 80.5/74.6/95.9
+> PCB2  93.9/4.2/9.2/66.9  98.0/ 22.3/30.0 /90.8  96.6/8.9/18.6/85.7  97.3/14.6/28.2/79.9  95.2/7.5/16.7/67.0  98.0/10.1/18.2/82.0  98.9 /13.3/23.4/89.6  97.9/12.6/21.2/82.0  98.9 /16.6/22.2/87.1  98.8 /19.1/28.5/ 92.6
+> PCB3  97.3/13.8/21.9/70.6  97.9/26.2/35.2/ 93.9  97.2/ 31.0/36.1 /85.1  97.7/28.1/33.4/62.4  96.7/8.0/18.8/68.9  98.3/21.1/23.7/80.5  99.1 /18.3/27.4/89.1  98.2/22.4/26.4/88.0  99.1 /29.7/30.4/87.2  98.9/28.3/30.5/93.8 PCB4  94.9/14.7/22.9/72.3  97.8/31.4/37.0/88.7  93.9/23.9/32.9/61.1  95.8/ 53.0/53.2 /76.9  97.0/17.6/27.2/85.0  97.7/21.1/29.8/85.9  98.6/47.0/46.9/87.6  99.1 /42.9/48.3/ 91.8  98.1/42.0/44.1/86.4  98.3/41.9/43.1/89.9 Macaroni 1  97.4/3.7/9.7/84.0  99.4/2.9/6.9/95.3  98.9/3.5/8.4/92.0  99.1/5.8/13.4/62.4  94.1/10.2/16.7/68.5  99.4/9.9/19.3/91.2  99.5/17.5/27.6/95.2  98.5/8.0/19.3/89.2  99.7/20.1/29.8 /96.3  99.7/22.5/31.3/96.7
+> Macaroni 2  95.2/0.9/4.3/76.6  99.7/13.2/21.8/97.4  93.2/0.6/3.9/77.8  98.5/6.3/14.4/70.0  93.6/0.9/2.8/73.1  98.5/5.5/13.8/91.3  99.5/9.2/16.1/96.2  98.1/3.6/10.4/87.2  99.4/8.5/15.4/94.0  99.5/10.2/18.5/96.6 Capsules  88.7/3.0/7.4/43.7  99.4/60.4/60.8/93.1  97.1/52.9/53.3/73.7  96.9/33.2/9.1/76.7  97.3/10.0/21.0/77.9  99.0/51.9/55.2/76.3  99.1/61.3/59.8/91.8  98.2/30.4/41.4/75.1  99.4/62.7/59.6/90.8  99.6/68.1/64.8/94.8
+> Candles  98.5/17.6/27.9/91.6  99.1/25.3/35.8/94.9  97.6/8.4/16.5/87.6  98.7/ 39.9/45.8 /69.0  97.3/12.8/22.8/89.4  99.2/20.4/30.6/92.7  99.0/23.2/32.4/ 95.5  96.2/16.8/26.4/85.2  99.4 /25.7/35.1/97.1  99.2/26.3/36.7/95.4 Cashew  98.6/51.7/58.3/87.9  91.7/44.2/49.7/86.2  98.9/68.9/66.0 /84.1  87.9/47.6/52.1/66.3  90.9/53.1/60.9/61.8  99.2/58.3/60.9/89.3  94.3/46.8/51.4/87.8  98.5/63.9/62.7/78.8  97.2/46.3/55.3/83.8  95.6/57.2/58.3/ 90.1
+> Chewing gum  98.8 /54.9/56.1/81.3  98.7/59.9/61.7/76.9  97.9/26.8/29.8/78.3  98.8/86.9/81.0/68.3  94.7/11.9/25.8/59.5  98.8/43.7/44.4/81.7  98.1/57.5/59.9/79.7  97.8/61.6/58.7/71.5  98.8 /58.0/55.6/73.1  98.7/61.5/63.8/ 82.1
+> Fryum  95.9/34.0/40.6/76.2  97.0/47.6/51.5/ 93.4  93.0/39.1/45.4/85.1  88.1/35.2/38.5/47.7  97.6/58.6/60.1 /81.3  97.7/50.8/55.3/83.6  96.9/47.8/51.9/91.6  97.5/47.1/50.3/87.8  97.7/47.7/55.2/87.2  97.0/47.8/52.0/92.2 Pipe fryum  98.9/50.2/57.7/91.5  99.1/56.8/58.8/95.4  98.5/65.6/63.4/83.0  98.9/ 78.8/72.7 /45.9  99.4/72.7/69.9/89.9  99.4/64.6/65.8/93.4  99.1/53.5/58.5/95.1  99.5 /66.0/66.5/94.7  99.2/56.2/60.1/94.5  99.1/56.6/58.2/ 95.8 Mean  95.9/21.0/27.0/75.6  98.1/38.0/42.6/91.8  96.8/34.7/37.8/81.4  96.1/39.6/43.4/67.4  96.0/26.1/33.0/75.2  98.7/35.0/39.6/86.3  98.5/39.4/44.0/91.0  98.2/36.6/41.1/85.1  98.9 /40.4/44.1/89.2  98.7/ 43.4/46.7/93.0
+
+24 arXiv Template A P REPRINT 
+
+> Table 13:  Detailed Anomaly Detection results on the Real-IAD dataset.  Each cell contains three Image-level metrics: AU-ROC ( ↑) / AP ( ↑) / F1-max ( ↑). Values are rounded to one decimal place. The best result for each metric is highlighted in  bold .
+> Category  UniAD  RD4AD  SimpleNet  DeSTSeg  DiAD  HVQ-Trans  MambaAD  ViTAD  OmiAD  BoRAD (Ours)
+> audiojack  81.4/76.6/64.9 76.2/63.2/60.8 58.4/44.2/50.9 81.1/72.6/64.5  76.5/54.3/65.7  81.0/80.1/74.5 84.2/76.5/67.4  – 84.5/82.0/77.8  81.9/75.1/63.9 bottlecap  92.5/91.7/81.7 89.5/86.3/81.0 54.1/47.6/60.3 78.1/74.6/68.1  91.6/ 94.0/87.9  89.0/87.6/77.3 92.8/92.0/82.1  – 93.7 /92.7/85.2  93.7 /92.6/83.5 buttonbattery  75.9/81.6/76.3 73.3/78.9/76.1 52.5/60.5/72.4  86.7/89.2/83.5  80.5/71.3/70.6  82.2/88.5/78.9 79.8/85.3/77.8  – 84.9/ 90.1 /80.1  83.6/87.4/80.3 endcap  80.9/86.1/78.0 79.8/84.0/77.8 51.6/60.8/72.9 77.9/81.1/77.1  85.1 /83.4/ 84.8  79.7/85.2/79.4 78.0/82.8/77.2  – 79.4/80.4/80.8  83.0/ 86.8 /79.6 eraser  90.3/89.2/80.2 90.0/88.7/79.7 46.4/39.1/55.8 84.6/82.9/71.8  80.0/80.0/77.3  89.2/89.7/81.9 87.5/86.2/76.1  – 89.5/ 90.2/84.2  91.0 /89.6/80.6 firehood  80.6/74.8/66.4 78.3/70.1/64.5 58.1/41.9/54.4 81.7/72.4/67.7  83.3/81.7/80.5  93.1/85.4/83.1 79.3/72.5/64.8  – 94.1/87.6/83.3  80.5/74.4/66.8 mint  67.0/66.6/64.6 65.8/63.1/64.8 52.4/50.3/63.7 58.4/55.8/63.7  76.7/76.7/76.0  63.0/75.7/75.1 70.1/70.8/65.5  – 66.0/ 77.7/75.0  72.5/73.4/66.0 mounts  87.6/77.3/77.2 88.6/79.9/74.8 58.7/48.1/52.4 74.7/56.5/63.1  75.3/74.5/ 82.5  92.7/88.2/81.2 86.8/78.0/73.5  – 95.2/92.3/85.9  89.5/81.2/76.8 pcb  81.0/88.2/79.1 79.5/85.8/79.7 54.5/66.0/75.5 82.0/88.7/79.6  86.0/85.1/85.4  86.6/92.4/82.7 89.1/93.7/84.0  – 92.2/95.7/87.3  89.5/93.6/84.4 phonebattery  83.6/80.0/71.6 87.5/83.3/77.1 51.6/43.8/58.0 83.3/81.8/72.1  82.3/77.7/75.9  88.0/89.5/80.5 90.2/88.9/80.5  – 92.6/93.0/84.5  91.1/88.1/80.6 plasticnut  80.0/69.2/63.7 80.3/68.0/64.4 59.2/40.3/51.8 83.1/75.4/66.5  71.9/58.2/65.6  76.2/57.3/53.7  87.1/80.7/70.7  – 84.2/67.5/62.2  86.7/78.7/70.5 plasticplug  81.4/75.9/67.6 81.9/74.3/68.8 48.2/38.4/54.6 71.7/63.1/60.0  88.7/89.2/ 90.9  92.2/92.1/84.5 85.7/82.2/72.6  – 94.1/93.2 /86.6  88.7/83.5/76.0 porcelaindoll  85.1/75.2/69.3  86.3 /76.3/71.5 66.3/54.5/52.1 78.7/66.2/64.3  72.6/66.8/65.2  84.7/81.5/72.9 88.0/82.2/74.1  – 86.1/ 84.5/76.3  85.4/77.1/69.6 regulator  56.9/41.5/44.5 66.9/48.8/47.7 50.5/29.0/43.9 79.2/63.5/56.9  72.1/71.4/ 78.2  69.7/27.3/37.8 69.7/58.7/50.4  – 89.5 /69.3/67.2  78.8/ 70.7 /60.9 rolledstripbase  98.7/99.3/96.5 97.5/98.7/94.7 59.0/75.7/79.8 96.5/98.2/93.0  68.4/55.9/56.8  99.3/99.7/98.4 98.0/99.0/95.0  – 99.8/99.9/98.9  99.1/99.5/97.0 simcardset  89.7/90.3/83.2 91.6/91.8/84.8 63.1/69.7/70.8 95.5/96.2/89.2  72.6/53.7/61.5  97.2/98.1/92.8  94.4/95.1/87.2  – 95.9/97.3/91.6  93.8/94.3/87.1 switch  85.5/88.6/78.4 84.3/87.2/77.9 62.2/66.8/68.6 90.1/92.8/83.1  73.4/49.4/61.2  87.5/93.1/85.0 91.7/94.0/85.4  – 94.8/96.9/91.5  93.6/94.9/87.5 tape  97.2/96.2/89.4 96.0/95.1/87.6 49.9/41.1/54.5 94.5/93.4/85.9  73.9/57.8/66.1  97.6/97.3/92.8  96.8/95.9/89.3  – 98.0/98.0/93.7  97.1/96.3/89.9 terminalblock  87.5/89.1/81.0 89.4/89.7/83.1 59.8/64.7/68.8 83.1/86.2/76.6  62.1/36.4/47.8  95.0/96.3/90.5 96.1/96.8/90.0  – 98.4/99.0/96.1  95.8/96.3/90.0 toothbrush  78.4/80.1/75.6 82.0/83.8/77.2 65.9/70.0/70.1 83.7/85.3/79.0  91.2 /93.7/ 90.9  87.0/92.6/84.4 85.1/86.2/80.3  – 90.7/ 94.8 /86.9  86.5/88.0/80.9 toy  68.4/75.1/74.8 69.4/74.2/75.9 57.8/64.4/73.4 70.3/74.8/75.4  66.2/57.3/59.8  74.6/82.1/83.1 83.0/87.5/79.6  – 89.5/93.2/87.6  83.7/88.0/80.2 toybrick  77.0/71.1/66.2 63.6/56.1/59.0 58.3/49.7/58.2 73.2/68.7/63.3  68.4/45.3/55.9  82.5/83.7/72.6 70.5/63.7/61.6  – 85.0/85.5/74.8  69.0/62.1/61.4 transistor1  93.7/95.9/88.9 91.0/94.0/85.1 62.2/69.2/72.1 90.2/92.1/84.6  73.1/63.1/62.7  93.8/97.5/91.8 94.4/96.0/89.0  – 96.2/ 98.3/92.9  96.3 /97.5/92.2 ublock  88.8/84.2/75.5 89.5/85.0/74.2 62.4/48.4/51.8 80.1/73.9/64.3  75.2/68.4/67.9  88.5/81.1/72.9 89.7/85.7/75.3  – 90.1/83.4/74.5  91.9/88.2/78.7
+> usb  78.7/79.4/69.1 84.9/84.3/75.1 57.0/55.3/62.9 87.8/88.0/78.3  58.9/37.4/45.7  92.0/91.2/85.3 92.0/92.2/84.5  – 95.5/94.1/90.2  91.8/91.3/84.0 usbadaptor  76.8/71.3/64.9 71.1/61.4/62.2 47.5/38.4/56.5 80.1/74.9/67.4  76.9/60.2/67.2  77.9/75.0/69.3 79.4/76.0/66.3  – 82.6/82.4/72.6  76.2/70.1/63.7 vcpill  87.1/84.0/74.7 85.1/80.3/72.4 59.0/48.7/56.4 83.8/81.5/69.9  64.1/40.4/56.2  89.8/88.8/81.6 88.3/87.7/77.4  – 91.4/90.7/82.8  88.7/86.9/76.4 woodenbeads  78.4/77.2/67.8 81.2/78.9/70.9 55.1/52.0/60.2 82.4/78.5/73.0  62.1/56.4/65.9  79.7/84.9/76.6  82.5/81.7/71.8  – 77.0/83.5/74.9  84.6 /83.3/73.9 woodstick  80.8/72.6/63.6 76.9/61.2/58.1 58.2/35.6/45.2 80.4/69.2/60.3  74.1/66.0/62.1  88.9/65.4/63.2 80.4/69.0/63.4  – 92.3 /65.9/60.5  79.6/65.8/60.5 zipper  98.2/98.9/95.3 95.3/97.2/91.2 77.2/86.7/77.6 96.9/98.1/93.5  86.0/87.0/84.0  98.8/99.7/97.3 99.2/99.6/96.9  – 99.8/99.9/99.0  98.8/99.3/95.8
+> Mean  83.0/80.9/74.3 82.4/79.0/73.9 57.2/53.4/61.5 82.3/79.2/73.2  75.6/66.4/69.9  86.6/84.9/79.4 86.3/84.6/77.0  – 90.1/88.6/82.8  87.4/85.2/78.0
+
+25 arXiv Template A P REPRINT 
+
+> Table 14:  Detailed Anomaly Localization results on the Real-IAD dataset.  Each cell contains four Pixel-level metrics: AU-ROC ( ↑) / AP ( ↑) / F1-max ( ↑) / AU-PRO ( ↑). All values are rounded to one decimal place. The best result for each individual metric in a row is highlighted in  bold .
+> Category  UniAD  RD4AD  SimpleNet  DeSTSeg  DiAD  HVQ-Trans  MambaAD  ViTAD  OmiAD  BoRAD (Ours)
+> audiojack  97.6/20.0/31.0/83.7 96.6/12.8/22.1/79.6  74.4/0.9/4.8/38.0  95.5/25.4/31.9/52.6  91.6/1.0/3.9/63.3  98.5/31.9/41.0/88.0  97.7/21.6/29.5/83.9  – 99.0/47.1/51.4/91.5  97.5/30.2/40.5/85.1 bottlecap  99.5/19.4/29.6/96.0 99.5/18.9/29.9/95.7  85.3/2.3/5.7/45.1  94.5/25.3/31.1/25.3  94.6/4.9/11.4/73.0  98.4/15.6/22.8/90.0  99.7/30.6/34.6/97.2  – 99.4/23.4/29.0/95.2  99.4/25.0/33.1/96.8 buttonbattery  96.7/28.5/34.4/77.5 97.6/33.8/37.8/86.5  75.9/3.2/6.6/40.5  98.3/ 63.9/60.4 /36.9  84.1/1.4/5.3/66.9  99.0/58.1/59.2/85.3  98.1/46.7/49.5/86.2  – 99.2/61.0/60.4/91.9  98.4/42.7/48.3/89.9 endcap  95.8/8.8/17.4/85.4  96.7/12.5/22.5/89.2  63.1/0.5/20.8/25.7  89.6/14.4/22.7/29.5  81.3/2.0/6.9/38.2  95.6/6.0/14.5/84.7  97.0/12.0/19.6/89.4  – 97.2 /9.2/14.4/ 91.3  97.0/ 15.3/23.9 /90.6 eraser  99.3/24.4/30.9/94.1 99.5/30.8/36.7/96.0  80.6/2.7/7.1/42.8  95.8/ 52.7/53.9 /46.7  91.1/7.7/15.4/67.5  99.2/31.6/38.4/92.4 99.2/30.2/38.3/93.7  – 99.3 /39.5/44.2/93.3  99.3 /31.0/36.6/ 94.9
+> firehood  98.6/23.4/32.2/85.3 98.9/27.7/35.2/87.9  70.5/0.3/2.2/25.3  97.3/27.1/35.3/34.7  91.8/3.2/9.2/66.7  98.9/35.0/42.7 /93.3  98.7/25.1/31.3/86.3  – 98.9/43.3/48.6/94.6  98.5/26.9/34.9/88.9 mint  94.4/7.7/18.1/62.3  95.0/11.7/23.0/72.3  79.9/0.9/3.6/43.3  84.1/10.3/22.4/9.9  91.1/5.7/11.6/64.2  94.8/17.4/26.8/58.1 96.5/15.9/27.0/72.6  – 96.6/29.6/38.7 /67.4  96.2/18.2/28.6/ 77.8
+> mounts  99.4/28.0/32.8/95.2 99.3/30.6/37.1/94.9  80.5/2.2/6.8/46.1  94.2/30.0/41.3/43.3  84.3/0.4/1.1/48.8  99.6/30.2/37.0/97.7  99.2/31.4/35.4/93.5  – 99.7/39.2/40.0/98.6  99.3/32.3/37.1/94.9 pcb  97.0/18.5/28.1/81.6 97.5/15.8/24.3/88.3  78.0/1.4/4.3/41.3  97.2/37.1/40.4/48.8  92.0/3.7/7.4/66.5  97.7/28.7/37.2/84.1  99.2 /46.3/50.4/93.1  – 99.0/ 48.8/51.2 /92.1  99.0/43.1/48.0/ 93.3
+> phonebattery  85.5/11.2/21.6/88.5 77.3/22.6/31.7/94.5  43.4/0.1/0.9/11.8  79.5/25.6/33.8/39.5  96.8/5.3/11.4/85.4  98.0/24.1/31.5/87.3  99.4 /36.3/41.3/95.3  – 99.2/ 41.1/44.5 /94.0  95.3/37.2/41.8/ 95.4
+> plasticnut  98.4/20.6/27.1/88.9 98.8/21.1/29.6/91.0  77.4/0.6/3.6/41.5  96.5/ 44.8/45.7 /38.4  81.1/0.4/3.4/38.6  97.0/16.2/26.8/84.9  99.4 /33.1/37.3/ 96.1  – 98.3/27.2/31.1/90.1  99.3/28.5/33.0/95.4 plasticplug  98.6/17.4/26.1/90.3 99.1/20.5/28.4/94.9  78.6/0.7/1.9/38.8  91.9/20.1/27.3/21.0  92.9/8.7/15.0/66.1  99.2/23.6/29.7/95.0 99.0/24.2/31.7/91.5  – 99.5/37.1/41.3/97.1  98.9/26.6/33.5/94.3 porcelaindoll  98.7/14.1/24.5/93.2 99.2/24.8/34.6/ 95.7  81.8/2.0/6.4/47.0  93.1/ 35.9/40.3 /24.8  93.1/1.4/4.8/70.4  97.9/11.4/18.6/89.9  99.2 /31.3/36.6/95.4  – 98.8/18.3/26.3/93.8  97.9/23.5/34.1/90.6 regulator  95.5/9.1/17.4/76.1  98.0/7.8/16.1/88.6  76.6/0.1/0.6/38.1  88.8/18.9/23.6/17.5  84.2/0.4/1.5/ 78.2  98.0/7.0/16.2/89.7  97.6/20.6/29.8/87.0  – 99.7/37.4/42.2/98.6  98.7/23.7/33.2/93.0 rolledstripbase  99.6/20.7/32.2/97.8  99.7 /31.4/39.9/98.4  80.5/1.7/5.1/52.1  99.2/ 48.7/50.1 /55.5  87.7/0.6/3.2/63.4  98.9/16.1/25.9/96.2  99.7 /37.4/42.5/98.4  – 99.7 /32.4/42.5/ 98.9  99.7 /34.2/43.2/98.8 simcardset  97.9/31.6/39.8/85.0 98.5/40.2/44.2/89.5  71.0/6.8/14.3/30.8  99.1/ 65.5/62.1 /73.9  89.9/1.7/5.8/60.4  99.1/39.7/43.2/93.9 98.8/51.1/50.6/89.4  – 99.3 /48.9/50.1/ 95.4  97.7/42.6/45.1/86.6 switch  98.1/33.8/40.6/90.7 94.4/18.9/26.6/90.9  71.7/3.7/9.3/44.2  97.4/57.6/55.6/44.7  90.5/1.4/5.3/64.2  99.0/51.5/55.2/91.5  98.2/39.9/45.4/92.9  – 99.5/63.6/63.4/95.8  98.0/39.4/47.0/94.2 tape  99.7/29.2/36.9/97.5  99.7 /42.4/47.8/98.4  77.5/1.2/3.9/41.4  99.0/ 61.7/57.6 /48.2  81.7/0.4/2.7/47.3  99.6/20.5/29.8/98.3  99.8 /47.1/48.2/98.0  – 99.7/29.8/36.4/ 98.8  99.7 /42.2/46.9/98.5 terminalblock  99.2/23.1/30.5/94.4 99.5/27.4/35.8/97.6  87.0/0.8/3.6/54.8  96.6/40.6/44.1/34.8  75.5/0.1/1.1/38.5  99.6/35.5/39.3/97.1  99.8 /35.3/39.7/98.2  – 99.8/48.3/51.0/98.9  99.7/34.9/38.7/98.4 toothbrush  95.7/16.4/25.3/84.3 96.9/26.1/34.2/88.7  84.7/7.2/14.8/52.6  94.3/30.0/37.3/42.8  82.0/1.9/6.6/54.5  98.4/37.2/44.4/90.6 97.5/27.8/36.7/91.4  – 98.8/39.8/47.9/93.8  97.4/34.3/40.5/91.7 toy  93.4/4.6/12.4/70.5  95.2/5.1/12.8/82.3  67.7/0.1/0.4/25.0  86.3/8.1/15.9/16.4  82.1/1.1/4.2/50.3  94.2/5.4/10.4/82.2  96.0/16.4/25.8/86.3  – 97.8/19.8/25.5/90.8  96.8/17.0/25.4/90.4 toybrick  97.4/17.1/27.6/81.3 96.4/16.0/24.6/75.3  86.5/5.2/11.1/56.3  94.7/24.6/30.8/45.5  93.5/3.1/8.1/66.4  97.5/28.9/37.3/82.7 96.6/18.0/25.8/74.7  – 98.6/44.3/48.7/89.6  96.6/21.0/27.9/78.2 transistor1  98.9/25.6/33.2/94.3 99.1/29.6/35.5/95.1  71.7/5.1/11.3/35.3  97.3/ 43.8/44.5 /45.4  88.6/7.2/15.3/58.1  98.1/27.1/31.8/91.4  99.4 /39.4/40.0/96.5  – 99.1/40.2/43.6/95.9  99.4 /38.3/41.2/ 96.8
+> ublock  99.3/22.3/29.6/94.3  99.6 /40.5/45.2/96.9  76.2/4.8/12.2/34.0  96.9/ 57.1/55.7 /38.5  88.8/1.6/5.4/54.2  99.2/19.0/27.1/94.1 99.5/37.8/46.1/95.4  – 99.5/24.2/35.6/ 97.8  99.4/34.4/42.7/96.1 usb  97.9/20.6/31.7/85.3 98.1/26.4/35.2/91.0  81.1/1.5/4.9/52.4  98.4/42.2/47.7/57.1  78.0/1.0/3.1/28.0  99.2/29.0/38.1/93.6  99.2/39.1/44.4/95.2  – 99.6/43.4/48.3/97.0  99.0/36.7/42.6/95.1 usbadaptor  96.6/10.5/19.0/78.4  94.5/9.8/17.9/73.1  67.9/0.2/1.3/28.9  94.9/ 25.5/34.9 /36.4  94.0/2.3/06.6/75.5  94.5/11.8/21.1/73.0  97.3 /15.3/22.6/82.5  – 96.8/18.1/27.3/ 84.2  95.2/14.9/24.6/75.1 vcpill  99.1/40.7/43.0/91.3 98.3/43.1/48.6/88.7  68.2/1.1/3.3/22.0  97.1/ 64.7/62.3 /42.3  90.2/1.3/5.2/60.8  99.1/61.9/63.3/92.0  98.7/50.2/54.5/89.3  – 99.0/58.4/61.2/ 92.6  98.5/49.6/54.6/90.8 woodenbeads  97.6/16.5/23.6/84.6 98.0/27.1/34.7/ 85.7  68.1/2.4/6.0/28.3  94.7/ 38.9/42.9 /39.4  85.0/1.1/4.7/45.6  96.6/21.5/30.0/77.2  98.0 /32.6/39.8/84.5  – 97.3/26.2/31.4/83.1  97.7/32.6/39.2/85.6 woodstick  94.0/36.2/44.3/77.2 97.8/30.7/38.4/85.0  76.1/1.4/6.0/32.0  97.9/ 60.3/60.0 /51.0  90.9/2.6/8.0/60.7  97.8/47.3/50.3/91.4  97.7/40.1/44.9/82.7  – 98.4 /48.5/51.9/ 93.1  97.6/35.0/41.3/85.4 zipper  98.4/32.5/36.1/95.1 99.1/44.7/50.2/96.3  89.9/23.3/31.2/55.5 98.2/35.3/39.0/78.5 90.2/12.5/18.8/53.5  98.5/37.3/43.6/94.6  99.3 /58.2/61.3/ 97.6  – 99.0/43.8/49.7/97.4  99.3/59.6/60.7 /97.4
+> Mean  97.3/21.1/29.2/86.7 97.3/25.0/32.7/89.6  75.7/2.8/6.5/39.0  94.6/37.9/41.7/40.6  88.0/2.9/7.1/58.1  98.0/27.6/34.4/88.7  98.5/33.0/38.7/90.5  – 98.9/37.7/42.6/93.1  98.2/32.4/38.9/ 91.3
+
+26
