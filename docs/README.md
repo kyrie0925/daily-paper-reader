@@ -6,52 +6,56 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-15
-- 运行时间：2026-06-15 23:00:43 UTC
+- 最新运行日期：2026-06-16
+- 运行时间：2026-06-16 23:14:35 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：5
-- 速读区：5
+- 本次总论文数：12
+- 精读区：8
+- 速读区：4
 
 ### 今日简报（AI）
-今日精读两篇高分论文：深零膨胀模型助力北大西洋露脊鲸保护，值序分解实现通用异常检测。  
-最值得关注方向：海洋生态管理中零膨胀数据的深度学习建模，以及无需特定假设的异常检测新范式。  
-建议普通读者关注相关开源项目，并思考自然场景与工业场景的迁移应用。
-- 详情：[/202606/15/README](/202606/15/README)
+今日推荐12篇论文，精读8篇，重点关注海洋机器人仿真与结构异常检测两大高分突破。最值得看的是《Traceable Virtual Sea Trials》提出可追溯虚拟海试方法，以及《Rethinking Structural Anomaly Detection》从决策边界转向投影算子，均为9.0高分。建议普通读者优先精读这2篇，另有3篇速读可作为背景补充。
+- 详情：[/202606/16/README](/202606/16/README)
 
 ### 精读区论文标签
-1. [A Deep Zero-Inflated Model of North Atlantic Right Whale Presence To Support Blue Economy Management in the U.S. East Coast](/202606/15/2606.14403v1-a-deep-zero-inflated-model-of-north-atlantic-right-whale-presence-to-support-blue-economy-management-in-the-us-east-coast)  
+1. [Traceable Virtual Sea Trials in the Marine Robotics Unity Simulator for Manoeuvring Assessment of Unmanned Surface Vehicles](/202606/16/2606.12349v2-traceable-virtual-sea-trials-in-the-marine-robotics-unity-simulator-for-manoeuvring-assessment-of-unmanned-surface-vehicles)  
    标签：评分：9.0/10、query:ocean-obs
-   evidence：自主水下航行器用于鲸类监测
-2. [Value-order Decomposition for Generalist Anomaly Detection](/202606/15/2606.14475v1-value-order-decomposition-for-generalist-anomaly-detection)  
+   evidence：无人水面艇虚拟海试支持自主海洋观测
+2. [Rethinking Structural Anomaly Detection: From Decision Boundaries to Projection Operators](/202606/16/2606.15280v1-rethinking-structural-anomaly-detection-from-decision-boundaries-to-projection-operators)  
    标签：评分：9.0/10、query:anomaly-id
-   evidence：提出价值阶分解用于通用异常检测，一种跨域检测异常的新方法
-3. [D2H-AD: A Hybrid Model Utilizing Hyperdimensional Computing for Advanced Anomaly Detection](/202606/15/2606.13754v1-d2h-ad-a-hybrid-model-utilizing-hyperdimensional-computing-for-advanced-anomaly-detection)  
+   evidence：基于投影算子的结构异常检测新方法
+3. [D2H-AD: A Hybrid Model Utilizing Hyperdimensional Computing for Advanced Anomaly Detection](/202606/16/2606.13754v1-d2h-ad-a-hybrid-model-utilizing-hyperdimensional-computing-for-advanced-anomaly-detection)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：提出基于超维计算的通用异常检测框架
-4. [BoRAD: Bootstrap your Own Representations for Multi-class Anomaly Detection](/202606/15/2606.14129v1-borad-bootstrap-your-own-representations-for-multi-class-anomaly-detection)  
+   evidence：使用超维计算的通用异常检测框架
+4. [Cauchy Aggregation of Ridge-Regularized Hotelling Tests for High-Dimensional Change-Point Detection](/202606/16/2606.14092v1-cauchy-aggregation-of-ridge-regularized-hotelling-tests-for-high-dimensional-change-point-detection)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：通过自监督表示学习进行多类异常检测
-5. [Wind vector retrieval from miniaturized wave-enabled sea-surface drifters](/202606/15/2606.14520v1-wind-vector-retrieval-from-miniaturized-wave-enabled-sea-surface-drifters)  
+   evidence：高维时间序列变化点检测方法，可用于异常识别
+5. [GeoRoPE: Ground-Aware Rotary Adaptation for Remote Sensing Foundation Models](/202606/16/2606.14760v1-georope-ground-aware-rotary-adaptation-for-remote-sensing-foundation-models)  
    标签：评分：8.0/10、query:ocean-obs
-   evidence：波浪感应漂流器用于海洋风观测
+   evidence：地面感知适配用于遥感基础模型，可支持海洋生态系统监测
+6. [Neural Bayesian Anomaly Mitigation: A Robust Loss that Doubles as an Unsupervised Contamination Classifier](/202606/16/2606.16524v1-neural-bayesian-anomaly-mitigation-a-robust-loss-that-doubles-as-an-unsupervised-contamination-classifier)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：无监督异常检测与污染分类，可应用于海洋数据质量控制
+7. [Scalable Bayesian data curation for next-generation radio experiments](/202606/16/2606.16525v1-scalable-bayesian-data-curation-for-next-generation-radio-experiments)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：全自动贝叶斯异常检测用于科学数据整理
+8. [Sensing-Assisted Predictive Beamforming for UAV-Enabled Ocean Monitoring Networks](/202606/16/2606.16717v1-sensing-assisted-predictive-beamforming-for-uav-enabled-ocean-monitoring-networks)  
+   标签：评分：8.0/10、query:ocean-obs
+   evidence：无人机-浮标海洋监测中的感知辅助预测波束赋形
 
 ### 速读区论文标签
-1. [Deep learning for echo sounder data](/202606/15/2606.10811v1-deep-learning-for-echo-sounder-data)  
-   标签：评分：7.0/10、query:ocean-qc
-   evidence：探讨深度学习在回声测深数据中的应用并强调高质量数据集的需求
-2. [Finding Novel Precursors for Solar Wind Stream Interaction Regions with Interpretable Deep Learning](/202606/15/2606.12661v1-finding-novel-precursors-for-solar-wind-stream-interaction-regions-with-interpretable-deep-learning)  
+1. [HARBOR: Heading Analysis and Reconstruction from Behavioral Observation and Radar](/202606/16/2606.14006v1-harbor-heading-analysis-and-reconstruction-from-behavioral-observation-and-radar)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：利用SAR和AIS的海洋观测
+2. [Early Anomaly-Onset Detection based on Wigner--Ville Distribution Slice Spectra: A Transmission-Grid Test Case](/202606/16/2606.15856v1-early-anomaly-onset-detection-based-on-wigner--ville-distribution-slice-spectra-a-transmission-grid-test-case)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：使用Transformer模型逐时间步检测太阳风流相互作用区域，属于时间序列中的异常/事件检测
-3. [Least Absolute Deviations Estimation for Sinusoidal Models](/202606/15/2606.13242v1-least-absolute-deviations-estimation-for-sinusoidal-models)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：正弦模型的最小绝对偏差鲁棒估计，有效处理异常值
-4. [Inferring resource selection and utilization distributions from irregular and error-prone animal tracking data](/202606/15/2606.12566v1-inferring-resource-selection-and-utilization-distributions-from-irregular-and-error-prone-animal-tracking-data)  
-   标签：评分：6.0/10、query:ocean-qc
-   evidence：处理海洋系统中不规则和带有误差的数据，与海洋数据质量控制相关
-5. [Cauchy Aggregation of Ridge-Regularized Hotelling Tests for High-Dimensional Change-Point Detection](/202606/15/2606.14092v1-cauchy-aggregation-of-ridge-regularized-hotelling-tests-for-high-dimensional-change-point-detection)  
+   evidence：基于WVDS谱的早期异常检测方法用于时间序列
+3. [Scan Statistics for Nonhomogeneous Poisson Processes with Extreme-Value Calibration and Application to CNV Detection](/202606/16/2606.13973v1-scan-statistics-for-nonhomogeneous-poisson-processes-with-extreme-value-calibration-and-application-to-cnv-detection)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：使用柯西聚合的变点检测方法，与时间序列异常检测相关
+   evidence：扫描统计量的异常检测方法
+4. [Drift-Aware Spectral Conformal Prediction for Non-Exchangeable Streaming Data](/202606/16/2606.15953v1-drift-aware-spectral-conformal-prediction-for-non-exchangeable-streaming-data)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：流数据漂移检测，可用于时间序列异常检测
 
 
 <div class="dpr-home-promo-card">

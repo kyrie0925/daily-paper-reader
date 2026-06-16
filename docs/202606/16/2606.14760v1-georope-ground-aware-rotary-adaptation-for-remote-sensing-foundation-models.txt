@@ -1,0 +1,582 @@
+Title: GeoRoPE: Ground-Aware Rotary Adaptation for Remote Sensing Foundation Models
+
+URL Source: https://arxiv.org/pdf/2606.14760v1
+
+Published Time: Tue, 16 Jun 2026 00:04:13 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# GeoRoPE: Ground-Aware Rotary Adaptation for Remote Sensing Foundation Models 
+
+Yu Luo 1 Kun Hu 2 Mengwei He 1 Xiaogang Zhu 3 Zeng Shan 4 Allen Benter 5
+
+Wei Xiang 6 Patrick Filippi 1 Thomas Francis Bishop 1 Zhiyong Wang 11The University of Sydney 2Edith Cowan University 
+
+> 3
+
+Adelaide University 4 Wuhan Polytechnic University  
+
+> 5
+
+Climate, Orange Agricultural Institute 6La Trobe University 
+
+## Abstract 
+
+Remote-sensing foundation models (RSFMs) benefit from pretraining on imagery from multiple sensors and ground sampling distances (GSDs), but such exposure alone does not resolve scale mismatch during downstream adaptation. A fixed token-grid offset can correspond to different ground distances across sensors, mak-ing grid-based positional priors physically inconsistent. Meanwhile, heterogeneous spatial granularity means that compact urban regions and homogeneous landscapes may require different positional sensitivities even under the same GSD. Therefore, we propose GeoRoPE, a ground-aware, RoPE-compatible, and parameter-efficient spatial adaptation method for RSFMs. GeoRoPE recalibrates token-level positional interactions from two complementary aspects. First, Geo-Coordinate Calibration (GCC) rescales raw token-grid offsets according to the ground distance represented by one token-grid step, producing geo-calibrated relative coordinates across GSDs. Second, Geo-Frequency Calibration (GFC) adjusts the native RoPE frequency with a relation-specific factor, enabling position sensitive adaptation to scene-dependent spatial granularity. GeoRoPE is injected into pretrained RSFMs through a lightweight adapter, preserving the frozen spatial prior while adding geo-aware po-sitional corrections. Experiments across multiple RSFMs, sensors, resolutions, and downstream tasks demonstrate that GeoRoPE improves cross-resolution robustness and scale-sensitive representation learning. 1
+
+## 1 Introduction 
+
+Advances in Earth observation (EO) have produced imagery across a wide range of ground sample distances (GSDs), from sub-meter aerial imagery to tens-of-meters satellite imagery. This diversity has motivated the rapid development of remote-sensing foundation models (RSFMs) [ 1– 3], which are pretrained on cross-sensor and multi-resolution imagery to support transferable representations for downstream tasks [ 4–6 ]. Despite this progress, adapting RSFMs across sensor resolutions remains challenging, especially for dense prediction tasks such as semantic segmentation. A key reason is that spatial attention in pretrained models often operates on token-grid coordinates, while the ground distance represented by one token-grid step changes with the input GSD. As a result, the same token-grid offset may correspond to different physical distances across images, and spatial priors learned at one resolution may be reused at mismatched ground extents under another. This issue is more fundamental in remote sensing than in natural-image recognition. In EO imagery, pixels and tokens are tied to physical ground measurements. As illustrated in Fig. 1, a fixed offset in image or token coordinates does not necessarily represent a fixed ground distance across sensors. When pretraining, fine-tuning or testing spans heterogeneous GSDs, the same grid-relative pattern 
+
+> 1Our code will be publicly available.
+> arXiv:2606.14760v1 [cs.CV] 8 Jun 2026
+
+may therefore carry conflicting physical meanings: as shown in Fig 1 a positional pattern that captures fine-grained local structures in high-resolution (small GSD) imagery may instead cover much broader regions in lower-resolution imagery, leading to scale-misaligned attention responses. Moreover, the meaning of a token offset is not determined by GSD alone. Remote-sensing scenes often contain regions with very different spatial granularity, ranging from expansive homogeneous areas to densely detailed urban landscapes. Therefore, the challenge is not only to align images across GSDs, but also to adapt token-level spatial relations to the ground distance they represent and to the spatial granularity of the observed regions. GSD 
+
+> 0. 1m/px
+> 10m/p x
+> Urban
+> Urban Plain
+> Urban
+> ∆
+
+Figure 1: Motivation of GeoRoPE. The same token-grid size covers different ground extents under differ-ent GSDs. For a fixed token-grid offset ∆, the corre-sponding ground distance and regional relation can also change, e.g., urban–urban at fine GSD versus plain– urban at coarse GSD. Existing attempts to improve scale-robust representation learning in RSFMs mainly follow two directions. One direction in-corporates physical-scale information into positional representations. For example, ScaleMAE [ 7] introduces GSD-aware posi-tional encoding to relate image coordinates to physical ground distances, encourag-ing more consistent representations across sensing resolutions. However, such physi-cal alignment is typically applied as a uni-form image-level prior: it anchors posi-tions to ground distance, but does not adapt token-level positional interactions to re-gions with different spatial granularity. An-other direction improves multi-scale spatial modeling through feature pyramids, hierar-chical encoders, or parameter-efficient fine-tuning strategies [ 8– 10 ]. Related vision methods further use rotary position encoding to enhance the spatial sensitivity of attention [ 11 , 12 ]. While these approaches enrich spatial representations, they either lack an explicit ground-distance anchor for token interactions or do not adapt positional sensitivity according to heterogeneous scene granularity. As a result, existing methods still lack a unified positional adaptation mechanism that can both ground token-grid interactions in physical distance and adjust their spatial sensitivity across different remote-sensing regions. Therefore, we propose GeoRoPE , a RoPE-compatible and parameter-efficient spatial adaptation method for RSFMs. The key idea is to recalibrate token-level positional interactions from two complementary perspectives: how relative token offsets are measured in ground-aware units, and how strongly the model should respond to these offsets under different scene granularity. Specifically, 
+
+Geo-Coordinate Calibration (GCC) rescales raw token-grid offsets according to the ground distance represented by one token-grid step, producing geo-calibrated relative coordinates that are comparable across GSDs. Building on these calibrated coordinates, Geo-Frequency Calibration (GFC) adjusts the native RoPE frequency with a bounded relation-specific factor, allowing positional sensitivity to vary across regions with different spatial granularity, such as compact built-up areas and smoother homogeneous landscapes. Together, GCC and GFC make RoPE-aware positional interactions sensi-tive to both cross-GSD ground-distance mismatch and intra-scene spatial heterogeneity. GeoRoPE is implemented as a lightweight attention-parallel adapter, which preserves the pretrained spatial prior of RSFMs while injecting a geo-aware positional correction with limited additional parameters. The key contributions of this work are summarized as follows: • We propose GeoRoPE , a ground-aware spatial adaptation framework for RSFMs, to address the mismatch between token-grid positional interactions and real-world spatial relations under heterogeneous GSDs and scene granularity. • We design RoPE-compatible calibration modules: Geo-Coordinate Calibration (GCC) ,which transforms index-based token offsets into ground-aware relative coordinates, and Geo-Frequency Calibration (GFC) , which adaptively modulates positional sensitivity according to local scene granularity. 2• Extensive evaluations across multiple RSFMs, sensors, and downstream tasks demonstrate that GeoRoPE consistently improves cross-resolution adaptation performance for both classification and segmentation. 
+
+## 2 Related Work 
+
+Multi-Scale Representation in RSFMs. Remote sensing (RS) data exhibits extreme physical heterogeneity, with varying ground sample distances (GSDs) and sensor modalities making unified modeling highly nontrivial. Early RSFMs [ 13 , 14 , 1] are typically pretrained at a fixed input size or resolution, resizing all images to match the patch tokenizer. While effective, uniform scaling discards scale-specific cues. To mitigate this issue, recent works have explored multi-encoder architectures [ 15 –17 , 3] to capture features at modality- and scale-specific levels. While these strategies allow a single RSFM to process multi-resolution inputs, the resulting representations predominantly prioritize scale-invariant global robustness without addressing scale-dependent local structural fidelity. 
+
+Adaptive Positional Encoding. Recent advancements have recontextualized positional encod-ings [ 18 – 20 ] from static spatial identifiers to tunable scale-modeling mechanisms. Across both language and vision domains, most of existing methods adjust base wavelength of RoPE in LLMs [ 21 , 22 ], or introduce adaptive phases in ViTs [ 11 ], to achieve length or resolution ex-trapolation [ 23 , 24 ]. Beyond position extrapolation, other methods further inject explicit physical or geometric semantics into positional priors [ 12 ]. PIPE [ 25 ] incorporates latitude, longitude and day-of-year information for spatio-temporal forecasting, while Copernicus-FM [ 26 ] and Scale-MAE [ 7 ]explicitly inject physical metadata and GSD into model with positional encodings. However, these methods fall short of addressing the unique demands of dense RS adaptation. The extreme intra-image structural heterogeneity inherent to RS data highlights the need for dynamically modulated, region-aware scale representations. 
+
+Parameter-Efficient Fine-Tuning. A growing body of work adapts large pretrained backbones with a small number of task-specific parameters. Representative approaches, including bias or normalization term tuning [ 27 , 28 ], adapters [ 29 ] and Low-Rank Adaptation (LoRA) [ 30 ], have demonstrated an effective trade-off between adaptation flexibility and computational efficiency. In remote-sensing field, recent PEFT studies have mainly focused on mitigating modality discrepancies. For example, Scaled Low-Rank Adaptation [ 31 ] rescales LoRA updates to improve transfer to unseen modalities, while SpectralX [ 32 ] and DEFLECT [ 33 ] disentangle spectral and spatial adaptation branches to bridge RGB, multispectral, and hyperspectral imagery. Despite their effectiveness for modality transfer, these PEFT methods generally treat spatial adaptation as a static process. As a result, how to realize dynamically modulated, region-aware scale adaptation within a lightweight PEFT framework remains underexplored. 
+
+## 3 Methodology 
+
+3.1 Problem Formulation 
+
+We consider a remote-sensing observation X ∈ RT ×H×W ×C acquired at a known GSD G, where G
+
+denotes the physical length represented by one image pixel. Here, T is the temporal length, H and 
+
+W are spatial dimensions, and C is the number of spectral channels. In typical RSFMs, temporal information, when present, is aggregated before the main spatial attention blocks. Accordingly, the core attention blocks encode X into a spatial token map Z(l) ∈ RN (l)    
+
+> x×N(l)
+> y×Dl
+
+across different stages 
+
+l, where N (l) 
+
+> x
+
+and N (l) 
+
+> y
+
+are the spatial token-grid dimensions, and Dl is the feature dimension. Each token is indexed by a 2D grid coordinate u = ( ux, u y ) ∈ N (l), where N = {0, . . . , N (l) 
+
+> x
+
+− 1} × {0, . . . , N (l) 
+
+> y
+
+− 1}. For two tokens u, v ∈ N (l), their signed relative grid offset is: 
+
+∆u,v = u − v = (∆ x
+
+> u,v
+
+, ∆y
+
+> u,v
+
+) = ( ux − vx, u y − vy ). (1) where the stage index l is omitted for simplicity. Spatial Transformers in RSFMs typically represent positional relations in token-grid units. However, such grid-level relations cannot reflect the physical distance on the ground. Given a token map corresponds to a τ × τ image patch acquired at GSD G, its physical side length is: 3ℓ = τ G. (2) Under this definition, the physical distance between two token is: 
+
+du,v = ℓ∆u,v. (3) 
+
+Motivations. This geometry reveals a scale ambiguity in token-grid positional relations. A fixed offset 
+
+∆u,v does not necessarily imply a fixed physical displacement, since the physical meaning of a token-grid unit changes with the physical token scale. When training or fine-tuning spans heterogeneous GSDs, the same grid-relative pattern may correspond to different ground extents, inducing conflicting physical interpretations for the same grid-based positional prior. When transferred to a new physical token scale, this grid-based prior may be reused at a mismatched ground extent, leading to scale-misaligned attention responses. This motivates revisiting the positional formulation to calibrate grid-relative offsets into physically meaningful relative coordinates for RSFMs. 
+
+3.2 Rotary Position Embedding on Spatial Token Grids 
+
+We now revisit how such offsets influence standard spatial attention with Rotary Position Embedding (RoPE) [ 20 ] RoPE encodes relative positions by applying coordinate-dependent rotations to query and key vectors in Transformers. Let Q(h) 
+
+> u
+
+, K(h) 
+
+> v
+
+∈ Rdr denote the query and key vectors at head h,where dr is the number of per-head channels to which RoPE is applied. For 2D RoPE, dr is divisible by four and set M = dr /4. The base angular frequencies are defined as: 
+
+θm = base −4m/d r , m = 0 , . . . , M − 1, (4) where base is commonly set to 10 ,000 .For a scalar phase ϕ, the elementary rotation block is defined as: 
+
+r(ϕ) = 
+
+cos ϕ − sin ϕ
+
+sin ϕ cos ϕ
+
+
+
+. (5) Given the relative grid offset ∆u,v, the full equation of 2D relative RoPE rotation matrix [11] is: 
+
+R∆u,v = blockdiag  r(θ0∆x
+
+> u,v
+
+), r(θ0∆y
+
+> u,v
+
+), . . . , r(θM −1∆x
+
+> u,v
+
+), r(θM −1∆y
+
+> u,v
+
+) . (6) Accordingly, the RoPE-modulated attention logit can be written as: 
+
+a(l,h ) 
+
+> u,v
+
+= ( eQ(h) 
+
+> u
+
+)⊤ eK(h) 
+
+> v
+
+= ( Q(h) 
+
+> u
+
+)⊤R∆u,v K(h) 
+
+> v
+
+, (7) 
+
+Scale implication of RoPE. Standard RoPE assigns a fixed angular-frequency schedule to discrete token-grid offsets. Although this design provides a stable relative positional prior in grid coordinates, its physical meaning changes when the ground extent represented by one token step changes. In remote sensing, the same rotary channel may correspond to fine-grained structures under a high-resolution GSD but to broader ground regions under a coarser GSD. When learning spans heterogeneous GSDs, this can associate the same grid-based positional prior with inconsistent physical meanings. When the model is adapted or transferred to imagery with a different physical token scale, the learned prior may further produce scale-misaligned attention responses. This motivates recalibrating the coordinate unit of RoPE: the offset driving that phase should be aware of the physical token scale. 
+
+3.3 GeoRoPE: A Unified RS Scale Modeling Framework 3.3.1 Overview 
+
+We propose GeoRoPE, a scale-aware rotary adaptation mechanism that recalibrates the coordinate unit driving the RoPE phase. Rather than replacing the rotary structure, GeoRoPE preserves the pairwise rotary block form of RoPE while making the relative phase aware of the physical token scale and local scene context. For a token pair u, v, standard RoPE forms its phase from the product between a fixed frequency 
+
+θm and the raw grid offset ∆u,v. GeoRoPE calibrates the RoPE phase from by introducing two 4GSD 
+
+> Projector
+
+×𝑁 
+
+> Layer Norm
+
+Self -
+
+Attention 
+
+GeoRoPE 
+
+Adapter 
+
+> Prediction
+> Head
+
+Cls. 
+
+Seg. 
+
+𝑸 
+
+𝑲 
+
+𝑽 
+
+𝒁 !
+
+𝑸 %
+
+𝑲 %
+
+𝑽 ∆𝐘 
+
+> Layer Norm
+> FFN
+
+# 🔥 
+
+𝒁 
+
+RSFM Spatial Encoder 
+
+GSD 
+
+GeoRoPE 
+
+𝒁 
+
+> Base Frequency
+> Low Granularity
+> High Granularity
+> Modulated Frequency
+
+Linear 
+
+Linear 
+
+Linear 
+
+> Token Grid
+
+𝑄 "! 
+
+> "
+
+𝐾 $# = (𝑄 !)"𝑅 ∆!,# 
+
+> &'(
+
+(𝐾 #)
+
+𝒁 "
+
+Geo -Coordinate 
+
+Calibration 
+
+(GCC) 
+
+Geo -Frequency 
+
+Calibration 
+
+(GFC) Figure 2: Overview of the GeoRoPE framework. GeoRoPE is injected into RSFM Transformer blocks as a lightweight attention-parallel adapter, while the pretrained backbone path is preserved for downstream classification and segmentation. Within the adapter, Geo-Coordinate Calibration (GCC) converts raw token-grid offsets into ground-aware relative coordinates, and Geo-Frequency Calibration (GFC) adjusts positional sensitivity according to scene-dependent spatial granularity. The resulting GeoRoPE rotary relation Rgeo  
+
+> ∆u,v
+
+is applied to the adapter queries and keys, producing an additive geo-aware correction ∆Y to the backbone attention output. complementary modules: First, Geo-Coordinate Calibration (GCC) rescales the relative grid offset by a physical scale factor ρG, converting raw token-grid steps into geo-calibrated coordinate units. Second, Geo-Frequency Calibration (GFC) adjusts the native RoPE frequency θm by a bounded relation-specific factor αu,v,m , controlling how rapidly the rotary phase varies over the geo-calibrated coordinate. This allows RoPE to adapt its positional sensitivity to scene-dependent spatial granularity while remaining bounded and RoPE-compatible. Overall, the GeoRoPE phase at frequency m can be written compactly as: 
+
+ϕgeo  
+
+> u,v,m
+
+= θmαu,v,m 
+
+| {z }
+
+> GFC: granularity-aware phase variation rate
+
+· ρG∆u,v
+
+| {z }
+
+> GCC: physical-scale coordinate unit
+
+. (8) The resulting GeoRoPE relative rotation matrix is: 
+
+Rgeo ∆u,v = blockdiag 
+
+
+
+r(ϕgeo ,x  
+
+> ∆u,v,0
+
+), r(ϕgeo ,y  
+
+> ∆u,v,0
+
+), . . . , r(ϕgeo ,x   
+
+> ∆u,v,M −1
+
+), r(ϕgeo ,y   
+
+> ∆u,v,M −1
+
+)
+
+
+
+, (9) where r(·) is the standard 2 × 2 rotary block and M = dr /4 is the number of frequency bands per spatial axis. When ρG = 1 and αu,v,m = 1 for all token pairs and frequency bands, GeoRoPE reduces to the original grid-based RoPE. 
+
+3.3.2 Geo-Coordinate Calibration 
+
+Geo-Coordinate Calibration (GCC) calibrates the coordinate unit by expressing token-grid offsets relative to a reference ground distance. Let ℓref denote the reference ground distance, chosen by default as the finest resolution such distance among the training inputs. Given the current token-step ground distance ℓ, GCC defines the coordinate-scale factor as: 
+
+ρG =
+
+ ℓℓref 
+
+1−γ
+
+, γ ∈ [0 , 1] . (10) 5The geo-calibrated relative coordinate is then defined as: 
+
+e∆u,v = ρG∆u,v. (11) The exponent γ controls how strongly the RoPE coordinate unit is tied to the ground distance represented by one token-grid step. When γ = 1 , ρG = 1 , and GCC reduces to the original grid-based coordinate system. When γ = 0 , offsets are measured in units of the reference token-step ground distance e∆u,v = ( ℓ/ℓ ref )∆u,v. In this case, token pairs with the same ground displacement produce the same calibrated coordinate, even if their raw grid offsets differ under different GSDs. This tempering helps preserve the stability of pretrained RoPE. Under strict calibration, a large ratio 
+
+ℓ(l)/ℓ (l)ref can substantially enlarge the rotary phase, especially in high-frequency channels. This may cause excessive phase wrapping and disturb the grid-based positional prior inherited from a pretrained RSFM. Thus, GCC interpolates between two coordinate regimes: the original grid-relative coordinate system and a ground-calibrated coordinate system. 
+
+3.3.3 Geo-Frequency Calibration 
+
+Geo-Coordinate Calibration aligns RoPE with the physical resolution of the input, but a single global scale factor cannot capture the spatial heterogeneity within remote-sensing scenes. Dense urban regions, homogeneous croplands, and fragmented natural landscapes may require different positional sensitivities even under the same GSD. To account for this heterogeneity, Geo-Frequency Calibration (GFC) adjusts the phase variation rate of RoPE over the geo-calibrated coordinate, which predicts a spatially-varying modulation factor 
+
+αu,m for token location u and frequency index m. Formally, given the input spatial token map 
+
+Z ∈ RNx×Ny ×D , the modulation is formulated as: 
+
+αu,m = exp 
+
+
+
+tanh  Fm(Zu)
+
+
+
+. (12) where F is a semantic extraction network. The tanh nonlinearity bounds the factor within (−1, 1) ,while the exponential map keeps the multiplier positive: αu,m ∈ (e−1, e ).Specifically, the extraction network F maps the token embedding Zu into a frequency-modulating latent space H ∈ RNx×Ny ×M , based on a fine-grained local texture descriptor Fl and a holistic global landscape prior Fg :
+
+H = Conv 1×1 ([ Fl, Broadcast( Fg )]) ∈ RNx×Ny ×M , (13) where 
+
+Fl = GELU (Conv DW (Z)) , Fg = MLP (GAP( Z)) . (14) 
+
+Pair-wise frequency calibration. Since GeoRoPE is applied to token pairs, We aggregate them symmetrically in the log domain: αu,v,m = √αu,m αv,m . It rescales the relative GeoRoPE phase, thereby adapting the positional sensitivity across homogeneous regions. 
+
+3.4 Adapter for GeoRoPE Injection 
+
+To integrate GeoRoPE without disrupting the pretrained spatial prior, we inject it through a lightweight attention-parallel adapter, with the native attention and positional encoding path of the pretrained RSFM frozen. Given input tokens Z, the frozen backbone yields the original attention output Yfrozen , while the trainable branch computes a feature-level correction in a reduced latent space: 
+
+∆Y = Attn GeoRoPE (Z; Rgeo ) , (15) where Rgeo is the GeoRoPE-calibrated rotary relation. The final block output is obtained via residual addition: 
+
+Y = Yfrozen + ∆ Y. (16) This parameter-efficient feature-level injection provides an additive geospatial correction without overriding the backbone’s learned representations. 6Table 1: Comparison of performances on classification and segmentation tasks. Avg.C, Avg.S, and Avg.P denote the macro-average performance over classification datasets, segmentation datasets, and all datasets, respectively. Bold indicates the best performance within each backbone group.                                                                                                                                                                                                                                                                                                
+
+> Method Classification Segmentation Average
+> BE BK ES FN PV SS CW NT CT CP PS SC Avg.C Avg.S Avg.P
+> ScaleMAE
+> LP/UP 72.50 84.78 72.76 33.98 87.60 32.96 58.34 56.96 72.60 53.47 90.63 29.16 64.10 60.19 62.15 BitFit 66.39 96.39 91.75 35.78 91.19 47.16 58.74 55.27 72.60 55.49 90.88 29.43 71.44 60.40 65.92 NormTuning 68.23 91.69 79.11 35.03 90.49 40.97 58.48 55.33 72.83 53.08 90.72 28.54 67.59 59.83 63.71 LoRA 68.37 97.49 94.73 46.71 95.29 47.57 59.96 55.09 73.24 61.73 92.55 25.79 75.03 61.39 68.21 SLR 68.12 97.20 96.05 47.75 94.90 53.04 59.32 54.59 73.26 65.12 92.48 26.31 76.06 61.85 68.95
+> GeoRoPE (ours) 69.18 98.00 96.67 46.59 95.70 53.04 61.23 57.21 73.43 61.86 92.43 26.49 76.53 62.11 69.32 SatLas
+> LP/UP 69.94 83.35 73.29 46.71 93.84 43.00 43.80 57.62 83.26 63.46 92.73 33.76 68.35 62.44 65.98 BitFit 70.43 97.39 98.63 53.14 97.39 52.43 66.86 58.02 83.74 65.75 94.11 34.68 78.24 67.19 72.71 NormTuning 69.58 97.20 98.43 50.00 97.30 53.35 65.71 57.59 83.50 65.43 93.57 33.55 77.64 66.56 72.10 LoRA 70.42 97.80 98.79 53.89 97.69 60.45 68.99 57.93 84.23 68.68 94.82 35.52 79.84 68.36 74.10 SLR 71.40 97.80 98.70 53.59 98.00 59.94 69.38 57.95 84.28 67.70 94.85 35.51 79.91 68.28 74.09
+> GeoRoPE (ours) 71.48 97.98 98.40 54.04 97.90 56.40 70.40 58.48 84.28 68.75 95.00 36.56 79.37 68.91 74.14 DoFA
+> LP/UP 87.90 96.80 87.00 41.47 96.99 55.10 61.20 57.40 73.80 56.92 92.60 31.00 77.54 62.15 69.85 BitFit 89.41 98.30 95.82 50.60 97.99 57.20 67.06 55.64 74.99 59.23 94.03 33.48 81.55 64.07 72.81 NormTuning 89.45 98.49 94.04 52.44 98.10 58.62 66.38 55.49 74.78 58.39 93.81 32.88 81.86 63.62 72.74 LoRA 88.13 98.50 96.92 54.24 97.99 60.53 68.61 55.97 75.26 60.56 94.14 33.57 82.72 64.69 73.70 SLR 88.86 98.30 97.20 53.74 98.00 61.56 68.19 56.16 75.29 60.34 94.10 34.10 82.94 64.70 73.82
+> GeoRoPE (ours) 94.16 98.48 97.44 54.21 98.21 62.78 68.48 59.19 75.45 61.54 94.39 35.19 84.21 65.71 74.96
+
+## 4 Experiment 
+
+4.1 Experimental Settings Datasets and metrics. Our evaluation is conducted on GeoBench [ 34 ], including six classifi-cation datasets: m-bigearthnet (BE), m-brick-kiln (BK), m-eurosat (ES), m-forestnet (FN), m-pv4ger (PV), m-so2sat (SS), and six semantic segmentation datasets: m-cashew-plantation (CW), m-NeonTree (NT), m-nz-cattle (CT), m-chesapeake-landcover (CP), m-pv4ger-seg (PS) and m-SA-crop-type (CV), spanning ground sample distances from 0.1 m (RGB aerial) to 15 m (Landsat-8). For classification, we report the mean Accuracy score. For segmentation, we report Intersection over Union (IoU) for 2-classes datasets and mean IoU (mIoU) otherwise. More details are in Appendix D.1. 
+
+Backbones and baselines. We evaluate GeoRoPE along two complementary dimensions. First, to examine its compatibility with different pretrained priors, we instantiate GeoRoPE on repre-sentative RSFMs with diverse native positional encodings: DOFA [ 35 ] with absolute positional encoding (APE), Scale-MAE [ 7] with GSD-aware positional encoding, and SatLas [36 ] with relative positional encoding (RPE) for heterogeneous EO inputs. Across all backbones, GeoRoPE is attached through the same attention-parallel rotary adapter and does not require backbone-specific redesign. Second, to assess GeoRoPE as a parameter-efficient adaptation method, we compare it with represen-tative PEFT baselines, including BitFit [ 27 ], NormTuning [ 28 ], LoRA [ 30 ], and Scaled Low-Rank (SLR) [ 31 ]. For all LoRA-based methods, the rank is set to 8 following the common setting in [ 30 ]. More details are provided in Appendix D.2. 
+
+Implementation details. Following the base model settings, for classification, we follow a linear probing protocol, in which a [CLS] token is prepended to the average-pooled token embeddings for prediction; for segmentation, we use the UperNet [ 37 ] as decoder on top of the frozen pretrained backbone. The total number of training epochs is fixed to 100 for each dataset and GeoRoPE is optimized in the attention layers, following the standard PEFT setup. More details are in Appendix D.3 
+
+4.2 Overall Performance Quantitative results. Table 1 reports the results on three RSFMs with different native positional encodings. Overall, GeoRoPE achieves the best Avg.P under all three backbones, indicating that the proposed geo-aware rotary adapter can complement diverse pretrained RSFMs without backbone-specific redesign. For ScaleMAE , GeoRoPE improves Avg.C, Avg.S, and Avg.P to 76.53, 62.11, and 69.32, respectively, outperforming the strongest PEFT baseline SLR on all averaged metrics. This suggests that explicitly adapting positional interactions is more effective than generic parameter-efficient updates under the same backbone. Notably, since ScaleMAE already incorporates GSD-7Input GT UperNet BitFit NormTuning LoRA GeoRoPE SLR 
+
+> (a)(b)
+
+Figure 3: Segmentation with different PEFT methods on imagery from (a) pv4ger and (b) chesapeake .aware positional information, the additional gains indicate that GeoRoPE can complement existing scale-aware positional priors rather than merely replacing them. For Satlas , GeoRoPE achieves the best Avg.S and Avg.P, reaching 68.91 and 74.14. Although its Avg.C is slightly lower than LoRA and SLR, it improves the overall average by producing stronger segmentation performance, which is more directly tied to token-level spatial alignment. For DoFA , GeoRoPE obtains the best Avg.C, Avg.S, and Avg.P, reaching 84.21, 65.71, and 74.96, respectively, showing the clearest overall gains among the evaluated backbones. Across task types, GeoRoPE is particularly consistent on segmentation , where it achieves the highest Avg.S for all three backbones. This is aligned with the motivation of GeoRoPE: dense prediction is more sensitive to whether token-grid relations correspond to meaningful ground distances and appropriate positional sensitivities. For classification , GeoRoPE remains best or highly competitive, but the gains are less uniform, as global recognition can rely more heavily on semantic aggregation than fine-grained positional calibration. These results suggest that GeoRoPE is most effective when spatial correspondence is critical, while still maintaining strong general-purpose adaptation. 
+
+Qualitative results. Fig. 3 compares segmentation outputs on PV4GER and Chesapeake. On PV4GER, GeoRoPE produces more complete rooftop solar-panel masks with fewer fragmented or missing foreground regions. On Chesapeake, it yields more coherent land-cover regions and cleaner class boundaries than generic PEFT strategies. These visual results indicate that calibrating both ground-aware coordinate units and granularity-aware positional sensitivity helps pretrained RSFMs maintain spatially coherent predictions across heterogeneous remote-sensing scenes. More visualizations are provided in Appendix E.3 
+
+4.3 Ablation Study and Sensitivity Analysis 
+
+Table 2: Ablation study of GeoRoPE. We pro-gressively add GGC, GFC, and the adapter injec-tion (Inj.) branch.                          
+
+> Method GGCGFC Inj. Cls. Seg. Avg.
+> LoRA ×××82.72 64.69 73.70 RoPE ××✓82.58 64.72 73.65 + GGC ✓×✓82.98 64.87 73.93 + GFC ×✓✓82.66 64.89 73.78
+> GeoRoPE ✓✓✓84.21 65.71 74.96
+
+We compare the standard LoRA baseline, RoPE injection without geo-coordinate calibra-tion (GCC), geo-frequency calibration (GFC), and the full GeoRoPE. All reported results are averaged over all classification and segmenta-tion benchmarks. 
+
+Effectiveness of GeoRoPE injection. A plain RoPE injection branch does not improve over LoRA, obtaining 73.65 Avg. compared with 73.70 for LoRA. Although it slightly improves segmentation, its classification score changes from 82.72 to 82.58, showing no consistent gain across tasks. This indicates that standard RoPE is insufficient for robust scale-aware adaptation. Without explicit geo-coordinate and geo-frequency 8calibration, the rotary positional signal remains tied to token-grid coordinates rather than ground-aware spatial relations. In contrast, full GeoRoPE reaches 74.96 Avg., surpassing both LoRA and plain RoPE injection. This confirms that the gains come from geo-aware positional calibration rather than merely from adding an extra adapter branch. 
+
+Effectiveness of GCC Module. Adding GCC to the plain RoPE injection branch improves the average performance from 73.65 to 73.93, indicating that calibrating the coordinate unit of RoPE provides a more reliable spatial prior than directly using raw token-grid offsets. Table 4a further shows that naive physical scaling is insufficient: directly multiplying position indices in RoPE with GSD (i.e., γ = 0 with GCC) reduces the average score from 73.78 to 73.70. This suggests that overly aggressive physical rescaling can destabilize the rotary response. A logarithmic calibration alternative [ 38 ] improves the score to 74.24 by compressing the scale range, but still falls behind the full GeoRoPE setting with the proposed GCC. These results show that GCC is not merely injecting GSD information; rather, it provides a tempered coordinate transformation that balances ground-distance consistency with the stability of the pretrained prior. 
+
+Effectiveness of GFC Module. With the injection branch and GCC enabled, introducing GFC improves the average performance from 73.93 to 74.96, showing that a fixed RoPE frequency response is insufficient even after coordinate calibration. Table 4b further compares GFC with a static learnable frequency scaling baseline, where a frequency-wise scale vector is optimized during fine-tuning but shared across all inputs and token pairs. Although this slightly improves the average score from 73.93 to 73.95, it remains far below GeoRoPE with GFC. This indicates that the gain does not simply come from adding extra frequency parameters, but from relation-specific calibration that adapts positional sensitivity to scene-dependent spatial granularity. 
+
+(a) GCC calibration.                
+
+> Calibration Cls. Seg. Avg.
+> No calibration 82.66 64.89 73.78 Physical scaling 82.62 64.77 73.70 Log-space calibration 83.02 65.47 74.24
+> GeoRoPE 84.21 65.71 74.96
+
+(b) GFC modulation.             
+
+> Calibration Cls. Seg. Avg.
+> No calibration 82.98 64.87 73.93 Static scaling 82.69 65.21 73.95
+> GeoRoPE 84.21 65.71 74.96
+
+(c) Sensitivity to γ.83      
+
+> 84
+> 85 Classification (acc.)
+> Segmentation (mIoU)
+> 0.00 0.25 0.50 0.75 1.00
+> 64
+> 65
+> 66
+> Performance [%]
+
+Figure 4: Analysis of GeoRoPE components and modulation strength. We compare GCC calibration, GFC frequency modulation, and the sensitivity of GeoRoPE to γ.
+
+Sensitivity to the Calibration Exponent γ. We analyze the effect of the GCC tempering exponent 
+
+γ in Fig. 4c. Smaller γ enforces stronger ground-distance calibration, while γ = 1 approaches the original grid-relative RoPE coordinate system. GeoRoPE achieves the best overall performance at 
+
+γ = 0 .5, reaching 84.21 Avg.C and 65.71 Avg.S. Classification remains relatively stable over a broad range of γ between 0.5 and 0.75, suggesting that global semantic recognition is less sensitive to moderate changes in coordinate calibration. In contrast, segmentation exhibits a sharper optimum at γ = 0 .5: overly strong calibration may amplify rotary phases, whereas weak calibration leaves token-grid offsets insufficiently aligned with ground distance. These results support the use of a moderate γ, which balances ground-distance consistency with the stability of the pretrained prior. 0.1 0.2 0.3 0.5 0.8 1 1.5 2
+
+> GSD (m)
+> 50
+> 60
+> 70
+> 80
+> 90
+> mIoU (%)
+> UperNet
+> BitFit
+> NormTuning
+> LoRA
+> SLR
+> GeoRoPE
+
+Figure 5: Performance of adaptation methods across varying GSDs on segmentation. 
+
+Robustness to GSD Variation. We evaluate robust-ness under GSD shifts by resampling images from the PV4GER dataset to different effective GSDs for segmentation. As shown in Fig. 5, all methods de-grade as the effective GSD becomes coarser, reflect-ing the loss of fine-grained spatial details for segmen-tation. Nevertheless, GeoRoPE consistently achieves the best performance and exhibits a gentler degrada-tion trend than competing PEFT methods. This indi-cates that GeoRoPE help stabilize spatial predictions under GSD-induced resolution shifts. More results on classification are provided in Appendix. E.2. 95 Conclusion 
+
+We presented GeoRoPE, a RoPE-compatible and parameter-efficient spatial adaptation method for RSFMs. GeoRoPE addresses the scale ambiguity of token-grid positional interactions by recalibrating rotary positions from two complementary perspectives. Geo-Coordinate Calibration grounds relative offsets according to the ground distance represented by one token-grid step, while Geo-Frequency Calibration adjusts positional sensitivity to scene-dependent spatial granularity. Implemented through a lightweight attention-parallel adapter, GeoRoPE preserves the pretrained spatial prior of RSFMs while injecting geo-aware positional corrections. Extensive experiments demonstrate its effectiveness for cross-resolution remote-sensing adaptation. 
+
+## References 
+
+[1] Guillaume Astruc, Nicolas Gonthier, Clement Mallet, and Loic Landrieu. Omnisat: Self-supervised modality fusion for earth observation. In European Conference on Computer Vision ,pages 409–427. Springer, 2024. [2] Minh Kha Do, Kang Han, Phu Lai, Khoa T Phan, and Wei Xiang. Robsense: A robust multi-modal foundation model for remote sensing with static, temporal, and incomplete data adaptability. In IEEE/CVF Conference on Computer Vision and Pattern Recognition Conference ,pages 7427–7436, 2025. [3] Guillaume Astruc, Nicolas Gonthier, Clement Mallet, and Loic Landrieu. Anysat: One earth observation model for many resolutions, scales, and modalities. In IEEE/CVF Conference on Computer Vision and Pattern Recognition Conference , pages 19530–19540, 2025. [4] Derrick Bonafilia, Beth Tellman, Tyler Anderson, and Erica Issenberg. Sen1floods11: A georef-erenced dataset to train and test deep learning flood algorithms for sentinel-1. In IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops , pages 210–211, 2020. [5] Rodrigo Caye Daudt, Bertr Le Saux, Alexandre Boulch, and Yann Gousseau. Urban change detection for multispectral earth observation using convolutional neural networks. In IEEE International Geoscience and Remote Sensing Symposium , pages 2115–2118. Ieee, 2018. [6] Vitus Benson, Claire Robin, Christian Requena-Mesa, Lazaro Alonso, Nuno Carvalhais, José Cortés, Zhihan Gao, Nora Linscheid, Mélanie Weynants, and Markus Reichstein. Multi-modal learning for geospatial vegetation forecasting. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 27788–27799, 2024. [7] Colorado J Reed, Ritwik Gupta, Shufan Li, Sarah Brockman, Christopher Funk, Brian Clipp, Kurt Keutzer, Salvatore Candido, Matt Uyttendaele, and Trevor Darrell. Scale-mae: A scale-aware masked autoencoder for multiscale geospatial representation learning. In IEEE/CVF International Conference on Computer Vision , pages 4088–4099, 2023. [8] Yezhen Cong, Samar Khanna, Chenlin Meng, Patrick Liu, Erik Rozi, Yutong He, Marshall Burke, David Lobell, and Stefano Ermon. Satmae: Pre-training transformers for temporal and multi-spectral satellite imagery. Advances in Neural Information Processing Systems , 35: 197–211, 2022. [9] Zhe Dong, Yanfeng Gu, and Tianzhu Liu. Upetu: A unified parameter-efficient fine-tuning framework for remote sensing foundation model. IEEE Transactions on Geoscience and Remote Sensing , 62:1–13, 2024. [10] Maofeng Tang, Andrei Cozma, Konstantinos Georgiou, and Hairong Qi. Cross-scale mae: A tale of multiscale exploitation in remote sensing. Advances in Neural Information Processing Systems , 36:20054–20066, 2023. [11] Byeongho Heo, Song Park, Dongyoon Han, and Sangdoo Yun. Rotary position embedding for vision transformer. In European Conference on Computer Vision , pages 289–305. Springer, 2024. [12] Ruilong Li, Brent Yi, Junchen Liu, Hang Gao, Yi Ma, and Angjoo Kanazawa. Cameras as relative positional encoding. arXiv preprint arXiv:2507.10496 , 2025. 10 [13] Danfeng Hong, Bing Zhang, Xuyang Li, Yuxuan Li, Chenyu Li, Jing Yao, Naoto Yokoya, Hao Li, Pedram Ghamisi, Xiuping Jia, et al. Spectralgpt: Spectral remote sensing foundation model. 
+
+arXiv preprint arXiv:2311.07113 , 2023. [14] Xian Sun, Peijin Wang, Wanxuan Lu, Zicong Zhu, Xiaonan Lu, Qibin He, Junxi Li, Xue Rong, Zhujun Yang, Hao Chang, et al. Ringmo: A remote sensing foundation model with masked image modeling. IEEE Transactions on Geoscience and Remote Sensing , 61:1–22, 2022. [15] Xin Guo, Jiangwei Lao, Bo Dang, Yingying Zhang, Lei Yu, Lixiang Ru, Liheng Zhong, Ziyuan Huang, Kang Wu, Dingxiang Hu, et al. Skysense: A multi-modal remote sensing foundation model towards universal interpretation for earth observation imagery. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 27672–27683, 2024. [16] Boran Han, Shuai Zhang, Xingjian Shi, and Markus Reichstein. Bridging remote sensors with multisensor geospatial foundation models. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 27852–27862, 2024. [17] Zhitong Xiong, Yi Wang, Fahong Zhang, and Xiao Xiang Zhu. One for all: Toward unified foundation models for earth vision. In IEEE International Geoscience and Remote Sensing Symposium , pages 2734–2738. IEEE, 2024. [18] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in Neural Information Processing systems , 30, 2017. [19] Kan Wu, Houwen Peng, Minghao Chen, Jianlong Fu, and Hongyang Chao. Rethinking and improving relative position encoding for vision transformer. In IEEE/CVF International Conference on Computer Vision , pages 10033–10041, 2021. [20] Jianlin Su, Murtadha Ahmed, Yu Lu, Shengfeng Pan, Wen Bo, and Yunfeng Liu. Roformer: Enhanced transformer with rotary position embedding. Neurocomputing , 568:127063, 2024. [21] Bowen Peng, Jeffrey Quesnelle, Honglu Fan, and Enrico Shippole. Yarn: Efficient context window extension of large language models. arXiv preprint arXiv:2309.00071 , 2023. [22] Yiran Ding, Li Lyna Zhang, Chengruidong Zhang, Yuanyuan Xu, Ning Shang, Jiahang Xu, Fan Yang, and Mao Yang. Longrope: Extending llm context window beyond 2 million tokens. arXiv preprint arXiv:2402.13753 , 2024. [23] Tong Wu, Yanpeng Zhao, and Zilong Zheng. An efficient recipe for long context extension via middle-focused positional encoding. Advances in Neural Information Processing Systems , 37: 56349–56373, 2024. [24] Dawei Zhu, Nan Yang, Liang Wang, Yifan Song, Wenhao Wu, Furu Wei, and Sujian Li. Pose: Efficient context window extension of llms via positional skip-wise training. arXiv preprint arXiv:2309.10400 , 2023. [25] Haobo Li, Eunseo Jung, Zixin Chen, Zhaowei Wang, Yueya Wang, Huamin Qu, and Alexis Kai Hon Lau. Pipe: Physics-informed position encoding for alignment of satellite images and time series. arXiv preprint arXiv:2506.14786 , 2025. [26] Yi Wang, Zhitong Xiong, Chenying Liu, Adam J. Stewart, Thomas Dujardin, Nikolaos Ioan-nis Bountos, Angelos Zavras, Franziska Gerken, Ioannis Papoutsis, Laura Leal-Taixé, and Xiao Xiang Zhu. Towards a unified copernicus foundation model for earth vision. In IEEE/CVF International Conference on Computer Vision (ICCV) , pages 9888–9899, October 2025. [27] Elad Ben Zaken, Yoav Goldberg, and Shauli Ravfogel. Bitfit: Simple parameter-efficient fine-tuning for transformer-based masked language-models. In Annual Meeting of the Association for Computational Linguistics , pages 1–9, 2022. [28] Bingchen Zhao, Haoqin Tu, Chen Wei, Jieru Mei, and Cihang Xie. Tuning layernorm in attention: Towards efficient multi-modal llm finetuning. arXiv preprint arXiv:2312.11420 ,2023. 11 [29] Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin De Laroussilhe, Andrea Gesmundo, Mona Attariyan, and Sylvain Gelly. Parameter-efficient transfer learning for nlp. In International Conference on Machine Learning , pages 2790–2799. PMLR, 2019. [30] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. Interna-tional Conference on Learning Representations , 1(2):3, 2022. [31] Linus Scheibenreif, Michael Mommert, and Damian Borth. Parameter efficient self-supervised geospatial domain adaptation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 27841–27851, 2024. [32] Yuxiang Zhang, Wei Li, Mengmeng Zhang, Jiawei Han, Ran Tao, and Shunlin Liang. Spectralx: Parameter-efficient domain generalization for spectral remote sensing foundation models. arXiv preprint arXiv:2508.01731 , 2025. [33] Romain Thoreau, Valerio Marsocci, and Dawa Derksen. Parameter-efficient adaptation of geospatial foundation models through embedding deflection. arXiv preprint arXiv:2503.09493 ,2025. [34] Alexandre Lacoste, Nils Lehmann, Pau Rodriguez, Evan Sherwin, Hannah Kerner, Björn Lütjens, Jeremy Irvin, David Dao, Hamed Alemohammad, Alexandre Drouin, et al. Geo-bench: Toward foundation models for earth monitoring. Advances in Neural Information Processing Systems , 36:51080–51093, 2023. [35] Zhitong Xiong, Yi Wang, Fahong Zhang, Adam J Stewart, Joëlle Hanna, Damian Borth, Ioannis Papoutsis, Bertrand Le Saux, Gustau Camps-Valls, and Xiao Xiang Zhu. Neural plasticity-inspired multimodal foundation model for earth observation. arXiv preprint arXiv:2403.15356 ,2024. [36] Favyen Bastani, Piper Wolters, Ritwik Gupta, Joe Ferdinando, and Aniruddha Kembhavi. Satlaspretrain: A large-scale dataset for remote sensing image understanding. In IEEE/CVF International Conference on Computer Vision , pages 16772–16782, 2023. [37] Tete Xiao, Yingcheng Liu, Bolei Zhou, Yuning Jiang, and Jian Sun. Unified perceptual parsing for scene understanding. In European Conference on Computer Vision (ECCV) , pages 418–434, 2018. [38] Ze Liu, Han Hu, Yutong Lin, Zhuliang Yao, Zhenda Xie, Yixuan Wei, Jia Ning, Yue Cao, Zheng Zhang, Li Dong, et al. Swin transformer v2: Scaling up capacity and resolution. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 12009–12019, 2022. 12 Appendix Contents 
+
+A Broader Impact 14 B Limitation 14 C Method Details 14 D Experimental Details 16 
+
+D.1 Dataset Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 D.2 Backbone Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 D.3 Training Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 D.4 Compute Resources . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 
+
+E Supplementary Results 16 
+
+E.1 Detailed Ablation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 E.2 Robustness to GSD variations. . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17 E.3 More Visualizations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18 13 A Broader Impact 
+
+Remote sensing foundation models (RSFMs) are increasingly used for Earth observation tasks such as land-cover mapping, disaster monitoring, urban analysis, agricultural assessment, and environmental change detection. By improving the adaptation of RSFMs under heterogeneous ground sample distances (GSDs), GeoRoPE has the potential to make RSFMs reliable across sensors, regions, and downstream task settings. In particular, scale-aware positional adaptation can benefit applications where physically meaningful spatial relations are critical, including small-object mapping in high-resolution imagery, crop-field segmentation, infrastructure monitoring, and flood or wildfire damage assessment. The proposed framework is designed as a lightweight positional adaptation mechanism rather than a new large-scale pretraining pipeline. Therefore, it may reduce the need to repeatedly pretrain or fully fine-tune large RSFMs for each new sensor or resolution regime. This can lower computa-tional cost and energy consumption, especially when adapting existing backbones to new datasets. Such parameter-efficient adaptation is particularly relevant for research groups or public-sector organizations with limited computational resources. 
+
+## B Limitation 
+
+Despite its effectiveness, GeoRoPE still has several limitations. First, its physical calibration mainly relies on the availability of sensor metadata, while more complex imaging factors such as terrain relief, or temporal changes are not addressed. Second, the semantic-guided frequency modulation is learned from downstream data and may be sensitive to dataset-specific spatial textures when the target data are limited. Future work will extend GeoRoPE toward uncertainty-aware geometric calibration and broader multi-sensor, multi-temporal remote sensing scenarios. 
+
+## C Method Details 
+
+Standard RoPE relies on discrete grid indices, formulating the positional phase as ϕ∆u,v ,m =
+
+∆u,v · θm, which inherently ignores the physical footprint of spatial tokens. In this standard encoding, the angular frequency θm inherently corresponds to a continuous spatial wavelength Lm = 2πθm .This wavelength dictates the positional sensitivity and scale characteristics of the model: shorter wavelengths capture fine-grained local shifts, while longer wavelengths encode coarse, global spatial relationships. To inject physical scale awareness into the model, we anchor the effective wavelength to the real-world spatial resolution. Let ℓ(l) denote the physical ground distance per token step at stage l. To ensure the model accurately captures the finest positional variations, the target wavelength ps is bounded by the physical resolution: 
+
+ps = 2πρ · ℓ(l) (17) where ρ is the target phase difference (typically ρ = 1 rad) for adjacent tokens at the finest scale. To guarantee that adjacent token features remain distinguishable under the finest resolution, we define the baseline reference physical spacing as ℓ(l)ref .For a heterogeneous sensor with a coarser ground distance ℓ(l), the physical distance per token step exceeds ℓ(l)ref . Therefore, instead of scaling the predefined frequency bank θm, we apply Geo-Coordinate Calibration to project the discrete relative grid offset ∆u,v into a unified geo-calibrated relative coordinate e∆u,v:
+
+e∆u,v = ρ(l) 
+
+> G
+
+∆u,v, where ρ(l) 
+
+> G
+
+= ℓ(l)
+
+ℓ(l)ref 
+
+!1−γ
+
+(18) While the baseline reference physical spacing ℓ(l)ref guarantees that positional variations are perfectly resolvable at the finest available resolution, we must also ensure spatial stability when the model 14 Table 3: Summary of evaluation datasets. We use the full GEO-Bench benchmark as the main evaluation suite, including six classification datasets and six semantic segmentation datasets. S1 denotes Sentinel-1, S2 denotes Sentinel-2, and NIR denotes near-infrared.                                                                          
+
+> Dataset Task Type Task Sensor / Modality GSD Image Resolution / Tile Size m-bigearthnet Classification Multi-label land-cover classification Sentinel-2 10 m 120 ×120
+> m-so2sat Classification Local climate zone classification Sentinel-1 + Sentinel-2 10 m 32 ×32
+> m-brick-kiln Classification Brick kiln binary classification Sentinel-2 10 m 64 ×64
+> m-forestnet Classification Deforestation driver classification Landsat-8 15 m 332 ×332
+> m-eurosat Classification Land-use / land-cover classification Sentinel-2 10 m 64 ×64
+> m-pv4ger Classification Photovoltaic / solar panel binary classification RGB aerial imagery 0.1 m 320 ×320
+> m-pv4ger-seg Semantic segmentation Photovoltaic / solar panel segmentation RGB aerial imagery 0.1 m 320 ×320
+> m-chesapeake-landcover
+> Semantic segmentation Land-cover segmentation RGB + NIR 1 m 256 ×256
+> m-cashew-plantation
+> Semantic segmentation Cashew plantation segmentation Sentinel-2 10 m 256 ×256
+> m-SA-crop-type Semantic segmentation Crop-type segmentation Sentinel-2 10 m 256 ×256
+> m-nz-cattle Semantic segmentation Cattle segmentation RGB aerial imagery 0.1 m 500 ×500
+> m-NeonTree Semantic segmentation Tree crown segmentation RGB + hyperspectral + elevation 0.1 m 400 ×400
+
+encounters significantly coarser resolutions. Specifically, the maximum phase rotation at the highest frequency dimension must strictly not exceed π to prevent severe phase aliasing (the Nyquist limit). To enforce this constraint across the entire resolution spectrum, we establish the following inequality for the maximum phase shift ∆ϕ(l)max under the maximum spatial footprint ℓ(l)max :
+
+∆ϕ(l)max = 1 · ℓ(l)max 
+
+ℓ(l)ref 
+
+!1−γ
+
+· θ0 ≤ π (19) Given that the highest angular frequency in the standard basis is θ0 = 1 , we can simplify the expression. By taking the natural logarithm of both sides, we obtain: 
+
+(1 − γ) ln ℓ(l)max 
+
+ℓ(l)ref 
+
+!
+
+≤ ln( π) (20) By rearranging the terms, we derive the explicit theoretical lower bound for the scale control factor γ:
+
+γ ≥ 1 − ln( π)ln( ℓ(l)max /ℓ (l)ref ) (21) 
+
+Analysis of the Bound: When the resolution disparity is minimal ( ℓ(l)max /ℓ (l)ref ≤ π), the model does not require explicit scale compression to satisfy the Nyquist limit, and the condition γ ≥ 0 naturally holds. When the resolution gap is massive (e.g., a 100 × difference), the formula calculates a definitive theoretical lower bound. Ultimately, as long as γ is set above this mathematically derived thresh-old, the model absolutely safely circumvents the risk of high-frequency aliasing while maximally preserving the physical scale variance across heterogeneous remote sensing representations. 15 D Experimental Details 
+
+This section describes the experimental protocol, evaluation metrics, datasets, backbones, and implementation details used in our experiments. 
+
+D.1 Dataset Details 
+
+We evaluated GeoRoPE on a diverse collection of remote sensing datasets covering classification and segmentation tasks. The classification datasets include BigEarthNet, Brick Kiln, EuroSAT, ForestNet, PV4GER, and So2Sat. The segmentation datasets include Cashew Plantation, Chesapeake Land Cover, NeonTree, NZ Cattle, PV4GER-Seg, and SA Crop. These datasets cover different sensors, spatial resolutions, land-cover types, and geographic regions, making them suitable for evaluating scale-aware and region-heterogeneity-aware adaptation. For multi-resolution datasets, Table 3 reports the spatial resolution used in the GEO-Bench evaluation setting. 
+
+D.2 Backbone Details 
+
+We evaluated GeoRoPE on multiple representative RSFMs with different positional encoding designs. As summarized in Table D.2, for backbones pretrained on heterogeneous remote sensing sources, the reported GSD range denotes the nominal spatial-resolution coverage of the corresponding pretraining sensors or datasets. For datasets with image-level metadata, such as fMoW-RGB, the GSD varies across samples. For multimodal models such as DOFA and Satlas, the range summarizes the spatial resolutions of their supported pretraining modalities rather than a single fixed input resolution. 
+
+D.3 Training Details 
+
+All models are optimized using the AdamW optimizer. However, the learning rate (LR) scheduling strategies vary across different backbones to accommodate their specific pretraining characteristics. For the DOFA backbone, we employ a CosineAnnealing LR schedule. In contrast, for ScaleMAE and SatLas, we utilize a ReduceLROnPlateau scheduler, which adjusts the learning rate based on the validation performance. The training batch sizes are standardized according to the downstream tasks. For classification tasks, we use a batch size of 32 across all experiments. For semantic segmentation tasks, the batch size is set to 16 to balance the memory constraints associated with high-resolution feature maps. During adaptation, considering that ScaleMAE is originally pretrained on standard RGB imagery, specific adaptation is required for multispectral data. To maintain consistency with the input di-mensionality of the pretrained ScaleMAE weights, we selectively extract the corresponding spectral channels from the multispectral input to align with the RGB channels used during its pretraining phase. Across all backbones, GeoRoPE is applied at the attention side without disrupting the orig-inal pretrained positional priors. It is noted that, for models like SatLas, which are based on the Swin-Transformer architecture, the attention mechanism is inherently restricted to local windows. To ensure compatibility, we explicitly construct a local spatial grid independently within each attention window. The GeoRoPE modulation is consequently applied using these window-local relative posi-tions, allowing us to maintain robust geographic grounding while adhering strictly to the localized computation constraints of the Swin-Transformer. 
+
+D.4 Compute Resources 
+
+All training and evaluation experiments are conducted on three NVIDIA A6000 GPUs, each with 48GB of memory, using a batch size of 16. The training machine is equipped with an Intel(R) Xeon(R) Gold 6336Y CPU @ 2.40GHz. 
+
+## E Supplementary Results 
+
+E.1 Detailed Ablation 
+
+Here we provide a more complete ablation analysis across all datasets. As shown in Table 5, adding a vanilla RoPE branch over LoRA brings only marginal improvements and even degrades several 16 Table 4: Summary of evaluated remote sensing foundation model backbones. The selected backbones cover different pretraining datasets, sensor modalities, spatial-resolution ranges, and positional encoding designs. 
+
+Backbone Pretraining Dataset(s) Input Modality GSD / Spatial Resolution Range Original PE ScaleMAE fMoW-RGB RGB optical imagery Approx. 0.3–1.5 m; image-level GSD varies across samples GSD-aware PE 
+
+DOFA Sentinel-1, Sentinel-2, Gaofen-2, NAIP, and EnMAP SAR, multispectral, RGB aerial, and hyperspectral imagery Approx. 1–30 m; covering high-resolution aerial imagery, medium-resolution optical/SAR, and hyperspectral imagery APE-style encoding 
+
+Satlas SatlasPretrain, including Sentinel-2, Sentinel-1, Landsat 8/9, and aerial imagery Optical, SAR, and aerial imagery depending on the released checkpoint Approx. 0.5–30 m; 0.5–2 m aerial imagery, 10 m Sentinel imagery, and 30 m Landsat imagery Relative PE 
+
+Table 5: Ablation study of GeoRoPE. Avg.C, Avg.S, and Avg.P denote the macro-average per-formance over classification datasets, segmentation datasets, and all datasets, respectively. Bold indicates the best performance.                                                                                             
+
+> Variant Classification Segmentation Average
+> BE BK ES FN PV SS CW NT CT CP PS SC Avg.C Avg.S Avg.P LoRA 88.13 98.50 96.92 54.24 97.99 60.53 68.61 55.97 75.26 60.56 94.14 33.57 82.72 64.69 73.70 RoPE 88.10 98.59 97.37 50.74 98.29 62.37 67.17 55.47 75.18 61.88 94.23 34.40 82.58 64.72 73.65 w/ GCC 90.14 98.30 96.93 52.55 98.30 61.66 66.46 58.93 75.35 59.91 94.31 34.27 82.98 64.87 73.93 w/ GFC 88.54 98.30 97.44 51.50 98.09 62.07 66.98 56.78 75.24 61.21 94.34 34.79 82.66 64.89 73.77
+> GeoRoPE (full) 94.16 98.48 97.44 54.21 98.21 62.78 68.48 59.19 75.45 61.54 94.39 35.19 84.21 65.71 74.96
+
+datasets such as ForestNet, Cashew, and NeonTree, showing that index-based relative positions alone cannot reliably resolve physical scale shifts and local spatial heterogeneity. Building upon RoPE, GCC improves Avg.P from 73.65 to 73.93, with clear gains on BigEarthNet and NeonTree, indicating its effectiveness in calibrating token relations under varying physical spatial coverages. GFC further benefits structure-sensitive segmentation datasets such as pv4ger-seg and SA_Crop, suggesting that semantic-guided frequency modulation helps adapt positional responses to local spatial complexity. The full GeoRoPE achieves the best Avg.C, Avg.S, and Avg.P, demonstrating that global geo-calibration and adaptive semantic modulation are complementary: GCC enforces physical scale consistency, while GFC adjusts the effective positional frequency for heterogeneous regions. 
+
+E.2 Robustness to GSD variations. 
+
+We further evaluate the robustness of different adaptation methods under varying simulated GSDs on two PV4Ger benchmarks, including classification on pv4ger and segmentation on pv4ger_seg . Both datasets use images with a native GSD of 0.1 m and an input resolution of 320 × 320 . As shown in Fig. 6, classification is overall more robust to GSD changes than segmentation. In particular, when the GSD is slightly increased to 0.2 m, several methods, including LoRA, SLR, and GeoRoPE, even show a small performance gain, suggesting that mild resampling may suppress noise while preserving sufficient semantic cues for classification. For classification, most methods remain relatively stable at small-to-moderate GSDs, but their performance diverges more clearly as the GSD becomes larger. Although LoRA and BitFit achieve strong accuracy at small GSDs, they degrade more rapidly at coarse resolutions. In contrast, GeoRoPE-LoRA shows stronger robustness under large GSD shifts and achieves the best accuracy in the high-GSD regime, indicating better preservation of scale-invariant semantic representations. For segmentation, all methods suffer more severe degradation due to the loss of fine-grained boundary cues, while GeoRoPE consistently maintains the best robustness. 17 (a) (b) Figure 6: Performance curves under varying GSDs. (a) classification accuracy on pv4ger. (b) segmentation mIoU on pv4ger_seg. Input GT BitFit NormTuning LoRA GeoRoPE SLR 
+
+> neontree nz_cattl eSA_Crop cashew_plant
+
+Figure 7: Qualitative comparison of different PEFT methods on representative segmentation datasets. 
+
+E.3 More Visualizations 
+
+We provide qualitative segmentation comparisons in Fig. 7. For tiny, sparse targets in heterogeneous backgrounds (i.e., NeonTree and NZ Cattle), most PEFT baselines (e.g., BitFit, NormTuning) produce empty or spatially ambiguous predictions. Conversely, GeoRoPE successfully localizes these objects, demonstrating that adaptive frequency modulation preserves fine-grained sensitivity without introducing excessive noise. For region-level datasets (i.e., SA Crop and Cashew Plant), baselines often generate fragmented parcels and confused boundaries. GeoRoPE instead yields spatially coherent masks and sharper semantic boundaries. Overall, GeoRoPE effectively handles both tiny object localization and complex region delineation. 18
