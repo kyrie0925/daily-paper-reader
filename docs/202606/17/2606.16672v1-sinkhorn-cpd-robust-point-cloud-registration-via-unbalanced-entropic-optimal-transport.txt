@@ -1,0 +1,1277 @@
+Title: Sinkhorn-CPD: Robust point cloud registration via unbalanced entropic optimal transport
+
+URL Source: https://arxiv.org/pdf/2606.16672v1
+
+Published Time: Tue, 16 Jun 2026 02:43:59 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Sinkhorn-CPD: Robust point cloud registration via unbalanced entropic optimal transport 
+
+## Jin Zhang a, Mingyang Zhao b,d , Bing Liu a and Xin Jiang c,∗
+
+> a
+
+LMIB & School of Mathematical Sciences, Beihang University, Beijing, China 
+
+> b
+
+State Key Laboratory of Mathematical Sciences, Academy of Mathematics and Systems Science, Chinese Academy of Sciences, Beijing, China 
+
+> c
+
+Beijing Key Laboratory of Artificial Intelligence Innovation and Application in the Machine Tool Industry, School of Artificial Intelligence, Beihang University, Beijing, China 
+
+> d
+
+University of Chinese Academy of Sciences, Beijing, China 
+
+A R T I C L E I N F O 
+
+Keywords :point cloud registration coherent point drift entropic optimal transport unbalanced optimal transport 
+
+A B S T R A C T 
+
+Coherent Point Drift (CPD) is widely used for rigid point cloud registration because of its soft correspondences and closed-form parameter updates. However, CPD’s target-side marginal constraint forces every observation, including outliers, to receive exactly unit probability mass. This assumption degrades registration accuracy under heavy outliers and partial overlap. Optimal transport (OT) methods can handle missing mass through unbalanced formulations, but require hand-tuned annealing schedules. In this paper, we propose Sinkhorn-CPD , which replaces CPD’s target-side marginal constraint with dual Kullback–Leibler penalties, allowing the algorithm to discard outliers on both sides. The resulting formulation is a fully unbalanced entropic optimal transport problem , which can be efficiently solved by generalized Sinkhorn iterations. Moreover, Sinkhorn-CPD preserves the closed-form Procrustes and variance updates of CPD. In our method, the variance 𝜎 2 plays the role of the entropic regularization parameter, which induces an automatic annealing schedule from diffuse to sharp correspondences without manual temperature tuning. Experiments on synthetic, cross-category, and scan-to-CAD benchmarks show that Sinkhorn-CPD achieves state-of-the-art accuracy, with strong robustness to outliers and partial overlap. 
+
+Publication note. The journal version of this work was published in Computer-Aided Design : https://doi.org/10. 1016/j.cad.2026.104104 .
+
+Data availability. Data and code are publicly available at 
+
+https://github.com/Theigrams/SinkhornCPD .
+
+## 1. Introduction 
+
+Rigid point cloud registration estimates a rotation 𝐑 ∈SO( 𝐷 ) and translation 𝐭 ∈ ℝ𝐷 that aligns a source point set 
+
+ = { 𝐲 𝑚 }𝑀 𝑚 =1 ⊂ ℝ𝐷 to a target point set  = { 𝐱 𝑛 }𝑁 𝑛 =1 .Coherent Point Drift (CPD) [1] models the source points as Gaussian mixture centroids and estimates the transformation by maximizing the likelihood of the target points under the Expectation-Maximization (EM) algorithm. The E-step computes soft correspondences as posterior responsibilities, and the M-step updates the transformation in closed form via Procrustes analysis. All centroids share a single variance 𝜎 2
+
+that decreases as alignment improves, providing an intrinsic coarse-to-fine annealing mechanism. However, CPD imposes a one-sided marginal constraint :the posterior responsibilities satisfy ∑𝑚 𝑃 (𝑚 ∣ 𝐱 𝑛 ) = 1 ,forcing every target point 𝐱 𝑛 , including outliers and non-overlapping points, to distribute exactly unit probability mass across the source centroids. Although a uniform outlier component absorbs some mass, under heavy outliers or low overlap the inclusion of non-corresponding points biases the 
+
+> ∗
+
+Corresponding author  
+
+> jinzhang2022@buaa.edu.cn
+
+(J. Zhang); zhaomingyang@amss.ac.cn 
+
+(M. Zhao); liubingksy@buaa.edu.cn (B. Liu); jiangxin@buaa.edu.cn (X. Jiang) 
+
+Procrustes solution toward local minima. Fig. 1 illustrates the effect: on a 2D fish shape with 58 .5% target outliers, CPD incurs a rotation error of 27 .17 ◦.Initial   
+
+> Target (inlier)
+> Target (outlier)
+> Source
+> CPD
+> RE = 27.17°
+> RPOT
+> RE = 0.41°
+> Sinkhorn-CPD
+> RE ≈0.00°
+
+Figure 1: 2D fish registration with 58 .5% target outliers. From left to right: initial configuration, CPD ( RE=27 .17 ◦), RPOT ( RE=0 .41 ◦), and Sinkhorn-CPD ( RE≈0 .00 ◦). CPD [1] suffers from severe misalignment caused by outliers. RPOT [2] mitigates this via partial transport yet converges slowly under fixed annealing schedules. Our method enables rapid, accurate alignment through dual KL-based outlier rejection and adap-tive annealing. 
+
+Optimal transport (OT) provides an alternative frame-work for computing soft correspondences. Entropy-regularized OT and the Sinkhorn algorithm [3] compute a transport plan between the two point sets, and unbalanced or partial OT variants [2, 4, 5] relax the marginal constraints to discard unmatched mass. However, existing OT-based registration methods typically adopt the squared Euclidean distance as the transport cost and rely on a prescribed annealing sched-ule for the entropy parameter 𝜀 , which slows convergence and limits generalization across datasets. 1
+
+> arXiv:2606.16672v1 [cs.CV] 15 Jun 2026
+
+In this work, we prove that CPD’s E-step is equivalent to solving a one-sided entropic OT problem, and the vari-ance 𝜎 2 acts as the entropy temperature. This equivalence reveals two things: (i) the one-sided marginal constraint is the structural cause of CPD’s outlier sensitivity, and (ii) the EM variance update is a data-adaptive entropy annealing schedule. Motivated by this analysis, we replace the one-sided hard marginal with dual-sided Kullback–Leibler (KL) penalties while retaining the CPD-induced Gaussian log-likelihood as the transport cost. Building on this, we propose Sinkhorn-CPD , which for-mulates rigid registration as an unbalanced entropic OT problem solved by generalized Sinkhorn iterations. It rejects outliers on both sides, retains the closed-form Procrustes and variance updates of CPD, and inherits automatic coarse-to-fine annealing through 𝜎 2 without manual temperature tuning. The main contributions are as follows: 
+
+• We prove that CPD’s E-step solves a one-sided en-tropic OT problem, identifying the variance 𝜎 2 as the entropy temperature and the target marginal constraint as the structural cause of outlier sensitivity. 
+
+• We cast rigid registration as an unbalanced entropic OT problem with dual-sided KL relaxations. The pro-posed Sinkhorn-CPD algorithm rejects outliers on both sides via generalized Sinkhorn iterations while maintaining closed-form updates. 
+
+• Experimental results show that Sinkhorn-CPD achieves state-of-the-art performance on synthetic data and real-world tasks, with strong robustness to outliers and partial overlap. 
+
+## 2. Related Work 
+
+2.1. ICP and Correspondence-Based Methods 
+
+ICP [6] alternates between hard nearest-neighbor cor-respondences and least-squares rigid estimation. Trimmed ICP [7] improves robustness to partial overlap by discarding point pairs with large residuals. Sparse ICP [8] replaces the least-squares objective with an 𝓁 𝑝 (𝑝 ≤1) penalty to down-weight outliers. Zhou et al. [9] combined FPFH fea-tures [10] with a Geman–McClure objective for Fast Global Registration (FGR), avoiding iterative closest-point queries. Yang et al. [11] proposed TEASER++, which uses graph-based correspondence pruning and graduated non-convexity to tolerate extreme outlier ratios with certifiable guarantees. These methods work well given a good initialization or distinctive local features, but their hard-assignment nature limits robustness under noise and low overlap. 
+
+2.2. Probabilistic Registration 
+
+Probabilistic methods replace hard correspondences with soft responsibilities. Granger and Pennec [12] proposed multi-scale EM-ICP, which uses soft assignments within a coarse-to-fine hierarchy. Jian and Vemuri [13] represented both point sets as Gaussian mixtures and minimized their 𝐿 2
+
+distance (GMMReg). Myronenko and Song [1] introduced Coherent Point Drift (CPD), which models source points as isotropic Gaussian centroids with a uniform outlier compo-nent and updates the rigid transform and variance in closed form via EM. Gao and Tedrake [14] proposed FilterReg, which casts the E-step of probabilistic registration as a Gaus-sian filtering problem, achieving speed close to ICP while retaining probabilistic robustness. Hirose [15] reformulated CPD in a Bayesian framework with an acceleration scheme (BCPD). Liu et al. [16] incorporated local surface geometry into CPD to improve feature discrimination (LSG-CPD). Zhao et al. [17] proposed a consistent clustering method for cross-modality registration. 
+
+2.3. Optimal Transport-Based Registration 
+
+Optimal transport (OT) provides a principled framework for comparing and aligning distributions [18, 19]. Cuturi [3] showed that entropic regularization makes OT scalable and differentiable via the Sinkhorn algorithm [20]. Bonneel and Coeurjolly [5] proposed SPOT, which solves partial OT through sliced 1D projections. Shen et al. [21] proposed RobOT, which uses unbalanced OT as a robust matching layer to improve both optimization-based and learning-based registration. Qin et al. [2] formulated registration as partial OT with hard marginal constraints to control the matched fraction (RPOT). Ma et al. [22] augmented the classical discrete OT model with orthogonal and diagonal matrix terms and proposed a relaxed variant for outlier handling. On the theoretical side, Chizat et al. [4] established the scaling algorithm framework for KL-penalized unbalanced OT, and Feydy et al. [23] introduced Sinkhorn divergences that interpolate between OT and MMD, providing positive and convex geometric losses. 
+
+2.4. Learning-Based Approaches 
+
+Deep networks learn feature descriptors or direct pose re-gressors for registration. Aoki et al. [24] combined PointNet features with a Lucas–Kanade update (PointNetLK). Wang and Solomon [25, 26] proposed DCP and PRNet, which learn correspondences and solve weighted Procrustes prob-lems. Yew and Lee [27] combined robust point matching with learned features (RPM-Net). Qin et al. [28] introduced GeoTransformer, which uses geometric attention for coarse-to-fine matching. 
+
+## 3. Preliminaries 
+
+3.1. Notation and Problem Formulation 
+
+We stack 𝐱 𝑛 and 𝐲 𝑚 into matrices 𝐗 ∈ ℝ𝑁 ×𝐷 and 
+
+𝐘 ∈ ℝ𝑀 ×𝐷 :
+
+𝐗 ≜
+
+⎡⎢⎢⎣
+
+𝐱 ⊤
+
+> 1
+
+⋮
+
+𝐱 ⊤𝑁 
+
+⎤⎥⎥⎦
+
+∈ ℝ𝑁 ×𝐷 , 𝐘 ≜
+
+⎡⎢⎢⎣
+
+𝐲 ⊤
+
+> 1
+
+⋮
+
+𝐲 ⊤𝑀 
+
+⎤⎥⎥⎦
+
+∈ ℝ𝑀 ×𝐷 . (1) Rigid registration estimates 𝐑 and 𝐭 such that 
+
+𝑇 𝜽 (𝐲 ) = 𝐑 𝐲 + 𝐭 , 𝜽 = { 𝐑 , 𝐭 }, (2) 2aligns 𝑇 𝜽 () to . We use 𝟏 𝐾 ∈ ℝ𝐾 to denote the all-ones vector. The operators log and exp are applied elementwise to matrices, and ⊘ denotes elementwise division. 
+
+3.2. Coherent Point Drift Revisited 
+
+3.2.1. GMM Observation Model 
+
+CPD models target points as independent samples from a Gaussian mixture whose centroids are the transformed source points. For 𝑚 ∈ {1 , … , 𝑀 },
+
+𝑝 (𝐱 𝑛 ∣ 𝑧 𝑛 =𝑚, 𝚯 ) = (𝐱 𝑛 
+
+||| 𝑇 𝜽 (𝐲 𝑚 ), 𝜎 2𝐈 𝐷 
+
+), (3) where 𝑧 𝑛 ∈ {1 , … , 𝑀 +1} is a latent assignment variable and 𝚯 = ( 𝜽 , 𝜎 2). The (𝑀 +1) -th component is a uniform outlier density 𝑝 (𝐱 𝑛 ∣ 𝑧 𝑛 =𝑀 +1) = 1∕ |Ω|, where |Ω|
+
+denotes the data volume. The mixture weights are 
+
+𝜋 𝑚 =
+
+{
+
+(1 − 𝑤 )∕ 𝑀, 𝑚 = 1 , … , 𝑀, 𝑤, 𝑚 = 𝑀 +1 , (4) where 𝑤 ∈ [0 , 1) is a prior outlier ratio. The complete marginal likelihood of observing 𝐱 𝑛 is 
+
+𝑝 (𝐱 𝑛 ∣ 𝚯 ) = 
+
+> 𝑀 +1
+
+∑
+
+> 𝑚 =1
+
+𝜋 𝑚 𝑝 (𝐱 𝑛 ∣ 𝑧 𝑛 =𝑚, 𝚯 ). (5) 
+
+3.2.2. Variational Free Energy 
+
+CPD estimates 𝚯 by maximizing the data log-likelihood via EM, which is equivalent to minimizing the variational free energy (also known as the negative ELBO) [29]: 
+
+VFE (𝑞, 𝚯 ) = ∫𝑞 (𝐙 )
+
+𝑞 (𝐙 ) log 𝑞 (𝐙 )
+
+𝑝 (𝐗 , 𝐙 ∣ 𝚯 ) d𝐙 . (6) In the E-step, 𝑞 (𝐙 ) is set to the posterior responsibilities: 
+
+𝑞 (𝑧 𝑛 = 𝑚 ) = 𝑝 (𝑧 𝑛 = 𝑚 ∣ 𝐱 𝑛 , 𝚯 old ) ≜ 𝑃 𝑚𝑛 , (7) where 𝐏 ∈ ℝ(𝑀 +1)× 𝑁  
+
+> +
+
+denotes the responsibility matrix and satisfies 𝐏 ⊤𝟏 𝑀 +1 = 𝟏 𝑁 .The joint log-likelihood decomposes as log 𝑝 (𝐗 , 𝐙 ∣
+
+𝚯 ) = log 𝑝 (𝐗 ∣ 𝐙 , 𝚯 ) + log 𝑝 (𝐙 ), where 𝑝 (𝐙 ) is determined by the fixed mixture weights 𝝅 in Eq. (4). The negative log-likelihood term − log 𝑝 (𝐗 ∣ 𝐙 , 𝚯 ) can be viewed as a cost measuring the fit quality. Writing 𝐷 𝑚𝑛 = ‖𝐱 𝑛 − 𝑇 𝜽 (𝐲 𝑚 )‖2,we define the cost matrix ̃ 𝐂 ∈ ℝ(𝑀 +1)× 𝑁 with entries: ̃𝐶 𝑚𝑛 (𝜽 , 𝜎 2) ≜ − log 𝑝 (𝐱 𝑛 ∣ 𝑧 𝑛 = 𝑚 ),
+
+=
+
+⎧⎪⎨⎪⎩
+
+𝐷 𝑚𝑛 
+
+2𝜎 2 + 𝐷 
+
+2 log(2 𝜋𝜎 2), 𝑚 ≤ 𝑀, 
+
+log |Ω|, 𝑚 = 𝑀 + 1 .
+
+(8) Substituting Eq. (8) into Eq. (6), the energy becomes: 
+
+VFE = ⟨𝐏 ,̃ 𝐂 ⟩+
+
+> 𝑁
+
+∑
+
+> 𝑛 =1
+> 𝑀 +1
+
+∑
+
+> 𝑚 =1
+
+𝑃 𝑚𝑛 log 𝑃 𝑚𝑛 −⟨𝐏𝟏 𝑁 , log 𝝅 ⟩, (9) where ⟨⋅, ⋅⟩ denotes the Frobenius inner product. Minimiz-ing Eq. (9) with respect to 𝐏 yields CPD’s E-step, while minimizing it over 𝚯 gives the M-step. 
+
+3.3. Optimal Transport Theory 
+
+We briefly recall discrete entropic OT in the form we will use for registration. 
+
+3.3.1. Discrete Optimal Transport 
+
+We represent the source and target point clouds as dis-crete measures 
+
+𝜇 =
+
+> 𝑀
+
+∑
+
+> 𝑚 =1
+
+𝑏 𝑚 𝛿 𝐲 𝑚 , 𝜈 =
+
+> 𝑁
+
+∑
+
+> 𝑛 =1
+
+𝑎 𝑛 𝛿 𝐱 𝑛 , (10) where 𝐛 ∈ ℝ𝑀  
+
+> +
+
+and 𝐚 ∈ ℝ𝑁  
+
+> +
+
+are mass vectors with 𝐛 ⊤𝟏 𝑀 =
+
+𝐚 ⊤𝟏 𝑁 = 1 , and 𝛿 𝐱 is the Dirac mass at 𝐱 . By default we set 
+
+𝑎 𝑛 = 1∕ 𝑁 and 𝑏 𝑚 = 1∕ 𝑀 .The transport plan is a matrix 𝚪 ∈ ℝ𝑀 ×𝑁  
+
+> +
+
+whose entry 
+
+Γ𝑚𝑛 gives the mass moved from 𝐲 𝑚 to 𝐱 𝑛 1. Throughout, the row index 𝑚 ranges over source points and the column index 𝑛 over target points, so the row marginal 𝚪 𝟏 𝑁 ∈ ℝ𝑀 
+
+pairs with the source mass 𝐛 , while the column marginal 
+
+𝚪 ⊤𝟏 𝑀 ∈ ℝ𝑁 pairs with the target mass 𝐚 .The balanced feasible set is 
+
+Π( 𝐛 , 𝐚 ) = {𝚪 ≥ 𝟎 ∶ 𝚪 𝟏 𝑁 = 𝐛 , 𝚪 ⊤𝟏 𝑀 = 𝐚 }. (11) Given a cost matrix 𝐂 ∈ ℝ𝑀 ×𝑁 with 𝐶 𝑚𝑛 = 𝑐 (𝐲 𝑚 , 𝐱 𝑛 ),balanced OT solves: 
+
+min  
+
+> 𝚪 ∈Π( 𝐛 ,𝐚 )
+
+⟨𝐂 , 𝚪 ⟩. (12) In most OT-based registration papers [2, 5, 21, 22], the cost uses squared Euclidean distance: 𝐶 𝑚𝑛 = ‖𝐱 𝑛 − 𝑇 𝜽 (𝐲 𝑚 )‖2.
+
+3.3.2. Entropy-Regularized OT 
+
+Exact OT has super-cubic complexity, which makes it expensive for large point clouds. Entropic OT [3] adds the negative Shannon entropy as a regularizer: 
+
+(𝚪 ) ≜
+
+> 𝑀
+
+∑
+
+> 𝑚 =1
+> 𝑁
+
+∑
+
+> 𝑛 =1
+
+Γ𝑚𝑛 
+
+(log Γ 𝑚𝑛 − 1 ). (13) The resulting objective is strictly convex and has a unique minimizer [3]: 
+
+Definition 1 (Entropic OT) . For marginals 𝐚 , 𝐛 , cost 𝐂 , and regularization strength 𝜀 > 0, the entropic OT problem is 
+
+min  
+
+> 𝚪 ∈Π( 𝐛 ,𝐚 )
+
+⟨𝐂 , 𝚪 ⟩ + 𝜀 (𝚪 ). (14) The parameter 𝜀 serves two purposes: (i) it makes the problem strongly convex so the solution is unique, and (ii) it controls the sharpness of the transport plan. Large values produce diffuse plans while small values recover plans close to the sparse linear programming (LP) solution.           
+
+> 1We adopt the convention Γ𝑚𝑛 =𝛾 (𝐲 𝑚 ,𝐱 𝑛 )to maintain consistency with CPD. Standard OT literature often uses Γ𝑖𝑗 =𝛾 (𝐱 𝑖 ,𝐲 𝑗 ).
+
+3Proposition 1 (Sinkhorn scaling [3, 20]) . Define the Gibbs kernel 𝐊 ∈ ℝ𝑀 ×𝑁  
+
+> +
+
+by 𝐾 𝑚𝑛 = exp(− 𝐶 𝑚𝑛 ∕𝜀 ). The unique minimizer of (14) has the factored form 
+
+𝚪 ⋆ = diag( 𝐮 ) 𝐊 diag( 𝐯 ), (15) 
+
+where 𝐮 ∈ ℝ𝑀  
+
+> +
+
+and 𝐯 ∈ ℝ𝑁  
+
+> +
+
+are the unique positive scaling vectors satisfying 
+
+𝐮 = 𝐛 ⊘ (𝐊 𝐯 ), 𝐯 = 𝐚 ⊘ (𝐊 ⊤𝐮 ). (16) 
+
+Alternating these two updates yields the Sinkhorn algorithm. 
+
+## 4. The Sinkhorn-CPD Framework 
+
+In this section, we formulate rigid point cloud registra-tion as an unbalanced entropic optimal transport problem. We first analyze the Expectation-Maximization (EM) steps of CPD from an optimal transport perspective to pinpoint the structural cause of its outlier sensitivity. We then in-troduce Sinkhorn-CPD, a dual-KL unbalanced formulation that enables symmetric outlier rejection while preserving the automatic variance annealing of CPD. 
+
+4.1. Rethinking CPD: A One-Sided OT Perspective 
+
+Recall the CPD variational free energy VFE under the 
+
+𝑀 -component Gaussian mixture reduction (Section 3.2.2). Let 𝐃 ∈ ℝ𝑀 ×𝑁  
+
+> +
+
+denote the squared Euclidean distance matrix with 𝐷 𝑚𝑛 = ‖𝐱 𝑛 −𝑇 𝜽 (𝐲 𝑚 )‖2. We can rewrite the CPD E-step strictly in terms of 𝐃 .
+
+Theorem 1 (CPD E-step as one-sided entropic OT) . Assume uniform mixture weights 𝜋 𝑚 = 1∕ 𝑀 and no outlier com-ponent ( 𝑤 = 0). Up to an additive constant, minimizing the CPD E-step objective over the responsibility matrix 
+
+𝐏 ∈ ℝ𝑀 ×𝑁  
+
+> +
+
+subject to the column constraint 𝐏 ⊤𝟏 𝑀 =
+
+𝟏 𝑁 is equivalent to solving the one-sided entropic optimal transport problem: 
+
+min  
+
+> 𝐏 ≥𝟎 𝐏 ⊤𝟏 𝑀 =𝟏 𝑁
+
+⟨𝐃 , 𝐏 ⟩ + 2 𝜎 2 (𝐏 ), (17) 
+
+where (𝐏 ) = ∑𝑚,𝑛 𝑃 𝑚𝑛 (log 𝑃 𝑚𝑛 − 1) .
+
+The proof is given in Appendix A. 
+
+Remark 1. When 𝑤 > 0, the outlier row can be eliminated via the column constraint, yielding ̄ 𝐏 ⊤𝟏 𝑀 ≤ 𝟏 𝑁 . The one-sided structure is unchanged: every target point still allocates its full unit mass, so the asymmetry persists for any 
+
+𝑤 ≥ 0.
+
+This explains why CPD has difficulty handling target-side outliers. The hard constraint 𝐏 ⊤𝟏 𝑀 = 𝟏 𝑁 (or ̄ 𝐏 ⊤𝟏 𝑀 ≤
+
+𝟏 𝑁 when 𝑤 > 0) forces every target point 𝐱 𝑛 , including severe outliers, to allocate its full unit probability mass. Source-side outliers safely dilute their mass because their row sums are free, but target-side outliers inject false corre-spondences that pull the rigid transformation into poor local minima. Theorem 1 also clarifies CPD’s annealing behavior. In Eq. (17), the regularization parameter is simply 𝜀 = 2 𝜎 2,compared to standard entropic OT (Eq. (14)). As EM it-erations tighten the alignment and 𝜎 2 shrinks, the entropy temperature drops automatically. The method moves from coarse global search to tight local matching without the manual temperature schedules that other OT-based methods require. 
+
+4.2. Dual-KL Unbalanced Formulation 
+
+To eliminate the target-side outlier trap while preserving the automatic annealing, we replace the hard target marginal with soft KL penalties on both marginals. This relaxation turns the balanced optimal transport of (14) into an unbal-anced problem. Equivalently to using the raw squared distance with entropy weight 𝜀 = 2 𝜎 2 (Theorem 1), we absorb the temper-ature into a normalized cost and fix the entropy coefficient to one. We define uniform prior marginals 𝐚 = 1 
+
+> 𝑁
+
+𝟏 𝑁 and 
+
+𝐛 = 1 
+
+> 𝑀
+
+𝟏 𝑀 . The normalized cost matrix 𝐂 ∈ ℝ𝑀 ×𝑁 is derived from the Gaussian log-likelihood: 
+
+𝐶 𝑚𝑛 (𝐑 , 𝐭 , 𝜎 2) = ‖𝐱 𝑛 − 𝑇 𝜽 (𝐲 𝑚 )‖2
+
+2𝜎 2 + 𝐷 
+
+2 log(2 𝜋𝜎 2). (18) Since 𝐂 scales as 1∕ 𝜎 2, shrinking 𝜎 2 makes the cost term dominate over the fixed-scale entropy and KL terms, pro-gressively sharpening the transport plan from diffuse global search to tight local matching. The Sinkhorn-CPD objective jointly optimizes the trans-port plan 𝚪 ∈ ℝ𝑀 ×𝑁  
+
+> +
+
+and the transformation parameters 
+
+𝚯 = ( 𝐑 , 𝐭 , 𝜎 2):
+
+min  
+
+> 𝚪 ≥𝟎 ,𝚯
+
+ = ⟨𝐂 , 𝚪 ⟩ + (𝚪 )+ 𝜏 𝑥 KL (𝚪 ⊤𝟏 𝑀 
+
+‖‖‖ 𝐚 ) + 𝜏 𝑦 KL (𝚪 𝟏 𝑁 
+
+‖‖‖ 𝐛 ),
+
+(19) where 𝜏 𝑥 , 𝜏 𝑦 > 0 control the marginal relaxation strength, and KL( 𝐩 ‖𝐪 ) = ∑𝑘 (𝑝 𝑘 log 𝑝 𝑘 
+
+> 𝑞 𝑘
+
+− 𝑝 𝑘 + 𝑞 𝑘 ). Here 𝚪 is normal-ized so that ∑𝑚,𝑛 Γ𝑚𝑛 ≈ 1 , relating to CPD’s responsibility matrix by 𝚪 = 𝐏 ∕𝑁 .By penalizing deviations from the uniform priors rather than strictly enforcing them, the objective allows outlier points on either side to shed their transported mass. If a target point lacks a geometric match, its column sum in 𝚪 naturally approaches zero. 
+
+4.3. Alternating Optimization 
+
+We minimize  by alternating between a transport up-date (E-step) and a transformation update (M-step). 
+
+4.3.1. E-Step: Generalized Sinkhorn Iterations 
+
+For fixed parameters 𝚯 , solving Eq. (19) for 𝚪 is a strictly convex unbalanced OT problem. 
+
+Proposition 2 (Transport update [4]) . Define the Gibbs kernel 𝐊 = exp(− 𝐂 ) ∈ ℝ𝑀 ×𝑁  
+
+> +
+
+elementwise. Let 𝛼 = 𝜏 𝑦 
+
+> 𝜏 𝑦 +1
+
+4and 𝛽 = 𝜏 𝑥  
+
+> 𝜏 𝑥 +1
+
+. The unique minimizer takes the scaling form 
+
+𝚪 ⋆ = diag( 𝐮 ) 𝐊 diag( 𝐯 ), where 𝐮 ∈ ℝ𝑀  
+
+> +
+
+and 𝐯 ∈ ℝ𝑁  
+
+> +
+
+are the fixed points of the generalized Sinkhorn iterations: 
+
+𝐮 (𝓁 +1) = (𝐛 ⊘ (𝐊 𝐯 (𝓁 )))𝛼 ,
+
+𝐯 (𝓁 +1) = (𝐚 ⊘ (𝐊 ⊤𝐮 (𝓁 +1) ))𝛽 . (20) The parameters 𝛼, 𝛽 ∈ (0 , 1) dampen the projection steps. Unlike balanced Sinkhorn iterations, points in non-overlapping regions only weakly attract mass and naturally fade out. We initialize 𝐮 (0) = 𝟏 𝑀 , 𝐯 (0) = 𝟏 𝑁 and run 𝐿 inner iterations. 
+
+4.3.2. M-Step: Weighted Procrustes and Variance Update 
+
+Given the fixed transport plan 𝚪 , we update (𝐑 , 𝐭 ) and 𝜎 2
+
+in closed form. 
+
+Rigid transform. Given 𝚪 and 𝜎 2, we update (𝐑 , 𝐭 ). The optimal rotation and translation minimize the 𝚪 -weighted least-squares objective: 
+
+min  
+
+> 𝐑 ∈SO( 𝐷 ),𝐭 ∈ℝ𝐷
+
+∑
+
+> 𝑚,𝑛
+
+Γ𝑚𝑛 ‖𝐱 𝑛 − ( 𝐑 𝐲 𝑚 + 𝐭 )‖2. (21) Let 𝛾 = ∑𝑚,𝑛 Γ𝑚𝑛 denote the total transported mass. We compute the weighted centroids: ̄
+
+𝐱 = 𝐗 ⊤𝚪 ⊤𝟏 𝑀 
+
+𝛾 ,̄ 𝐲 = 𝐘 ⊤𝚪 𝟏 𝑁 
+
+𝛾 . (22) The cross-covariance matrix can be written as 
+
+𝐒 = 𝐗 ⊤𝚪 ⊤𝐘 − 𝛾̄ 𝐱 ̄ 𝐲 ⊤ ∈ ℝ𝐷 ×𝐷 . (23) 
+
+Lemma 1 (Weighted Procrustes solution) . Let 𝐒 = 𝐔𝚺𝐕 ⊤
+
+be the singular value decomposition of 𝐒 . Then the minimizer of (21) is 
+
+𝐑 = 𝐔 diag(1 , … , 1, det( 𝐔𝐕 ⊤)) 𝐕 ⊤,
+
+𝐭 =̄ 𝐱 − 𝐑 ̄ 𝐲 . (24) The proof follows the standard closed-form absolute orientation analysis [30]. Because outliers on either side con-tribute near-zero mass to 𝚪 , they are automatically excluded from the Procrustes fit. 
+
+Variance update. We update the variance 𝜎 2 by setting the partial derivative of  with respect to 𝜎 2 to zero (see Appendix B), yielding: 
+
+𝜎 2 = 1
+
+𝐷 𝛾 
+
+> 𝑀
+
+∑
+
+> 𝑚 =1
+> 𝑁
+
+∑
+
+> 𝑛 =1
+
+Γ𝑚𝑛 ‖𝐱 𝑛 − ( 𝐑 𝐲 𝑚 + 𝐭 )‖2. (25) The variance update is the core mechanism of robust an-nealing. The estimated variance accurately reflects the noise level of the inliers alone . As the alignment improves, the in-lier residuals decrease, which reduces 𝜎 2 and automatically sharpens the optimal transport plan. 
+
+Algorithm 1 Sinkhorn-CPD 
+
+Require: Source 𝐘 ∈ ℝ𝑀 ×𝐷 , target 𝐗 ∈ ℝ𝑁 ×𝐷 ; KL weights 𝜏 𝑥 , 𝜏 𝑦 > 0; Sinkhorn iterations 𝐿 ; tolerance 𝜖 . 
+
+> 1:
+
+Initialize 𝐑 ← 𝐈 𝐷 , 𝐭 ←̄ 𝐱 − 𝐑 ̄ 𝐲 , 𝜎 2 ← 𝜎 20 . 
+
+> 2:
+
+Set 𝐚 ← 1 
+
+> 𝑁
+
+𝟏 𝑁 , 𝐛 ← 1 
+
+> 𝑀
+
+𝟏 𝑀 . 
+
+> 3:
+
+Compute exponents 𝛼 ← 𝜏 𝑦  
+
+> 𝜏 𝑦 +1
+
+, 𝛽 ← 𝜏 𝑥  
+
+> 𝜏 𝑥 +1
+
+. 
+
+> 4:
+
+repeat  
+
+> 5:
+
+// E-step: Transport update  
+
+> 6:
+
+Compute cost 𝐂 via Eq. (18), and 𝐊 ← exp(− 𝐂 ). 
+
+> 7:
+
+Initialize 𝐮 ← 𝟏 𝑀 , 𝐯 ← 𝟏 𝑁 . 
+
+> 8:
+
+for 𝓁 = 1 , … , 𝐿 do  
+
+> 9:
+
+𝐮 ← (𝐛 ⊘ (𝐊𝐯 ))𝛼  
+
+> 10:
+
+𝐯 ← (𝐚 ⊘ (𝐊 ⊤𝐮 ))𝛽  
+
+> 11:
+
+end for  
+
+> 12:
+
+𝚪 ← diag( 𝐮 ) 𝐊 diag( 𝐯 ) 
+
+> 13:
+
+// M-step: Transformation update  
+
+> 14:
+
+Compute ̄ 𝐱 ,̄ 𝐲 via Eq. (22); form cross-covariance 𝐒 . 
+
+> 15:
+
+Update 𝐑 , 𝐭 via Eq. (24).  
+
+> 16:
+
+Update 𝜎 2 via Eq. (25).  
+
+> 17:
+
+until | (𝑘 ) −  (𝑘 −1) | < 𝜖 
+
+Ensure: Rigid transformation (𝐑 , 𝐭 ) and transport plan 𝚪 .
+
+4.4. Algorithm Summary and Complexity 
+
+Algorithm 1 outlines the complete Sinkhorn-CPD pro-cedure. 
+
+Complexity. The computational cost per outer iteration is dominated by the pairwise distance calculation for 𝐂 
+
+((𝑀𝑁𝐷 )) and the 𝐿 Sinkhorn iterations, which require matrix–vector multiplications of (𝐿𝑀𝑁 ). The SVD in the Procrustes step scales as (𝐷 3), which is negligible for 
+
+𝐷 = 3 . Letting 𝑇 denote the number of outer iterations, the overall complexity is (𝑇 𝑀𝑁 (𝐷 + 𝐿 )) ; in practice 
+
+𝑇 ≈ 15 –30 on ModelNet40, matching the same practical scalability as CPD. 
+
+## 5. Experiments 
+
+We evaluate Sinkhorn-CPD across four scenarios: a 2D mechanistic validation, a controlled synthetic bench-mark (Stanford Bunny), a large-scale cross-category dataset (ModelNet40), and a real-world scan-to-CAD dataset. We also provide ablation studies to validate our core design choices. 55.1. Experimental Setup 
+
+Baselines. We compare against eight classical methods spanning three families: (i) correspondence-based : Sparse-ICP [8] 2, FGR [9] 3, and TEASER++ [11] 4; (ii) probabilis-tic : CPD [1] and FilterReg [14] (via probreg )5, and LSG-CPD [16] 6; (iii) OT-based : RPOT [2] 7 and RobOT [21] 8.On ModelNet40, we additionally include two learning-based methods: RPMNet [27] 9 and GeoTransformer [28] 10 , using official pre-trained weights. 
+
+Metrics. We adopt three standard metrics: rotation error 
+
+RE = arccos ((tr( 𝐑 ⊤
+
+> est
+
+𝐑 gt ) − 1)∕2 ) in degrees, translation error TE = ‖𝐭 est − 𝐭 gt ‖2, and RMSE (root-mean-square point deviation after alignment) defined on source points as RMSE = 
+
+√ 1
+
+> 𝑀
+
+∑𝑀 𝑚 =1 ‖(𝐑 est 𝐲 𝑚 + 𝐭 est ) − ( 𝐑 gt 𝐲 𝑚 + 𝐭 gt )‖22.On ModelNet40 we further report registration recall (RR): the percentage of pairs satisfying (RE < 1◦) ∧ (TE < 0.1) .
+
+Implementation. We implement our method in Python, using the PyTorch library [31] for GPU acceleration. All experiments run on the same hardware/software environ-ment (see Table 1). For all iterative methods, we set the maximum iterations to 50. Unless otherwise stated, each configuration is evaluated over 20 independent trials with different random seeds, and we report the mean ± standard deviation. All methods share the same test samples to ensure a fair comparison. We measure wall-clock runtime per pair, excluding data loading and preprocessing. Sinkhorn-CPD is configured with 𝜏 𝑥 = 𝜏 𝑦 = 1 on ModelNet40 and the real scan-to-CAD benchmark; on the Stanford Bunny sweeps we additionally report 𝜏 𝑦 = 0 .1 as a more aggressive robustness mode (Section 5.3) to quantify the trade-off between outlier rejection and rotational capture range. We use 𝐿 = 20 
+
+Sinkhorn iterations per outer step and set the initial variance 
+
+𝜎 20 = 1
+
+> 𝑀𝑁𝐷
+
+∑𝑚,𝑛 ‖𝐱 𝑛 − 𝐲 𝑚 ‖2. All baselines use their offi-cial default parameters; a per-method summary is given in Appendix C. 
+
+Table 1 
+
+Hardware and software environment used for all experiments.          
+
+> Component Specification
+> CPU Intel Core i5-12400F (6C/12T) GPU NVIDIA GeForce RTX 4060 Ti (16 GB) Memory 32 GB DDR4 OS Ubuntu 22.04 LTS Python 3.9.18 Open3D 0.17.0 probreg 0.3.8 MATLAB 2022b
+> 2https://github.com/OpenGP/sparseicp
+> 3https://github.com/isl-org/Open3D
+> 4https://github.com/MIT-SPARK/TEASER-plusplus
+> 5https://github.com/neka-nat/probreg
+> 6https://github.com/ChirikjianLab/LSG-CPD
+> 7https://github.com/Hongxing-CQU/RPOT
+> 8https://github.com/uncbiag/robot
+> 9https://github.com/yewzijian/RPMNet
+> 10 https://github.com/qinzheng93/GeoTransformer
+
+5.2. Mechanistic Validation on 2D Data 
+
+We use a 2D example to show the effect of target-side outliers. The source  is a 91-point fish contour. The target  contains 71 inliers (a −60 ◦ rotation and translation 
+
+(−2 , −2) applied to the source) plus 100 Gaussian outliers, creating a 58 .5% outlier ratio. As shown in Fig. 1, CPD is severely affected by outliers, leading to alignment failure. RPOT [2] discards some out-lier mass and achieves near-perfect alignment, but its fixed geometric decay schedule ( 𝜀 ← 0.9 𝜀 ) causes slow conver-gence: even after 100 iterations, it has not fully converged. Sinkhorn-CPD discards outlier mass on both sides through dual KL penalties and converges quickly due to its data-adaptive annealing. 
+
+Vote (influence) visualization. 
+
+To explain the underlying mechanism, we analyze the per-target vote weights that drive the rigid Procrustes update. 
+
+Definition 2 (Vote Weights) . In the M-step, both CPD and Sinkhorn-CPD solve a weighted Procrustes problem. The 
+
+vote of a target point 𝐱 𝑛 is the sum of its column entries in the correspondence matrix: 𝑣 𝑛 = ∑𝑚 𝐏 𝑚𝑛 ∕ ∑𝑚,𝑛 𝐏 𝑚𝑛 for CPD and 𝑣 𝑛 = ∑𝑚 Γ𝑚𝑛 ∕ ∑𝑚,𝑛 Γ𝑚𝑛 for Sinkhorn-CPD. 
+
+The vote weight 𝑣 𝑛 quantifies how much 𝐱 𝑛 influences the Procrustes fit. The target centroid 𝝁 𝑥 = ∑𝑛 𝑣 𝑛 𝐱 𝑛 is the weighted average of the target points. If outliers receive sig-nificant vote weight, they bias the centroid and the resulting poor alignment. Fig. 2 compares the vote distributions of CPD and Sinkhorn-CPD. As shown in the heatmap strip (d), CPD assigns 57 .5% of the total vote weight to outliers, which dominate the transformation. Sinkhorn-CPD suppresses out-lier votes to 0.0% , concentrating the optimization strictly on inlier correspondences. 
+
+5.3. Robustness on Synthetic Benchmark 
+
+We evaluate robustness boundaries using the Stanford Bunny. We define four single-factor perturbation axes: Noise ,
+
+Outlier , Overlap , and Rotation . For each axis, we vary one parameter while fixing the others at reference values (Table 2). 
+
+Table 2 
+
+Synthetic benchmark protocol. Each sub-experiment varies one factor while fixing the others.                                    
+
+> Factor Parameter Range Fixed values Noise 𝜎 {0 .01 ,…,0.05} 𝜃 =30 ◦,𝑟 =0 .2,𝑜 =0 .9
+> Outlier 𝑟 {0 .1,…,0.7} 𝜃 =30 ◦,𝜎 =0 .02 ,𝑜 =0 .9
+> Overlap 𝑜 {0 .4,…,0.9} 𝜃 =30 ◦,𝜎 =0 .02 ,𝑟 =0 .2
+> Rotation 𝜃 {10 ◦,…,90 ◦}𝜎 =0 .02 ,𝑟 =0 .2,𝑜 =0 .9
+
+671 in + 100 out     
+
+> (58.5% outliers)
+> Target inliers Outliers Source
+> Outlier vote: 57.5%
+> σ2: 2.2e-01
+> Outlier vote: 0.0%
+> σ2: 1.0e-08 CPD
+> Sinkhorn
+> inliers outliers
+> 0.00
+> 0.01
+> vote
+
+(a) Initial setup. 71 in + 100 out      
+
+> (58.5% outliers)
+> Target inliers Outliers Source
+> Outlier vote: 57.5%
+> σ2: 2.2e-01
+> Outlier vote: 0.0%
+> σ2: 1.0e-08 CPD
+> Sinkhorn
+> inliers outliers
+> 0.00
+> 0.01
+> vote
+
+(b) CPD result. 71 in + 100 out      
+
+> (58.5% outliers)
+> Target inliers Outliers Source
+> Outlier vote: 57.5%
+> σ2: 2.2e-01
+> Outlier vote: 0.0%
+> σ2: 1.0e-08 CPD
+> Sinkhorn
+> inliers outliers
+> 0.00
+> 0.01
+> vote
+
+(c) Sinkhorn-CPD result. 71 in + 100 out      
+
+> (58.5% outliers)
+> Target inliers Outliers Source
+> Outlier vote: 57.5%
+> σ2: 2.2e-01
+> Outlier vote: 0.0%
+> σ2: 1.0e-08 CPD
+> Sinkhorn
+> inliers outliers
+> 0.00
+> 0.01
+> vote
+
+(d) Vote weight distribution. 
+
+Figure 2: Toy 2D case with 58 .5% target outliers: Sinkhorn-CPD suppresses outlier votes and recovers near-zero rotation error. 
+
+Figure 3: Perturbation examples on the Stanford Bunny. Top row: clean source, low noise ( 𝜎 =0 .01 ), high noise ( 𝜎 =0 .05 ). Bottom row: low outlier ratio (𝑟 =0 .1), high outlier ratio (𝑟 =0 .5), partial overlap ( 𝑜 =0 .5). 
+
+5.3.1. Data Generation 
+
+All pairs are built from bun_zipper.ply in the Stanford Bunny Dataset 11 , centered and scaled to unit size, voxel-downsampled (voxel size = 0 .04 ), and randomly subsam-pled to 𝑁 =3 ,000 points. For each trial we perturb the target in four ways (Fig. 3): 1. Partial overlap. Crop the target with a random half-space, keeping a fraction 𝑜 of points (the source stays intact). 2. Noise. Add Gaussian noise with standard deviation 𝜎 𝑛 .3. Outliers. Replace a fraction 𝑟 of target points with uniform outliers from a ball of radius 2.4. Rotation. Rotate 𝜃 degrees around a random unit axis. 
+
+5.3.2. Quantitative Results 
+
+Reference setting. Table 3 reports RMSE and runtime under the reference configuration. 
+
+Robustness curves. Fig. 4 reports RE/TE as each factor varies. Sinkhorn-CPD remains among the best methods across all four axes. For completeness, per-level RE values are listed in Table 4. 
+
+Noise. Sinkhorn-CPD remains stable across all noise levels (RE < 0.72 ◦ at 𝜎 =0 .05 ), while FilterReg degrades beyond 
+
+𝜎 =0 .03 . The dual-KL formulation down-weights noisy cor-respondences through soft marginal constraints. 
+
+> 11 http://graphics.stanford.edu/data/3Dscanrep
+
+Table 3 
+
+Reference configuration ( 𝜎 =0 .02 , 𝑟 =0 .2, 𝑜 =0 .9, 𝜃 =30 ◦). Mean 
+
+± std over 20 trials; best in bold .
+
+Method RE ( ◦) ↓ RMSE ( ×10 −3 ) ↓ Time (s) TEASER++ [11] 1.66 ± 1.02 17.1 ± 7.3 0.09 
+
+FGR [9] 13.00 ± 13.66 126.4 ± 99.8 0.10 Sparse-ICP [8] 27.93 ± 6.40 428.0 ± 109.0 0.12 CPD [1] 0.33 ± 0.31 3.3 ± 2.6 5.49 FilterReg [14] 0.27 ± 0.15 3.6 ± 1.2 0.18 LSG-CPD [16] 7.63 ± 8.75 77.9 ± 93.7 0.20 RPOT [2] 0.57 ± 0.33 7.0 ± 2.6 3.96 RobOT [21] 5.89 ± 2.51 73.0 ± 15.1 4.97 
+
+Sinkhorn-CPD 0.21 ± 0.10 2.6 ± 0.8 4.09 
+
+Outlier. CPD fails abruptly beyond 20% outliers (RE: 
+
+0.33 ◦ → 12 .10 ◦). Sinkhorn-CPD keeps RE below 0.41 ◦ up to 70% outliers via symmetric mass rejection. 
+
+Partial overlap. TEASER++ wins at severe partial over-lap ( 𝑜 =0 .4, RE = 5 .16 ◦) via global optimality guarantees. Sinkhorn-CPD achieves the best accuracy for 𝑜 ≥ 0.6 (RE 
+
+< 0.84 ◦). 
+
+Rotation. Sinkhorn-CPD ( 𝜏 𝑦 =1 .0) maintains sub-degree er-rors up to 80 ◦ rotation (RE =0 .75 ◦), the widest basin among local methods; the more aggressive 𝜏 𝑦 =0 .1 degrades ear-lier (RE =6 .70 ◦ at 80 ◦). This stems from a large initial 𝜎 2
+
+yielding a diffuse Gibbs kernel for coarse capture before automatic annealing. 
+
+5.3.3. Mechanistic Comparison 
+
+To understand why these differences arise, we instrument CPD, RPOT, and Sinkhorn-CPD on a single bunny pair (𝑜 =0 .5, 20% outliers, 30 ◦ rotation) and log per-iteration diagnostics (Fig. 5). The three methods end at 60 .9◦, 18 .3◦,and 1.75 ◦ RE respectively, and Fig. 5(c) shows the relation-ship between kernel scale and alignment residual ̄𝑟 2. CPD’s 
+
+𝜎 2 collapses below ̄ 𝑟 2 within 10 iterations, after which its posteriors lock onto wrong correspondences irreversibly. RPOT decays 𝜀 on a fixed geometric schedule regardless of the actual residual, so it cannot slow down when alignment stalls. Only Sinkhorn-CPD’s 𝜎 2, updated from the transport plan each iteration, tracks ̄ 𝑟 2 from above: correspondences stay soft until the alignment actually converges. The down-stream effect is visible in Fig. 5(d): Sinkhorn-CPD’s inlier mass fraction reaches 1, while RPOT plateaus at ∼0 .80 and CPD stalls at 0.57 .71 2 3 4 5                                    
+
+> Noise Level (std) #10 -2
+> 010 20 30 40 50 60
+> Rotation Error ( °)
+> 0.1 0.2 0.3 0.4 0.5 0.6
+> Outlier Ratio
+> 010 20 30 40 50 60 70 0.4 0.5 0.6 0.7 0.8 0.9
+> Overlap Ratio
+> 010 20 30 40 50 60 20 40 60 80
+> Rotation Angle ( °)
+> 020 40 60 80 12345
+> Noise Level (std) #10 -2
+> 010 20 30 40
+> Translation Error
+> #10 -2
+> 0.1 0.2 0.3 0.4 0.5 0.6
+> Outlier Ratio
+> 010 20 30 40
+> #10 -2
+> 0.4 0.5 0.6 0.7 0.8 0.9
+> Overlap Ratio
+> 0510 15 20 25 30 35 #10 -2
+> 20 40 60 80
+> Rotation Angle ( °)
+> 010 20 30 40 50 #10 -2
+> TEASER++ FGR Sparse-ICP CPD Sinkhorn-CPD ( =y=0 :1) FilterReg LSG-CPD RPOT RobOT Sinkhorn-CPD ( =y=1 :0)
+> 345012
+
+(a) Noise (b) Outlier (c) Overlap (d) Rotation 
+
+Figure 4: Robustness curves on the Stanford Bunny benchmark (mean over 20 trials). Top: rotation error (RE); bottom: translation error (TE). Sinkhorn-CPD (orange) maintains the lowest or near-lowest error across all conditions. 0 10 20 30 40 50 Iteration 10 0                 
+
+> 10 1
+> 10 2
+> RE ( °)
+> (a) Rotation error
+> 010 20 30 40 50 Iteration 10 -2
+> 10 -1
+> 10 0
+> TE
+> (b) Translation error
+> 010 20 30 40 50 Iteration 10 -5
+> 10 -4
+> 10 -3
+> 10 -2
+> 10 -1
+> 10 0
+> Kernel scale
+> (c) Kernel scale vs. residual
+> kernel scale residual
+> 010 20 30 40 50 Iteration 00.2 0.4 0.6 0.8 1Inlier mass
+> (d) Inlier mass fraction
+> CPD RPOT Sinkhorn-CPD
+
+Figure 5: Per-iteration diagnostics for CPD, RPOT, and Sinkhorn-CPD on a bunny pair (𝑜 =0 .5, 20% outliers, 30 ◦
+
+rotation). (a, b) Rotation and translation error. (c) Kernel scale (solid) vs. mean inlier residual (dashed). (d) Inlier mass fraction. 
+
+Fig. 6 visualizes this spatially: per-source-point outlier over-vote 𝑁  𝑣 𝑛 across iterations. CPD disperses vote mass over the entire non-overlapping region throughout. RPOT localizes it but never suppresses it, hence the 18 .3◦ plateau. Sinkhorn-CPD drives outlier mass to near-zero by itera-tion 30; only the true overlap guides alignment. 
+
+Failure cases and degradation. Table 4 exposes two fail-ure modes. At 𝜃 =90 ◦, Sinkhorn-CPD with 𝜏 𝑦 =1 .0 yields 
+
+RE = 37 .68 ◦ (52 .24 ◦ for 𝜏 𝑦 =0 .1). The diffuse Gibbs kernel has a finite capture range; a 90 ◦ misalignment exceeds it, trapping the algorithm in a local minimum. All local methods share this limitation (CPD: 26 .56 ◦, RPOT: 85 .98 ◦); only TEASER++, with its certification guarantees, achieves 
+
+22 .46 ◦. At 𝑜 =0 .4, Sinkhorn-CPD with 𝜏 𝑦 =0 .1 achieves 
+
+RE = 11 .66 ◦, outperformed by TEASER++ ( 5.16 ◦). Here the surviving inlier set is too small to reliably condition the Procrustes step, and centroid bias from non-overlapping mass becomes significant. Overlap degradation is gradual: RE stays below 0.30 ◦ for 𝑜 ≥ 0.7, rises to 0.84 ◦ at 𝑜 =0 .6,jumps to 5.47 ◦ at 𝑜 =0 .5, and reaches 11 .66 ◦ at 𝑜 =0 .4. At this point non-overlapping mass begins to dominate the transport plan despite dual-KL relaxation. Fig. 7 corroborates these degradation trends visually under the three most challenging single-factor settings. 
+
+5.4. Large-Scale Benchmark: ModelNet40 
+
+This benchmark tests cross-category generalization with-out training. ModelNet40 [32] contains 40 CAD categories. We follow the pipeline in [28]. For each shape we sample 
+
+𝑀 =𝑁 =2 ,048 points normalized to the unit sphere. We generate pairs using random rotations (up to ±45 ◦), trans-lations (magnitude 0.5), Gaussian noise ( 𝜎 = 0.05 ), and asymmetric planar cropping (keep ratio 0.9). In addition to the eight classical baselines, we include RPMNet [27] and GeoTransformer [28] using official pre-trained weights. 8Iter 0 (init)                
+
+> RRE=30.0° Iter 5
+> RRE=91.6° Iter 10
+> RRE=77.6° Iter 20
+> RRE=67.6° Iter 30
+> RRE=63.0° Final
+> RRE=60.9°
+> Iter 0 (init)
+> RRE=30.0° Iter 5
+> RRE=24.1° Iter 10
+> RRE=22.0° Iter 20
+> RRE=19.7° Iter 30
+> RRE=18.4° Final
+> RRE=18.3°
+> Iter 0 (init)
+> RRE=30.0° Iter 5
+> RRE=18.3° Iter 10
+> RRE=21.8° Iter 20
+> RRE=20.3° Iter 30
+> RRE=11.7° Final
+> RRE=1.8°
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Nin  vn
+> CPD RPOT Sinkhorn-CPD
+
+Figure 6: Per-source-point outlier over-vote 𝑁  𝑣 𝑛 across iterations for CPD (top), RPOT (middle), and Sinkhorn-CPD (bottom). True inliers are in light gray; outliers are colored by normalized assignment mass ( 𝑁  𝑣 𝑛 =1 corresponds to one inlier-share). 50% Outliers          
+
+> Input Ground Truth Sparse-ICP FGR TEASER++ CPD FilterReg LSG-CPD RPOT Sinkhorn-CPD
+> 50% Overlap
+> 60° Rotation
+
+Figure 7: Qualitative comparison on the Stanford Bunny under three challenging scenarios: 50% outliers (top), 50% overlap (middle), and 60 ◦ rotation (bottom). Sinkhorn-CPD achieves near-zero error across all scenarios. 
+
+As Table 5 shows, Sinkhorn-CPD achieves the highest registration recall ( 88 .9% ) and the lowest mean RE ( 0.64 ◦). GeoTransformer achieves a slightly lower TE ( 9.0×10 −3 ) but struggles with symmetrically ambiguous shapes, reflected in a lower recall ( 81 .2% ). RPMNet achieves only 59 .1% 
+
+recall, highlighting the difficulty learned descriptors face under novel noise and cropping configurations. Sinkhorn-CPD surpasses both deep models on unseen categories by 
+
+7.7 percentage points in recall without any training data. Notably, RobOT [21] achieves only 5.9% recall despite shar-ing the dual-KL unbalanced OT framework with Sinkhorn-CPD. Its fixed regularization parameter 𝜀 cannot adapt to the diverse noise levels across ModelNet40 categories, whereas Sinkhorn-CPD’s data-driven 𝜎 2 update automatically ad-justs the transport sharpness. Fig. 8 illustrates qualitative comparisons. 
+
+5.5. Real-World Scan-to-CAD Registration 
+
+We assess practical applicability on a real-world scan-to-CAD dataset of 50 industrial parts that we physically scanned ourselves. The raw scans contain noise, outliers, and partial surface coverage due to occlusion. We first merged the fragmented scans of each part into a complete point cloud, then registered each scan to its corresponding CAD model via coarse-to-fine alignment (RANSAC followed by ICP refinement, iterated until RMSE convergence). The resulting transformations serve as approximate ground truth. For this benchmark, both source and target clouds are normalized and downsampled to 4,096 points. We generate 1,000 test pairs by applying random initial misalignments to the source scans (rotation up to 30 ◦, translation ±0 .1). 9Airplane #24         
+
+> Input Sparse-ICP FGR TEASER++ CPD FilterReg LSG-CPD RPOT Sinkhorn-CPD
+> Car #19
+> Guitar #48
+
+Figure 8: Qualitative registration on ModelNet40 pairs. Sinkhorn-CPD achieves consistently low error, while correspondence-based methods (FGR, TEASER++) frequently fail. 
+
+Table 4 
+
+Mean RE ( ◦) on the Stanford Bunny across four perturbation axes (20 trials each). Best in bold , second best underlined. 
+
+Factor Level TEASER++ [11] FGR [9] Sparse-ICP [8] CPD [1] FilterReg [14] LSG-CPD [16] RPOT [2] RobOT [21] Sinkhorn-CPD 
+
+𝜏 𝑦 =0 .1 𝜏 𝑦 =1 .0
+
+Noise 𝜎 
+
+0.01 0.92 1.76 28.22 0.09 0.07 12.80 0.09 5.82 0.07 0.06 
+
+0.02 1.66 13.00 27.93 0.33 0.27 7.63 0.57 5.89 0.21 0.20 
+
+0.03 3.57 80.86 27.62 0.56 0.63 7.57 1.09 5.99 0.35 0.37 0.04 9.89 42.84 27.36 0.82 1.07 10.15 1.71 6.12 0.51 0.56 0.05 47.24 32.48 27.54 1.14 1.49 10.90 3.20 6.27 0.71 0.78 
+
+Outlier 𝑟 
+
+0.1 1.33 10.54 28.54 0.15 0.28 7.94 0.49 4.85 0.19 0.18 0.2 1.62 15.59 27.93 0.33 0.27 7.63 0.57 5.89 0.21 0.20 
+
+0.3 1.79 25.10 29.92 12.10 0.29 6.30 0.62 6.89 0.23 0.22 
+
+0.4 3.18 36.34 28.71 14.08 0.34 5.20 1.02 7.70 0.26 0.22 
+
+0.5 4.03 44.86 29.27 15.03 0.46 5.38 1.40 8.82 0.26 0.25 
+
+0.6 14.31 72.80 27.99 20.15 0.55 5.34 2.58 12.95 0.28 0.28 
+
+0.7 27.06 66.48 28.52 23.46 0.58 3.80 3.22 14.76 0.40 0.47 
+
+Overlap 𝑜 
+
+0.4 5.16 40.82 31.48 32.51 57.84 12.80 25.90 39.28 11.66 31.51 0.5 3.14 30.69 29.96 25.00 40.70 9.64 13.39 36.84 5.47 9.23 0.6 2.22 26.25 28.67 14.73 25.40 8.74 6.25 24.47 0.84 1.09 0.7 2.14 15.10 28.89 7.35 7.95 8.59 2.99 16.40 0.30 0.28 
+
+0.8 1.59 12.51 29.81 2.07 0.52 7.91 1.21 9.94 0.23 0.20 
+
+0.9 1.65 13.08 27.93 0.33 0.27 7.63 0.57 5.89 0.21 0.20 Rotation 𝜃 
+
+10 ◦ 0.93 9.05 13.27 0.29 0.31 0.40 0.52 5.84 0.21 0.20 
+
+20 ◦ 1.46 10.94 21.39 0.30 0.28 1.63 0.52 5.87 0.21 0.20 
+
+30 ◦ 1.72 12.93 27.93 0.33 0.26 7.63 0.57 5.89 0.21 0.20 
+
+40 ◦ 1.88 18.07 36.01 0.37 0.32 16.42 4.92 5.91 0.21 0.20 
+
+50 ◦ 2.51 20.65 46.83 0.45 0.28 29.55 24.60 5.94 0.22 0.20 
+
+60 ◦ 2.26 16.68 59.60 0.61 0.32 39.98 39.79 5.99 0.33 0.20 
+
+70 ◦ 10.77 30.58 71.04 0.96 4.19 52.62 55.79 6.12 1.06 0.24 
+
+80 ◦ 21.33 31.00 80.14 1.92 18.90 67.01 70.85 6.56 6.70 0.75 
+
+90 ◦ 22.46 47.67 89.29 26.56 29.94 83.90 85.98 41.32 52.24 37.68 
+
+Table 6 shows the results. Feature-based approaches (FGR, TEASER++) fail frequently because smooth, feature-less industrial surfaces do not support robust local descrip-tors. Sinkhorn-CPD achieves the lowest mean RE ( 8.52 ◦)and TE ( 7.2 × 10 −3 ), comparable to FilterReg ( 8.61 ◦) in RE but with a lower TE and standard deviation. RobOT [21] achieves comparable RE ( 8.61 ◦) but substantially higher TE (28 .7 × 10 −3 vs. 7.2 × 10 −3 ), indicating that its fixed 𝜀 yields coarser translational alignment. By combining probabilis-tic closed-form updates with unbalanced optimal transport, Sinkhorn-CPD naturally suppresses CAD-to-scan discrep-ancies. Fig. 9 provides visual results. 
+
+5.6. Ablation Studies 
+
+We validate the key design choices of Sinkhorn-CPD through three ablation studies. 10 Table 5 
+
+ModelNet40 results. RR: registration recall ( RE <1◦ ∧ TE <0.1). Best in bold , second best underlined. 
+
+Family Method RE ( ◦) ↓ TE ( ×10 −3 ) ↓ RMSE ( ×10 −3 ) ↓ RR (%) ↑ Time (s) Correspondence TEASER++ [11] 3.70 23.3 21.7 60.6 0.07 FGR [9] 5.58 44.7 45.7 18.0 0.08 Sparse-ICP [8] 18.58 253.2 268.3 1.0 0.11 Probabilistic CPD [1] 1.73 28.6 30.0 59.9 3.03 FilterReg [14] 1.29 16.4 16.6 85.5 0.12 LSG-CPD [16] 8.14 134.8 147.2 28.8 0.15 Learning RPMNet [27] 1.14 16.0 16.8 59.1 0.06 GeoTransformer [28] 0.81 9.0 9.0 81.2 0.05 
+
+OT-based RPOT [2] 2.81 33.7 40.1 71.6 1.03 RobOT [21] 5.67 87.4 93.4 5.9 0.53 
+
+Sinkhorn-CPD (Ours) 0.64 13.5 14.3 88.9 0.53 Real #1       
+
+> Input Sparse-ICP FGR CPD RPOT RobOT Sinkhorn-CPD
+> Real #2
+> Real #3
+> Real #4
+
+Figure 9: Qualitative scan-to-CAD registration on four representative cases from the real-perturbed CAD dataset. 
+
+Table 6 
+
+Real scan-to-CAD benchmark. Best in bold .
+
+Method RE ( ◦) ↓ TE ( ×10 −3 ) ↓ Time (s) TEASER++ [11] 26.94 ± 54.49 48.8 ± 130.2 0.15 
+
+FGR [9] 26.40 ± 49.82 40.1 ± 34.4 0.21 Sparse-ICP [8] 14.10 ± 8.27 36.7 ± 25.0 0.19 CPD [1] 8.76 ± 12.38 9.1 ± 14.3 10.47 FilterReg [14] 8.66 ± 11.73 7.4 ± 11.5 0.23 LSG-CPD [16] 11.30 ± 9.40 15.2 ± 17.2 0.49 RPOT [2] 9.28 ± 10.19 8.8 ± 12.4 7.29 RobOT [21] 8.61 ± 12.17 28.7 ± 11.4 7.68 
+
+Sinkhorn-CPD 8.52 ± 10.94 7.2 ± 10.2 2.64 
+
+5.6.1. Sensitivity to KL Penalty Weights 
+
+We perform a grid search over 𝜏 𝑥 ∈ {0 .1, 0.5, 1, 2, 5} and 
+
+𝜏 𝑦 ∈ {0 .1, 0.5, 1, 2, 5} (25 configurations) on the Stanford Bunny reference setting ( 𝜎 =0 .02 , 𝑟 =0 .2, 𝑜 =0 .9, 𝜃 =30 ◦), running 20 trials per configuration. As shown in Fig. 10(a), the default 𝜏 𝑥 = 𝜏 𝑦 = 1 resides in a broad, low-error basin, proving the method is relatively insensitive to exact hyperparameter tuning. Setting 𝜏 ≤ 0.1 degrades accuracy because the marginal constraints become too weak to guide the alignment. 
+
+5.6.2. One-Sided vs. Dual KL 
+
+To quantify the benefit of relaxing both marginals, we compare four configurations on the outlier experiment ( 𝑟 ∈{0 .1, … , 0.7} ): (i) Dual-KL (𝜏 𝑥 =𝜏 𝑦 =1 ): the full Sinkhorn-CPD; (ii) One-sided-Y (𝜏 𝑥 →∞, 𝜏 𝑦 =1 ): only the source-side marginal is relaxed; (iii) One-sided-X (𝜏 𝑥 =1 , 𝜏 𝑦 →∞): only the scan-side marginal is relaxed; (iv) CPD : the fully one-sided baseline. Fig. 10(b) confirms that the dual-KL formulation uniquely survives heavy contamination. One-sided-X handles target 11 0.1 0.5 1 2 5                                         
+
+> τx
+> 0.1
+> 0.5
+> 1
+> 2
+> 5
+> τy
+> 0.43 0.26 0.21 0.19 0.17
+> 0.26 0.22 0.20 0.18 0.18
+> 0.23 0.21 0.20 0.18 0.18
+> 0.24 0.22 0.21 0.20 0.21
+> 0.35 0.32 0.31 0.30 0.32
+> (a) (τx,τy)Sensitivity
+> 0.2 0.4 0.6
+> Outlier Ratio
+> 0
+> 10
+> 20
+> 30
+> RE (°)
+> (b) One-Sided vs. Dual KL
+> Dual-KL (Ours)
+> One-sided-X
+> One-sided-Y
+> CPD
+> Noise Outlier Overlap Rotation
+> 0
+> 10
+> 20
+> 30
+> 40
+> Mean RE (°)
+> 7.1
+> 11.6 13.3
+> 33.4
+> 13.9
+> 11.6 12.5
+> 33.5
+> 13.9
+> (c) σ2Annealing Ablation
+> Full ( σ2upd.)
+> Fixed σ2
+> No σ2
+> 0.4 0.6 0.8
+> Overlap Ratio
+> 0
+> 20
+> 40
+> RE (°)
+> (d) τyunder Partial Overlap
+> τy= 0.1
+> τy= 1.0
+> 0.20
+> 0.25
+> 0.30
+> 0.35
+> 0.40
+> RE (°)
+
+Figure 10: Ablation studies on the Bunny benchmark. (a) Mean RE over a grid of (𝜏 𝑥 , 𝜏 𝑦 ). (b) Outlier robustness for different marginal relaxations. (c) Effect of variance-driven annealing. (d) 𝜏 𝑦 =0 .1 vs. 𝜏 𝑦 =1 .0 under varying overlap: the stronger target-side penalty trades convergence basin width for partial-overlap robustness. 
+
+outliers well but fails under source outliers, while one-sided-Y mimics the brittle behavior of CPD. Symmetric relaxation is strictly necessary. 
+
+5.6.3. Variance Annealing Mechanism 
+
+We ablate the 𝜎 2 update mechanism by comparing: (i) Full : standard Sinkhorn-CPD with automatic 𝜎 2 updates; (ii) Fixed-𝜎 2: 𝜎 2 frozen at its initial value (no annealing); (iii) No-𝜎 2: cost matrix uses only squared distances without 
+
+𝜎 2 normalization. Fig. 10(c) reports RE across all four perturbation axes. The full model with automatic annealing consistently out-performs both ablated variants, confirming that variance-driven cost normalization is critical for robust registration. Fig. 5(c) provides per-iteration evidence: Sinkhorn-CPD’s 𝜎 2 tracks the alignment residual from above, while RPOT’s fixed geometric decay ( 𝜀 ← 0.9 𝜀 ) cannot slow down when the residual stays large, and CPD’s 𝜎 2 collapses prematurely. Variance-driven annealing is what makes the difference. 
+
+5.6.4. Effect of 𝜏 𝑦 on Overlap Robustness 
+
+Fig. 10(d) compares the two 𝜏 𝑦 settings under varying overlap. At high overlap ( 𝑜 ≥ 0.7), both achieve sub-degree RE; as overlap decreases, 𝜏 𝑦 =0 .1 degrades more gracefully (RE = 11 .7◦ at 𝑜 =0 .4) than 𝜏 𝑦 =1 .0 (RE = 31 .5◦), because the stronger target-side penalty suppresses non-overlapping mass more effectively. In practice, this is the trade-off when choosing 𝜏 𝑦 : partial-overlap robustness versus convergence basin width (Section 5.3). 
+
+5.7. Computational Cost 
+
+Tables 3 and 5 detail the wall-clock execution times. On the Bunny benchmark ( 𝑁 = 3 ,000 ), Sinkhorn-CPD runs in 4.09 s, matching the efficiency of RPOT (3.96 s) and running faster than CPD (5.49 s). On ModelNet40 ( 𝑁 = 2 ,048 ), it requires 0.53 s. The computational bottleneck is the (𝑀𝑁 )
+
+pairwise distance calculation. Because Sinkhorn-CPD inher-its CPD’s data-driven annealing, it typically converges in 15–30 outer iterations without overshooting. The 𝐿 = 20 
+
+inner Sinkhorn iterations introduce minimal overhead rela-tive to the distance computation and closed-form Procrustes updates. 
+
+## 6. Assumptions and Limitations 
+
+Sinkhorn-CPD inherits several modeling assumptions from CPD that bound its applicability: 
+
+Isotropic, homogeneous noise. A single scalar 𝜎 2 mod-els noise uniformly across all directions and points. Extend-ing to per-point or directional covariances would require replacing the scalar Sinkhorn scaling with a matrix form. 
+
+Known scale. Only rotation and translation are esti-mated; source and target must share the same metric scale. 
+
+Gaussian cost. The squared-distance cost assumes Gaus-sian inlier noise. Dual-KL relaxation provides empirical robustness up to 70% outliers (Section 5.3), but for heavy-tailed inlier noise a robust cost would be more appropriate. 
+
+Local convergence. Sinkhorn-CPD is a local method: convergence is reliable up to 80 ◦ initial rotation ( RE=0 .75 ◦)but fails at 90 ◦ (RE=37 .68 ◦). Under poor initialization, the transport plan can concentrate on a wrong subset, trigger-ing premature 𝜎 2 collapse. A global initializer (RANSAC, TEASER++) resolves this in practice. 
+
+Partial overlap. Under severe partial overlap ( 𝑜 ≤ 0.5), non-overlapping mass biases the weighted centroid despite dual-KL relaxation. Degradation is gradual: RE < 0.84 ◦ for 
+
+𝑜 ≥ 0.6, rising to 11 .66 ◦ at 𝑜 =0 .4.
+
+## 7. Conclusion 
+
+We proposed Sinkhorn-CPD , which formulates rigid registration as an unbalanced entropic OT problem with dual KL penalties on both marginals while retaining CPD’s Gaus-sian log-likelihood cost. The algorithm alternates general-ized Sinkhorn scaling with closed-form Procrustes and vari-ance updates, achieving symmetric outlier rejection without manual temperature schedules or training data. On the Stanford Bunny benchmark, Sinkhorn-CPD with 
+
+𝜏 𝑦 =0 .1 maintains RE < 0.41 ◦ at 70% outlier ratio, where CPD collapses beyond 20% . On ModelNet40 with unseen categories, it achieves 88 .9% registration recall, surpassing GeoTransformer ( 81 .2% ) without any training. Sinkhorn-CPD inherits the (𝑀𝑁 ) complexity and lo-cal convergence basin of CPD, which limits its scalability to very large point sets and its capture range for extreme initial misalignments. We plan to explore scalable kernel 12 approximations ( e.g. , Nyström) to reduce the pairwise dis-tance bottleneck, and to extend the framework to non-rigid registration by incorporating deformation models. 
+
+## Acknowledgments 
+
+This study was supported by the Beijing Natural Science Foundation (No. Z240002) and the National Key Research and Development Program of China (No. 2024YFA1013102). 
+
+## References 
+
+[1] A. Myronenko, X. Song, Point set registration: Coherent point drift, IEEE Transactions on Pattern Analysis and Machine Intelligence 32 (12) (2010) 2262–2275. [2] H. Qin, Y. Zhang, Z. Liu, B. Chen, Rigid registration of point clouds based on partial optimal transport, Computer Graphics Forum 41 (6) (2022) 365–378. [3] M. Cuturi, Sinkhorn Distances: Lightspeed Computation of Optimal Transport, in: Advances in Neural Information Processing Systems, Vol. 26, 2013, pp. 2292–2300. [4] L. Chizat, G. Peyré, B. Schmitzer, F.-X. Vialard, Scaling algorithms for unbalanced optimal transport problems, Mathematics of Compu-tation 87 (314) (2018) 2563–2609. [5] N. Bonneel, D. Coeurjolly, SPOT: Sliced partial optimal transport, ACM Transactions on Graphics 38 (4) (2019) 89:1–89:13. [6] P. J. Besl, N. D. McKay, A method for registration of 3-D shapes, IEEE Transactions on Pattern Analysis and Machine Intelligence 14 (2) (1992) 239–256. [7] D. Chetverikov, D. Stepanov, P. Krsek, Robust euclidean alignment of 3d point sets: The trimmed iterative closest point algorithm, Image and Vision Computing 23 (3) (2005) 299–309. [8] S. Bouaziz, A. Tagliasacchi, M. Pauly, Sparse iterative closest point, Computer Graphics Forum 32 (5) (2013) 113–123. [9] Q.-Y. Zhou, J. Park, V. Koltun, Fast global registration, in: Computer Vision–ECCV 2016, 2016, pp. 766–782. [10] R. B. Rusu, N. Blodow, M. Beetz, Fast point feature histograms (fpfh) for 3d registration, in: IEEE International Conference on Robotics and Automation, 2009, pp. 3212–3217. [11] H. Yang, J. Shi, L. Carlone, TEASER: Fast and certifiable point cloud registration, IEEE Transactions on Robotics 37 (2) (2021) 314–333. [12] S. Granger, X. Pennec, Multi-scale EM-ICP: A fast and robust ap-proach for surface registration, in: Computer Vision — ECCV 2002, Springer, 2002, pp. 418–432. [13] B. Jian, B. C. Vemuri, Robust point set registration using gaussian mixture models, IEEE Transactions on Pattern Analysis and Machine Intelligence 33 (8) (2011) 1633–1645. [14] W. Gao, R. Tedrake, Filterreg: Robust and efficient probabilistic point-set registration using gaussian filter and twist parameterization, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2019, pp. 11095–11104. [15] O. Hirose, A bayesian formulation of coherent point drift, IEEE Transactions on Pattern Analysis and Machine Intelligence 43 (7) (2021) 2269–2286. [16] W. Liu, H. Wu, G. S. Chirikjian, LSG-CPD: Coherent point drift with local surface geometry for point cloud registration, in: Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), 2021, pp. 15273–15282. [17] M. Zhao, X. Huang, J. Jiang, L. Mou, D.-M. Yan, L. Ma, Accurate registration of cross-modality geometry via consistent clustering, IEEE Transactions on Visualization and Computer Graphics 30 (7) (2024) 4055–4067. [18] C. Villani, Optimal Transport: Old and New, Springer, 2009. [19] G. Peyré, M. Cuturi, Computational optimal transport, Foundations and Trends in Machine Learning 11 (5-6) (2019) 355–607. [20] R. Sinkhorn, P. Knopp, Concerning nonnegative matrices and doubly stochastic matrices, Pacific Journal of Mathematics 21 (2) (1967) 343–348. [21] Z. Shen, J. Feydy, P. Liu, A. H. Curiale, R. San Jose Estepar, R. San Jose Estepar, M. Niethammer, Accurate point cloud registration with robust optimal transport, in: Advances in Neural Information Process-ing Systems (NeurIPS), Vol. 34, 2021, pp. 5373–5389. [22] L. Ma, W. Bian, X. Xue, Point clouds matching based on discrete optimal transport, IEEE Transactions on Image Processing 33 (2024) 5650–5662. [23] J. Feydy, T. Séjourné, F.-X. Vialard, S.-i. Amari, A. Trouve, G. Peyré, Interpolating between optimal transport and MMD using Sinkhorn divergences, in: The 22nd International Conference on Artificial Intelligence and Statistics (AISTATS), 2019, pp. 2681–2690. [24] Y. Aoki, H. Goforth, R. A. Srivatsan, S. Lucey, PointNetLK: Robust and efficient point cloud registration using PointNet, in: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2019, pp. 7163–7172. [25] Y. Wang, J. M. Solomon, Deep closest point: Learning representations for point cloud registration, in: Proceedings of the IEEE International Conference on Computer Vision (ICCV), 2019, pp. 3523–3532. [26] Y. Wang, J. M. Solomon, PRNet: Self-supervised learning for partial-to-partial registration, in: Proceedings of the IEEE International Con-ference on Computer Vision (ICCV), 2019, pp. 8814–8823. [27] Z. J. Yew, G. H. Lee, Rpm-net: Robust point matching using learned features, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2020, pp. 11824–11833. [28] Z. Qin, H. Yu, C. Wang, Y. Guo, Y. Peng, S. Ilic, D. Hu, K. Xu, Geo-Transformer: Fast and robust point cloud registration with geometric transformer, IEEE Transactions on Pattern Analysis and Machine Intelligence 45 (8) (2023) 9806–9821. [29] R. M. Neal, G. E. Hinton, A View of the Em Algorithm that Justifies Incremental, Sparse, and other Variants, in: M. I. Jordan (Ed.), Learn-ing in Graphical Models, Springer Netherlands, 1998, pp. 355–368. [30] B. K. P. Horn, Closed-form solution of absolute orientation using unit quaternions, Journal of the Optical Society of America A 4 (4) (1987) 629–642. [31] A. Paszke, S. Gross, S. Chintala, G. Chanan, E. Yang, Z. DeVito, Z. Lin, A. Desmaison, L. Antiga, A. Lerer, Automatic differentiation in pytorch, NeurIPS Autodiff Workshop (2017). [32] Z. Wu, S. Song, A. Khosla, F. Yu, L. Zhang, X. Tang, J. Xiao, 3D ShapeNets: A deep representation for volumetric shapes, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2015, pp. 1912–1920. 
+
+## A. Proof of Theorem 1 
+
+We show that optimizing the CPD E-step is equivalent to solv-ing a one-sided entropic OT problem. Assuming uniform mixture weights and no explicit uniform outlier component ( 𝑤 = 0 ) to isolate the geometric core, the variational free energy expands as: 
+
+VFE (𝐏 ) = ∑
+
+> 𝑚,𝑛
+
+𝑃 𝑚𝑛 ̃ 𝐶 𝑚𝑛 + ∑
+
+> 𝑚,𝑛
+
+𝑃 𝑚𝑛 log 𝑃 𝑚𝑛 + 𝐶 ′, (26) where 𝐶 ′ is a constant, and the responsibility matrix 𝐏 ∈ ℝ𝑀 ×𝑁 
+
+> +
+
+satisfies the strict column constraint 𝐏 ⊤𝟏 𝑀 = 𝟏 𝑁 . This implies the total mass is ∑𝑚,𝑛 𝑃 𝑚𝑛 = 𝑁 .Substituting the Gaussian negative log-likelihood ̃ 𝐶 𝑚𝑛 = 𝐷 𝑚𝑛  
+
+> 2𝜎 2
+
++ 
+
+> 𝐷
+> 2
+
+log(2 𝜋𝜎 2) where 𝐷 𝑚𝑛 = ‖𝐱 𝑛 − 𝑇 𝜽 (𝐲 𝑚 )‖2, we obtain: 
+
+VFE = 12𝜎 2
+
+∑
+
+> 𝑚,𝑛
+
+𝑃 𝑚𝑛 𝐷 𝑚𝑛 + 𝐷 
+
+2 log(2 𝜋𝜎 2) ∑
+
+> 𝑚,𝑛
+
+𝑃 𝑚𝑛 
+
++ ∑
+
+> 𝑚,𝑛
+
+𝑃 𝑚𝑛 log 𝑃 𝑚𝑛 + 𝐶 ′. (27) 
+
+13 Because the total mass is fixed to 𝑁 , the second term acts as a constant with respect to 𝐏 . Factoring out 12𝜎 2 , minimizing VFE over 
+
+𝐏 is identical to solving: 
+
+min  
+
+> 𝐏 ≥𝟎 𝐏 ⊤𝟏 𝑀 =𝟏 𝑁
+
+⟨𝐃 , 𝐏 ⟩ + 2 𝜎 2 ∑
+
+> 𝑚,𝑛
+
+𝑃 𝑚𝑛 log 𝑃 𝑚𝑛 . (28) Since the total mass is fixed to 𝑁 , we have ∑ 𝑃 𝑚𝑛 log 𝑃 𝑚𝑛 = (𝐏 )+ 
+
+𝑁 , so replacing ∑ 𝑃 𝑚𝑛 log 𝑃 𝑚𝑛 with (𝐏 ) shifts the objective by the constant 2𝜎 2𝑁 and preserves the minimizer. This matches the for-mulation of entropic optimal transport with cost 𝐃 , regularization strength 𝜀 = 2 𝜎 2, a fixed target marginal, and a completely free source marginal. □
+
+## B. Derivation of the Variance Update 
+
+We compute the optimal variance 𝜎 2 by minimizing the data-fit term in the objective  during the M-step. Let 𝐸 = ∑𝑚,𝑛 Γ𝑚𝑛 ‖𝐱 𝑛 −(𝐑𝐲 𝑚 + 𝐭 )‖2 be the total weighted squared residual. The cost term expands to: 
+
+⟨𝐂 , 𝚪 ⟩ = 𝐸 
+
+2𝜎 2 + 𝐷𝛾 
+
+2 log(2 𝜋𝜎 2), (29) where 𝛾 = ∑𝑚,𝑛 Γ𝑚𝑛 is the total transported mass. Taking the partial derivative with respect to 𝜎 2 yields: 
+
+𝜕 𝜕𝜎 2 ⟨𝐂 , 𝚪 ⟩ = − 𝐸 
+
+2𝜎 4 + 𝐷𝛾 
+
+2𝜎 2 . (30) Setting the derivative to zero and multiplying by 2𝜎 4∕( 𝐷𝛾 ) isolates 
+
+𝜎 2:
+
+𝜎 2 = 𝐸 𝐷𝛾 . (31) This establishes the closed-form variance update shown in Eq. (25). 
+
+□
+
+## C. Baseline Hyperparameters 
+
+Table 7 
+
+Baseline hyperparameters. All parameters follow the defaults in the respective implementations.                                              
+
+> Method Parameters Lang. TEASER++ [11] FPFH, voxel =0.05, noise bnd =0.05 C++ FGR [9] FPFH, voxel =0.05, corr. dist =0.075 C++ Sparse-ICP [8] 𝑝 = 0 .5C++ CPD [1] 𝑤 = 0 .5Py/CuPy FilterReg [14] 𝑤 = 0 .1Python LSG-CPD [16] 𝑤 = 0 .5MATLAB RPOT [2] 𝜀 0= 0 .004 , ann. ×0.9, 𝛽 m= 0 .8MATLAB RobOT [21] blur =0.1, reach =1.0, scaling =0.9 PyTorch RPMNet [27] official pre-trained weights PyTorch GeoTransformer [28] official pre-trained weights PyTorch
+
+Table 7 lists the key hyperparameters for each baseline. Unless noted otherwise, all values follow the defaults in the respective official implementations. All iterative methods share a maximum of 50 outer iterations. For TEASER++ and FGR, input correspon-dences are established via FPFH descriptors [10] computed with Open3D, using a search radius of 6× (TEASER++) or 5× (FGR) the voxel size. TEASER++ additionally applies mutual nearest-neighbor filtering. For RobOT we omit the FPFH front-end used in the official demo and run optimal transport directly on raw 3D coordinates, matching all other coordinate-only baselines. The Sparse-ICP 𝑝 = 0 .5 value is compiled into the C++ binary shipped and is not exposed at the Python wrapper level. RPMNet and GeoTransformer use their official pre-trained weights without fine-tuning. Both are evaluated on the same data pairs as the classical methods with identical random seeds. 
+
+## D. Numerical Stabilization 
+
+Two safeguards are applied in the Sinkhorn-CPD implementa-tion. (i) A floor 𝜎 2 ≥ 10 −8 is enforced after each variance update. Under low-noise, low-outlier configurations the inlier residuals can shrink within a few iterations, and the unconstrained closed-form 
+
+𝜎 2 would otherwise approach 0 and trigger numerical overflow in the Gibbs kernel exp(− 𝐶 ∕(2 𝜎 2)) . (ii) Inside the generalized Sinkhorn iterations, divisions 𝐛 ⊘ (𝐊𝐯 ) and 𝐚 ⊘ (𝐊 ⊤𝐮 ) use a small additive 𝜖 = 10 −12 in the denominator to avoid zero-mass edge cases. Both constants are well below the precision of all reported metrics and do not affect convergence behavior. 
+
+## E. Code and Data Availability 
+
+The complete source code is available at https://github.com/ Theigrams/SinkhornCPD . The repository contains: 
+
+• Core algorithm: Sinkhorn-CPD. 
+
+• Baseline algorithms: CPD, RPOT, FGR, FilterReg, TEASER++, Sparse-ICP, LSG-CPD, RobOT. 
+
+• Experiment scripts: reproducing all configurations in Tables 3– 5 with fixed random seeds. 
+
+• Data: Stanford Bunny ( ∼30 MB); ModelNet40 test pairs (227 MB). 
+
+## F. Comparison with OT-Based Methods 
+
+RobOT [21] (fixed 𝜀 , fixed 𝜌 , dual-KL): 
+
+min 
+
+> 𝚪 ≥𝟎
+
+⟨ 12 ‖𝐱 𝑛 −𝑇 (𝐲 𝑚 )‖2, 𝚪 ⟩+𝜀 (𝚪 )+ 𝜌 KL( 𝚪𝟏 ‖𝐛 )+ 𝜌 KL( 𝚪 ⊤𝟏 ‖𝐚 ).
+
+RPOT [2] (decaying 𝜀 , hard partial constraints): 
+
+min  
+
+> 𝚪 ≥𝟎
+
+⟨‖ 𝐱 𝑛 −𝑇 (𝐲 𝑚 )‖2, 𝚪 ⟩+𝜀 (𝚪 ), 𝚪𝟏 ≤ 𝐛 , 𝚪 ⊤𝟏 ≤ 𝐚 , ⟨𝚪 , 𝟏 ⟩ = 𝛽 𝑚 .
+
+Sinkhorn-CPD (adaptive 𝜎 2, dual-KL): 
+
+min 
+
+> 𝚪 ≥𝟎
+
+⟨ ‖𝐱 𝑛 −𝑇 (𝐲 𝑚 )‖2 
+
+> 2𝜎 2
+
++ 𝐷  
+
+> 2
+
+log(2 𝜋𝜎 2), 𝚪 ⟩+(𝚪 )+ 𝜏 𝑥 KL( 𝚪 ⊤𝟏 ‖𝐚 )+ 𝜏 𝑦 KL( 𝚪𝟏 ‖𝐛 ).
+
+The central issue is cost-scale drift . RobOT and RPOT both use the raw squared distance ‖𝐱 −𝑇 (𝐲 )‖2, whose magnitude drops by orders of magnitude as registration progresses. All regulariza-tion coefficients—entropy weight 𝜀 , KL penalty 𝜌 , or partial-mass threshold 𝛽 𝑚 —are calibrated against the initial cost scale. As the cost shrinks, these coefficients become progressively mismatched: in RobOT, the fixed 𝜀 and 𝜌 over-regularize near convergence; in RPOT, the geometric decay 𝜀 ← 0.9 𝜀 is blind to the actual residual, forcing premature sharpening when alignment stalls and unnecessarily slow convergence when alignment is easy. Sinkhorn-CPD resolves this by normalizing the cost with the adaptive 𝜎 2: as residuals shrink, 𝜎 2 shrinks proportionally, so the ratios between cost, entropy, and KL terms remain stable throughout optimization. This is why a single 𝜏 =1 works across all experimental settings without retuning. 
+
+14

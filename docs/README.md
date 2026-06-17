@@ -6,56 +6,54 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-16
-- 运行时间：2026-06-16 23:14:35 UTC
+- 最新运行日期：2026-06-17
+- 运行时间：2026-06-17 22:17:43 UTC
 - 运行状态：成功
-- 本次总论文数：12
-- 精读区：8
-- 速读区：4
+- 本次总论文数：10
+- 精读区：2
+- 速读区：8
 
 ### 今日简报（AI）
-今日推荐12篇论文，精读8篇，重点关注海洋机器人仿真与结构异常检测两大高分突破。最值得看的是《Traceable Virtual Sea Trials》提出可追溯虚拟海试方法，以及《Rethinking Structural Anomaly Detection》从决策边界转向投影算子，均为9.0高分。建议普通读者优先精读这2篇，另有3篇速读可作为背景补充。
-- 详情：[/202606/16/README](/202606/16/README)
+今天共处理10篇论文，精读2篇高分工作，涵盖异常缓解与船舶轨迹对比学习。
+
+最值得关注：Neural Bayesian提出兼具鲁棒损失与无监督污染分类的异常缓解方案；MoCo-AIS用对比学习提升船舶轨迹相似度计算。
+
+建议优先精读这两篇8分文章，对异常检测或轨迹分析领域有直接参考价值。
+- 详情：[/202606/17/README](/202606/17/README)
 
 ### 精读区论文标签
-1. [Traceable Virtual Sea Trials in the Marine Robotics Unity Simulator for Manoeuvring Assessment of Unmanned Surface Vehicles](/202606/16/2606.12349v2-traceable-virtual-sea-trials-in-the-marine-robotics-unity-simulator-for-manoeuvring-assessment-of-unmanned-surface-vehicles)  
-   标签：评分：9.0/10、query:ocean-obs
-   evidence：无人水面艇虚拟海试支持自主海洋观测
-2. [Rethinking Structural Anomaly Detection: From Decision Boundaries to Projection Operators](/202606/16/2606.15280v1-rethinking-structural-anomaly-detection-from-decision-boundaries-to-projection-operators)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：基于投影算子的结构异常检测新方法
-3. [D2H-AD: A Hybrid Model Utilizing Hyperdimensional Computing for Advanced Anomaly Detection](/202606/16/2606.13754v1-d2h-ad-a-hybrid-model-utilizing-hyperdimensional-computing-for-advanced-anomaly-detection)  
+1. [Neural Bayesian Anomaly Mitigation: A Robust Loss that Doubles as an Unsupervised Contamination Classifier](/202606/17/2606.16524v1-neural-bayesian-anomaly-mitigation-a-robust-loss-that-doubles-as-an-unsupervised-contamination-classifier)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：使用超维计算的通用异常检测框架
-4. [Cauchy Aggregation of Ridge-Regularized Hotelling Tests for High-Dimensional Change-Point Detection](/202606/16/2606.14092v1-cauchy-aggregation-of-ridge-regularized-hotelling-tests-for-high-dimensional-change-point-detection)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：高维时间序列变化点检测方法，可用于异常识别
-5. [GeoRoPE: Ground-Aware Rotary Adaptation for Remote Sensing Foundation Models](/202606/16/2606.14760v1-georope-ground-aware-rotary-adaptation-for-remote-sensing-foundation-models)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：地面感知适配用于遥感基础模型，可支持海洋生态系统监测
-6. [Neural Bayesian Anomaly Mitigation: A Robust Loss that Doubles as an Unsupervised Contamination Classifier](/202606/16/2606.16524v1-neural-bayesian-anomaly-mitigation-a-robust-loss-that-doubles-as-an-unsupervised-contamination-classifier)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：无监督异常检测与污染分类，可应用于海洋数据质量控制
-7. [Scalable Bayesian data curation for next-generation radio experiments](/202606/16/2606.16525v1-scalable-bayesian-data-curation-for-next-generation-radio-experiments)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：全自动贝叶斯异常检测用于科学数据整理
-8. [Sensing-Assisted Predictive Beamforming for UAV-Enabled Ocean Monitoring Networks](/202606/16/2606.16717v1-sensing-assisted-predictive-beamforming-for-uav-enabled-ocean-monitoring-networks)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：无人机-浮标海洋监测中的感知辅助预测波束赋形
+   evidence：提出通用鲁棒损失函数，同时提供无监督污染分类能力
+2. [MoCo-AIS: A Contrastive Learning Framework for Similarity Computation of Vessel Trajectories](/202606/17/2606.17978v1-moco-ais-a-contrastive-learning-framework-for-similarity-computation-of-vessel-trajectories)  
+   标签：评分：8.0/10、query:ocean-qc
+   evidence：使用对比学习进行船舶轨迹异常检测
 
 ### 速读区论文标签
-1. [HARBOR: Heading Analysis and Reconstruction from Behavioral Observation and Radar](/202606/16/2606.14006v1-harbor-heading-analysis-and-reconstruction-from-behavioral-observation-and-radar)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：利用SAR和AIS的海洋观测
-2. [Early Anomaly-Onset Detection based on Wigner--Ville Distribution Slice Spectra: A Transmission-Grid Test Case](/202606/16/2606.15856v1-early-anomaly-onset-detection-based-on-wigner--ville-distribution-slice-spectra-a-transmission-grid-test-case)  
+1. [Audited Conformal Prediction for Classification under Unknown Distribution Shift](/202606/17/2606.14909v1-audited-conformal-prediction-for-classification-under-unknown-distribution-shift)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：基于WVDS谱的早期异常检测方法用于时间序列
-3. [Scan Statistics for Nonhomogeneous Poisson Processes with Extreme-Value Calibration and Application to CNV Detection](/202606/16/2606.13973v1-scan-statistics-for-nonhomogeneous-poisson-processes-with-extreme-value-calibration-and-application-to-cnv-detection)  
+   evidence：审计式共形预测方法可用于异常识别
+2. [A Hybrid Model-Based and Model-Free Framework for Active Multi-View Viewpoint Optimization in Sonar Target Recognition](/202606/17/2606.15373v1-a-hybrid-model-based-and-model-free-framework-for-active-multi-view-viewpoint-optimization-in-sonar-target-recognition)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：主动多视角优化方法用于声纳目标识别，属于智能海洋观测
+3. [Sinkhorn-CPD: Robust point cloud registration via unbalanced entropic optimal transport](/202606/17/2606.16672v1-sinkhorn-cpd-robust-point-cloud-registration-via-unbalanced-entropic-optimal-transport)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：通过非平衡最优传输处理点云配准中的离群点
+4. [Landsat-Sentinel-2 Algal Bloom Mapping Using Vision Transformers: Model Description, Implementation, and Examples](/202606/17/2606.17242v1-landsat-sentinel-2-algal-bloom-mapping-using-vision-transformers-model-description-implementation-and-examples)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：海洋生态系统遥感监测
+5. [MM++: Unsupervised Scale-Invariant Multilayer OOD Detection via Top-K Gated Feature Fusion](/202606/17/2606.17352v1-mm-unsupervised-scale-invariant-multilayer-ood-detection-via-top-k-gated-feature-fusion)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：无监督分布外检测方法，适用于异常识别
+6. [SpatioTemporal Causal Network Diagnostics for Geographic Tipping Point Early Warning](/202606/17/2606.17553v1-spatiotemporal-causal-network-diagnostics-for-geographic-tipping-point-early-warning)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：时空因果网络用于临界点早期预警
+7. [EnvShip-Bench: An Environment-Enhanced Benchmark for Short-Term Vessel Trajectory Prediction](/202606/17/2606.15240v1-envship-bench-an-environment-enhanced-benchmark-for-short-term-vessel-trajectory-prediction)  
+   标签：评分：6.0/10、query:ocean-qc
+   evidence：处理AIS数据中的质量不均衡问题，提升海事监测数据质量
+8. [Tropical Viterbi Tubes for Decoding Uncertainty in Hidden Markov Models](/202606/17/2606.17181v1-tropical-viterbi-tubes-for-decoding-uncertainty-in-hidden-markov-models)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：扫描统计量的异常检测方法
-4. [Drift-Aware Spectral Conformal Prediction for Non-Exchangeable Streaming Data](/202606/16/2606.15953v1-drift-aware-spectral-conformal-prediction-for-non-exchangeable-streaming-data)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：流数据漂移检测，可用于时间序列异常检测
+   evidence：隐马尔可夫模型中近优路径的异常检测方法
 
 
 <div class="dpr-home-promo-card">

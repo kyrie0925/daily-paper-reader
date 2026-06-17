@@ -1,0 +1,260 @@
+Title: A Hybrid Model-Based and Model-Free Framework for Active Multi-View Viewpoint Optimization in Sonar Target Recognition
+
+URL Source: https://arxiv.org/pdf/2606.15373v1
+
+Published Time: Tue, 16 Jun 2026 00:45:09 GMT
+
+Number of Pages: 6
+
+Markdown Content:
+# A Hybrid Model-Based and Model-Free Framework for Active Multi-View Viewpoint Optimization in Sonar Target Recognition 
+
+Yongkyoon Park 
+
+University of Florida 
+
+Gainesville, FL, United States of America yo.park@ufl.edu 
+
+Jane Shin 
+
+University of Florida 
+
+Gainesville, FL, United States of America jane.shin@ufl.edu 
+
+Abstract —This paper presents a hybrid model-based and model-free framework for active multi-view target recogni-tion using forward-looking sonar. A convolutional neural net-work (CNN) provides data-driven observation likelihoods, while Radon-based orientation estimation enables viewpoint-aware sensing without requiring angle annotations. During training, an information-gain–based reward guides a Proximal Policy Optimization (PPO) agent to learn a belief-aware viewpoint selec-tion policy offline. At deployment, the learned policy performs real-time viewpoint selection using only CNN-based belief up-dates, eliminating the need for computationally expensive online POMDP tree search. Experiments on a marine-debris forward-looking sonar dataset demonstrate that the proposed approach achieves competitive recognition accuracy while reducing sensing steps and motion cost compared to model-based baselines. 
+
+Index Terms —Active perception, Forward-looking sonar, Rein-forcement learning, Information gain, Viewpoint planning, Target recognition 
+
+I. I NTRODUCTION 
+
+Unmanned underwater vehicles (UUVs) equipped with forward-looking sonar (FLS) rely on sequential observations from multiple viewpoints to achieve reliable target recognition. However, sonar imagery is inherently challenging due to se-vere noise, clutter, and strong viewpoint-dependent appearance variations. As a result, effective viewpoint selection becomes a critical component for active sonar perception. Existing multi-view planning approaches typically rely on analytic information-theoretic criteria or model-based Partially Observable Markov Decision Process (POMDP) solvers to select informative viewpoints. Although these methods provide principled decision-making frameworks, they often suffer from high computational complexity or limited adaptability when applied to real sonar imagery. To address these challenges, this work investigates a hy-brid framework that combines belief-based reasoning and information-theoretic guidance with model-free reinforcement learning to enable efficient and real-time viewpoint selection. II. R ELATED WORK 
+
+A. Information-theoretic method 
+
+Information-theoretic approaches [1], [8] have been widely used for active perception and viewpoint planning. These methods select sensing actions that maximize expected infor-mation gain (EIG) or reduce entropy, representing the belief uncertainty. Such criteria provide a principled mechanism for selecting informative viewpoints and have been applied to various multi-view recognition and exploration problems. However, most information-theoretic methods rely on myopic decision rules, optimizing only the immediate information gain without considering long-term sensing outcomes. As a result, they may produce suboptimal sensing trajectories when sequential observations and future decisions must be considered. 
+
+B. Model-based POMDP method 
+
+Partially observable Markov Decision Processes (POMDP) provide a theoretically ideal and principled framework for sequential decision making under uncertainty and have been widely used for active sensing and multi-view recognition [2], [3], [10]. In these approaches, the sensing agent maintains a belief distribution over possible target classes and selects actions that maximize the expected long-term reward through belief-space planning. Although this formulation enables the-oretically optimal decision making, solving POMDP typically requires online tree search or value iteration during the exe-cution, which introduces significant computational overhead. This limitation makes POMDP-based approaches difficult to deploy in real-time sensing systems, where decisions must be made quickly. 
+
+C. Model-free Reinforcement Learning method 
+
+Model-free reinforcement learning has recently been ex-plored as an alternative approach for active perception [5]. These methods learn sensing policies directly from data, allow-ing fast decision making at deployment time without explicit online planning. However, purely model-free approaches often do not explicitly reason about belief uncertainty or information gain, which can lead to inefficient sensing behaviors. In addition, learning effective policies typically requires large amounts of training data and extensive training time. 
+
+> arXiv:2606.15373v1 [cs.RO] 13 Jun 2026
+
+III. P ROBLEM FORMULATION 
+
+We consider the problem of classifying a static underwa-ter object using an Unmanned underwater vehicle (UUV) equipped with a forward-looking sonar (FLS). The AUV can acquire sonar images from a discrete set of viewpoints arranged along a circular trajectory around the object. Due to severe noise and viewpoint-dependent appearance variations in sonar imagery, a single observation is often in-sufficient for reliable classification. Therefore, the UUV must actively select informative viewpoints to improve classification confidence while operating under limited motion and sensing budgets. 
+
+A. POMDP Model 
+
+The problem is formulated as a partially observable Markov decision process (POMDP) 
+
+P = ( X, A, Z, T, O, R, γ )
+
+where  
+
+> •
+
+X is the set of possible object classes,  
+
+> •
+
+A is the set of viewpoint-selection actions including a terminal stop action,  
+
+> •
+
+Z denotes the observation space of sonar images,  
+
+> •
+
+T (x′|x, a ) is the state transition model,  
+
+> •
+
+O(z|x, a ) represents the observation likelihood,  
+
+> •
+
+R is the reward function, and  
+
+> •
+
+γ is the discount factor. Because the target class remains constant during observa-tion, the transition model is deterministic. 
+
+B. Belief Representation 
+
+Since the true object class x is unknown, the agent maintains a belief distribution over classes 
+
+bt(x) = P (x | z1: t, a 1: t−1)
+
+which represents the posterior probability of each class given the observation and action history. In a general POMDP, the belief is updated according to 
+
+bt+1 (x′) = η O (zt | x′, a t) X
+
+> x∈X
+
+T (x′ | x, a t) bt(x),
+
+where T (x′|x, a ) is the state transition model, O(z|x, a ) is the observation likelihood, and η is a normalization constant. In the target recognition problem considered in this work, the hidden state corresponds to the object class, which remains constant during the observation process. Therefore, the transi-tion model becomes deterministic. Under this assumption, the belief updates simplifies to 
+
+bt+1 (x) = η O (zt|x, a t) bt(x)
+
+which corresponds to a Bayesian update using the observation likelihood. 
+
+C. Action Space 
+
+At each step, the agent selects an action at ∈ A that cor-responds to moving to one of N candidate viewpoints around the target or issuing a stop action to terminate observation and perform classification. Each movement incurs a distance-dependent motion cost. 
+
+D. Observation Model 
+
+Each sensing action produces a sonar observation zt ∈ Z.The observation likelihood 
+
+O(zt | x, a t)
+
+represents the probability of observing sonar image zt when the true object class is x and the agent executes action at.This likelihood is used to update the belief over object classes according to the Bayesian update rule described in the previous section. In practice, the observation likelihood is estimated using a data-driven observation model, which will be described in the proposed framework section. 
+
+E. Reward Function 
+
+The reward function is designed to encourage the agent to obtain informative observations while minimizing unnecessary sensing actions and motion cost. The reward at time step t is defined as 
+
+Rt = Rclass − λ1dmove (at) − λ2 + Rinfo ,
+
+where  
+
+> •
+
+Rclass provides a reward when the agent correctly termi-nates the sensing process with a confident classification decision,  
+
+> •
+
+dmove (at) represents the motion cost associated with executing action at, 
+
+> •
+
+λ1 and λ2 are weighting parameters that penalize exces-sive motion and unnecessary sensing steps,  
+
+> •
+
+Rinfo is an information-driven reward that encourages the agent to select viewpoints that reduce classification uncertainty. The information-driven reward guides the agent to ac-tively acquire observations that improve the belief over object classes. The specific formulation of this information-based reward is described in the proposed framework section. 
+
+F. Objects 
+
+The objective of the agent is to learn a policy π(a | s) that selects sensing actions to maximize the expected cumulative reward: 
+
+π∗ = arg max  
+
+> π
+
+E
+
+" TX
+
+> t=0
+
+γtRt
+
+#
+
+.
+
+In classical POMDP-based planning approaches, this policy is typically computed through online belief-space tree search, which can be computationally expensive. In contrast, this work learns the policy offline using reinforcement learning while preserving the belief update and information-theoretic structure of the problem. IV. P ROPOSED FRAMEWORK 
+
+This section presents the proposed hybrid framework for active multi-view sonar target recognition. The framework in-tegrates belief-based reasoning with model-free policy learning to enable efficient viewpoint selection under partial observabil-ity. The system consists of four key components: a CNN-based observation likelihood model, geometric orientation estimation using the Radon transform, a belief-aware state representation, and a PPO-based policy learning framework guided by an information-driven reward.  
+
+> Fig. 1. Proposed Framework Overview
+
+A. CNN-Based Observation Likelihood 
+
+To estimate the likelihood of each target class given a sonar observation, a convolutional neural network (CNN) classifier is used to process the incoming sonar images. Let ot denote the sonar observation obtained at time step 
+
+t. The CNN processes the observation and outputs a class probability vector 
+
+pθ (x | ot)
+
+which represents the posterior probability of each target class. In a classical POMDP formulation, belief updates require the generative observation likelihood P (ot | x). However, con-structing a generative sonar observation model is challenging due to the complex acoustic scattering, shadowing, and noise characteristics present in real sonar imagery. To address this limitation, the proposed framework uses the CNN discriminative posterior as a surrogate observation like-lihood. Assuming a uniform class prior, Bayes’ rule implies 
+
+P (ot | x) ∝ P (x | ot)
+
+which allows the CNN output to serve as an approximation of the observation likelihood. These likelihood estimates are used to update the belief distribution over target classes, enabling the system to pro-gressively refine its class estimate as new observations are collected. 
+
+B. Radon-Based Orientation Estimation 
+
+In addition to classification likelihood, the framework ex-tracts geometric information from the sonar images to charac-terize the relative aspect sensing configuration. The Radon transform [11] is applied to the sonar image to estimate the dominant structural orientation of the observed target. By analyzing projection profiles across multiple angles, the Radon transform identifies the orientation that maximizes structural alignment in the image. Let θt denote the estimated orientation at time step t. Rather than using the absolute orientation directly, the framework computes the relative aspect angle 
+
+∆θt = θt − θt−1
+
+which represents the change in viewing direction between consecutive observations. The relative aspect angle provides a geometric cue that indicates how the observation geometry evolves over time. In sonar imaging, target appearance varies significantly with viewing direction due to acoustic scattering and shadowing effects. As a result, observations obtained from sufficiently different aspect angles are more likely to reveal complemen-tary structural information about the target. By incorporating the relative aspect angle into the policy state representation, the agent can reason about viewpoint tran-sitions in a geometry-aware manner and avoid uninformative observations. 
+
+C. Policy State Representation 
+
+To support belief-aware decision making, the policy state representation integrates information about classification un-certainty, sensing geometry, and viewpoint coverage. The policy input state vector includes  
+
+> •
+
+Belief vector bt, representing the posterior probability of each target class,  
+
+> •
+
+One-hot encoding of the current viewpoint,  
+
+> •
+
+Binary mask indicating previously visited viewpoints,  
+
+> •
+
+Relative orientation features ( cos ∆ θt, sin ∆ θt). This representation allows the policy to reason about both semantic uncertainty and sensing geometry when selecting the next viewpoint. D. Information-Guided Reward Function 
+
+To encourage the agent to actively select informative view-points, the reward function incorporates an information-driven component based on Expected Information Gain which means belief entropy reduction. The expected information gain is defined as 
+
+EIG t = H(bt) − H(bt+1 ),
+
+where H(b) denotes the entropy of the belief distribution. A positive information gain indicates that the selected obser-vation reduces classification uncertainty. By rewarding actions that maximize information gain, the policy is encouraged to explore viewpoints that provide new discriminative evidence about the target. The overall reward combines the information gain term with penalties for motion cost and unnecessary sensing steps, as described in the problem formulation. 
+
+E. PPO-Based Policy Learning 
+
+The viewpoint selection policy is learned using Proximal Policy Optimization (PPO) [6], a model-free reinforcement learning algorithm known for stable and efficient policy opti-mization. During training, the agent interacts with the simulated sens-ing environment and collects trajectories consisting of states, actions, observations, and rewards. The PPO algorithm updates the policy parameters using these trajectories to maximize the expected cumulative reward. After training is completed, the learned policy is deployed for real-time viewpoint selection. At each sensing step, the system processes the incoming sonar observation, updates the belief state, computes the relative orientation feature, and constructs the policy state vector. The trained policy then selects the next sensing action through a single forward pass of the policy network. Un-like classical POMDP solvers that require computationally expensive online tree search, the learned policy enables fast decision making during execution while preserving belief-aware reasoning learned during training. V. E XPERIMENTS AND RESULTS 
+
+This section evaluates the effectiveness of the proposed framework for active multi-view sonar target recognition. The experiments aim to answer two main questions. First, we examine whether the proposed method improves recognition performance through informative viewpoint selection. Second, we analyze whether the learned policy enables efficient real-time decision making compared to classical planning-based approaches. 
+
+A. Dataset and Experimental Setup 
+
+The proposed framework is evaluated using the marine debris forward-looking sonar dataset. The dataset contains sonar images of underwater objects collected using a forward-looking sonar (FLS) sensor. Each object instance is captured under multiple viewing angles using a controlled turntable setup, providing a set of observations that simulate multi-view sensing conditions. To emulate the sensing process of an unmanned underwater vehicle (UUV), the sonar images are treated as observations obtained from discrete viewpoints arranged around the target object. In this study, the sensing viewpoints are discretized into eight equally spaced positions along a circular trajectory surrounding the target. At each sensing step, the agent selects an action that moves the sensor to one of the available viewpoints or terminates the sensing process. Although the true sensing geometry in underwater environ-ments is inherently three-dimensional, this study assumes that both the sensing platform and the target object lie on the same plane. Under this assumption, viewpoint transitions correspond to changes in the relative azimuth angle between the sensor and the target. To better approximate real underwater sensing conditions, synthetic perturbations are introduced during training and evaluation. These include random occlusion and image jitter, which simulate partial visibility and sensor instability com-monly encountered in practical sonar imaging scenarios. 
+
+B. Baseline Methods 
+
+To evaluate the proposed framework, we compare it with two representative approaches for active perception. 
+
+1) Model-based planning : The first baseline is a model-based planning approach [2], [3], [10] that performs viewpoint selection using belief-based planning. This method explicitly models the POMDP structure and selects actions by maximiz-ing cumulative reward through online decision making. Although model-based methods can explicitly reason about uncertainty and information gain, they typically require com-putationally expensive online planning procedures, such as a belief-space tree search. 
+
+2) Model-free reinforcement learning : The second base-line is a purely model-free reinforcement learning approach [5], [6] that learns a viewpoint selection policy directly from the data. In this method, the agent learns a policy using reinforcement learning without explicitly incorporating belief updates or structured uncertainty modeling. Although model-free RL methods can learn policies effi-ciently through experience, they often struggle to reason about classification uncertainty because they lack an explicit belief representation. 
+
+C. Recognition Performance 
+
+We first evaluate the recognition capability of the proposed framework using the marine debris sonar dataset.            
+
+> TABLE I RECOGNITION PERFORMANCE
+> Table1 Models Metrics POMDP RL Proposed
+> Final Accuracy 0.934 0.974 0.990 Step to 90% ACC 1.63 0.40 0.34
+
+Table 1 summarizes the final classification accuracy and the sensing efficiency of each method. The sensing efficiency is measured using the average number of sensing steps required to reach 90% recognition accuracy. The results show that the proposed hybrid framework achieves the highest final recognition accuracy of 0.990, outperforming both the model-based POMDP baseline and the purely model-free reinforcement learning policy. The POMDP method achieves a final accuracy of 0.934, while the model-free PPO baseline reaches 0.974. In addition to the final classification accuracy, Table 1 also reports the average number of sensing steps required to reach 90% accuracy. This metric reflects how efficiently each method acquires informative observations during the active sensing process. The proposed method reaches 90% accuracy at an average of 0.34 sensing steps, which is comparable to the model-free PPO policy (0.40) and significantly faster than the model-based POMDP baseline (1.63). These results indicate that the proposed hybrid frame-work effectively balances recognition accuracy and sensing efficiency. By integrating belief-based reasoning with rein-forcement learning, the proposed method is able to select informative viewpoints early in the sensing process while maintaining superior final classification performance. 
+
+D. Computational Performance 
+
+We next evaluate the computational efficiency of the pro-posed framework and compare it with the model-based and model-free baselines.           
+
+> TABLE II COMPUTATIONAL PERFORMANCE
+> Models Metrics POMDP RL Proposed
+> Decision Time per Step [ms] 70.267 0.717 0.638 Total Episode Time [s] 0.2373 0.0043 0.0052
+
+Table 2 summarizes the average decision time per sensing step and the total episode execution time for each method. The model-based POMDP approach requires significantly higher computation time due to the online planning process. Specif-ically, the POMDP method requires 70.267 ms per decision step, resulting in a total episode time of 0.2373 s. In contrast, both the model-free reinforcement learning policy and the proposed hybrid framework require only a single forward pass of the policy network to determine the next action. As a result, the decision time per step is reduced to 0.717 ms for the model-free policy and 0.638 ms for the proposed method. The total episode execution time further highlights this difference. While the POMDP approach requires 0.2373 s, the model-free and proposed methods require only 0.0043 s and 0.0052 s, respectively. These results demonstrate that the proposed framework achieves computational efficiency compa-rable to model-free reinforcement learning while significantly outperforming model-based planning approaches. This property is particularly important for unmanned under-water systems, where sensing decisions must be made under strict computational and time constraints. 
+
+E. Trajectory Sample  
+
+> Fig. 2. Trajectory Samples
+
+Fig. 2 illustrates representative sensing trajectories gener-ated by the proposed policy during active viewpoint selection. Each trajectory shows the sequence of viewpoints selected by the agent while observing the target object from discrete positions arranged around the object. In the left example, the agent requires only a small num-ber (2-steps) of observations before terminating the sensing process. After acquiring an additional viewpoint, the agent reaches sufficient classification confidence and stops early. This demonstrates that the policy can quickly identify informa-tive viewpoints and avoid unnecessary sensing actions when the object can be recognized with high certainty. In contrast, the right example illustrates a more ambiguous case where the initial observations are not sufficiently infor-mative. In this scenario, the agent continues to select addi-tional viewpoints to reduce the uncertainty of the belief state before making the final classification decision. The resulting trajectory shows that the agent moves toward viewpoints that provide complementary information about the object. These qualitative examples indicate that the proposed policy adapts its sensing strategy depending on the uncertainty of the current belief state. When the classification confidence increases rapidly, the agent terminates the sensing process early. Otherwise, it continues to explore additional viewpoints to collect more informative observations. VI. C ONCLUSION 
+
+This paper presented a hybrid policy learning framework for active multi-view target recognition using forward-looking sonar. The proposed method integrates belief-based reasoning from POMDP formulations with model-free reinforcement learning to enable efficient viewpoint selection under un-certainty. During training, an information-gain–based reward guides the policy to acquire informative observations, while a CNN-based observation model provides likelihood estimates for belief updates. After training, the learned policy allows real-time viewpoint selection without requiring computation-ally expensive online POMDP planning. Experimental results on a marine debris sonar dataset demonstrate that the proposed approach achieves higher recog-nition accuracy compared to both model-based POMDP plan-ning and model-free reinforcement learning baselines. Further-more, the proposed method reaches high recognition confi-dence with fewer sensing steps while maintaining computa-tional efficiency comparable to model-free policies. Qualitative trajectory analysis further shows that the learned policy adap-tively adjusts its sensing strategy depending on the uncertainty of the current belief state. These results suggest that combining belief updates with reinforcement learning provides an effective framework for active perception in sonar-based object recognition tasks. REFERENCES [1] J. Shin, S.-H. Chang, J. N. Weaver, J. C. Isaacs, B. Fu, and S. Ferrari, “Informative multiview planning for underwater sensors,” IEEE Journal of Oceanic Engineering, vol. 47, pp. 780–798, 2022. [2] Z. Wang, Z. Wang, M. Moll, P.-S. Huang, D. K. Grady, N. M. Nasrabadi, T. S. Huang, L. E. Kavraki, and M. A. Hasegawa-Johnson, “Active planning, sensing, and recognition using a resource-constrained discriminant POMDP,” in Proc. IEEE Conf. Computer Vision and Pattern Recognition Workshops (CVPRW), 2014, pp. 754–761. [3] F. Taioli, F. Giuliari, Y. Wang, R. Berra, A. Castellini, A. Del Bue, A. Farinelli, M. Cristani, and F. Setti, “Unsupervised active visual search with Monte Carlo planning under uncertain detections,” IEEE Transactions on Pattern Analysis and Machine Intelligence, vol. 46, pp. 11047–11058, 2023. [4] L. P. Kaelbling, M. L. Littman, and A. R. Cassandra, “Planning and acting in partially observable stochastic domains,” Artificial Intelligence, vol. 101, pp. 99–134, 1998. [5] J. C. Caicedo and S. Lazebnik, “Active object localization with deep reinforcement learning,” in Proc. IEEE Int. Conf. Computer Vision (ICCV), 2015, pp. 2488–2496. [6] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, “Prox-imal policy optimization algorithms,” arXiv preprint arXiv:1707.06347, 2017. [7] S. Chen, Y. Li, and N. M. Kwok, “Active vision in robotic systems: A survey of recent developments,” The International Journal of Robotics Research, vol. 30, pp. 1343–1377, 2011. [8] C. Robbiano, M. R. Azimi-Sadjadi, and E. K. P. Chong, “Information-theoretic interactive sensing and inference for autonomous systems,” IEEE Transactions on Signal Processing, vol. 69, pp. 5627–5637, 2020. [9] D. Singh and M. Valdenegro-Toro, “The marine debris dataset for forward-looking sonar semantic segmentation,” in Proc. IEEE/CVF Int. Conf. Computer Vision Workshops (ICCVW), 2021, pp. 3734–3742. [10] D. Silver and J. Veness, “Monte-Carlo planning in large POMDPs,” in Proc. Advances in Neural Information Processing Systems (NeurIPS), 2010. [11] S. R. Deans, “The Radon transform and some of its applications,” Proc. IEEE, 1983.
