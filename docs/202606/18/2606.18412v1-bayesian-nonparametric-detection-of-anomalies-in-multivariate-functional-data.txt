@@ -1,0 +1,1519 @@
+Title: Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+URL Source: https://arxiv.org/pdf/2606.18412v1
+
+Published Time: Thu, 18 Jun 2026 00:14:26 GMT
+
+Number of Pages: 29
+
+Markdown Content:
+# Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data 
+
+Daniel Krasnov daniel.krasnov@mail.mcgill.ca 
+
+Department of Mathematics and Statistics McGill University Montreal, BC H3A 0B9, Canada 
+
+David Stephens david.stephens@mcgill.ca 
+
+Department of Mathematics and Statistics McGill University Montreal, BC H3A 0B9, Canada 
+
+Abstract 
+
+Anomalies in functional data arise from rare or distinct processes that deviate from the dominant data-generating mechanism. Detecting such departures is essential in applica-tions where they may correspond to errors, structural changes, or other behavior of interest. This work introduces a Bayesian nonparametric approach for anomaly detection in multi-variate functional data. We model functional data as an infinite mixture of multi-output Gaussian processes, with a finite and automatically determined number of mixture com-ponents obtained through slice sampling. Mean functions are represented using a wavelet basis and regularized through Besov priors to obtain a smooth and sparse representation of the data. Cross-functional dependence is captured using the intrinsic coregionalization model and we solve covariance kernel selection by introducing a Carlin-Chib product space step in the Markov Chain Monte Carlo algorithm. Within this model, anomalous observa-tions are assigned to small mixture components without requiring prior specification of the number or nature of anomalies. We consider a semi-supervised setting, in which labels are available for 15% of the normal observations and a large class imbalance is present. The utility of our model is demonstrated on both univariate and multivariate functional data. 
+
+Keywords: functional data analysis, anomaly detection, bayesian nonparametrics, semi-supervised learning, gaussian processes, wavelets 
+
+1 Introduction 
+
+Functional data analysis (FDA) is the branch of statistics concerned with analyzing data that are most naturally viewed as functions. Typically, this means infinite-dimensional smooth curves defined over a continuous domain such as time or space (Ramsay and Silver-man, 2005). FDA has proven to be effective across a wide array of fields such as biostatis-tics, environmetrics, linguistics, finance, psychology, meteorology, and engineering (Ullah and Finch, 2013). In any of these application areas, we may encounter situations where we are interested in identifying unusual or uncommon signals. Functional anomaly detection (FAD) and functional outlier detection (FOD) involve the study of functional observations that deviate from the dominant behavior of the data. Detecting anomalous functions is important because, as noted by Hawkins (1980), out-liers can bias parameter estimates, obscure genuine relationships, and result in misleading  
+
+> ©2025 Daniel Krasnov and David Stephens. License: CC-BY 4.0, see https://creativecommons.org/licenses/by/4.0/ .
+> arXiv:2606.18412v1 [stat.ME] 16 Jun 2026 Krasnov and Stephens
+
+conclusions. In general, FAD problems share two defining characteristics. First, there is typically a large class imbalance in the data: anomalous observations are rare and represent unusual and unwanted behavior. Second, the goal is to identify the underlying structure in the data, so as to classify observations as either normal or anomalous. This means we require some notion of normalcy and must encode it in the model. This is complicated by the fact that FAD problems are usually unsupervised, meaning that we have no prior knowledge of what anomalies look like nor how many distinct types may occur. Beyond detection, it is often desirable to understand the impact of these anomalies on the system under study. As a result, we also seek to estimate accurately quantities such as the mean, slope, phase, or variance. Finally, our specific setting of FDA adds one additional challenge as our data are assumed to be infinite-dimensional objects that vary with respect to some domain. This means that there could be complex forms of dependence both within and across the function’s dimensions. As outlined by Staerman et al. (2023), FAD methods can be grouped into three main cat-egories: depth-based, projection-based, and model-based approaches. Depth-based methods quantify the centrality of each function within the sample through a depth function, rank-ing observations from the most central to the most outlying. Projection-based methods reduce functional data to a finite-dimensional representation using a chosen set of basis functions, after which machine learning techniques may be applied to detect deviations from the dominant structure. Model-based methods assume an explicit probabilistic model for the data-generating process and classify functions as anomalous based on the model’s output. This work chooses to follow a model-based approach for FAD. Specifically, we adopt a Bayesian nonparametric (BNP) approach that models the joint distribution of functional observations using an infinite mixture of intrinsic coregionalization models (ICMs; Alvarez and Lawrence, 2011). As is shown in later Sections, anomalies arise as small mixture compo-nents that are combined at the end of our Markov Chain Monte Carlo (MCMC) algorithm to form an anomaly class. This approach eliminates the need for user-defined thresholds, provides uncertainty quantification through the Bayesian lens, and captures multivariate dependencies and nonstationary structures. Our main contributions are summarized as follows: (i) We introduce a Bayesian nonparametric model for anomaly detection in multivari-ate functional data, termed the Wavelet Intrinsic Coregionalization Model Anomaly Detector (WICMAD). The method models functional observations as an infinite mix-ture of multi-output Gaussian processes, allowing anomalous curves to emerge as small mixture components without requiring user-specified thresholds or prior knowledge of the number or structure of anomalies. (ii) To capture complex functional structure, we combine wavelet-based mean modeling with a multi-output Gaussian process residual model based on the intrinsic coregion-alization model. This decomposition enables flexible modeling of both local functional features and cross-dimensional dependence. Our method can be seen as a multivariate extension of Ray and Mallick (2006). 
+
+> 2Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+(iii) We develop a Markov chain Monte Carlo algorithm that incorporates a Carlin–Chib product-space move for automatic, cluster-specific covariance kernel selection. This allows the model to adaptively choose among multiple kernel families, reducing sensi-tivity to kernel misspecification. The remainder of this article is organized as follows. Section 2 introduces the notation and theoretical framework underlying the proposed method, Section 3 describes the compu-tational details of the MCMC algorithm, Section 4 presents the simulation study, Section 5 showcases the model’s performance on real data, and Section 6 concludes. 
+
+2 Methodology 
+
+This section introduces the proposed model. Section 2.1 formally presents the problem setting, Section 2.2 describes the wavelet model for functional means, Section 2.3 introduces the intrinsic coregionalization model used to capture dependence across dimensions of the residual process, and Section 2.4 discusses automatic kernel selection via a Carlin–Chib product-space move within the MCMC algorithm. 
+
+2.1 Preliminaries 
+
+Following Staerman et al. (2023), FDA considers data that are realizations of random functions 
+
+X : (Ω , A, P) → F ,
+
+where (Ω , A, P) is the probability space and X takes on values in a topological function space 
+
+F. For the purposes of this article, F will always be taken to be a Hilbert space, specifically the space of square-integrable functions L2(T ), where T ⊂ R denotes the domain. We assume the data we observe exhibit noise according to 
+
+Yij = Xi(tij ) + εij ,
+
+where Xi(·) ∈ L2(T ) denotes the ith function observed over the domain T , and εij represents measurement noise. In the multivariate case, 
+
+X(t) =  X(1) (t), . . . , X (D)(t)⊤, E
+
+Z 
+
+> T
+
+∥X(t)∥2dt 
+
+
+
+< ∞,
+
+where dependencies within and across dimensions are described by the mean function μ(t) = 
+
+E[X(t)] and covariance function Σ(s, t ) = Cov( X(s), X(t)). FAD seeks to identify functional observations that deviate from the dominant structure of the data. This amounts to estimating the mapping 
+
+g : X → {− 1, +1 },
+
+where X is the set of our data, g(x) = 1 denotes an anomalous function and g(x) = −1denotes a normal one. Throughout this work we will assume a semi-supervised setting wherein 15% of the normal group’s labels are available to the model and 15% of the datasets are anomalies. 
+
+> 3Krasnov and Stephens
+
+2.2 Wavelet Mean Modeling 
+
+To model cluster-level structure flexibly, we represent the mean functions in a wavelet basis. After applying the discrete wavelet transform to the data (Mallat, 2002), the mean function for dimension m in cluster k can be written as 
+
+μk,m (t) = 
+
+> L
+
+X
+
+> ℓ=1
+
+αk,m,ℓ ϕℓ(t) + 
+
+> J
+
+X
+
+> j=1
+> Lj
+
+X
+
+> ℓ=1
+
+βk,m,j,ℓ ψj,ℓ (t),
+
+where ϕℓ(t) are scaling functions and ψj,ℓ (t) are wavelet functions at scale j and location ℓ.Following Ray and Mallick (2006), sparsity is induced through a Besov prior on the detail coefficients. Specifically, 
+
+βk,m,j,ℓ | γk,m,j,ℓ ∼ (1 − γk,m,j,ℓ ) δ0 + γk,m,j,ℓ N 0, σ 2
+
+> k,m
+
+gk,j 
+
+, γk,m,j,ℓ ∼ Bernoulli( πk,j ).
+
+Here γk,m,j,ℓ indicates whether the coefficient is active, σ2 
+
+> k,m
+
+governs dimension-specific variability, and gk,j controls the scale-dependent variance. The inclusion probabilities πk,j 
+
+control the sparsity at each wavelet level and are assigned Beta priors, 
+
+πk,j ∼ Beta  τπmj , τ π(1 − mj ), mj = κπ 2−c2j .
+
+Under this parameterization, E[πk,j ] = mj , so that finer scales have smaller expected in-clusion probabilities. The hyperparameter τπ > 0 controls concentration around the mean, 
+
+κπ ∈ (0 , 1) sets the expected inclusion probability at the coarsest scale, and c2 > 0 deter-mines the rate at which sparsity increases with resolution. As mj decays with j, coefficients at finer scales are a priori more likely to be inactive. The parameter c2 corresponds to one of the Besov smoothness parameters discussed by Ray and Mallick (2006). In their formulation, inclusion probabilities are fixed, making the choice of c2 particularly important. Thus, they propose an estimation procedure to guide its selection. However, in our model we allow the πk,j to be random, which enables sparsity to be adaptively learned from the data, reducing sensitivity to this choice. Nonetheless, since 
+
+c2 still influences the implied Besov space, its selection may warrant additional consideration in certain applications. Further discussion can be found in Ray and Mallick (2006). Finally, we discuss how wavelet variance is modeled. Each cluster k includes a global scaling parameter τσ,k that controls dimension-specific variances. Conditional on this pa-rameter, the variance for each dimension m is modeled as 
+
+σ2 
+
+> k,m
+
+| τσ,k ∼ Inv-Gamma  aσ, b σ τσ,k 
+
+, with τσ,k ∼ Gamma( aτ , b τ ).
+
+2.3 Intrinsic Coregionalization Model 
+
+This section discusses our use of the intrinsic coregionalization model (ICM) which repre-sents the residual process within each cluster as a multi-output Gaussian process. For a full introduction to this model, see Alvarez and Lawrence (2011). Let Yk, res ∈ RP ×D denote the residuals for cluster k, where P is the number of time points and D the number of dimensions. Vectorizing column-wise, the model assumes vec( Yk, res ) ∼ N 
+
+
+
+0, K (sk ) 
+
+> x
+
+⊗ (τB,k Bshape  
+
+> k
+
+) + IP ⊗ diag( ηk)
+
+
+
+,
+
+> 4Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+where K(sk ) 
+
+> x
+
+is the P × P covariance matrix corresponding to the selected kernel family sk,
+
+Bshape  
+
+> k
+
+is a D × D positive semi-definite coregionalization matrix with fixed trace, IP is the 
+
+P -dimensional identity matrix, and ηk ∈ RD 
+
+> +
+
+contains dimension-specific noise variances. The above model is a slight deviation from the standard ICM. In order to separate the overall scale of cross-dimensional dependence from its correlation structure, we have introduced an amplitude parameter τB,k > 0 such that the coregionalization matrix becomes 
+
+Bk = τB,k Bshape  
+
+> k
+
+, tr( Bshape  
+
+> k
+
+) = D. 
+
+We further parameterize the shape matrix via a Cholesky decomposition, 
+
+Bshape  
+
+> k
+
+= D LL ⊤
+
+tr( LL ⊤) ,
+
+which enforces positive definiteness and resolves scale non-identifiability. Similar constraint strategies are standard in the multi-output GP literature; see, for example, Bonilla et al. (2007); Alvarez and Lawrence (2011); Touloumis et al. (2021). 
+
+2.4 Kernel Selection and Updating 
+
+Employing the ICM requires us to select a covariance kernel for the model. The chosen kernel has large implications for model performance, as misspecification can result in anomalies being grouped with normal observations or the normal class being split into arbitrarily many clusters. It is therefore important to include a sufficiently rich and diverse set of kernels capable of capturing the range of behaviors that may arise in functional data. In particular, different anomaly types may exhibit varying degrees of smoothness, from non-differentiable to infinitely differentiable behavior, as well as structural features such as changepoints or nonstationary covariance patterns. To address this, we employ a Carlin–Chib product space move within the MCMC algorithm for automatic kernel selection (Carlin and Chib, 1995; Lodewyckx et al., 2011). Let sk ∈ { 1, . . . , R } denote the kernel–family indicator for cluster k, which corresponds to one covariance family from 
+
+K =
+
+n
+
+k(SE) , k (Mat 3 /2) , k (Mat 5 /2) , k (Per) , k (RQ) , k (PowExp) , k (GibbsPC3) , k (CP-M52) o
+
+which respectively denote the squared exponential, Mat´ ern with ν = 3 /2, Mat´ ern with 
+
+ν = 5 /2, periodic, rational quadratic (Rasmussen and Williams, 2005), powered exponential (Diggle et al., 1998), Gibbs with piecewise–constant lengthscale in three bins (Paciorek and Schervish, 2003), and changepoint Mat´ ern–5 /2 kernels (Lloyd et al., 2014), respectively. Each family r has its own hyperparameters ϕk,r , and all kernels are normalized to have unit marginal variance for identifiability. Kernel switching proceeds as follows. For each cluster k and each kernel family r,we define a parameter vector ϕk,r and refresh it from its pseudoprior when that kernel is inactive. The pseudopriors are chosen to match the corresponding priors, which simplifies the MCMC updates (Lodewyckx et al., 2011). Only the active pair ( sk, ϕ k,s k ) contributes to the likelihood, and the indicator sk is sampled from a categorical distribution with weights 
+
+wr ∝ N 
+
+
+
+vec( Yk, res ) | 0, K (r) 
+
+> x
+
+(ϕk,r ) ⊗  τB,k Bshape 
+
+> k
+
+ + IP ⊗ diag( ηk)
+
+
+
+,
+
+> 5Krasnov and Stephens
+
+under a uniform prior over sk.After selecting a covariance family, its hyperparameters are updated using random– walk Metropolis–Hastings (Sherlock et al., 2010). Positive parameters are proposed on the log scale, and parameters constrained to an interval are updated through an appropriate reparameterization. 
+
+3 Implementation 
+
+Posterior inference for the proposed model is performed using a Markov chain Monte Carlo (MCMC) algorithm that combines Gibbs sampling and Metropolis–Hastings updates. The sampler alternates between four main blocks of parameters: 1. cluster assignments and Dirichlet process weights, 2. wavelet mean parameters, 3. covariance kernel indicators and kernel hyperparameters, 4. ICM covariance parameters. Whenever conjugate priors are available, parameters are updated using Gibbs sampling. Non–conjugate parameters, including Gaussian process hyperparameters and ICM covari-ance parameters, are updated using random–walk Metropolis–Hastings proposals. Deriva-tions of the conditional posterior distributions used in these updates are provided in Ap-pendix B. Section 3.1 discusses Gibbs updates for the wavelet mean model, Section 3.2 discusses ex-ploration of the space of kernels and their hyperparameter updates, and Section 3.3 discusses ICM parameter updates. The main computational steps are summarized in Algorithms 1–3. 
+
+3.1 Wavelet Mean Updates 
+
+Wavelet coefficients are updated independently within each cluster using conjugate Gibbs steps, with posterior details provided in Appendix B.1. Let Ik denote the set of curves assigned to cluster k. For each dimension m, wavelet scale j, and location ℓ, we observe coefficients yi,m,j,ℓ , i ∈ I k. Sparsity is induced through a Besov prior with binary inclusion indicators γk,m,j,ℓ . Each indicator is sampled from its Bernoulli posterior, determining whether the corresponding coefficient is active. If γk,m,j,ℓ = 1, the shared cluster coefficient 
+
+βk,m,j,ℓ is drawn from its Gaussian posterior; otherwise, it is set to zero. Scaling coefficients are always active and are sampled directly from their conjugate Normal posterior. After updating the coefficients, we update the associated hyperparameters via conjugate Gibbs steps. The inclusion probabilities πk,j are sampled from Beta posteriors, the slab variance parameters gk,j from inverse–Gamma distributions, and the dimension-specific noise variances σ2 
+
+> k,m
+
+from inverse–Gamma posteriors based on wavelet-domain residuals. Finally, the global variance scaling parameter τσ,k is sampled from its Gamma posterior. Algorithm 1 summarizes the full Gibbs update for the wavelet model within a single cluster. 
+
+> 6
+
+Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data 
+
+Algorithm 1 Wavelet–block Gibbs updates for cluster k 
+
+> 1:
+
+Compute forward DWTs for all curves and precompute ¯ ym,j,ℓ . Let Ik be the set of all indices in cluster k. 
+
+> 2:
+
+for m = 1 , . . . , D do  
+
+> 3:
+
+for each detail level j and location ℓ do  
+
+> 4:
+
+Compute S1,m,j,ℓ = P 
+
+> i∈I k
+
+yi,m,j,ℓ at level j when updating γ. 
+
+> 5:
+
+Sample γk,m,j,ℓ using the posterior inclusion probability built from S1,m,j,ℓ . 
+
+> 6:
+
+if γk,m,j,ℓ = 1 then  
+
+> 7:
+
+Sample βk,m,j,ℓ ∼ N (μ⋆, v ⋆) 
+
+> 8:
+
+else  
+
+> 9:
+
+Set βk,m,j,ℓ = 0  
+
+> 10:
+
+end if  
+
+> 11:
+
+end for  
+
+> 12:
+
+end for  
+
+> 13:
+
+For each scaling coefficient (m, s J ): set γk,m,s J = 1 and sample βk,m,s J ∼N ¯ym,s J , σ 2
+
+> k,m
+
+/|I k|. 
+
+> 14:
+
+for each detail level j do  
+
+> 15:
+
+Sample gk,j and πk,j from their conjugate posteriors.  
+
+> 16:
+
+end for  
+
+> 17:
+
+for m = 1 , . . . , D do  
+
+> 18:
+
+Form wavelet-domain residuals ri,m,j,ℓ = yi,m,j,ℓ − βk,m,j,ℓ and sample σ2 
+
+> k,m
+
+from its inverse–Gamma posterior.  
+
+> 19:
+
+end for  
+
+> 20:
+
+Sample τσ,k from its Gamma posterior. 
+
+3.2 Kernel Selection and Hyperparameter Updates 
+
+Kernel selection is performed using a Carlin–Chib product-space formulation; full posterior derivations are provided in Appendix B.2. For each cluster k, let sk ∈ { 1, . . . , R } denote the active covariance kernel family. At each iteration, parameters associated with inactive kernels are refreshed from their pseudopriors. The kernel indicator sk is then sampled from a categorical distribution with weights proportional to the marginal likelihood of the residual data under each candidate kernel, 
+
+wr ∝ N 
+
+
+
+vec( Yk, res ) | 0, K (r) 
+
+> x
+
+(ϕk,r ) ⊗ (τB,k Bshape  
+
+> k
+
+) + IP ⊗ diag( ηk)
+
+
+
+.
+
+Conditional on the selected kernel, its hyperparameters are updated using random–walk Metropolis–Hastings steps. In our setting, the kernel index sk is treated as a nuisance parameter rather than an object of direct inference. Our primary goal is to identify a kernel that provides a good fit to the data, rather than to characterize the full posterior distribution over the kernel space. To this end, we run multiple MCMC chains and select the model corresponding to the highest observed likelihood. We monitor the number of kernel switches within each chain and ensure that burn-in is chosen such that kernel exploration has stabilized before collecting posterior samples. Algorithm 2 summarizes the kernel update procedure. 
+
+7Krasnov and Stephens 
+
+Algorithm 2 Kernel-family switch (Carlin–Chib) and MH update for cluster k 
+
+> 1:
+
+Inputs: residuals Yk, res ∈ RP ×D; current ( sk, {ϕk,r }Rr=1 ); Bshape  
+
+> k
+
+, τB,k , ηk; priors pr(·) 
+
+> 2:
+
+For each r̸ = sk: sample inactive parameters ϕk,r ∼ qr(·) with qr = pr(·).  
+
+> 3:
+
+for r = 1 , . . . , R do  
+
+> 4:
+
+Form K(r) 
+
+> x
+
+← K(r) 
+
+> x
+
+(ϕk,r ).  
+
+> 5:
+
+wr ∝ N  vec( Yk, res ) | 0, τ B,k Bshape  
+
+> k
+
+⊗K(r) 
+
+> x
+
++ diag( ηk)⊗IP
+
+ · π(sk=r).  
+
+> 6:
+
+end for  
+
+> 7:
+
+Draw sk ∼ Categorical  {wr}Rr=1 
+
+. 
+
+> 8:
+
+Set ϕ ← ϕk,s k and evaluate L(ϕ) under K(sk ) 
+
+> x
+
+(ϕ).  
+
+> 9:
+
+Propose ϕ′ ∼ q(· | ϕ) using the family-specific rules.  
+
+> 10:
+
+Compute α ← min 
+
+n
+
+1, L(ϕ′) psk (ϕ′) q(ϕ|ϕ′)   
+
+> L(ϕ)psk(ϕ)q(ϕ′|ϕ)
+
+o
+
+; accept with probability α.
+
+3.3 Intrinsic Coregionalization Model Updates 
+
+To evaluate the likelihood efficiently, we exploit the separable structure of the covariance matrix. Let 
+
+K(sk ) 
+
+> x
+
+= V ΛV ⊤
+
+denote the eigendecomposition of the kernel matrix associated with the active kernel sk.Projecting the residuals into this eigenbasis yields ˜Y = V ⊤Yk, res ,
+
+which decouples the likelihood across the P transformed components. Under this transfor-mation, the covariance of each component takes the form 
+
+Ci = τB,k λiBshape  
+
+> k
+
++ diag( ηk), i = 1 , . . . , P, 
+
+where λi denotes the ith eigenvalue of K(sk ) 
+
+> x
+
+. The resulting log-likelihood can then be written as 
+
+ℓ(τB,k , B shape  
+
+> k
+
+, η k) = − 12
+
+> P
+
+X
+
+> i=1
+
+
+
+log |Ci| + ˜ y⊤ 
+
+> i
+
+C−1 
+
+> i
+
+˜yi
+
+
+
+,
+
+where ˜ yi denotes the ith column of ˜Y . The parameters ( τB,k , B shape  
+
+> k
+
+, η k) are updated using random–walk Metropolis–Hastings proposals, with full details provided in Appendix B.3. Algorithm 3 summarizes the complete update procedure. 
+
+4 Simulation Study 
+
+This section presents a Monte Carlo simulation study evaluating the proposed Bayesian non-parametric model, WICMAD, for detecting anomalous functional data. We compare its per-formance against two benchmark approaches implemented in the DDAlpha and MRFDepth R packages. Specifically, we look at the band depth (L´ opez-Pintado and Romo, 2009) and functional adjusted outlyingness (Hubert et al., 2015). Both competing methods output anomaly scores that must be thresholded to obtain class labels. For these methods, class 
+
+8Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data 
+
+Algorithm 3 ICM Metropolis–Hastings updates for cluster k
+
+1: Inputs: Yk, res ∈ RP ×D, active kernel K(sk ) 
+
+> x
+
+(ϕk,s k ), current ( τB,k , B shape  
+
+> k
+
+, η k)
+
+2: Eigendecompose K(sk ) 
+
+> x
+
+= V ΛV ⊤, set ˜Y ← V ⊤Yk, res .
+
+3: For i = 1 , . . . , P , set Ci ← τB,k λiBshape  
+
+> k
+
++ diag( ηk) and let ˜ yi ∈ RD be row i of ˜Y .
+
+4: Define ℓ(τB,k , B shape  
+
+> k
+
+, η k) ← − 12
+
+PPi=1 
+
+  log |Ci| + ˜ y⊤ 
+
+> i
+
+C−1 
+
+> i
+
+˜yi
+
+.
+
+5: Amplitude update ( τB,k ): propose log τ ′ 
+
+> B,k
+
+= log τB,k + ϵτ , ϵτ ∼ N (0 , s 2 
+
+> τ
+
+)
+
+6: Acceptance: 
+
+ατ = min 
+
+(
+
+1, exp( ℓ′ − ℓ) p(τ ′
+
+> B,k
+
+)
+
+p(τB,k )
+
+q(τB,k | τ ′
+
+> B,k
+
+)
+
+q(τ ′ 
+
+> B,k
+
+| τB,k )
+
+)
+
+,
+
+7: Nugget updates ( ηk,m for m = 1 , . . . , D ): for each m, propose log η′ 
+
+> k,m
+
+= log ηk,m + ϵη,m ,
+
+ϵη,m ∼ N (0 , s 2
+
+> η
+
+)
+
+8: Acceptance: 
+
+αη,m = min 
+
+(
+
+1, exp( ℓ′ − ℓ) p(η′
+
+> k,m
+
+)
+
+p(ηk,m )
+
+q(ηk,m | η′
+
+> k,m
+
+)
+
+q(η′ 
+
+> k,m
+
+| ηk,m )
+
+)
+
+.
+
+9: Shape update ( Bshape  
+
+> k
+
+): 
+
+10: maintain lower-triangular L with Bshape  
+
+> k
+
+= D  LL ⊤/tr( LL ⊤)
+
+11: propose L′ = L + E where Eab ∼ N (0 , s 2 
+
+> B
+
+) for a ≥ b and Eab = 0 for a < b 
+
+12: set S′ = L′L′⊤ and Bshape ′ 
+
+> k
+
+= D S ′/tr( S′)
+
+13: accept with αB = min {1, exp( ℓ′ − ℓ) p(Bshape ′ 
+
+> k
+
+)/p (Bshape  
+
+> k
+
+)}.
+
+9Krasnov and Stephens 
+
+labels are assigned using the cutoff that maximizes the F1-score. It should be noted, how-ever, that this represents a best-case scenario, as real applications would require a selection criterion to obtain an appropriate cutoff. Section 4.1 presents the simulated data and Sec-tion 4.2 showcases model performance and provides a discussion. 
+
+4.1 Simulation Design 
+
+All data are generated from a Gaussian process evaluated on an evenly spaced grid of P = 32 time points over T = [0 , 1]. Each function is constructed by combining a structured mean function with a quasiperiodic covariance kernel and additive Gaussian noise N (0 , 0.05 2). The mean function captures both periodic and trend components and is defined as 
+
+m(t) = 0 .6 sin(4 πt ) + 0 .25 cos(10 πt ) + 0 .1t. 
+
+Dependence within the function is generated by a quasiperiodic squared exponential kernel, 
+
+kQP (t, t ′) = σ21 exp 
+
+
+
+− (t − t′)2
+
+2ℓ21
+
+
+
+exp 
+
+
+
+− 2 sin 2 π(t − t′)/ω 
+
+ℓ2
+
+> ω
+
+
+
++ σ22 exp 
+
+
+
+− (t − t′)2
+
+2ℓ22
+
+
+
+,
+
+which combines a periodic component with a smooth long-range trend. The kernel param-eters are set to ( ℓ1, σ 21 , ω, ℓ ω) = (0 .15 , 1.0, 0.30 , 0.30) for the quasiperiodic component and (ℓ2, σ 22 ) = (0 .60 , 0.4) for the squared exponential term. 15% of the N = 300 curves are made anomalous by adding one of four perturbations. For our anomaly types, we mimic the work of Staerman et al. (2023). The isolated anomaly introduces a narrow Gaussian bump at a random location: 
+
+aiso  
+
+> i
+
+(t) = s a exp 
+
+
+
+− (t − ti0 )2
+
+2w2
+
+
+
+.
+
+Here, s ∈ {− 1, +1 } is a random sign, a ∼ Unif(8 , 12) is the amplitude, and w ∼ Unif(0 .3, 0.8) is the width of the bump. The center index i0 is drawn uniformly from {3, . . . , P − 2}.The magnitude I anomaly applies a constant level shift across the entire domain: 
+
+amag1  
+
+> i
+
+(t) = s a. 
+
+The shift direction is determined by s ∈ {− 1, +1 }, and the amplitude is sampled as a ∼
+
+Unif(12 , 15). The magnitude II anomaly introduces a localized bump on a short subinterval: 
+
+amag2  
+
+> i
+
+(tj ) = 
+
+
+
+s a 
+
+2
+
+
+
+1 − cos 
+
+
+
+π j − j0
+
+λ − 1
+
+
+
+, j ∈ { s, . . . , s + λ − 1},
+
+0, otherwise. The window length is λ = ⌊0.10 P ⌋, and the start index j0 is drawn uniformly from 
+
+{1, . . . , P − λ + 1 }. As before, s ∈ {− 1, +1 } selects the direction and a ∼ Unif(10 , 15) controls the amplitude. The shape anomaly adds a sinusoid with random frequency: 
+
+ashape  
+
+> i
+
+(t) = 3 sin(2 πU t ),
+
+> 10 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+where U is drawn from Unif(0 .2, 2.0). Multivariate datasets with D = 3 dimensions are generated by mixing two latent Gaus-sian process factors through a fixed loading matrix 
+
+A =
+
+
+
+1.0 0.40.2 1.00.7 −0.3
+
+
+
+which gives rise to curves 
+
+Xi(t) = Ui(t)A⊤ + Ei(t), Ui(t) =  ui1(t), u i2(t), uiq (t) ∼ GP  m(t), k QP (t, t ′),
+
+where Ei(t) ∼ N (0 , σ 2I3) adds independent noise. Anomalies are added per channel using the same approach as above. We test three multivariate datasets where anomalies of any type can appear and the number of dimensions that contain anomalies increases with each dataset. Each dataset is analyzed under a semi-supervised setting where 15% of normal curves are revealed to the model. For every dataset presented in this section, we then ran four Markov chains of length 55,000. After discarding an initial burn-in of 5,000 iterations and applying a thinning factor of 10, we retained 5,000 posterior samples from each chain. Running multiple chains is necessary due to the highly multimodal nature of the posterior distribution and allows us to assess convergence across chains. In addition to standard convergence diagnostics, we also monitor log-likelihood trajectories, as the sampler may become trapped in local modes. 
+
+4.2 Results 
+
+This section presents results across the seven simulated datasets. For each dataset, we report median accuracy, precision, recall, and F1-score across 100 Monte Carlo replica-tions. Results for univariate and multivariate settings are summarized in Tables 1 and 2, respectively. Visualizations of the simulated datasets are provided in Figures 1, 2, 3, and 4.   
+
+> (a) Shape anomaly dataset. (b) Isolated anomaly dataset.
+> (c) Magnitude 1 anomaly dataset. (d) Magnitude 2 anomaly dataset.
+
+Figure 1: Simulated univariate functional data each with a different anomaly type. The simulation study demonstrates that the proposed model can detect a range of functional anomalies, including changes in magnitude, local behavior, and overall shape. 
+
+> 11 Krasnov and Stephens
+
+Figure 2: Simulated multivariate functional data with anomalies in one dimension. The wavelet representation captures localized departures from the baseline signal, while kernel switching accommodates differences in global dependence structure across clusters. We first discuss the univariate results before turning to the multivariate setting. Across all univariate experiments, the model achieves near-perfect median performance in terms of accuracy, precision, recall, and F1-score. As shown in Table 1, WICMAD remains competitive across all datasets and outperforms the benchmark methods in several cases, particularly for the Magnitude II setting. Notably, WICMAD consistently attains high F1-scores, indicating a strong balance between detecting anomalous curves and limiting false positives. It achieves the best F1 performance on the Isolated and Magnitude II datasets and performs comparably well on the Magnitude I and Shape datasets. The multivariate results in Table 2 show a similar pattern. WICMAD achieves perfect median accuracy, precision, recall, and F1-score when anomalies affect one or three dimen-sions, and remains near-perfect when anomalies affect two dimensions, with median recall of 0.98 and F1-score of 1.00. This indicates that the model is able to use cross-dimensional dependence to identify anomalous curves even when departures are restricted to only a subset of the functional coordinates. In contrast, DDAlpha attains moderate recall but low precision in the multivariate settings, while MRFDepth achieves perfect precision but sub-stantially lower recall. Thus, the competing methods tend either to over-detect anomalies or miss a large fraction of them, whereas WICMAD maintains a more favorable balance between false positives and false negatives. 
+
+> 12 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+Figure 3: Simulated multivariate functional data with anomalies in two dimensions. It should be noted that we report median performance across Monte Carlo replications due to occasional degeneracy in the clustering structure, where the model collapses to a single cluster. Such behavior can arise when the model is overly flexible, allowing variance components to inflate and absorb anomalous observations into the baseline cluster. In practice, this flexibility is primarily determined by the choice of covariance kernels included in the Carlin–Chib selection step. As a result, careful specification of the kernel library is important. For this reason, we recommend applying the model in semi-supervised or supervised settings, where candidate kernels can be validated. 
+
+5 Real-Data Applications 
+
+This section reports results from applying WICMAD to three real datasets: Character Trajectories (Williams, 2006) in Section 5.1, Asphalt Regularity (Souza, 2018) in Section 5.2, and Chinatown (Dau, 2018) in Section 5.3. We conclude with Section 5.4, which offers a detailed discussion of the results. For each dataset, we first interpolated the data to a dimensionality of 32. For every analysis presented in this section, we then ran four Markov chains of length 55,000. After discarding an initial burn-in of 5,000 iterations and applying a thinning factor of 10, we retained 5,000 posterior samples from each chain. Running multiple chains is necessary due to the highly multimodal nature of the posterior distribution and allows us to assess convergence across chains. In addition to standard convergence diagnostics, we also monitor 
+
+> 13 Krasnov and Stephens
+
+Figure 4: Simulated multivariate functional data with anomalies in all three dimensions. log-likelihood trajectories, as the sampler may become trapped in local modes. For more details see Appendix C We present the confusion matrix, precision, recall, and F1 scores for each dataset tested. Similar to Section 4, each dataset was artificially imbalanced to reflect the anomaly detection setting. That is, we selected one group to be the normal class, included all observations, and then artificially imbalanced the dataset to have 15% from another class. We also assume a semi-supervised setting and revealed 15% of the normal group’s labels to the model. Just as in Section 4, we compare our model’s performance against two benchmark ap-proaches implemented in the DDAlpha and MRFDepth R packages. Specifically, we look at the band depth (L´ opez-Pintado and Romo, 2009) and functional adjusted outlyingness (Hubert et al., 2015). For these methods, class labels are assigned using the cutoff that max-imizes the F1-score. It should be noted, however, that this represents a best-case scenario, as real applications would require a selection criterion to obtain an appropriate cutoff. 
+
+5.1 Character Trajectories 
+
+The Character Trajectories dataset is a multivariate functional dataset consisting of pen tip trajectories recorded while a single writer produced handwritten characters. The data were originally collected for the purpose of primitive extraction and contain multiple labeled realizations of individual characters. Only characters written using a single continuous pen-down stroke were retained in the dataset. 
+
+> 14 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+Table 1: Median performance metrics across 100 Monte Carlo replications for the univariate datasets. Dataset Method Accuracy Precision Recall F1-score 
+
+Univariate: Isolated WICMAD 0.99 1.00 0.96 0.99 
+
+DDAlpha 0.15 0.15 1.00 0.26 MRFDepth 0.86 0.62 0.22 0.33 
+
+Univariate: Magnitude I WICMAD 1.00 1.00 1.00 1.00 
+
+DDAlpha 0.95 1.00 0.69 0.82 MRFDepth 0.90 1.00 0.36 0.52 
+
+Univariate: Magnitude II WICMAD 1.00 1.00 1.00 1.00 
+
+DDAlpha 0.15 0.15 1.00 0.26 MRFDepth 0.88 0.81 0.29 0.43 
+
+Univariate: Shape WICMAD 0.97 1.00 0.82 0.90 
+
+DDAlpha 0.16 0.15 1.00 0.26 MRFDepth 0.90 1.00 0.36 0.52 Table 2: Median performance metrics across 100 Monte Carlo replications for the multi-variate datasets. Dataset Method Accuracy Precision Recall F1-score 
+
+Multivariate: One Dimension WICMAD 1.00 1.00 1.00 1.00 
+
+DDAlpha 0.72 0.31 0.67 0.45 MRFDepth 0.90 1.00 0.36 0.52 
+
+Multivariate: Two Dimensions WICMAD 1.00 1.00 0.98 1.00 
+
+DDAlpha 0.72 0.30 0.69 0.43 MRFDepth 0.90 1.00 0.36 0.52 
+
+Multivariate: Three Dimensions WICMAD 1.00 1.00 1.00 1.00 
+
+DDAlpha 0.71 0.32 0.69 0.46 MRFDepth 0.90 1.00 0.36 0.52 Each observation is a three-dimensional functional curve recorded over time, correspond-ing to the horizontal pen position, vertical pen position, and pen-tip force applied during writing. The trajectories were sampled at a frequency of 200 Hz and subsequently smoothed during preprocessing. The dataset contains 2858 labeled samples distributed across multi-ple character classes corresponding to letters of the alphabet. Additional details on data acquisition and preprocessing are provided in Williams (2006). For the anomaly detection experiment, we construct a binary classification setting by designating the letter “a” as the normal class and the letter “b” as the anomalous class, discarding all other character classes. This yields a two-group dataset in which the normal trajectories represent repeated realizations of a common writing motion, while anomalies 
+
+> 15 Krasnov and Stephens
+
+Figure 5: The Character Trajectories dataset colored by normal (blue) and anomalous (red) class labels. correspond to structurally distinct pen trajectories arising from a different character. Fig-ure 5 illustrates representative trajectories colored by class label. Quantitative results for this dataset are reported in Tables 3 and 4. Predicted Normal Anomaly True Normal 170 0Anomaly 0 30 Table 3: Maximum a posteriori confusion matrix for the Character Trajectories dataset using the WICMAD method. Method Precision Recall F1 WICMAD 1.00 1.00 1.00 
+
+MRFDepth 0.47 0.90 0.61 DDAlpha 0.15 1.00 0.26 Table 4: Performance metrics for the Character Trajectories dataset. 
+
+> 16 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+Figure 6: The Asphalt Regularity dataset colored by normal (blue) and anomalous (red) class labels. 
+
+5.2 Asphalt Regularity 
+
+Next, we consider the Asphalt Regularity dataset, which consists of accelerometer mea-surements collected from a smartphone mounted inside a vehicle while driving over roads with different pavement conditions. The data were collected using a flexible suction mount positioned near the dashboard, while an Android application called Asfault continuously recorded sensor measurements and pavement labels (Souza, 2018). During data collection, an expert driver labeled the pavement condition in real time, and video recordings of the road surface were captured to verify label accuracy. The smartphone accelerometer records acceleration along three physical axes, produc-ing time series corresponding to the x, y, and z acceleration components. These signals were sampled at approximately 100 Hz. Because Android sensor acquisition does not guar-antee perfectly uniform timing, the effective sampling rate varies slightly. In addition to acceleration, the system records GPS location and velocity, though only the accelerometer measurements are used in this work. To obtain a functional representation, the three-axis acceleration signals are combined into a single acceleration magnitude time series resulting in a univariate functional dataset. Regular pavement trajectories are treated as the normal class, and the deteriorated pavement trajectories are treated as anomalies. Figure 6 displays example trajectories colored by class label. Results for this dataset are reported in Tables 5 and 6. Predicted Normal Anomaly True Normal 685 74 Anomaly 5 129 Table 5: Maximum a posteriori confusion matrix for the Asphalt Regularity dataset using the WIC-MAD method. Method Precision Recall F1 WICMAD 0.64 0.96 0.77 MRFDepth 0.79 0.88 0.83 
+
+DDAlpha 0.15 1.00 0.26 Table 6: Performance metrics for the Asphalt Regularity dataset. 
+
+> 17 Krasnov and Stephens
+
+5.3 Chinatown 
+
+The final dataset we consider is the Chinatown dataset, which consists of pedestrian count time series collected at an urban intersection in Melbourne, Australia. The data come from the City of Melbourne’s automated pedestrian counting system, which is designed to monitor pedestrian activity patterns across the municipality and support urban planning and infrastructure decisions. The specific series used in this study corresponds to pedestrian counts recorded at the Chinatown–Swanston Street (North) location over the 2017 calendar year (Dau, 2018). Each observation is a univariate time series representing pedestrian volume measured over the course of a day. The classification task associated with this dataset is to distinguish between weekday and weekend pedestrian activity patterns. In this work, weekday observa-tions are treated as the normal class while weekend observations are treated as anomalies. To improve separability between the two groups, we augment each trajectory with an estimate of its first and second derivatives computed using finite differencing. This results in a three-dimensional functional representation consisting of pedestrian counts and their estimated rate of change and acceleration over time. Figure 7 displays the trajectories colored according to class membership. Results for this dataset are reported in Tables 7 and 8. Predicted Normal Anomaly True Normal 249 6Anomaly 1 44 Table 7: Maximum a posteriori confusion matrix for the Chinatown dataset using the WICMAD method. Method Precision Recall F1 WICMAD 0.88 0.98 0.93 
+
+MRFDepth 0.33 0.91 0.48 DDAlpha 0.17 1.00 0.29 Table 8: Performance metrics for the Chinatown dataset. 
+
+5.4 Discussion 
+
+This section demonstrates that the proposed model generalizes well to real-world data, achieving strong performance across datasets with varying levels of smoothness and struc-tural complexity. Overall, the model consistently attains high recall, often at the expense of some precision, resulting in competitive F1-scores in the anomaly detection setting. The Character Trajectories dataset represents an ideal setting for the model. These data consist of smooth, structured pen trajectories that are well aligned with the Gaussian process assumption. As shown in Tables 3 and 4, the model achieves perfect classifica-tion performance across all metrics. This is consistent with the simulation results, where shape-based anomalies were detected reliably. In contrast, the competing methods exhibit substantially lower precision and F1-scores despite achieving high recall, indicating a ten-dency to over-classify anomalies. The Asphalt Regularity dataset presents a more challenging scenario. As seen in Ta-bles 5 and 6, the model achieves a high recall of 0.96 but a lower precision of 0.64, resulting in an F1-score of 0.77. These data are less smooth and exhibit greater variability than 
+
+> 18 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+Figure 7: The Chinatown dataset colored by normal (blue) and anomalous (red) class labels. The data are augmented with the first and second derivatives estimated using finite differencing. 
+
+> 19 Krasnov and Stephens
+
+the Character Trajectories dataset, making them less well suited to the Gaussian process assumption. Despite this, the model successfully identifies nearly all anomalous observa-tions, with the reduction in precision driven by an increase in false positives. While the MRFDepth method attains a higher F1-score of 0.83, it does so with a lower recall, indicat-ing that it misses more anomalies. In many anomaly detection applications, this trade-off is undesirable, as failing to detect anomalies is typically more costly than flagging false positives. The Chinatown dataset was selected to further assess performance on nonstationary and less structured data. As shown in Tables 7 and 8, the model achieves strong performance with a precision of 0.88, recall of 0.98, and an F1-score of 0.93. The confusion matrix indicates that nearly all anomalous observations are correctly identified, with 44 out of 45 detected and only a single false negative, while maintaining a low number of false positives at 6. This suggests that the model is able to effectively distinguish weekday and weekend pedestrian patterns despite their inherent variability. In contrast, DDAlpha attains perfect recall of 1.00 but very low precision of 0.17, indicating that it effectively classifies most observations as anomalous, while MRFDepth achieves high recall of 0.91 but low precision of 0.33, resulting in a substantially lower F1-score of 0.48. Overall, these experiments demonstrate that the model performs well across a range of real-world settings, including cases where the Gaussian process assumption is only approx-imately satisfied. The results highlight a consistent pattern in which the model prioritizes high recall, making it well suited for applications where detecting anomalous behavior is critical. At the same time, performance is sensitive to the choice of covariance kernels and model specification. Expanding the kernel set or incorporating additional mechanisms to account for nonstationarity may further improve performance, particularly in more chal-lenging datasets. 
+
+6 Conclusion 
+
+This article introduced WICMAD, a Bayesian nonparametric model for semi-supervised anomaly detection in multivariate functional data. The model represents functional obser-vations using an infinite mixture of multi-output Gaussian processes, with wavelet-based mean functions and Besov priors used to capture sparse local structure. Dependence across functional dimensions is modeled through an intrinsic coregionalization model, while a Carlin–Chib product-space step allows covariance kernels to be selected in a cluster-specific manner during MCMC inference. The simulation study showed that WICMAD can detect a range of functional anomaly types in both univariate and multivariate settings. Across the simulated datasets, the method achieved strong median accuracy, precision, recall, and F1-scores, including cases where anomalies affected only a subset of the functional dimensions. These results suggest that combining wavelet-based mean modeling with multivariate Gaussian process depen-dence provides a useful mechanism for separating anomalous curves from the dominant data-generating structure. The real-data applications demonstrated that WICMAD performs well across a range of functional data settings. The method achieved perfect classification on the Character Trajectories dataset, strong performance on the Chinatown dataset, and high recall on the 
+
+> 20 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+more challenging Asphalt Regularity dataset. These datasets span smooth handwritten trajectories, high-variance accelerometer signals, and nonstationary pedestrian count data, suggesting that the approach remains robust under moderate departures from the Gaussian process assumption. A consistent finding across all applications was the model’s tendency to prioritize recall over precision, making it particularly attractive in settings where missed anomalies are more costly than false alarms. Several directions remain for future work. The Gaussian process formulation naturally supports missing-data and imputation problems, which were not explored here. It may also be useful to expand the kernel library, consider kernel combinations, or develop covariance structures better suited to nonstationary variance. Finally, alternative stochastic processes such as Student-t processes, as well as alternatives to the Dirichlet process such as Pitman– Yor or dependent Dirichlet processes, may provide additional flexibility for modeling outliers and covariate-dependent clustering structure. 
+
+Acknowledgments and Disclosure of Funding 
+
+This work was supported by Fonds de recherche du Qu´ ebec – Nature et technologies (FRQNT). The authors have no competing interests. 
+
+> 21
+
+Krasnov and Stephens 
+
+Appendix A. Full Hierarchical Model 
+
+We now present the full hierarchical specification. Let θk denote the complete set of cluster– specific parameters, 
+
+θk =
+
+
+
+{βk,m,j,ℓ }, {γk,m,j,ℓ }, {gk,j }, {πk,j }, {σ2
+
+> k,m
+
+}, τ σ,k , τ B,k , B shape  
+
+> k
+
+, η k, s k, {ϕk,r }Rr=1 
+
+
+
+.
+
+A Dirichlet process prior is placed on the unknown distribution of cluster parameters. Let curve Yi be in cluster k, then the generative model is given by 
+
+Yi | θk ∼ F (θk),θk | G iid 
+
+∼ G, G ∼ DP( ξ, G 0),
+
+where F (θ) denotes the sampling distribution of a curve, ξ is the concentration parameter, and G0 is the base measure. Using the stick-breaking representation of the Dirichlet process (Sethuraman, 1994), the resulting hierarchical model becomes: 
+
+ξ ∼ Gamma( aξ, b ξ)
+
+vk | ξ ∼ Beta(1 , ξ ), wk = vk
+
+Y
+
+> j<k
+
+(1 − vj )
+
+zi | { wk} ∼ Categorical( {wk})
+
+πk,j ∼ Beta( τπmj , τ π(1 − mj )) , mj = κπ 2−c2j
+
+γk,m,j,ℓ | πk,j ∼ Bernoulli( πk,j )
+
+βk,m,j,ℓ | γk,m,j,ℓ , g k,j , σ 2 
+
+> k,m
+
+∼ (1 − γk,m,j,ℓ ) δ0 + γk,m,j,ℓ N (0 , g k,j σ2
+
+> k,m
+
+)
+
+gk,j ∼ Inv-Gamma( ag, b g)
+
+σ2 
+
+> k,m
+
+| τσ,k ∼ Inv-Gamma( aσ, b σ τσ,k )
+
+τσ,k ∼ Gamma( aτ , b τ )
+
+Bshape  
+
+> k
+
+= D LkL⊤
+
+> k
+
+tr( LkL⊤ 
+
+> k
+
+)(Lk)ab ∼ N (0 , 1) , a ≥ bηk,m ∼ Inv-Gamma( aη, b η)
+
+ϕk,r ∼ pr(·), r = 1 , . . . , R sk ∼ Categorical   1 
+
+> R
+
+, . . . , 1
+
+> R
+
+
+
+vec( Yi − μzi ) | zi = k, θ k ∼ N 
+
+
+
+0, K (sk ) 
+
+> x
+
+(ϕk,s k ) ⊗  τB,k Bshape 
+
+> k
+
+ + IP ⊗ diag( ηk)
+
+
+
+.
+
+22 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data 
+
+Appendix B. MCMC Updates 
+
+B.1 Wavelet Posterior Updates 
+
+In this section, the posterior updates for the wavelet model are derived under the assumption that curves assigned to the same cluster share a mean latent wavelet coefficient for each location and scale. We further assume each observed coefficient for a curve is a noisy draw around this shared mean. For a given wavelet coefficient we observe values y1, . . . , y n from 
+
+n curves belonging to the same cluster. These observations follow 
+
+yi = β + εi, εi ∼ N (0 , σ 2), i = 1 , . . . , n, 
+
+where the coefficient β is shared across all curves in the cluster and the noise terms are independent with variance σ2. The spike and slab prior introduces the latent inclusion indicator γ ∈ { 0, 1} such that 
+
+β | γ, g, σ 2 ∼ (1 − γ)δ0 + γ N (0 , σ 2g), Pr( γ = 1) = π. 
+
+Define S1 = Pni=1 yi and the sample mean ¯ y = (1 /n ) Pni=1 yi. If γ = 0 then β is determin-istically zero and 
+
+p(y | γ = 0) = (2 πσ 2)−n/ 2 exp − 12σ2
+
+> n
+
+X
+
+> i=1
+
+y2
+
+> i
+
+!
+
+.
+
+If γ = 1 then β has prior distribution N (0 , σ 2g). Integrating β out of the likelihood yields, 
+
+p(y | γ = 1) = (2 πσ 2)−n/ 2(1 + gn )−1/2 exp − 12σ2
+
+" nX
+
+> i=1
+
+y2 
+
+> i
+
+− g
+
+1 + gn S21
+
+#! 
+
+.
+
+The posterior odds are given by log Pr( γ = 1 | y)Pr( γ = 0 | y) = log π
+
+1 − π − 12 log(1 + gn ) + g
+
+2σ2(1 + gn ) S21 .
+
+The posterior inclusion probability follows from applying the logistic transform to this log odds expression. Given γ = 1, the posterior for the shared coefficient β is Normal by conjugacy: 
+
+β | y, γ = 1 , σ 2, g ∼ N (μ⋆, v ⋆), v⋆ = σ2
+
+n + 1 /g , μ⋆ = nn + 1 /g ¯y. 
+
+For scaling coefficients, which are always active, the same conjugacy with an uninformative prior gives 
+
+β | y ∼ N (¯ y, σ 2/n ).
+
+The inclusion probabilities π are assigned a Beta prior, Beta( τπm, τ π(1 − m)) where m =
+
+κπ2−c2j . Conditioning on the inclusion indicators γi for a wavelet level, the posterior for π
+
+is given by 
+
+π | { γi} ∼ Beta( τπm + n1, τ π(1 − m) + n0),
+
+> 23 Krasnov and Stephens
+
+where n1 = P 
+
+> i
+
+γi counts the number of included coefficients, d is the total number of coefficients at this wavelet level, and n0 = d − n1 is the number excluded. This result follows from Beta-Binomial conjugacy. Next, consider the slab variance parameter g. Assume that nact coefficients are active at this level, with corresponding sampled values β1, . . . , β nact . By Normal-Inverse-Gamma conjugacy, 
+
+g | { βi}, σ 2 ∼ Inv-Gamma ag + nact 
+
+2 , b g + 12
+
+> nact
+
+X
+
+> i=1
+
+β2
+
+> i
+
+σ2
+
+!
+
+.
+
+With the shared coefficient β, define the residuals as ri = yi − β. Let N represent the total number of residual terms across all curves and coefficients for the given dimension. The prior for σ2 is Inv-Gamma( aσ, b στ ). By the Normal–Inverse-Gamma conjugacy for a Normal likelihood with known mean, the posterior update is given by 
+
+σ2 | r, τ ∼ Inv-Gamma aσ + N
+
+2 , b στ + 12
+
+> N
+
+X
+
+> i=1
+
+r2
+
+> i
+
+!
+
+.
+
+Finally, each dimension-specific variance σ2 
+
+> m
+
+is assigned the prior Inv-Gamma( aσ, b στ ). Con-ditional on τ , conjugacy in the Gamma–Inverse-Gamma hierarchical model yields: 
+
+τ | { σ2
+
+> m
+
+} ∼ Gamma aτ + Da σ, b τ + bσDX
+
+> m=1
+
+1
+
+σ2
+
+> m
+
+!
+
+.
+
+These conditional distributions define the full Gibbs updates for the wavelet coefficients. Algorithm 1 presents the full Gibbs sampling procedure for posterior updating. 
+
+B.2 Kernel Posterior Updates 
+
+We now go through each kernel included in the model and write out its proposal density. The squared exponential kernel (Rasmussen and Williams, 2005) 
+
+kSE (r; ℓ) = exp 
+
+
+
+− r2
+
+2ℓ2
+
+
+
+contains a single lengthscale, which is proposed as log ℓ′ | log ℓ ∼ N (log ℓ, σ 2 
+
+> ℓ
+
+), ℓ′ = exp(log ℓ′).
+
+The Mat´ ern–3 /2 and Mat´ ern–5 /2 kernels (Rasmussen and Williams, 2005), 
+
+kMat 3 /2(r; ℓ) =  1+ √3r/ℓ  exp( −√3r/ℓ ), kMat 5 /2(r; ℓ) = 
+
+
+
+1+ √5r/ℓ + 5r2
+
+3ℓ2
+
+
+
+exp( −√5r/ℓ ),
+
+also contain single lengthscales, and use the same proposal. To model periodic structure, we include the periodic kernel (Rasmussen and Williams, 2005) 
+
+kPer (t, t ′; ℓ, ρ ) = exp 
+
+
+
+− 2 sin 2(π(t − t′)/ρ )
+
+ℓ2
+
+
+
+,
+
+> 24
+
+Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data 
+
+with positive lengthscale ℓ and period ρ ∈ (0 , 1) after rescaling time to [0 , 1]. The lengthscale is proposed on the log scale, log ℓ′ | log ℓ ∼ N (log ℓ, σ 2 
+
+> ℓ
+
+), ℓ′ = exp(log ℓ′),
+
+and the period is proposed on the logit scale, logit( ρ′) | logit( ρ) ∼ N (logit( ρ), σ 2
+
+> ρ
+
+), ρ′ = logit −1(logit( ρ′)) .
+
+The rational quadratic kernel (Rasmussen and Williams, 2005) 
+
+kRQ (r; ℓ, α ) = 
+
+
+
+1 + r2
+
+2αℓ 2
+
+−α
+
+includes a lengthscale and a positive shape parameter α, each updated as log ℓ′ | log ℓ ∼ N (log ℓ, σ 2 
+
+> ℓ
+
+), ℓ′ = exp(log ℓ′),
+
+log α′ | log α ∼ N (log α, σ 2
+
+> α
+
+), α′ = exp(log α′).
+
+The powered exponential kernel (Diggle et al., 1998) 
+
+kPowExp (r; ℓ, κ ) = exp 
+
+h
+
+−
+
+ rℓ
+
+κi
+
+, κ ∈ (0 , 2] ,
+
+uses log ℓ′ | log ℓ ∼ N (log ℓ, σ 2 
+
+> ℓ
+
+), ℓ′ = exp(log ℓ′),
+
+and updates κ through a logit transform, logit 
+
+ κ′
+
+2
+
+
+
+| logit 
+
+ κ
+
+2
+
+
+
+∼ N 
+
+
+
+logit 
+
+ κ
+
+2
+
+
+
+, σ 2
+
+> κ
+
+
+
+, κ′ = 2 logit −1
+
+
+
+logit 
+
+ κ′
+
+2
+
+ 
+
+.
+
+To capture nonstationary structure, we include a Gibbs kernel with piecewise–constant lengthscale in three equal time regions (Paciorek and Schervish, 2003). Let ℓ(t) ∈ { ℓ1, ℓ 2, ℓ 3}
+
+denote the segment–specific lengthscale. The kernel 
+
+kGibbsPC3 (t, t ′) = 
+
+s
+
+2 ℓ(t) ℓ(t′)
+
+ℓ(t)2 + ℓ(t′)2 exp 
+
+
+
+− (t − t′)2
+
+ℓ(t)2 + ℓ(t′)2
+
+
+
+is updated by proposing each ℓj as log ℓ′ 
+
+> j
+
+| log ℓj ∼ N (log ℓj , σ 2 
+
+> ℓj
+
+), ℓ′ 
+
+> j
+
+= exp(log ℓ′ 
+
+> j
+
+), j ∈ { 1, 2, 3}.
+
+Finally, we include a changepoint Mat´ ern–5 /2 kernel. As described by Lloyd et al. (2014), changepoint kernels are defined using additions and multiplications of sigmoidal functions. Thus we can define 
+
+σ(t) =  1 + exp( −(t − t0)/δ )−1, t0 ∈ (0 , 1) , δ > 0,
+
+and let ℓL and ℓR denote the left and right lengthscales. The covariance is then 
+
+kCP-M52 (t, t ′) = (1 − σ(t))(1 − σ(t′)) kMat 5 /2(r; ℓL) + σ(t)σ(t′) kMat 5 /2(r; ℓR).
+
+25 Krasnov and Stephens 
+
+The parameters ℓL, ℓR, and δ are updated as log ℓ′ 
+
+> L
+
+| log ℓL ∼ N (log ℓL, σ 2 
+
+> ℓL
+
+), ℓ′ 
+
+> L
+
+= exp(log ℓ′
+
+> L
+
+),
+
+log ℓ′ 
+
+> R
+
+| log ℓR ∼ N (log ℓR, σ 2 
+
+> ℓR
+
+), ℓ′ 
+
+> R
+
+= exp(log ℓ′
+
+> R
+
+),
+
+log δ′ | log δ ∼ N (log δ, σ 2 
+
+> δ
+
+), δ′ = exp(log δ′),
+
+and the changepoint location is updated via a logit proposal logit( t′
+
+> 0
+
+) | logit( t0) ∼ N (logit( t0), σ 2 
+
+> t0
+
+), t′ 
+
+> 0
+
+= logit −1(logit( t′
+
+> 0
+
+)) .
+
+B.3 ICM Posterior Updates 
+
+After the kernel family and its hyperparameters are updated, the parameters ( τB,k , B shape  
+
+> k
+
+, η k)are sampled using Metropolis–Hastings steps. The amplitude parameter τB,k is updated on the log scale using a Gaussian random walk proposal log τ ′ 
+
+> B,k
+
+= log τB,k + ϵτ , ϵτ ∼ N (0 , s 2 
+
+> τ
+
+).
+
+Each dimension-specific nugget ηk,m is updated independently in the same manner, log η′ 
+
+> k,m
+
+= log ηk,m + ϵη,m , ϵη,m ∼ N (0 , s 2
+
+> η
+
+).
+
+The shape matrix Bshape  
+
+> k
+
+is updated by perturbing its Cholesky factor. Writing Bshape  
+
+> k
+
+=
+
+D LL ⊤/tr( LL ⊤), we propose 
+
+L′ = L + E, 
+
+where E is lower-triangular with independent Gaussian entries Eab ∼ N (0 , s 2 
+
+> B
+
+) for a ≥ b.
+
+Appendix C. Convergence Diagnostics 
+
+In this appendix, we provide representative convergence diagnostics for the proposed MCMC algorithm. Due to the high dimensionality of the parameter space, it is not feasible to assess mixing for all parameters individually. Instead, we focus on a subset of informative quantities, including the Dirichlet process concentration parameter α, the log-likelihood, and clustering-related summaries. Figure 8 summarizes these diagnostics across multiple chains. Panels (a) and (d) display the trace and autocorrelation function (ACF) for α, respectively. These plots indicate good mixing behavior, with rapid decay in autocorrelation and strong agreement across chains, suggesting that the sampler adequately explores this component of the posterior. In contrast, panel (c) shows that the log-likelihood trajectories differ across chains, re-flecting the highly multimodal nature of the posterior distribution. This behavior highlights the importance of running multiple chains and selecting solutions corresponding to high-likelihood regions, as the sampler may become trapped in local modes. This multimodality is further reflected in panel (b), where the number of occupied clusters varies substantially across iterations and chains. Panel (f) shows the dominant kernel selected within each cluster over time. Across chains, the squared exponential kernel is most frequently selected, suggesting that smooth 
+
+> 26 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+covariance structure provides the best fit for this dataset. Finally, panel (e) displays the adjusted Rand index (ARI) between successive clustering assignments. After the burn-in period, ARI values remain consistently high, indicating that cluster assignments stabilize and the inferred partition is relatively robust.    
+
+> (a) Alpha trace (b) Number of clusters
+> (c) Log-likelihood (d) Alpha ACF
+> (e) ARI vs previous iteration (f) Dominant kernel
+
+Figure 8: MCMC convergence diagnostics for the Asphalt Regularity dataset across multi-ple chains. (a) Trace plot of the Dirichlet process concentration parameter α. (b) Number of occupied clusters over iterations. (c) Log-likelihood trajectories, illustrating variability across chains due to posterior multimodality. (d) Autocorrelation function (ACF) of α,showing rapid decay. (e) Adjusted Rand index (ARI) between successive iterations, indi-cating clustering stability after burn-in. (f) Dominant kernel selection over time, with the squared exponential kernel most frequently selected. 
+
+> 27 Krasnov and Stephens
+
+References 
+
+Mauricio A Alvarez and Neil D Lawrence. Computationally Efficient Convolved Multiple Output Gaussian Processes. The Journal of Machine Learning Research , 12:1459–1500, 2011. Edwin V Bonilla, Kian Chai, and Christopher Williams. Multi-task Gaussian Process Prediction. Advances in Neural Information Processing Systems , 20, 2007. Bradley P Carlin and Siddhartha Chib. Bayesian Model Choice via Markov Chain Monte Carlo Methods. Journal Of The Royal Statistical Society Series B: Statistical Methodol-ogy , 57(3):473–484, 1995. Hoang Anh Dau. Chinatown: Pedestrian Count Time Series Classification Dataset. https: //www.timeseriesclassification.com/description.php?Dataset=Chinatown , 2018. Peter J Diggle, Jonathan A Tawn, and Rana A Moyeed. Model-based Geostatistics. Journal of the Royal Statistical Society Series C: Applied Statistics , 47(3):299–350, 1998. Douglas M Hawkins. Identification of Outliers , volume 11. Springer, 1980. Mia Hubert, Peter J Rousseeuw, and Pieter Segaert. Multivariate Functional Outlier De-tection. Statistical Methods & Applications , 24(2):177–202, 2015. James Lloyd, David Duvenaud, Roger Grosse, Joshua Tenenbaum, and Zoubin Ghahramani. Automatic Construction and Natural-language Description of Nonparametric Regression Models. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 28, 2014. Tom Lodewyckx, Woojae Kim, Michael D Lee, Francis Tuerlinckx, Peter Kuppens, and Eric-Jan Wagenmakers. A Tutorial on Bayes Factor Estimation with the Product Space Method. Journal of Mathematical Psychology , 55(5):331–347, 2011. Sara L´ opez-Pintado and Juan Romo. On the Concept of Depth for Functional Data. Journal of the American Statistical Association , 104(486):718–734, 2009. Stephane G Mallat. A Theory for Multiresolution Signal Decomposition: The Wavelet Representation. IEEE Transactions on Pattern Analysis and Machine Intelligence , 11 (7):674–693, 2002. Christopher Paciorek and Mark Schervish. Nonstationary Covariance Functions for Gaus-sian Process Regression. Advances in Neural Information Processing Systems , 16, 2003. James O Ramsay and Bernard W Silverman. Functional Data Analysis . Springer, 2005. Carl Edward Rasmussen and Christopher K. I. Williams. Gaussian Processes for Machine Learning . The MIT Press, 11 2005. ISBN 9780262256834. doi: 10.7551/mitpress/3206. 001.0001. URL https://doi.org/10.7551/mitpress/3206.001.0001 .
+
+> 28 Bayesian Nonparametric Detection of Anomalies in Multivariate Functional Data
+
+Shubhankar Ray and Bani K. Mallick. Functional Clustering by Bayesian Wavelet Methods. 
+
+Journal of the Royal Statistical Society Series B: Statistical Methodology , 68(2):305–332, 2006. Jayaram Sethuraman. A constructive definition of Dirichlet priors. Statistica sinica , pages 639–650, 1994. Chris Sherlock, Paul Fearnhead, and Gareth O Roberts. The Random Walk Metropolis: Linking Theory and Practice through a Case Study. 2010. Vinicius MA Souza. Asphalt Pavement Classification using Smartphone Accelerometer and Complexity Invariant Distance. Engineering Applications of Artificial Intelligence , 74: 198–211, 2018. Guillaume Staerman, Eric Adjakossa, Pavlo Mozharovskyi, Vera Hofer, Jayant Sen Gupta, and Stephan Cl´ emen¸ con. Functional Anomaly Detection: a Benchmark Study. Interna-tional Journal of Data Science and Analytics , 16(1):101–117, 2023. Anestis Touloumis, John C Marioni, and Simon Tavar´ e. Hypothesis Testing for the Covari-ance Matrix in High-dimensional Transposable Data with Kronecker Product Dependence Structure. Statistica Sinica , 31(3):1309–1329, 2021. Shahid Ullah and Caroline F Finch. Applications of Functional Data Analysis: A Systematic Review. BMC Medical Research Methodology , 13(1):43, 2013. Ben Williams. Character Trajectories. UCI Machine Learning Repository, 2006. DOI: https://doi.org/10.24432/C58G7V.

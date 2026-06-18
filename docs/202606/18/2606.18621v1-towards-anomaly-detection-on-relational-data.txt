@@ -1,0 +1,832 @@
+Title: Towards Anomaly Detection on Relational Data
+
+URL Source: https://arxiv.org/pdf/2606.18621v1
+
+Published Time: Thu, 18 Jun 2026 00:23:29 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+# Towards Anomaly Detection on Relational Data 
+
+Shiyuan Li 
+
+Griffith University 
+
+shiyuan.li@griffith.edu.au 
+
+Yunfeng Zhao 
+
+Guangxi University 
+
+yunf.zhao@st.gxu.edu.cn 
+
+Yue Tan 
+
+Griffith University 
+
+yue.tan@griffith.edu.au 
+
+Qingfeng Chen 
+
+Guangxi University 
+
+qingfeng@gxu.edu.cn 
+
+Yixin Liu ∗
+
+Griffith University 
+
+yixin.liu@griffith.edu.au 
+
+Shirui Pan ∗
+
+Griffith University 
+
+s.pan@griffith.edu.au 
+
+## Abstract 
+
+Relational databases are widely used for managing structured data in real-world systems. Detecting anomalies from such relational data is crucial for identifying fraud, risks, and abnormal behaviors, yet remains under-explored. The key chal-lenges lie in the intrinsic complexity of relational data: multi-table attributes are high-dimensional and heterogeneous, making sparse abnormal clues easy to over-whelm by normal or irrelevant information; and anomalies may further manifest as abnormal connection patterns across different foreign-key relations, which existing tabular and graph anomaly detection methods are ill-suited to capture. To address them, we propose RelAD, a reconstruction-based framework that captures anoma-lies from both attribute and relational edge reconstruction. RelAD contains two core modules: conditional sparse-gated attribute reconstruction, which suppresses redundant multi-table attributes and emphasizes abnormal semantic blocks, and dual-view multi-relational edge reconstruction, which detects relation-specific ab-normal connections from both intrinsic and behavioral entity profiles. The resulting attribute and relational signals are integrated through a lightweight fusion module to produce the final anomaly score. We further construct 6 benchmark datasets with systematic anomalies, on which extensive experiments show that RelAD consistently outperforms other baselines while achieving competitive efficiency. 
+
+## 1 Introduction 
+
+Relational databases are widely used as the primary storage abstraction for structured data in real-world applications such as financial risk control, e-commerce, and industrial operation monitor-ing [ 1, 2 ]. Unlike single-table data, a relational database organizes information across multiple tables interconnected via primary–foreign key relationships, modeling rich structural and temporal dependencies between entities. For example, in a risk-control system, a user can be associated not only with attributes in the target table, such as age, region, and registration time, but also with related entities such as products, devices, transactions, and visit records [ 3, 4]. Since abnormal behaviors in real business systems may naturally be hidden in such multi-table dependencies, detecting these anomalous entities from relational databases is crucial for fraud detection, risk warning, and abnormal behavior discovery (an example is shown in Fig. 1a). Recent studies of relational deep learning (RDL)                                 
+
+> ∗Corresponding authors. Preprint.
+> arXiv:2606.18621v1 [cs.LG] 17 Jun 2026 merchant_id user_id category
+> Merchant
+> m11
+> m12
+> u1
+> u2
+> Books
+> Grocery
+> device_id user_id type
+> Device
+> d11
+> d12
+> u1
+> u2
+> Desktop
+> Mobile
+> order_id user_id amount
+> Order
+> o11
+> o12
+> u1
+> u2
+> $60
+> $600
+> review_id user_id rating
+> Review
+> r11
+> r12
+> u1
+> u2
+> 5
+> 1
+> user_id age country
+> User
+> u1
+> u2
+> 28
+> 18
+> US
+> US
+> merchant_id user_id category
+> Merchant
+> …rating
+> Review
+> ……
+> order_id user_id amount
+> Order
+> ………………
+> amount age country
+> $60
+> $600
+> 28
+> 18
+> US
+> US
+> category rating d_type
+> 5
+> 1
+> Desktop
+> Mobile
+> Books
+> Grocery
+> ………………TAD Model
+> Cannot
+> exploit
+> relations !
+> u2
+> o12
+> o31
+> m15
+> m12
+> r12
+> r13
+> d12
+> d14
+> u2
+> o12
+> o31
+> m15
+> m12
+> r12
+> r13
+> d12
+> d14
+> Convert
+> GAD Model
+> Information
+> loss!
+> Orders Merchants
+> Reviews Devices
+> (a) (b)
+> (c)
+
+Figure 1: Sketch maps of (a) Anomalous entity in relational database; and the limitations of adapting (b) tabular anomaly detection methods or (c) graph anomaly detection methods to relational databases. have developed effective paradigms for representation learning on relational databases by treating them as heterogeneous graphs and modeling entities and their relationships across interconnected tables [ 1, 5, 6]. However, how to identify anomalous entities from relational data, a problem referred to as relational anomaly detection (RAD) in this paper, remains under-explored. To address this under-explored problem, a straightforward solution is to transform the database into a format compatible with existing anomaly detection methods and directly adapt these approaches for RAD. Available methods mainly fall into two categories: tabular anomaly detection (TAD) [ 7 , 8]and graph anomaly detection (GAD) [ 9 , 10 , 11 , 12 , 13 , 14 ]. TAD methods usually represent each sample as an independent feature vector and identify anomalies through density estimation, distance measurement, or reconstruction errors [ 15 , 16 , 17 ]. When applied to relational databases, however, TAD methods rely on flattening relational schemas into single tables through feature engineering and aggregation (as in Fig. 1b). Although this preprocessing step makes model input convenient, it may discard the dependencies encoded by primary–foreign key relationships. Meanwhile, because relational databases contain heterogeneous attributes distributed across multiple tables, the resulting feature matrix often contains high-dimensional and redundant feature groups, which can dilute local abnormal signals in global objectives. On the other hand, GAD methods jointly model node attributes and graph structures [ 18 , 19 ], and have achieved promising performance in scenarios such as social networks, transaction networks, and citation networks [ 20 , 21 ]. Nevertheless, most GAD methods are designed for homogeneous graphs with a single adjacency matrix, making it difficult to directly preserve multiple relation types induced by different primary–foreign key relationships. If a relational database is converted into a homogeneous graph (as in Fig. 1c), relation-specific semantics can be mixed, and the model may fail to distinguish which relational behavior pattern causes the abnormality. The limitations of existing TAD and GAD methods in handling complex relational data highlight the urgent need to develop dedicated frameworks for RAD. To achieve this goal, the key objective is to exploit both rich entity attributes and primary–foreign key relationships for accurate anomaly prediction. Driven by this objective, we identify two key challenges. C1 - Feature redundancy and signal dilution. Unlike standard tabular data with carefully curated features from a single table, relational databases are inherently multi-table and heterogeneous: a central entity can be described by attributes in the central table, attributes from child tables, and feature groups derived from different entity contexts. This naturally leads to a high-dimensional and redundant feature space in which only a small fraction of attributes can indicate abnormal behavior. Consequently, the massive volume of anomaly-irrelevant features tends to dominate the model’s learning objective, diluting or completely obscuring subtle local abnormal signals. In this case, how to adaptively extract sparse anomaly indicators from overwhelming redundant features poses a significant challenge. 
+
+C2 - Relational heterogeneity and complex entity dependencies. Anomalies in relational databases are often embedded in complex dependencies, where a central entity interacts with different types of neighbor entities through semantically distinct primary–foreign key relationships. More importantly, different types of relations may contribute unequally to the abnormality of an entity, requiring the model to selectively focus on the most informative dependencies. In this context, exploiting heterogeneous relations to capture relation-specific abnormal connection patterns requires effective 2modeling of relation semantics. In this context, how to exploit heterogeneous relations to capture relation-specific abnormal connection patterns poses another key challenge. To tackle these challenges, we propose Rel ational Anomaly Detection (RelAD), a reconstruction-based framework for RAD. RelAD is specifically designed for relational databases, with the core idea of characterizing anomalies from both attribute reconstruction and relational edge reconstruction. To address C1 , RelAD incorporates a conditional sparse-gated attribute reconstruction module. This module generates conditional masks for central-table attributes and child-table aggregated attributes according to the block structure of relational databases, enabling the model to adaptively select informative dimensions before reconstruction. It further adopts block-specific decoding and block-level residuals, allowing anomaly scoring to focus on the most significant local attribute deviations instead of being diluted by global average errors. To address C2 , RelAD proposes a dual-view multi-relational edge reconstruction module, which directly reconstructs relation-specific edges over the heterogeneous graph induced by primary–foreign key relationships. Specifically, the model encodes each central entity from both the central-table self profile and the child-table aggregated profile, and learns relation-specific neighbor-entity representations for each relation type. In this way, RelAD measures whether an entity profile can explain its connection behaviors under different relations. Finally, RelAD fuses three complementary signals, including attribute-block anomalies, self-profile relational anomalies, and child-profile relational anomalies, to produce the final anomaly score and cover diverse anomaly sources. In summary, this paper makes the following contributions: • Problem. We, to the best of our knowledge, are the first to propose and formalize the problem of relational data anomaly detection. Based on relational benchmarks, we further design dataset-specific anomaly synthesis rules to enable systematic model evaluation. • Methodology. We propose a novel reconstruction-based relational anomaly detection method RelAD, which jointly captures local attribute deviations and relation-specific abnormal connection patterns through attribute and multi-relational edge reconstruction. • Experiments. We conduct extensive experiments for evaluation, and the experimental results validate the effectiveness, robustness, and efficiency of RelAD on six benchmark datasets. 
+
+## 2 Preliminary 
+
+Relational Database. Following relational deep learning, we consider a relational database as a collection of tables D = {T k}Kk=1 , where K is the number of tables. Each table T k contains rows corresponding to entities and columns corresponding to their attributes. Tables are connected by primary–foreign key relationships. A primary key uniquely identifies a row in a table, while a foreign key in another table references this primary key and thereby defines a typed relationship between rows from two tables. Thus, relational databases contain both table attributes and inter-table entity relationships. 
+
+Heterogeneous Graph View. A relational database can be represented as a heterogeneous graph 
+
+G = ( {V k}Kk=1 , {E r }r∈R ), where each node set Vk is induced by the rows of table T k. The set R
+
+contains relation types derived from the database schema. Specifically, each relation type r ∈ R 
+
+corresponds to a primary–foreign key constraint, or equivalently a typed link between a source table, a foreign-key column, and a referenced table. The associated edge set Er is obtained by instantiating this constraint over the rows of the two tables. An edge (v, i ) ∈ E r indicates that two rows are connected under relation type r. Different relation types preserve different semantics, such as user–item interactions, user–device associations, or paper–citation links. This heterogeneous graph view is only used to define the relational structure; our setting keeps relation-specific edge sets instead of collapsing them into a single homogeneous graph. 
+
+Relational Anomaly Detection Setting. For RAD, we designate one table as the target, or central, table whose entities are to be detected, and refer to schema-connected tables as child or related tables when describing entity-centric features and neighborhoods. We focus on identifying abnormal entities from the central table T 0. Let U = {u1, . . . , u N } denote the N central entities. Each central entity 
+
+u ∈ U may be connected to heterogeneous neighbor entities through multiple relation types. We represent the relation-specific edge set incident to central entities as 
+
+E = {(u, r, i ) | u ∈ U , r ∈ R , i ∈ V r }, (1) where Vr denotes the neighbor-entity table associated with relation type r, and (u, i ) ∈ E r indicates that u is connected to neighbor entity i under relation r. An anomaly label vector y ∈ { 0, 1}N is used 3Attribute Recon. Score                 
+
+> 𝑯 𝒓 𝟏
+> 𝑯 𝒓 𝟐
+> 𝑯 𝒓 |𝑹 |
+> Self Enc.
+> Child Enc.
+> Node
+> Enc. 1
+> Node
+> Enc. 2
+> Node
+> Enc .|R |
+> Self -Rel Score
+> Edge Recon.
+> 𝒔 𝒓 |𝑹 |𝒔 𝒓 𝟏
+> Attribute
+> Recon. Score
+> Self -Rel.
+> Score
+> Child -Rel.
+> Score
+> Top -KTop -K
+> Final Score
+> Block -wise Conditional Gating
+> Attributes
+> Masked Attributes
+> Decoders (per block)
+> Reconstruction Attributes
+> …
+> AttrEnc .
+> …
+> …
+> …
+> …
+> …
+> Item Transaction Merchant
+> Target Table
+> Self Child -1Child -B
+> Target Features (Block -wise)
+> Neighbor Features
+> 𝑯 𝒓 𝟏 𝑯 𝒓 𝟐 𝑯 𝒓 |𝑹 |
+> Relational Data & Inputs 1
+> …
+> …
+> Materialized Features
+> Attribute Reconstruction 2
+> …
+> …
+> …
+> Self -Attributes
+> Child -Attributes
+> Multi -Relational Edge Reconstruction 3Score Fusion & Output 4
+> …
+> Child -Rel Score
+> 𝒔 𝒓 |𝑹 |𝒔 𝒓 𝟏 …Encoder/Decoder
+> Latent Representation
+> Different
+> Relation Types
+> Norm & Local Fusion
+
+Figure 2: The overall pipeline of RelAD for relational data anomaly detection. for evaluation, where yu = 1 indicates that target entity u is anomalous and yu = 0 otherwise. The goal is to learn an anomaly scoring function f : U → R such that anomalous entities receive larger scores than normal entities. At a high level, anomalies may appear as abnormal attribute patterns of a target entity, abnormal relation-specific connection patterns, or inconsistencies between entity attributes and relational connections. 
+
+Initial Features. For each table, raw columns can include numerical, categorical, timestamp, and text attributes. Following the feature preprocessing protocol of RelBench [ 22 ], we encode heterogeneous raw columns into unified row-level representations, where non-text attributes are normalized or embedded according to their types and text attributes are represented by pretrained text embeddings. Let hkv denote the initial feature vector of row v in table T k. For each target entity u, we construct an attribute vector: 
+
+xu = Concat  xself u , xagg, 1 
+
+> u
+
+, . . . , xagg,B u
+
+ ∈ Rd, (2) where xself u is the row feature of u from the target table, and each xagg,b u is an aggregated feature block computed from rows in related tables. Here, B denotes the number of child-table aggregated blocks, so the complete attribute vector contains B + 1 blocks including the self block. The aggregation uses statistics such as mean, standard deviation, and count over rows connected to u. The resulting matrix is denoted by X ∈ RN ×d. For relation-specific edge reconstruction, each relation type r
+
+additionally provides an edge list Er and a neighbor feature matrix Hr ∈ R|V r |× dr , where dr is the feature dimension of neighbor entities under relation r.
+
+## 3 RelAD: Reconstruction-based Relational Anomaly Detection 
+
+In this section, we introduce RelAD, a reconstruction-based framework for anomaly detection on relational data. Since real-world relational databases rarely provide anomaly labels and normal entities usually dominate the data, an unsupervised reconstruction model can learn prevalent normal patterns from unlabeled entities. Entities whose attributes or relational behaviors deviate from these patterns are then expected to incur larger reconstruction residuals, making reconstruction error a natural anomaly indicator. Based on this principle, RelAD characterizes anomalies from two complementary views, as shown in Fig. 2. To suppress redundant cross-table attributes and preserve local semantic deviations, we first introduce a conditional sparse-gated attribute reconstruction module in Sec. 3.1. Next, to model relation-specific abnormal connections under heterogeneous foreign keys, we propose a dual-view multi-relational edge reconstruction module in Sec. 3.2, which reconstructs relational edges from both the intrinsic entity profile and the child-table behavioral profile. Finally, we combine the most salient attribute and relational signals through an anomaly score fusion strategy (Sec. 3.3). 43.1 Conditional Sparse-Gated Attribute Reconstruction 
+
+In relational databases, a central entity can be represented using heterogeneous attributes from its central table and multiple child tables. These attributes naturally form semantic blocks with different relevance to anomaly detection. Since abnormal signals may only appear in a few blocks or dimensions, directly reconstructing the entire attribute vector can make numerous anomaly-irrelevant features dominate the objective. To address this challenge, RelAD introduces a conditional sparse-gated attribute reconstruction module, which first identifies informative relational feature blocks and then reconstructs the entity profile. 
+
+Conditional Sparse Gating. To filter out the anomaly-irrelevant attributes, a key question is how to select informative ones from heterogeneous relational feature blocks. An effective strategy is to use a gating mechanism to assign adaptive importance weights to input dimensions, so that less relevant features are suppressed before reconstruction. However, directly applying a single global gate to the concatenated attribute vector is not ideal for relational databases, because it treats all dimensions as an unstructured feature set and ignores the block semantics induced by different tables. Moreover, whether a child-table aggregated block is informative often depends on the central entity profile rather than on the child block alone, highlighting the need to explicitly model such dependencies. To fill this gap, we make the gate both block-aware and context-conditioned. Specifically, we first generate a separate mask for each semantic block, so that attribute selection can respect the table from which each block originates. Let x0 be the central-table attribute block and xt be the t-th child-table aggregated block. Since the central block describes the target entity itself, its mask is generated from its own attributes. In contrast, each child block is evaluated together with the central block, allowing the model to determine whether the related-table information is informative for the central entity: 
+
+m0 = σ (MLP 0(x0)) , (3) 
+
+mt = σ (MLP t([ x0; xt])) , t = 1 , . . . , B, (4) where B is the number of child-table aggregated blocks, m0 and mt are block-level masks, and σ(·)
+
+is the sigmoid function. After obtaining these block-level masks, we concatenate them to form an entity-specific attribute mask aligned with the original feature vector for input feature filtering: 
+
+m = [ m0; m1; . . . ; mB ], ˜x = m ⊙ x, (5) where m has the same dimensionality as x, ˜x is the gated attribute vector, and ⊙ denotes element-wise multiplication. In this way, the encoder receives a compact attribute profile that emphasizes informative blocks and suppresses redundant dimensions. The gated vector is then projected into a latent representation: 
+
+zattr = Enc attr (˜ x), (6) where zattr is the attribute latent representation and Enc attr (·) is the shared attribute encoder. Although conditional gating can assign adaptive importance to different attributes, the learned masks may still remain dense without explicit regularization. To further encourage sparse attribute selection, we impose a sparsity penalty on the mask values: 
+
+Lsparse = 1
+
+N d 
+
+> N
+
+X
+
+> u=1
+> d
+
+X
+
+> j=1
+
+mu,j , (7) where mu,j denotes the gate value of entity u on the j-th attribute dimension. With this constraint, the model is encouraged to reconstruct entity profiles using a compact subset of informative attributes, reducing the interference from redundant dimensions. 
+
+Block-Specific Reconstruction. After obtaining zattr , a straightforward reconstruction strategy is to use a single decoder to predict the entire attribute vector. However, such a decoder ignores that different blocks originate from different tables and carry distinct semantics. It may also allow high-dimensional blocks to dominate the reconstruction objective, making anomalies in small but important blocks less visible. To preserve block-level semantics during reconstruction, RelAD adopts block-specific decoders, where each decoder is responsible for reconstructing one semantic block: 
+
+ˆxt = Dec t(zattr ), t = 0 , . . . , B, (8) where ˆxt is the reconstructed vector of block t and Dec t(·) is the decoder for that block. The reconstructed blocks are then concatenated to form the full reconstruction ˆxu for each entity. During 5training, we optimize the overall reconstruction objective over the full attribute vector: 
+
+Lrec = 1
+
+N d 
+
+> N
+
+X
+
+> u=1
+
+∥xu − ˆxu∥22 , (9) where ˆxu is the reconstructed full attribute vector of entity u. While this objective trains the attribute branch to reconstruct the complete entity profile, anomaly scoring should remain sensitive to localized deviations. Therefore, for inference, we further compute a block-level reconstruction error: 
+
+Lt(u) = 1
+
+dt
+
+∥xu,t − ˆxu,t ∥22 , (10) where t = 0 , . . . , B , xu,t and ˆxu,t are the original and reconstructed vectors of block t, and dt is the dimensionality of this block. These block-wise residuals reveal which semantic parts of an entity are poorly reconstructed. Since anomalies may only appear in a few semantic blocks, aggregating all block errors uniformly may dilute the abnormal signal. We therefore use the average of the top-K
+
+normalized block errors as the local attribute anomaly score: 
+
+sattr (u) = 1
+
+K
+
+X
+
+> t∈TopK t(Norm( Lt(u)))
+
+Norm( Lt(u)) , (11) where Norm( ·) denotes score normalization, K is a hyperparameter controlling the number of selected local signals, and TopK t(·) selects the K largest block-level scores. As a result, the attribute branch produces an anomaly score that is less affected by redundant or weakly relevant attributes and more sensitive to localized deviations within specific semantic blocks. This allows RelAD to distinguish entities with abnormal attribute patterns even when such deviations are sparse and would be diluted by global reconstruction errors or uniform block aggregation. 
+
+3.2 Dual-View Multi-Relational Edge Reconstruction 
+
+Apart from attributes, relations also play a critical role in RAD, because abnormal entities may not only exhibit unusual attributes but also form abnormal connections with related records. In relational databases, these connections are organized by multiple foreign-key relations with distinct semantics, and each relation may reveal a different type of behavioral deviation. From a relational perspective, the abnormality can arise from two different sources. An edge may be inconsistent with the entity’s intrinsic profile recorded in the central table, or it may be inconsistent with the behavioral context summarized from related child tables. In this case, collapsing these sources into a single representation for relation reconstruction may blur their distinct roles, especially when behavioral aggregations provide stronger shortcut signals for edge prediction and thereby suppress weaker but important self-profile evidence. Motivated by this, RelAD reconstructs the original multi-relational edges from two complementary views. To achieve this, we design a dual-view multi-relational edge reconstruction module with self-profile and child-profile relational branches. 
+
+Dual-View Entity Encoding. To keep the two sources of relational evidence disentangled, we encode the central-table profile and the child-table aggregations with two independent encoders. The self-profile branch maps the central-table profile into a latent space, allowing the model to examine whether the observed neighbors are compatible with the intrinsic properties of the target entity: 
+
+zrel u,self = Enc self (xself u ), (12) where zrel u,self is the relational representation from the central-table profile and Enc self (·) is the corresponding encoder. In parallel, the child-profile branch encodes the aggregated child-table profile, allowing edge reconstruction to be conditioned on the target entity’s historical behavioral context: 
+
+zrel u,child = Enc child (xchild u ), (13) where zrel u,child is the relational representation from child-table aggregations and Enc child (·) is an independent encoder. By keeping the two encoders separate, RelAD can produce view-specific relational residuals rather than collapsing all evidence into a single mixed representation. After obtaining the two target-entity views, the neighbor side should still preserve relation semantics, because different foreign-key relations may connect the target entity to different types of neighbor 6records. Therefore, for each relation type r ∈ R , RelAD uses a relation-specific neighbor-entity encoder shared by both branches: 
+
+eri = NodeEnc r (hri ), (14) where hri is the row feature of neighbor entity i in Hr , NodeEnc r (·) is the neighbor-entity en-coder of relation r, and eri is the shared relation-specific neighbor-entity embedding used by both branches. Sharing this neighbor embedding space makes the reconstruction scores from the two views comparable within each relation, while the relation-specific encoder prevents semantically different foreign-key relations from being forced into a single neighbor representation. 
+
+Multi-Relational Edge Reconstruction. Given an observed edge (u, i ) ∈ E r and a randomly sampled negative neighbor entity j, the two branches reconstruct relational edges via dot-product scoring. Let q ∈ { self, child } denote the relational branch, with zrel u,q being the corresponding target-entity representation, then the branch-specific relational loss can be written as 
+
+Lrq = E(u,i )∈E r
+
+ϕ(−zrel u,q · eri ) + E(u,j ) /∈E r
+
+ϕ(zrel u,q · erj ) , (15) where ϕ(x) = log(1 + exp( x)) denotes the softplus function. To obtain anomaly scores during inference, for each relation type, we compute the average edge-level negative log-likelihood for each entity and normalize the relation-wise scores. The top-K relation scores are then aggregated for each branch: 
+
+srel,q (u) = 1
+
+K
+
+X 
+
+> r∈R K,q (u)
+
+Norm( ¯ℓrq (u)) , RK,q (u) = TopK r
+
+Norm( ¯ℓrq (u)) , (16) where ¯ℓrq (u) denotes the average positive-edge negative log-likelihood under relation type r from branch q. Equipped with dual-view reconstruction, RelAD captures inconsistencies between relational behaviors and both central-profile attributes and child-table behavioral contexts. 
+
+3.3 Model Training and Anomaly Scoring 
+
+To optimize RelAD, the overall objective combines the previous loss terms: 
+
+L = Lrec + λsLsparse + 1
+
+|R act |
+
+X
+
+> q∈{ self,child }
+
+X
+
+> r∈R act
+
+Lrq , (17) where Ract is the set of active relation types with valid sampled edges in the current batch, and λs
+
+controls the sparsity regularization. 
+
+Entity Anomaly Score Fusion. Although the attribute and relation branches provide complementary evidence, anomalies in relational data are often localized to only a few semantic blocks or relation types. Directly averaging all residuals may dilute these local signals, while relying on a single branch may miss anomalies from other sources. To address this issue, RelAD adopts a two-level fusion of three local anomaly scores computed from normalized block- and relation-level errors: 
+
+s(u) = αs attr (u) + (1 − α) [ βs rel,self (u) + (1 − β)srel,child (u)] , (18) where α ∈ [0 , 1] controls the trade-off between attribute-local anomalies and relational anomalies, and β ∈ [0 , 1] controls the trade-off between the self-profile and child-profile relational branches. This hierarchical parameterization reduces the fusion space while preserving interpretability: the attribute branch dominates when anomalies appear as local profile deviations, while the two relational branches provide complementary evidence when anomalies are reflected by inconsistent multi-relational behaviors. The algorithmic details and complexity analysis of RelAD are provided in Appendices A and B, respectively. 
+
+## 4 Experiments 
+
+4.1 Experiment Setup Datasets. We conduct experiments on 6 public relational databases from Relbench [ 1 ] and Relbench v2 [ 22 ] across multiple domains, including 3 e-commerce platforms (Amazon, HM, and Avito), an 7Table 1: Anomaly detection performance in terms of AUROC and AUPRC. OOM denotes out-of-memory on a 24GB GPU. Best performance is highlighted in bold .                                                                                                                                         
+
+> Methods Amazon ArXiv Avito HM SALT Stack
+> AUROC AUPRC AUROC AUPRC AUROC AUPRC AUROC AUPRC AUROC AUPRC AUROC AUPRC
+> GAD Methods
+> PREM 48.80 4.92 45.87 4.21 63.08 5.23 46.82 4.34 54.45 7.10 50.27 5.10 FreeGAD 49.61 5.43 46.70 4.21 33.49 1.96 56.60 5.33 33.69 3.44 52.11 5.18 DOMINANT OOM OOM OOM OOM OOM OOM OOM OOM 63.54 8.36 OOM OOM
+> TAD Methods
+> MCMTAD 47.21 4.70 51.11 5.13 67.64 4.37 80.27 16.37 72.75 8.94 61.10 6.83 DRL 67.40 9.67 48.27 4.55 71.20 5.25 46.34 4.26 46.13 4.86 48.00 4.70 KNN 54.40 5.79 46.49 4.46 63.19 3.52 69.06 8.82 67.14 7.10 50.28 4.99 LOF 51.62 5.57 49.88 4.86 48.58 2.85 49.01 4.96 50.70 5.08 49.96 5.00 IsoForest 54.27 7.12 46.52 4.29 64.66 4.06 45.04 4.14 72.58 16.71 55.96 5.78 LUNAR 50.00 4.99 51.38 5.08 50.46 2.89 49.66 4.97 50.00 5.00 50.02 5.06
+> Proposed RAD Method RelAD 74.37 11.77 56.80 13.89 72.32 5.59 85.39 29.56 84.90 17.22 67.98 7.66
+
+academic citation network (ArXiv), a Q&A community (Stack), and an enterprise resource planning system (SALT [ 23 ]). Detailed statistics are provided in Appendix C. As there are no ground-truth anomaly labels in these benchmarks, we design dataset-specific anomaly injection rules for evaluation. We simulate plausible fraud scenarios grounded in each dataset’s relational structure. For example, in Amazon we replace a subset of a user’s reviews with products from unrelated categories to simulate review manipulation, while in ArXiv we redirect citation edges to shared beacon papers to simulate citation cartels. The anomaly ratio is set to 5% across all datasets. Detailed injection procedures are provided in Appendix D. 
+
+Baselines. We compare RelAD with the representation GAD and TAD methods. ❶ GAD methods include PREM [ 24 ], FreeGAD [ 21 ] and DOMINANT [ 11 ]. ❷ TAD methods include MCMTAD [ 17 ], DRL [8], KNN [25], LOF [15], IsolationForest [26] and LUNAR [16]. 
+
+Evaluation and Implementation. We report AUROC and AUPRC as the main metrics. For all methods, we report the mean performance over 5 random seeds. In our implementation, we optimize RelAD using Adam with a learning rate of 5 × 10 −3, and train the model for 100 epochs with a batch size of 8192. More comprehensive implementation details are given in Appendix E. 
+
+4.2 Experimental Results Main Results. Table 1 reports the comparison results in terms of AUROC and AUPRC (more results are in Appendix F.1). We have the following observations. ❶ RelAD achieves the best AUROC on all six datasets, demonstrating its consistent effectiveness for RAD across diverse relational schemas and anomaly sources. Compared with the strongest baseline on each dataset, RelAD shows more than 10% relative performance gain on 4 datasets. ❷ RelAD also obtains the best AUPRC on all six datasets, with particularly large gains on ArXiv, HM, and SALT. This indicates that RelAD not only ranks anomalies higher overall, but also better identifies rare anomalous entities under the highly imbalanced detection setting. ❸ Existing TAD methods can perform competitively on some datasets after flattening relational information into tabular features, such as DRL on Amazon and Avito and MCMTAD on HM and SALT. However, their performance varies significantly across datasets, suggesting that flattened features cannot consistently preserve relation-specific abnormal patterns. 
+
+❹ GAD methods generally underperform and DOMINANT suffers from out-of-memory issues on most datasets. This confirms that directly adapting homogeneous graph anomaly detection methods is insufficient for RAD, where multiple typed foreign-key relations and heterogeneous entity attributes need to be modeled explicitly. Overall, these results validate the advantage of jointly modeling local attribute reconstruction and dual-view multi-relational edge reconstruction in RelAD. 
+
+Ablation Study. To verify the effectiveness of each component, we construct six vari-ants of RelAD: ❶ w/o Attr. , removing attribute reconstruction; ❷ w/o Relation , re-moving multi-relational edge reconstruction; ❸ w/o Gating , removing conditional sparse gates; ❹ w/o Block Dec. , using one shared attribute decoder; ❺ w/o Self View , remov-ing the self-profile branch; and ❻ w/o Child View , removing the child-profile branch. 8Table 2: AUROC of RelAD and its variants. Variant Amazon ArXiv HM RelAD 74.37 56.80 85.39 
+
+w/o Attr. 72.71 56.12 85.01 w/o Relation 54.61 46.73 66.84 w/o Gating 72.59 56.60 80.53 w/o Block Dec. 71.82 55.53 84.42 w/o Self View 70.83 50.25 82.58 w/o Child View 67.29 54.97 68.11 Table 2 shows that all components are beneficial. Relational reconstruction is the most critical component, confirming the importance of mod-eling abnormal connection patterns. Removing the attribute branch also hurts performance, in-dicating that local attribute deviations provide complementary evidence. The drops of w/o Gat-ing and w/o Block Dec. further show that con-ditional feature selection and block-specific re-construction reduce redundancy and preserve localized anomaly signals. For the dual-view design, w/o Child View generally suffers a larger drop than w/o Self View , suggesting that child-table behavioral context is especially informative. Nevertheless, the full model consistently outperforms both single-view variants, confirming that all designs are valid and effective. More ablation results are available in the Appendix F.2. 
+
+Hyperparameter Analysis. Fig. 3 shows the sensitivity of RelAD to α and β on Amazon and SALT (more results are in Appendix F.3). The reliances on the two weights differ notably across datasets. SALT requires a higher α, indicating that attribute deviations play a major role in its anomaly pattern; in contrast, Amazon requires a smaller α, relying more on multi-relational edge reconstruction. 0.0  
+
+> 0.5
+> 1.0
+> 0.0
+> 0.5
+> 1.0
+> 60.3
+> 67.2
+> 74.1
+> (a) Amazon 0.0
+> 0.5
+> 1.0
+> 0.0
+> 0.5
+> 1.0
+> 49.7
+> 68.2
+> 86.7 (b) SALT
+
+Figure 3: Sensitivity w.r.t. α and β.For β, most datasets prefer moderate values, confirm-ing that both relational views provide complementary ev-idence. This disparity suggests that anomalies in different relational databases may manifest primarily in attributes or in relational connections, and RelAD can flexibly adapt the fusion weights to the underlying anomaly source. 
+
+Efficiency Analysis. To assess the runtime efficiency of RelAD, we compare its total running time with representa-tive baselines on the HM dataset, excluding methods that run OOM. For a fair comparison, all trainable methods are evaluated under the same 5-epoch setting. As shown in Fig. 4, RelAD achieves competitive efficiency while maintaining strong detection performance. In particular, RelAD is substantially faster than several costly baselines such as KNN, LOF, LUNAR, DRL, and MCMTAD, and its runtime remains close to the fastest methods. These results indicate that RelAD introduces limited computational overhead and remains practical for relational anomaly detection on large-scale datasets. 
+
+## 5 Related Work KNN  
+
+> LOF
+> iForest
+> LUNAR
+> DRL
+> MCMTAD
+> FreeGAD
+> RelAD
+> 10 1
+> 10 2
+> 10 3
+> Runtime (s, log)  704.6 706.3
+> 8.2
+> 1618.7
+> 75.8
+> 204.3
+> 10.9
+> 20.8
+> Baselines
+> RelAD
+
+Figure 4: Runtime comparison on the HM dataset. In this section, we briefly review three lines of related studies. A detailed literature review is in Appendix G. 
+
+Relational Deep Learning (RDL) aims to learn from multi-table relational databases by model-ing entities and their primary–foreign key rela-tionships [ 27 ]. Mainstream studies transform relational databases into heterogeneous graphs and develop graph neural network (GNN)-based or Transformer-based frameworks for representation learning and downstream task modeling [ 3, 4]. Advanced studies have also extended RDL to more general paradigms, such as LLM-based frameworks [ 28 ] and foundation models [ 5, 6 , 29 ] for RDL. Despite their success, existing works rarely investigate anomaly detection for relational data, leaving this problem largely under-explored. 
+
+Tabular Anomaly Detection (TAD) investigates the detection of anomalous instances in structured tabular data [ 30 , 31 ]. Early TAD methods mainly rely on handcrafted statistical assumptions, including isolation-, density-, and distance-based anomaly scoring strategies [ 15 , 25 , 26 ]. Recent deep learning-based solutions, built upon techniques such as autoencoding and contrastive learning, 9demonstrate strong performance in TAD [ 8 , 17 , 32 ]. However, TAD methods cannot effectively model the relational dependencies in relational data, making them sub-optimal for RAD. 
+
+Graph Anomaly Detection (GAD) aims to identify anomalous samples from graph data [ 33 , 34 , 35 ,36 , 37 , 38 ]. As shallow methods usually struggle to handle complex graph data [ 39 , 40 ], mainstream studies primarily develop deep learning-based approaches built upon GNNs [ 34 ]. These deep methods mainly rely on paradigms such as reconstruction [ 11 ], contrastive learning [ 12 , 24 ], and affinity learning [ 41 ] to characterize anomalous patterns. Nevertheless, most GAD methods are developed for homogeneous graphs, limiting their effectiveness in RAD with heterogeneous entities and relations. 
+
+## 6 Conclusion 
+
+In this paper, we take the first step towards addressing the relational anomaly detection problem, aiming to identify abnormal entities from heterogeneous multi-table attributes and typed foreign-key relations. We introduce RelAD, a reconstruction-based RAD framework that jointly captures local attribute deviations and relation-specific abnormal connection patterns via conditional sparse-gated attribute reconstruction and dual-view multi-relational edge reconstruction. Extensive experiments on six relational benchmark datasets demonstrate the detection prowess, robustness, and efficiency of RelAD compared to representative tabular and graph anomaly detection approaches. One limitation 
+
+is that the current setting does not explicitly consider the temporal dimension and its influence on anomaly formation. A potential future direction is to extend RelAD to dynamic relational databases where entities, attributes, and foreign-key relations evolve over time. 
+
+## References 
+
+[1] Joshua Robinson, Rishabh Ranjan, Weihua Hu, Kexin Huang, Jiaqi Han, Alejandro Dobles, Matthias Fey, Jan E Lenssen, Yiwen Yuan, Zecheng Zhang, et al. Relbench: A benchmark for deep learning on relational databases. Advances in Neural Information Processing Systems , 37:21330–21341, 2024. [2] Vijay Prakash Dwivedi, Charilaos Kanatsoulis, Shenyang Huang, and Jure Leskovec. Relational deep learning: Challenges, foundations and next-generation architectures. In Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2 , pages 5999–6009, 2025. [3] Vijay Prakash Dwivedi, Sri Jaladi, Yangyi Shen, Federico Lopez, Charilaos I Kanatsoulis, Rishi Puri, Matthias Fey, and Jure Leskovec. Relational graph transformer. In Temporal Graph Learning Workshop@ KDD 2025 .[4] Tianlang Chen, Charilaos Kanatsoulis, and Jure Leskovec. Relgnn: Composite message passing for relational deep learning. In International Conference on Machine Learning , pages 8296–8312. PMLR, 2025. [5] Rishabh Ranjan, Valter Hudovernik, Mark Znidar, Charilaos I Kanatsoulis, Roshan Reddy Upendra, Mahmoud Mohammadi, Joe Meyer, Tom Palczewski, Carlos Guestrin, and Jure Leskovec. Relational transformer: Toward zero-shot foundation models for relational data. In EurIPS 2025 Workshop: AI for Tabular Data .[6] Yanbo Wang, Xiyuan Wang, Quan Gan, Minjie Wang, Qibin Yang, David Wipf, and Muhan Zhang. Griffin: Towards a graph-centric relational database foundation model. In International Conference on Machine Learning , pages 64604–64627. PMLR, 2025. [7] Hugo Thimonier, Fabrice Popineau, Arpad Rimmel, and Bich-Liên Doan. Beyond individual input for deep anomaly detection on tabular data. In International Conference on Machine Learning , pages 48097–48123. PMLR, 2024. [8] Hangting Ye, He Zhao, Wei Fan, Mingyuan Zhou, Dan dan Guo, and Yi Chang. Drl: Decomposed representation learning for tabular anomaly detection. In The Thirteenth International Conference on Learning Representations , 2025. [9] Junjun Pan, Yixin Liu, Chuan Zhou, Fei Xiong, Alan Wee-Chung Liew, and Shirui Pan. Correcting false alarms from unseen: Adapting graph anomaly detectors at test time. In Proceedings of the AAAI Conference on Artificial Intelligence , 2026. [10] Junjun Pan, Yu Zheng, Yue Tan, and Yixin Liu. A survey of generalization of graph anomaly detection: From transfer learning to foundation models. In The 16th IEEE International Conference on Knowledge Graphs , 2025. 
+
+10 [11] Kaize Ding, Jundong Li, Rohit Bhanushali, and Huan Liu. Deep anomaly detection on attributed networks. In Proceedings of the 2019 SIAM international conference on data mining , pages 594–602. SIAM, 2019. [12] Yixin Liu, Zhao Li, Shirui Pan, Chen Gong, Chuan Zhou, and George Karypis. Anomaly detection on attributed networks via contrastive self-supervised learning. IEEE transactions on neural networks and learning systems , 33(6):2378–2392, 2021. [13] Jingyan Chen, Guanghui Zhu, Chunfeng Yuan, and Yihua Huang. Boosting graph anomaly detection with adaptive message passing. In The Twelfth International Conference on Learning Representations , 2024. [14] Junjun Pan, Yixin Liu, Yu Zheng, Lianhua Chi, Alan Wee-Chung Liew, and Shirui Pan. Camera: Adapting to semantic camouflage in unsupervised text-attributed graph fraud detection. In International Joint Conference on Artificial Intelligence , 2026. [15] Markus M Breunig, Hans-Peter Kriegel, Raymond T Ng, and Jörg Sander. Lof: identifying density-based local outliers. In Proceedings of the 2000 ACM SIGMOD international conference on Management of data , pages 93–104, 2000. [16] Adam Goodge, Bryan Hooi, See-Kiong Ng, and Wee Siong Ng. Lunar: Unifying local outlier detection methods via graph neural networks. In Proceedings of the AAAI conference on artificial intelligence ,volume 36, pages 6737–6745, 2022. [17] Jiaxin Yin, Yuanyuan Qiao, Zitang Zhou, Xiangchao Wang, and Jie Yang. Mcm: Masked cell modeling for anomaly detection in tabular data. In The Twelfth International Conference on Learning Representations ,2024. [18] Qingfeng Chen, Shiyuan Li, Yixin Liu, Shirui Pan, Geoffrey I Webb, and Shichao Zhang. Uncertainty-aware graph neural networks: A multihop evidence fusion approach. IEEE Transactions on Neural Networks and Learning Systems , 2025. [19] Yue Tan, Guodong Long, Jing Jiang, and Chengqi Zhang. Influence-oriented personalized federated learning. arXiv preprint arXiv:2410.03315 , 2024. [20] Yixin Liu, Shiyuan Li, Yu Zheng, Qingfeng Chen, Chengqi Zhang, and Shirui Pan. Arc: A generalist graph anomaly detector with in-context learning. Advances in Neural Information Processing Systems ,37:50772–50804, 2024. [21] Yunfeng Zhao, Yixin Liu, Shiyuan Li, Qingfeng Chen, Yu Zheng, and Shirui Pan. Freegad: A training-free yet effective approach for graph anomaly detection. In Proceedings of the 34th ACM International Conference on Information and Knowledge Management , pages 4379–4389, 2025. [22] Justin Gu, Rishabh Ranjan, Charilaos Kanatsoulis, Haiming Tang, Martin Jurkovic, Valter Hudovernik, Mark Znidar, Pranshu Chaturvedi, Parth Shroff, Fengyu Li, et al. Relbench v2: A large-scale benchmark and repository for relational data. arXiv preprint arXiv:2602.12606 , 2026. [23] Tassilo Klein, Clemens Biehl, Margarida Costa, Andre Sres, Jonas Kolk, and Johannes Hoffart. Salt: Sales autocompletion linked business tables dataset. In NeurIPS 2024 Third Table Representation Learning Workshop .[24] Junjun Pan, Yixin Liu, Yizhen Zheng, and Shirui Pan. Prem: A simple yet effective approach for node-level graph anomaly detection. In 2023 IEEE International Conference on Data Mining (ICDM) , pages 1253–1258. IEEE, 2023. [25] Sridhar Ramaswamy, Rajeev Rastogi, and Kyuseok Shim. Efficient algorithms for mining outliers from large data sets. In Proceedings of the 2000 ACM SIGMOD international conference on Management of data , pages 427–438, 2000. [26] Yezheng Liu, Zhe Li, Chong Zhou, Yuanchun Jiang, Jianshan Sun, Meng Wang, and Xiangnan He. Generative adversarial active learning for unsupervised outlier detection. IEEE Transactions on Knowledge and Data Engineering , 32(8):1517–1528, 2019. [27] Joshua Robinson, Rishabh Ranjan, Weihua Hu, Kexin Huang, Jiaqi Han, Alejandro Dobles, Matthias Fey, Jan Eric Lenssen, Yiwen Yuan, Zecheng Zhang, et al. Relational deep learning: Graph representation learning on relational databases. In NeurIPS 2024 third table representation learning workshop , 2024. [28] Fang Wu, Vijay Prakash Dwivedi, and Jure Leskovec. Large language models are good relational learners. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 7835–7854, 2025. 
+
+11 [29] Vignesh Kothapalli, Rishabh Ranjan, Valter Hudovernik, Vijay Prakash Dwivedi, Johannes Hoffart, Carlos Guestrin, and Jure Leskovec. Plurel: Synthetic data unlocks scaling laws for relational foundation models. 
+
+arXiv preprint arXiv:2602.04029 , 2026. [30] Guansong Pang, Chunhua Shen, Longbing Cao, and Anton Van Den Hengel. Deep learning for anomaly detection: A review. ACM computing surveys (CSUR) , 54(2):1–38, 2021. [31] Vadim Borisov, Tobias Leemann, Kathrin Seßler, Johannes Haug, Martin Pawelczyk, and Gjergji Kasneci. Deep neural networks and tabular data: A survey. IEEE transactions on neural networks and learning systems , 35(6):7499–7519, 2022. [32] Tom Shenkar and Lior Wolf. Anomaly detection for tabular data with internal contrastive learning. In 
+
+International conference on learning representations , 2022. [33] Xiaoxiao Ma, Jia Wu, Shan Xue, Jian Yang, Chuan Zhou, Quan Z Sheng, Hui Xiong, and Leman Akoglu. A comprehensive survey on graph anomaly detection with deep learning. IEEE transactions on knowledge and data engineering , 35(12):12012–12038, 2021. [34] Hezhe Qiao, Hanghang Tong, Bo An, Irwin King, Charu Aggarwal, and Guansong Pang. Deep graph anomaly detection: A survey and new perspectives. IEEE Transactions on Knowledge and Data Engineer-ing , 2025. [35] Yixin Liu, Shiyuan Li, Yu Zheng, Qingfeng Chen, Chengqi Zhang, Philip S Yu, and Shirui Pan. From few-shot to zero-shot: Towards generalist graph anomaly detection. IEEE Transactions on Knowledge and Data Engineering , 2026. [36] Xu Shen, Yixin Liu, Yili Wang, Rui Miao, Yiwei Dai, Shirui Pan, Yi Chang, and Xin Wang. Raising the bar in graph ood generalization: Invariant learning beyond explicit environment modeling. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2026. [37] Yunfeng Zhao, Yixin Liu, Qingfeng Chen, Shiyuan Li, Yue Tan, and Shirui Pan. Fedcigar: A personalized reconstruction approach for federated graph-level anomaly detection. In International Joint Conference on Artificial Intelligence , 2026. [38] Yujing Liu, Yixin Liu, Yu Zheng, Alan Wee-Chung Liew, Xiaofeng Cao, and Shirui Pan. Rethinking feature alignment in generalist graph anomaly detection: A relational fingerprint-based approach. In 
+
+International Conference on Machine Learning , 2026. [39] Zhen Peng, Minnan Luo, Jundong Li, Huan Liu, Qinghua Zheng, et al. Anomalous: A joint modeling approach for anomaly detection on attributed networks. In Ijcai , volume 18, pages 3513–3519, 2018. [40] Jundong Li, Harsh Dani, Xia Hu, and Huan Liu. Radar: residual analysis for anomaly detection in attributed networks. In Proceedings of the 26th International Joint Conference on Artificial Intelligence ,pages 2152–2158, 2017. [41] Hezhe Qiao and Guansong Pang. Truncated affinity maximization: One-class homophily modeling for graph anomaly detection. Advances in Neural Information Processing Systems , 36:49490–49512, 2023. [42] Michael Schlichtkrull, Thomas N Kipf, Peter Bloem, Rianne Van Den Berg, Ivan Titov, and Max Welling. Modeling relational data with graph convolutional networks. In European semantic web conference , pages 593–607. Springer, 2018. [43] Rui Miao, Yixin Liu, Yili Wang, Xu Shen, Yue Tan, Yiwei Dai, Shirui Pan, and Xin Wang. Blindguard: Safeguarding llm-based multi-agent systems under unknown attacks. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics , 2026. [44] Yanyu Qian, Yue Tan, Yixin Liu, Wang Yu, and Shirui Pan. Dynhd: Hallucination detection for diffusion large language models via denoising dynamics deviation learning. arXiv preprint arXiv:2603.16459 , 2026. [45] Shiyuan Li, Yixin Liu, Qingsong Wen, Chengqi Zhang, and Shirui Pan. Assemble your crew: Automatic multi-agent communication topology design via autoregressive graph generation. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 40, pages 23142–23150, 2026. [46] Shiyuan Li, Yixin Liu, Yu Zheng, Mei Li, Quoc Viet Hung Nguyen, and Shirui Pan. Ofa-mas: One-for-all multi-agent system topology design based on mixture-of-experts graph generative models. In Proceedings of the ACM Web Conference 2026 , pages 1333–1344, 2026. [47] Enguang Zuo, Jie Zhong, Chen Chen, Cheng Chen, Kurban Ubul, and Xiaoyi Lv. Rethinking unsupervised time series anomaly detection: Dynamic attention based on route inverse-masking. Applied Soft Computing ,page 113971, 2025. 
+
+12 [48] Enguang Zuo, Junyi Yan, Alimjan Aysa, Chen Chen, Cheng Chen, Hongbing Ma, Xiaoyi Lv, and Kurban Ubul. Sucola: Self-adaptive structure refinement unsupervised contrastive learning framework for food safety risk early warning. Engineering Applications of Artificial Intelligence , 126:107016, 2023. [49] Hugo Thimonier, Fabrice Popineau, Arpad Rimmel, and Bich-Liên Doan. Retrieval augmented deep anomaly detection for tabular data. In Proceedings of the 33rd ACM international conference on information and knowledge management , pages 2250–2259, 2024. [50] Che-Ping Tsai, Ganyu Teng, Phillip Wallis, and Wei Ding. Anollm: Large language models for tabular anomaly detection. In The Thirteenth International Conference on Learning Representations , 2025. [51] Jianan Ye, Zhaorui Tan, Yijie Hu, Xi Yang, Guangliang Cheng, and Kaizhu Huang. Disentangling tabular data towards better one-class anomaly detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 13061–13068, 2025. [52] Chun-Hao Chang, Jinsung Yoon, Sercan Ö Arik, Madeleine Udell, and Tomas Pfister. Data-efficient and interpretable tabular anomaly detection. In Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining , pages 190–201, 2023. [53] Shiyuan Li, Yixin Liu, Yu Zheng, Xiaofeng Cao, Shirui Pan, and Heng Tao Shen. Towards one-for-all anomaly detection for tabular data. In Forty-third international conference on machine learning , 2026. [54] Thi Kieu Khanh Ho, Ali Karami, and Narges Armanfard. Graph anomaly detection in time series: A survey. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. [55] Junyi Yan, Enguang Zuo, Ke Liang, Meng Liu, Miaomiao Li, Xinwang Liu, Xiaoyi Lv, and Kai Lu. Address anomalies at critical crossroads for graph anomaly detection. IEEE Transactions on Knowledge and Data Engineering , 2025. [56] Xiangyu Dong, Xingyi Zhang, Yanni Sun, Lei Chen, Mingxuan Yuan, and Sibo Wang. Smoothgnn: Smoothing-aware gnn for unsupervised node anomaly detection. In Proceedings of the ACM on Web Conference 2025 , pages 1225–1236, 2025. [57] Rui Bing, Guan Yuan, Mu Zhu, Fanrong Meng, Huifang Ma, and Shaojie Qiao. Heterogeneous graph neural networks analysis: a survey of techniques, evaluations and applications. Artificial Intelligence Review , 56(8), 2023. 
+
+13 A Algorithm Description 
+
+The training and testing algorithms are given in Algorithm 1 and Algorithm 2, respectively. 
+
+Algorithm 1: The Training Algorithm of RelAD 
+
+Input: Attribute matrix X ∈ RN ×d with attribute blocks {xt}Bt=0 ; relation set R with edge sets 
+
+{E r } and neighbor features {Hr }; training epochs E; batch size b; sampled edges per relation M ; learning rate η; sparsity weight λs.
+
+Output: Trained model parameters 
+
+Θ = {MLP t, Enc attr , Dec t, Enc self , Enc child , NodeEnc r }B,r ∈R  
+
+> t=0
+
+. 
+
+> 1
+
+Apply feature scaling on X and on each Hr ; 
+
+> 2
+
+Initialize all model parameters Θ; 
+
+> 3
+
+for epoch = 1 to E do  
+
+> 4
+
+Generate target-entity permutation π over {1, . . . , N };
+
+// Pre-sample at most M edges for each relation  
+
+> 5
+
+for r ∈ R do  
+
+> 6
+
+˜Er ← sample min( M, |E r |) edges from Er uniformly;  
+
+> 7
+
+end  
+
+> 8
+
+for each mini-batch B ⊂ π of size b do 
+
+// Step 1: Conditional Sparse-Gated Attribute Reconstruction  
+
+> 9
+
+Compute block-wise masks {mt} via Eq. (3)–(4) and the gated input ˜x via Eq. (5);  
+
+> 10
+
+Encode zattr via Eq. (6) and reconstruct {ˆxt}Bt=0 via Eq. (8);  
+
+> 11
+
+Compute Lrec via Eq. (9) and Lsparse via Eq. (7); 
+
+// Step 2: Dual-View Multi-Relational Edge Reconstruction  
+
+> 12
+
+Compute zrel u,self via Eq. (12) and zrel u,child via Eq. (13);  
+
+> 13
+
+Identify active relations Ract with valid sampled edges in { ˜Er }r∈R connected to entities in batch B; 
+
+> 14
+
+for r ∈ R act do  
+
+> 15
+
+Sample a negative neighbor j ∼ Uniform( Vr ) for each in-batch positive edge 
+
+(u, i ) ∈ ˜Er ; 
+
+> 16
+
+Encode shared neighbor embeddings eri , erj via Eq. (14);  
+
+> 17
+
+Compute Lrq for q ∈ { self, child } via Eq. (15);  
+
+> 18
+
+end 
+
+// Step 3: Objective Computation and Parameter Update  
+
+> 19
+
+Compute the total objective L via Eq. (17);  
+
+> 20
+
+Update Θ using Adam: Θ ← Θ − η∇ΘL; 
+
+> 21
+
+end  
+
+> 22
+
+end  
+
+> 23
+
+return Θ;
+
+## B Complexity Analysis 
+
+In this subsection, we discuss the time complexity of RelAD in the testing phase. The overall cost mainly consists of four stages: conditional sparse-gated attribute reconstruction, dual-view entity encoding, dual-view multi-relational scoring, and hierarchical anomaly score fusion. The complexity of conditional sparse-gated attribute reconstruction is O N (d0h + PBt=1 (d0 + dt)h +
+
+dh + hd z + PBt=0 (dz h + hd t) + ( B + 1) log K), where N is the number of target entities, B
+
+is the number of child-table aggregated blocks in Eq. (5) , dt is the dimension of the t-th block, and d = PBt=0 dt. This term covers block-wise gate generation, attribute encoding, block-specific decoding, and top-K block selection in Eq. (11) . The complexity of dual-view entity encoding is 
+
+O N (d0h + hd rel + dchild h + hd rel ), where dchild is the dimension of xchild u . The complexity of dual-view multi-relational scoring is O  P  
+
+> r∈R
+
+|V r |(dr h + hd rel ) + drel 
+
+P 
+
+> r∈R
+
+|E r | + N |R| log K,where |V r | and |E r | denote the number of neighbor entities and positive edges under relation r,14 Algorithm 2: The Inference Algorithm of RelAD 
+
+Input: Attribute matrix X ∈ RN ×d with attribute blocks {xt}Bt=0 ; relation set R with edge sets 
+
+{E r } and neighbor features {Hr }; trained model parameters Θ; batch size b; top-K for local fusion; weights α, β ∈ [0 , 1] .
+
+Output: Final anomaly scores {s(u)}Nu=1 .
+
+// Stage 1: Forward Pass for Entity Representations and Attribute Reconstruction  
+
+> 1
+
+for each mini-batch B ⊂ { 1, . . . , N } of size b do  
+
+> 2
+
+Obtain the gated input ˜x, attribute latent zattr , and block reconstructions {ˆxt}Bt=0 via Eq. (3)–(8);  
+
+> 3
+
+Compute and cache the block-level reconstruction errors Lt(u) for u ∈ B via Eq. (10);  
+
+> 4
+
+Encode and cache the relational representations zrel u,self and zrel u,child via Eq. (12)–(13);  
+
+> 5
+
+end 
+
+// Stage 2: Attribute-Level Local Anomaly Scoring  
+
+> 6
+
+Compute the local attribute anomaly score sattr (u) for all entities using the normalized top-K
+
+block errors via Eq. (11); 
+
+// Stage 3: Dual-View Multi-Relational Anomaly Scoring  
+
+> 7
+
+for r ∈ R do  
+
+> 8
+
+Encode all neighbor entities {eri }i∈V r using the shared neighbor encoder via Eq. (14);  
+
+> 9
+
+Compute the average positive-edge negative log-likelihoods ¯ℓrself (u) and ¯ℓrchild (u) for entities connected under relation r; 
+
+> 10
+
+end  
+
+> 11
+
+Aggregate the dual-view relational anomaly scores srel,self (u) and srel,child (u) for all entities via Eq. (16); 
+
+// Stage 4: Hierarchical Anomaly Score Fusion  
+
+> 12
+
+Compute the final anomaly score s(u) via Eq. (18);  
+
+> 13
+
+return {s(u)}Nu=1 ;Table 3: Statistics of datasets.                                                                  
+
+> Dataset Domain Relation Database Anomaly Injection #Tables #Rows #Cols #Samples #Normal #Anomaly %Anomaly Amazon E-commerce 315,000,713 15 1,850,193 1,759,500 90,693 4.9018% Stack Social 74,247,264 52 53,225 50,563 2,662 5.0014% HM E-commerce 316,664,809 37 999,345 949,377 49,968 5.0001% Avito E-commerce 820,679,117 42 98,250 95,526 2,724 2.7725% SALT Enterprise 44,257,145 31 14,710 13,974 736 5.0034% Arxiv Academic 62,146,112 21 123,967 117,929 6,038 4.8707%
+> Total –31 62,995,160 198 3,139,690 2,986,869 152,821 4.8674%
+
+respectively, and dr is the feature dimension of neighbor entities under relation r. The first term encodes relation-specific neighbor entities in Eq. (14) , the second term computes positive-edge likelihoods for the two branches up to a constant factor, and the last term selects the top-K relation-wise scores in Eq. (16). The complexity of hierarchical anomaly score fusion in Eq. (18) is O(N ).In summary, by treating the feature dimensions, hidden dimensions, the number of child-table aggregated blocks B, the number of relation types |R| , and the latent dimension drel as constants, the overall testing complexity simplifies to O(N + P 
+
+> r∈R
+
+|V r | + P 
+
+> r∈R
+
+|E r |). This demonstrates that the inference time of RelAD scales linearly with the total number of target entities, neighbor entities, and relation-specific edges, ensuring its practical efficiency and scalability for large-scale relational databases. 15 C Datasets 
+
+To comprehensively evaluate the generalization capability and practical effectiveness of our proposed model, we introduce six large-scale, real-world relational datasets into our experiments. These datasets span multiple core domains, including e-commerce, question-and-answering (Q&A) commu-nities, fashion retail, online advertising, enterprise resource planning (ERP) systems, and academic citation networks. They encompass massive heterogeneous node entities and record rich multimodal attributes along with complex, dynamic interaction relations, providing a highly challenging and high-fidelity testing environment to examine the model’s performance in complex network topologies and real-world relational reasoning tasks. Dataset statistics are summarized in Table 3, with detailed descriptions provided below: • Amazon: This dataset focuses on the e-commerce interactions within the books category of the Amazon platform. It comprehensively records product entities (e.g., price, category), user profiles, and massive review interactions containing rich unstructured text, numerical ratings, and “verified purchase” labels. It provides multi-dimensional feature support for modeling the deep associations among user preferences, implicit intents, and product characteristics. • Stack: This dataset originates from the stats-exchange site within the Stack Exchange Q&A network, focusing on the domains of statistics and machine learning. It covers multi-dimensional user activity trajectories based on a community reputation system, including user biographies, Q&A texts, edit histories, and voting behaviors. It highly reflects the temporal evolution of information flow and self-moderating mechanisms within a knowledge community, providing abundant temporal network features driven by collective behavior. • HM: This dataset integrates massive online transaction records and rich entity metadata from the globally renowned fast-fashion brand H&M. It encompasses detailed customer demographic features and specific parameters for various product categories, exhibiting typical characteristics of long-term, large-scale consumer behavior. It serves as a high-quality benchmark for studying consumer purchasing patterns and product lifecycle predictions by delineating historical transaction relations within complex transaction graphs. • Avito: This dataset originates from a contextual click-through rate (CTR) prediction compe-tition hosted by Avito, a leading Russian classified advertisements platform. It encompasses large-scale user search query logs, detailed descriptions of ad attributes, and related exposure context features. It focuses on mining the precise matching relationships between search intents and ad contents, making it a classic scenario for validating a model’s capability to process high-dimensional sparse features and complex context predictions. • SALT: This dataset utilizes end-to-end real-world enterprise business transaction data re-leased by SAP AI Research, collected directly from authentic Enterprise Resource Planning (ERP) systems. It covers sales document headers, line items, linked customer master data, and business workflow entities (e.g., sales offices, shipping points) with precise timestamps. It preserves an extremely high degree of industrial authenticity, focusing on the prediction of operational variables in practical supply chain and order fulfillment scenarios. • ArXiv: This dataset constructs a large-scale academic literature network based on the arXiv physics domain between 2018 and 2023. It encompasses over 222,000 papers, 143,000 uniquely mapped authors via ORCID, 1.5 million directed citation links, and a hierarchical taxonomy of 53 physics subcategories. It provides a highly dense and complex many-to-many scientific knowledge graph, serving as a high-fidelity validation space for evaluating the model’s ability to track scientific research evolution and analyze academic network topologies. 
+
+## D Anomaly Injection Procedure 
+
+This section details the anomaly injection methods and implementation specifics applied across six relational datasets. To accurately evaluate the performance of anomaly detection algorithms in real-world business scenarios and effectively prevent models from relying on simple statistical features for “shortcut learning,” our anomaly injection process strictly adheres to three core design principles: 16 1. Stratified Injection Rate: We initially sample 5% of the total population across all datasets using a stratified sampling strategy (e.g., binning by node activity or degree) to eliminate selection bias, ensuring that the statistical distribution of the anomalous group rigorously aligns with that of the normal group. Importantly, anomaly labels are assigned only after verifying that the sampled entities satisfy the dataset-specific injection constraints. Con-sequently, while our target injection ratio is 5%, the final proportion of labeled anomalies closely approximates this target but may be slightly lower in certain datasets due to these validity constraints. 2. Strict “Replace-Only” Strategy: We strictly enforce a “replace-only” strategy during the injection phase, firmly prohibiting the addition or deletion of any data rows. This guarantees that the foundational statistical features of the nodes (e.g., interaction frequency, total degree) remain absolutely conserved before and after injection. 3. Real-World Scenario Reconstruction: Each injection strategy is explicitly designed to reconstruct real-world business fraud scenarios, discarding mere random noise. Guided by these principles, we design a separate injection rule for each dataset according to its specific schema and business context. The per-dataset details are as follows: • Amazon. In e-commerce platforms, review manipulation (i.e., a user suddenly posting reviews on products in categories unrelated to their purchase history) is a common fraud pattern. We treat such category-shifting users as anomalous. Specifically, we select 5% of users via stratified sampling from those whose review count exceeds the 20th-percentile threshold and whose dominant category share is above 25%. For each selected user, we choose a target category different from their dominant one and replace 5–10 of their reviews with products from that category, resampling the rating and verified status from the target category distribution. • ArXiv. In academic citation networks, citation cartels (i.e., a group of authors collectively citing a shared set of papers to inflate visibility) represent a realistic form of misconduct. We treat such coordinated citing authors as anomalous. Specifically, we sample 5% of authors with at least one outgoing citation via degree-weighted sampling and organize them into cartels of 6–14 members. For each cartel, 15 high-citation papers spanning multiple categories are selected as shared beacons, and 40% of each member’s outgoing citation edges are replaced with these beacon papers. • Avito. Click farming (i.e., a user concentrating clicks on a small set of paid ads to generate fake traffic) is a prevalent fraud scenario in online advertising. We treat users exhibiting such concentrated click patterns as anomalous. Specifically, we uniformly sample 5% of users and replace 80%–100% of their clicked rows in the SearchStream table with 5 fixed high-priced context ads, setting the position to 1–2. The VisitStream and PhoneRequestsStream tables are similarly redirected to the same target ad pool. • HM. Considering that scalper-like purchasing is a notable risk in fashion retail, we treat users who buy products far outside their dominant style preference as anomalous. Specifically, 5% of active customers are selected via stratified sampling, and 18%–35% of their transactions are replaced with products from a different style category, with price resampled accordingly. • SALT. In enterprise order systems, anomalous transactions often exhibit rare attribute combinations that seldom co-occur under normal operations. We treat customers whose orders contain such rare-combination patterns as anomalous.Specifically, we select 5% of active customers via two-dimensional stratified sampling and replace 3%–8% of their order line attributes (product, category, plant, and shipping point) with rare values drawn from the bottom 20th percentile of the global distribution. • Stack. In Q&A platforms, cross-topic comment bots that post under unrelated topics are a representative form of spam behavior. We sample 5% of users via stratified sampling and redirect approximately 60% of their comments to posts under non-dominant topics, keeping the comment text unchanged. 17 E Implementation Details 
+
+Architecture, Training, and Inference Details. In our experiments, all encoders, including the attribute encoder Enc attr , the dual-view relational encoders ( Enc self and Enc child ), and the neighbor-entity encoders NodeEnc r , along with the block-specific decoders Dec t, are implemented using two-layer Multilayer Perceptrons (MLPs) with ReLU activation. We use h to denote the hidden dimension of the two-layer MLPs, and set h = 1024 for the attribute encoder, relational encoders, gate generators, and block-specific decoders. The attribute latent dimension is denoted by dz and set to 64 , while the relational latent dimension is denoted by drel and also set to 64 . For the neighbor-entity encoders NodeEnc r , the hidden dimension is set to 256 , with input dimensions dynamically adapted to the specific feature blocks of Vr . To stabilize training, Layer Normalization is applied in the intermediate layers of Enc attr and the relational encoders. For each dataset, we tune the key optimization and fusion hyperparameters by random search, including the learning rate, weight decay, batch size, training epochs, sparsity coefficient λs, and fusion coefficients α and β.Regarding the objective function and inference, the model is optimized by the overall objective in Eq. (17), where λs controls the sparsity regularization for compact feature selection. To address GPU memory bottlenecks caused by large-scale relational neighbor sets, we restrict the maximum number of neighbor entities residing on the GPU to 500 , 000 , while implementing an edge sampling mechanism that limits samples to 200 , 000 per relation type per epoch. 
+
+Data Preprocessing. The data processing pipeline initiates by integrating anomaly labels y with the central table T 0 to define the target entities U = {u1, . . . , u N }. Global entity IDs are mapped to a contiguous local index space. As defined in the initial features setting, we follow the RelBench-style preprocessing protocol to obtain row representations hkv for each table, with normalization applied to numerical attributes and unified encodings applied to heterogeneous raw columns. To capture inter-table dependencies, we instantiate the heterogeneous graph G by resolving predefined primary–foreign key schemas. This process extracts clean, relation-specific edge lists Er connecting central entities u ∈ U to their neighbors i ∈ V r . Following Eq. (2) , we compute the aggregated feature blocks xagg,b u via two distinct modes: (1) direct aggregation of schema-connected child tables (calculating descriptive statistics such as mean, standard deviation, and counts); and (2) edge-mediated aggregation of neighbor feature matrices Hr along Er .Finally, for each target entity u, the self-feature xself u is concatenated with all aggregated blocks 
+
+xagg,b u to form the unified attribute matrix X ∈ RN ×d. The complete pre-processing module outputs 
+
+X, neighbor features Hr , relation-specific edges Er , and the label vector y ∈ { 0, 1}N , providing a well-aligned and comprehensive input formulation for the downstream anomaly scoring function f .
+
+Computing infrastructures. We implement the proposed method with Python 3.9 and PyTorch 2.8.0. The key dependencies include scikit-learn, Pandas, and Numpy. All experiments are conducted on a Ubuntu server with Intel Xeon Platinum 8352V CPU (16 vCPU) and NVIDIA RTX 4090 GPU (24GB) with CUDA 11.8. 
+
+## F Supplemental Experiments 
+
+F.1 Performance Comparison in Terms of AUROC and AUPRC 
+
+Tables 4 and 5 further report the mean and standard deviation results over multiple runs. The relatively low variances demonstrate the robustness and stability of RelAD across different datasets. The results show that RelAD not only achieves consistently strong performance across all datasets, but also maintains relatively low variance, demonstrating its robustness and stability for relational anomaly detection. 
+
+F.2 Detailed Results of Ablation Study 
+
+Table 6 reports the full ablation results on the remaining three datasets (SALT, Stack, Avito). Con-sistent with the findings in the main text, the full RelAD achieves the best AUROC on all datasets. Notably, on SALT, removing the attribute branch ( w/o Attr ) causes the largest drop (from 84.90 to 65.74), in contrast to the main-text datasets where relational reconstruction dominates. This suggests that on SALT, attribute deviations serve as the primary anomaly indicator. On Stack and Avito, 18 Table 4: Anomaly detection performance in terms of AUROC (in percent, mean±std). OOM denotes out-of-memory on a 24GB GPU. Best results are highlighted in bold .
+
+Methods Amazon ArXiv Avito HM SALT Stack GAD Methods 
+
+PREM 48.80 ±0.49 45.87 ±0.19 63.08 ±2.11 46.82 ±0.67 54.45 ±2.46 50.27 ±0.67 
+
+FreeGAD 49.61 ±0.00 46.70 ±0.00 33.49 ±0.00 56.60 ±0.00 33.69 ±0.00 52.11 ±0.00 
+
+DOMINANT OOM OOM OOM OOM 63.54 ±2.03 OOM 
+
+TAD Methods 
+
+MCMTAD 47.21 ±1.25 51.11 ±0.14 67.64 ±0.00 80.27 ±0.12 72.75 ±0.14 61.10 ±0.11 
+
+DRL 67.40 ±2.98 48.27 ±2.92 71.20 ±2.37 46.34 ±4.51 46.13 ±6.17 48.00 ±0.24 
+
+KNN 54.40 ±0.00 46.49 ±0.00 63.19 ±0.00 69.06 ±0.00 67.14 ±0.00 50.28 ±0.00 
+
+LOF 51.62 ±0.00 49.88 ±0.00 48.58 ±0.00 49.01 ±0.00 50.70 ±0.00 49.96 ±0.00 
+
+IsoForest 54.27 ±1.19 46.52 ±0.13 64.66 ±3.43 45.04 ±0.08 72.58 ±0.97 55.96 ±2.06 
+
+LUNAR 50.00 ±0.00 51.38 ±0.21 50.46 ±0.45 49.66 ±0.39 50.00 ±0.00 50.02 ±0.79 
+
+Proposed RAD Method RelAD 74.37 ±0.36 56.80 ±0.19 72.32 ±0.77 85.39 ±1.03 84.90 ±0.31 67.98 ±0.79 
+
+Table 5: Anomaly detection performance in terms of AUPRC (in percent, mean±std). OOM denotes out-of-memory on a 24GB GPU. Best results are highlighted in bold .
+
+Methods Amazon ArXiv Avito HM SALT Stack GAD Methods 
+
+PREM 4.92 ±0.06 4.21 ±0.01 5.23 ±0.34 4.34 ±0.06 7.10 ±1.01 5.10 ±0.05 
+
+FreeGAD 5.43 ±0.00 4.21 ±0.00 1.96 ±0.00 5.33 ±0.00 3.44 ±0.00 5.18 ±0.00 
+
+DOMINANT OOM OOM OOM OOM 8.36 ±0.78 OOM 
+
+TAD Methods 
+
+MCMTAD 4.70 ±0.09 5.13 ±0.00 4.37 ±0.00 16.37 ±0.14 8.94 ±0.00 6.83 ±0.00 
+
+DRL 9.67 ±0.21 4.55 ±0.37 5.25 ±0.45 4.26 ±0.25 4.86 ±0.18 4.70 ±0.13 
+
+KNN 5.79 ±0.00 4.46 ±0.00 3.52 ±0.00 8.82 ±0.00 7.10 ±0.00 4.99 ±0.00 
+
+LOF 5.57 ±0.00 4.86 ±0.00 2.85 ±0.00 4.96 ±0.00 5.08 ±0.00 5.00 ±0.00 
+
+IsoForest 7.12 ±0.06 4.29 ±0.01 4.06 ±0.37 4.14 ±0.04 16.71 ±0.45 5.78 ±0.32 
+
+LUNAR 4.99 ±0.00 5.08 ±0.03 2.89 ±0.04 4.97 ±0.03 5.00 ±0.00 5.06 ±0.45 
+
+Proposed RAD Method RelAD 11.77 ±0.25 13.89 ±0.23 5.59 ±0.20 29.56 ±2.04 17.22 ±0.55 7.66 ±0.15 
+
+the relative importance of each component aligns with the main-text observations: block-specific decoding and conditional gating consistently contribute, and removing either relational view degrades performance. Table 7 reports the full AUPRC ablation results across all six datasets, largely corroborating the conclusions drawn from the AUROC analysis. Overall, the complete RelAD framework achieves the best or highly competitive AUPRC scores across diverse scenarios. Specifically, relational modeling (w/o Relation ) remains the most crucial component on Amazon, ArXiv, and HM, where its removal leads to severe AUPRC degradation (e.g., a massive drop from 29.56 to 7.65 on HM, and 13.89 to 4.33 on ArXiv). Conversely, mirroring the AUROC findings, the attribute reconstruction branch (w/o Attr ) proves indispensable on SALT, Stack, and Avito, causing the sharpest AUPRC drops when removed (e.g., 17.22 to 10.32 on SALT, and 7.66 to 5.63 on Stack). Furthermore, conditional gating and block-specific decoding ( w/o Gating and w/o Block Dec. ) consistently improve AUPRC, validating their capability to isolate fine-grained anomaly signals. Regarding the dual-view design, both views provide complementary benefits depending on the dataset’s structural semantics: removing the child view causes a stark drop on HM (29.56 to 9.77), whereas removing the self view is more 19 detrimental on ArXiv (13.89 to 5.11). Although partial variants occasionally exhibit marginal AUPRC fluctuations on specific datasets (e.g., w/o Relation on SALT or w/o Self View on Stack), these minor variances are typical in highly imbalanced datasets. These results further confirm that RelAD benefits from all proposed components across diverse relational databases, maintaining the most robust and comprehensive performance globally. Table 6: AUROC of RelAD and its variants on remaining datasets. Variant SALT Stack Avito RelAD 84.90 67.98 72.32 
+
+w/o Attr 65.74 54.24 66.90 w/o Relation 80.80 67.52 71.85 w/o Gating 81.48 66.66 70.58 w/o Block Dec. 81.80 63.06 67.38 w/o Self View 83.37 67.40 68.64 w/o Child View 83.11 67.47 71.79 Table 7: AUPRC of RelAD and its variants on all datasets. Variant Amazon ArXiv Avito HM SALT Stack RelAD 11.77 13.89 5.59 29.56 17.22 7.66 w/o Attr 10.40 11.39 3.83 24.59 10.32 5.63 w/o Relation 5.20 4.33 5.14 7.65 17.31 7.60 w/o Gating 10.03 11.92 4.98 17.80 14.88 7.14 w/o Block Dec 9.79 10.71 4.42 23.18 13.75 6.47 w/o Self View 9.71 5.11 4.65 22.75 16.00 7.72 
+
+w/o Child View 9.04 9.88 5.31 9.77 16.59 7.54 
+
+F.3 Detailed Results of Hyperparameter Analysis 
+
+Fig. 5 further presents the sensitivity analysis of RelAD to α and β on four more representative datasets, including ArXiv, Avito, HM and Stack, to verify the generalization of our model’s parameter adaptability. Consistent with the observations on Amazon and SALT, the optimal settings of the two weights show distinct differences across datasets, which are highly coupled with the core anomaly patterns of the data. Specifically, ArXiv and HM achieve the optimal detection performance when α
+
+is set to a small value near 0, indicating that anomalies in these two datasets are mainly embodied in abnormal multi-relational connection patterns, so the model relies more on the multi-relational edge reconstruction module to identify anomalies. On the contrary, Avito and Stack obtain the best performance with a relatively large α, which demonstrates that attribute deviations are the dominant manifestation of anomalies in these datasets, and the attribute deviation modeling module plays a more critical role in anomaly scoring. For the balance weight β, all four datasets reach the peak performance at moderate values, rather than extreme settings of 0 or 1. This result is consistent with our previous findings, which further confirms that the two relational views modeled in RelAD can provide complementary anomaly evidence, and the moderate fusion of the two views can fully mine the relational information in the data to boost detection performance. The extended experimental results on more datasets consistently validate that anomalies in different relational databases may originate from either attribute deviations or relational connection abnormalities. Benefiting from the flexible weight tuning mechanism, RelAD can adaptively adjust the fusion weights according to the underlying anomaly source of different data, thus maintaining stable and superior detection performance across diverse application scenarios. 20 0.0    
+
+> 0.5
+> 1.0
+> 0.0
+> 0.5
+> 1.0
+> 47.6
+> 52.4
+> 57.1 (a) ArXiv 0.0
+> 0.5
+> 1.0
+> 0.0
+> 0.5
+> 1.0
+> 62.0
+> 67.3
+> 72.7 (b) Avito 0.0
+> 0.5
+> 1.0
+> 0.0
+> 0.5
+> 1.0
+> 59.5
+> 71.6
+> 83.8 (c) HM 0.0
+> 0.5
+> 1.0
+> 0.0
+> 0.5
+> 1.0
+> 50.7
+> 60.6
+> 70.5 (d) Stack
+
+Figure 5: Sensitivity analysis of RelAD with respect to α and β on remaining datasets. 
+
+## G Detailed Related Work 
+
+G.1 Relational Deep Learning 
+
+Relational deep learning (RDL) aims to learn from multi-table relational databases by modeling entities and their primary–foreign key relationships [ 27 , 3, 4, 42 , 43 , 44 ]. To advance this field, prior works [ 1 , 22 , 28 ] have established large-scale relational benchmarks with diverse real-world datasets and tasks, thereby promoting the development of relational foundation models and rep-resentation learning methods [ 45 , 46 ]. Among them, Griffin [ 6] transforms relational databases into heterogeneous graphs for graph-centric relational representation learning. RT [ 5 ] introduces a Transformer-based framework to model rows, columns, and inter-table relations through rela-tional attention. PLUREL [ 29 ] further studies scaling laws for relational foundation models and shows that large-scale synthetic relational data can significantly improve relational pretraining and generalization. Despite these advances, existing RDL studies mainly focus on predictive tasks such as classification, recommendation, and representation learning, while anomaly detection on relational data remains unexplored. In this work, we formally define the problem of relational anomaly detection, aiming to identify abnormal central entities from relational databases with multiple related tables and foreign-key dependencies, and construct corresponding benchmark datasets and evaluation protocols. 
+
+G.2 Tabular Anomaly Detection 
+
+Tabular anomaly detection (TAD) aims to detect anomalous instances by measuring deviations from normal patterns in structured tabular data [ 47 , 30 , 31 , 32 , 48 ]. Classical methods rely on fixed inductive biases in the original feature space, including isolation-based approaches such as Isolation Forest [ 26 ], density-based methods such as LOF [ 15 ], and distance-based methods such as kNN scoring [ 25 ]. These methods are computationally efficient but rely heavily on handcrafted assumptions about data geometry, which limits their robustness in complex data distributions. Recent advances in deep learning-based TAD have achieved strong performance improvements [ 49 , 50 , 51 , 52 , 53 ]. Among them, representation learning-based methods form one of the most effective directions. For instance, MCM [ 17 ] introduces masked cell modeling to reconstruct randomly masked feature values, enabling the model to learn feature interactions in a self-supervised manner. DRL [ 8 ] further proposes decomposed representation learning to disentangle latent factors and enhance anomaly separability. Despite their effectiveness, existing TAD methods are fundamentally designed for single-table data and rely on learning from flattened feature representations. When applied to relational data, they require aggregating multiple related tables into a single feature vector, which inevitably destroys interaction semantics encoded by foreign-key relations and mixes heterogeneous features in a unified space. 
+
+G.3 Graph Anomaly Detection 
+
+Graph anomaly detection (GAD) aims to identify anomalous data that are different from the major-ity [ 33 , 34 , 54 , 55 ], involving node, edge and graph levels. In this paper, we focus on the node-level anomaly detection on graphs [ 39 , 40 , 56 ]. Recent advances utilize graph neural network (GNNs) to build powerful GAD models [ 34 , 24 , 41 ]. For instance, DOMINANT [ 11 ] introduces GCN-21 based graph autoencoder to reconstruct both structure and node attribute information. CoLA [ 12 ]utilizes a contrastive GNN framework, combining contrastive learning and subgraph extraction to perform self-supervised GAD. Although these GAD methods have shown efficacy on homogeneous graphs, real-world relational data typically involves heterogeneous entity associations [ 57 ], e.g., user–product interactions in risk-control systems. While collapsing heterogeneous relations into a homogeneous graph can address this issue, it may discard relation-specific semantics. Therefore, exploiting heterogeneous entity relationships for anomaly detection remains an open challenge. 
+
+## H Limitations and Broader Impacts 
+
+Our work focuses on identifying abnormal entities from relational databases by jointly modeling multi-table attributes and typed foreign-key relations. A key limitation is that the current framework does not explicitly model temporal dynamics, although many real-world anomalies evolve over time through changing entity attributes and interaction patterns. Future work could extend this setting to dynamic relational databases where entities, attributes, and relations are updated continuously. This study may have positive societal impacts by improving anomaly detection in relational applica-tions such as fraud detection, risk monitoring, industrial operation analysis, and abnormal behavior discovery. At the same time, deployment in high-stakes domains should be treated carefully. Incor-rect anomaly scores may lead to false positives, unnecessary investigation, or unfair treatment of individuals or organizations. Since relational databases may contain sensitive personal or business information, practical use should follow privacy-preserving data governance, access control, and domain-specific auditing. The proposed method is intended as a research tool for benchmark eval-uation rather than an autonomous decision-making system, and any real-world deployment should involve human oversight and fairness assessment. 22
