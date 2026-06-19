@@ -1,0 +1,441 @@
+Title: ARC: Adaptive Robust Joint State and Covariance Estimation
+
+URL Source: https://arxiv.org/pdf/2606.20428v1
+
+Published Time: Fri, 19 Jun 2026 01:23:42 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# ARC: Adaptive Robust Joint State and Covariance Estimation 
+
+Alexandre Hadji-Thomas, Andrew Stirling, and James R. Forbes 
+
+Abstract — Sensor measurements are frequently corrupted by outliers and non-Gaussian noise. These imperfections in the sensor data can cause classical state estimators to generate biased and unreliable state and uncertainty estimates. Robust estimators reject or downweight outliers but do not perform measurement covariance estimation, whereas joint state and covariance estimators assume Gaussian residuals and fixed loss shape parameters. Integrating these two capabilities into a single framework is an opportunity to simultaneously estimate both state and covariance in the presence of outliers. This paper proposes a unified Block-Coordinate Descent framework that combines a norm-aware adaptive robust loss, an Iter-atively Reweighted Least-Squares state update, and a Mini-mum Weighted Covariance Determinant covariance estimator, yielding a self-tuning joint state and covariance estimator. The framework is evaluated in a Monte-Carlo simulation and on real-world ultra-wideband localization experiments in cluttered non-line-of-sight environments. Results show that the proposed estimator consistently recovers the true inlier measurement covariance and matches or exceeds the state estimation accu-racy of all baselines, without requiring any manual parameter tuning. 
+
+I. I NTRODUCTION 
+
+Reliable navigation is essential to autonomous robot op-eration. A standard means of estimating a robot’s state is by minimizing a weighted least-squares (LS) cost function using residuals between measurements and a model that is a function of the robot state. This formulation assumes that the noise is Gaussian and that the measurement covariance is known and fixed [1]. However, these assumptions may not be satisfied in practice. In particular, when measurements are corrupted by outliers, the state estimate becomes biased and the covariance predictions unreliable [2]. For example, when using ultra-wideband (UWB) radio for localization indoors, obstacles and clutter frequently create non-line-of-sight (NLOS) conditions that introduce heavy-tailed measurement errors and positive range biases [3]. These non-Gaussian effects can degrade the accuracy of the state estimate and the reliability of the associated uncertainty provided by the weighted LS solution. 
+
+A. Related Work 
+
+Robust state estimation methods have been developed to mitigate the influence of outliers in LS problems. Huber [4] introduced M-estimators with bounded influence functions, and Black and Rangarajan [5] unified robust statistics with outlier rejection through the duality between robust loss func-tions and latent-variable reweighting schemes. MacTavish and Barfoot [6] compared several fixed robust cost functions in an iteratively reweighted least squares (IRLS) scheme and found that the error deflation term, or other equivalent     
+
+> Initialize ˆΣ(0) , α (0)
+> IRLS state update (4)
+> MWCD covariance update (13)
+> Loss shape pa-rameter update (8)
+> Converged?
+> Output ˆxand ˆΣ
+> yes
+> no
+
+Fig. 1: Flowchart of the proposed adaptive robust joint state and covariance estimation procedure. tuning parameter, must be carefully selected, especially in the presence of poor initial conditions, highlighting the cost of relying on a hand-tuned, fixed loss form. Barron [7] and Chebrolu et al. [8] proposed a general adaptive loss function that subsumes many existing robust losses and automatically adapts its loss shape parameter to the residual distribution, eliminating the need for manual selection. This was later extended by Hitchcox and Forbes [9] to multivariate LS problems, where the Mahalanobis distance residual follows a Chi distribution with a non-zero mode, introducing a norm-aware weighting scheme that correctly identifies inliers regardless of the error dimension. However, none of these methods provide a mechanism for estimating or adapting the measurement covariance, which are assumed to be fixed and known. Joint state and covariance estimation methods address this limitation by treating the measurement covariance as an unknown variable estimated alongside the state. Barfoot [1, Sec. 5.5.3] reviews methods that alternate between state and covariance updates, showing that the joint MAP covariance estimation problem admits a convex structure. Robustness is incorporated through M-estimators with IRLS to jointly compute the covariance and state estimates, but the loss shape parameter is not adapted to the empirical residual distribution. Pfeifer [10] proposes an adaptive estimation framework using Gaussian mixture models to handle non-
+
+> arXiv:2606.20428v1 [cs.RO] 18 Jun 2026
+
+Gaussian noise distributions, estimating the state alongside a mixture uncertainty model, but does not explicitly recover the inlier measurement covariance and requires the number of mixture components to be specified a priori. None of these methods jointly adapt the loss shape parameter and the measurement covariance within a unified framework, leaving them unable to automatically tune their robustness level in response to changing noise conditions. Robust covariance estimation methods offer an alterna-tive approach to handling outlier-contaminated measure-ments. The Minimum Covariance Determinant (MCD) es-timator [11] identifies the subset of observations whose empirical covariance has the smallest determinant, achieving a breakdown point of up to 50%, where the breakdown point is the maximum fraction of outliers an estimator can tolerate before producing an arbitrarily biased result. Kalina and Tichavsk´ y [12] extended this to the Minimum Weighted Covariance Determinant (MWCD) estimator, incorporating continuous residual weights to improve covariance reestima-tion accuracy. However, neither method has been integrated with an adaptive robust state estimator for joint state and covariance estimation under outlier-contaminated measure-ments. None of these approaches offer a unified mechanism for jointly adapting the loss shape parameter and recovering the measurement covariance while estimating the state, leaving a gap in the literature for a self-tuning robust joint state and co-variance estimator capable of handling outlier-contaminated and unknown noise statistics within a single optimization framework. 
+
+B. Contributions and Paper Organization 
+
+The contributions of this work are as follows.  
+
+> •
+
+Proposing a unified Block-Coordinate Descent (BCD) framework that combines a norm-aware adaptive robust loss, an IRLS state update, and a MWCD covariance estimator for joint state and covariance estimation under unknown and outlier-contaminated measurement noise.  
+
+> •
+
+Demonstrating that jointly adapting the loss shape pa-rameter and the measurement covariance within a single BCD cycle yields a self-tuning estimator that requires no manual parameter tuning.  
+
+> •
+
+Validating the framework on real-world UWB local-ization experiments in cluttered NLOS environments, demonstrating consistent recovery of the true inlier measurement covariance and better state estimation ac-curacy than all baselines, without any manual parameter tuning. The remainder of this paper is organized as follows. Section II reviews the mathematical background. Section III presents the proposed adaptive robust joint estimation frame-work. Section IV validates the method on real-world UWB localization experiments. Section V discusses the results. Section VI concludes the paper. II. P RELIMINARIES 
+
+A. Joint State and Covariance Estimation 
+
+Joint state and covariance estimation seeks to simultane-ously estimate the system state and the measurement noise covariance by solving the optimization problem 
+
+{ˆx, ˆΣ} = arg min   
+
+> x,Σ
+
+J (x, Σ), (1) where x ∈ R(N ×nx)×1 is the stacked state vector, x =[xT 
+
+> 1
+
+xT 
+
+> 2
+
+· · · xT 
+
+> N
+
+]T, over all N time steps and nx is the state dimension, such that xi ∈ Rnx . The measurement error is defined as ei = yi − gi(xi), where yi is the i-th noisy mea-surement and gi(xi) is the measurement function evaluated at the current state estimate, and ei ∼ N (0, Σ) with Σ the measurement noise covariance matrix. The associated scalar residual is the Mahalanobis distance, 
+
+ϵi = ∥ei∥Σ−1 =
+
+q
+
+eT 
+
+> i
+
+Σ−1ei. (2) The joint negative log-likelihood cost, which takes the form of a weighted least-squares objective, is given by 
+
+J (x, Σ) = N
+
+2 log det( Σ)
+
+| {z }
+
+> J1(Σ)
+
++ 12
+
+> N
+
+X
+
+> i=1
+
+ϵ2i
+
+| {z }
+
+> J2(x,Σ)
+
+, (3) where N is the number of measurements. Treating the covari-ance as a fixed quantity when it’s in fact unknown or time-varying can lead to biased state estimates and miscalibrated uncertainty [2]. Since x and Σ are coupled in (3), solving for both simul-taneously in closed form is nontrivial. A Block-Coordinate Descent (BCD) scheme is therefore employed [13], alternat-ing between updating x with Σ fixed using batch estimation, and updating Σ with x fixed using the sample covariance formulation [1, Sec. 5.5.3]. Since each subproblem consid-ered here is convex, the BCD updates satisfy the standard conditions for convergence to a stationary point [13]. 
+
+B. Norm-Aware Adaptive Robust Loss Function 
+
+To mitigate the influence of outliers, the term containing the Mahalanobis distance J2(x, Σ) in (3) is replaced by a robust loss function (RLF) [7], 
+
+J2(x, Σ) = 
+
+> N
+
+X
+
+> i=1
+
+ρ(ϵi, α ) = 12
+
+> N
+
+X
+
+> i=1
+
+wi ϵ2i , (4) where α ∈ (−∞ , 2] is a loss shape parameter controlling the degree of robustness. The loss function ρ(ϵi, α ) is given by [7] 
+
+ρ(ϵi, α ) = 
+
+
+
+12 ϵ2i , α = 2 ,
+
+log   12 ϵ2i + 1 , α = 0 ,
+
+1 − exp  − 12 ϵ2i
+
+, α = −∞ ,
+
+|α − 2|
+
+α
+
+ ϵ2i 
+
+> |α−2|
+
++ 1 
+
+α/ 2
+
+− 1
+
+
+
+, otherwise, (5) where α = 2 recovers the standard least-squares cost (L2), and α = 0 recovers the Cauchy loss, which is commonly used for heavy-tailed outlier rejection. To establish the con-nection to the weighted formulation in (4), the weights wi
+
+are obtained from the loss via 
+
+wi = 1
+
+ϵi(xi)
+
+∂ρ i(ϵi(xi)) 
+
+∂ϵ i(xi) , (6) yielding wi ∈ [0 , 1] , each depending on the current residual 
+
+ϵi and the optimal loss shape parameter α⋆ [9]. The weights 
+
+wi = wi(ϵi, α ⋆) are given by 
+
+wi(ϵi, α ⋆) = 
+
+
+
+1, α⋆ = 2 ,
+
+1 
+
+> ϵ2i
+> 2
+
++ 1 
+
+, α⋆ = 0 ,
+
+exp  − 12 ϵ2i
+
+, α⋆ = −∞ ,
+
+ ϵ2i 
+
+> |α⋆−2|
+
++ 1 
+
+α⋆/2−1
+
+, otherwise, (7) where α⋆ is found by minimizing the negative log-likelihood of the residual distribution [7], 
+
+α⋆ = arg min  
+
+> α
+
+N · log( Z(α)) + 
+
+> N
+
+X
+
+> i=1
+
+ρ(ϵi, α ), (8) where Z(α) = R ∞−∞ exp( −ρ(ϵ, α )) d ϵ is the normalization constant of the associated probability distribution. The min-imization of (8) is performed using gradient descent with a backtracking line search [9]. When the Mahalanobis distance is used as the residual, 
+
+ϵi follows a Chi distribution with mode ˜ϵ = √ne − 1 [14, Sec. 12], where ne is the error dimension. This creates a “mode gap” in which inlier residuals cluster around ˜ϵ
+
+rather than zero, causing standard RLFs to inadvertently downweight inliers [9]. To address this, a Maxwell-Boltzmann distribution is fit to the residuals to robustly estimate ˜ϵ [9], and mode-shifted residuals ξi = ϵi − ˜ϵ are introduced for all ϵi ≥ ˜ϵ. The adaptive loss from (8) is then applied only to the shifted residuals, while all residuals below the mode are treated as inliers and assigned a weight of one. The final norm-aware weights are 
+
+˜wi(ϵi, α ⋆) = 
+
+
+
+1, if ϵi < ˜ϵ, wi(ξi, α ⋆), otherwise ,
+
+(9) where wi(ξi, α ⋆) is given by (7). The norm-aware weights (9) are incorporated into the batch estimator through an IRLS scheme [15], which alter-nates between computing the weights and updating the state. Given the current weights, the state is refined via a weighted Gauss-Newton step [1, Sec. 4.3], where the weight matrix becomes 
+
+W = blockdiag   ˇP−10 , Q−10 , . . . , Q−1M−1,
+
+˜w1Σ−1, . . . , ˜wNΣ−1 , (10) combining the robust weights ˜wi with the inverse measure-ment covariance Σ−1, where ˇP0 is the prior state covariance, 
+
+Qj is the process noise covariance at time step j for M
+
+process steps, and N is the number of exteroceptive mea-surements, all assumed to be known. This process is repeated until convergence of the state estimates. 
+
+C. Minimum Weighted Covariance Determinant 
+
+The sample covariance, 
+
+ˆΣML = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+eieT 
+
+> i
+
+, (11) is highly sensitive to outliers, as a single large residual can severely bias the covariance estimate. While incorporating residual weights into the covariance estimate [1, Sec. 5.5.1] reduces the influence of extreme residuals, the estimate can still be biased when outlier clusters are present, as these induce a multimodal residual distribution that a unimodal weighted estimator cannot adequately capture. A more robust covariance estimator is therefore required. The Minimum Covariance Determinant (MCD) estima-tor [11] identifies the subset H⋆ ⊂ { 1, . . . , N } of size h,where |H| = h denotes the number of elements in the subset, whose empirical covariance has the smallest determinant, 
+
+H⋆ = arg min  
+
+> |H| =h
+
+det X
+
+> i∈H
+
+eieT
+
+> i
+
+!
+
+, (12) which offers a breakdown point of up to 50% [11]. A reweighting step is then applied, assigning binary weights 
+
+bi ∈ { 0, 1} based on the Mahalanobis distance to the MCD estimate, with the decision rule bi = 0 if ϵ2i > χ 2ne, 0.999 
+
+and bi = 1 otherwise. Any measurement whose squared Mahalanobis distance is statistically incompatible with the assumed noise model at the 99.9% confidence level is ex-cluded, and the covariance is recomputed over the remaining subset. The support H⋆ obtained from this step is then used to reestimate the covariance using the continuous residual weights ˜wi from (9), yielding the Minimum Weighted Co-variance Determinant (MWCD) estimator [12], 
+
+ˆΣMWCD = 1
+
+P 
+
+> i∈H ⋆
+
+˜wi
+
+X
+
+> i∈H ⋆
+
+˜wi eieT 
+
+> i
+
+. (13) This formulation preserves the high breakdown point of the MCD while leveraging residual weights that vary continu-ously with the residual magnitude, rather than applying a binary decision, allowing the estimator to adapt to different outlier profiles and yielding a more accurate covariance reestimation under heavy-tailed and outlier-contaminated measurements. III. M ETHOD SUMMARY 
+
+This section presents the proposed adaptive robust joint state and covariance estimation framework, which combines the components introduced in Section II within a unified BCD procedure. A. Adaptive Robust Joint State and Covariance Estimation 
+
+The proposed framework jointly estimates the system state 
+
+ˆx, the measurement covariance ˆΣ, and the loss shape param-eter α through a BCD procedure that alternates between three updates at each iteration. The estimator is initialized with a positive definite covariance ˆΣ(0) and a loss shape parameter 
+
+α(0) ∈ (0 , 1] , where values in this range are empirically found to yield faster convergence on a problem-by-problem basis. At each iteration, the state is refined through an IRLS step [15] [16, Sec. 9], which internally computes the norm-aware weights ˜wi via (9). Given the updated state, the measurement covariance is reestimated via the MWCD estimator (13) using the weights 
+
+˜wi previously found using (9). A key feature of the proposed framework is that both the IRLS state update and the MWCD covariance update rely on the same norm-aware weight function (9), ensuring that the treatment of outliers is consistent across the state and covariance estimation steps. Finally, the loss shape parameter α is updated by solv-ing (8), enabling the loss to automatically adapt its robust-ness level to the empirical residual distribution. These three updates are repeated until the convergence criteria are met. The Wasserstein-2 distance between two zero-mean Gaus-sian distributions with covariances Σ1 and Σ2 is given by [17, Sec. 2.6], 
+
+W2(Σ1, Σ2) = 
+
+s
+
+tr 
+
+
+
+Σ1 + Σ2 − 2
+
+
+
+Σ1/22 Σ1Σ1/22
+
+1/2
+
+.
+
+(14) The full procedure is summarized in Algorithm 1, where convergence is declared when ∥δx∥2 < τ x, |∇ αJ | < τ α,where ∇αJ is the gradient of the cost with respect to the shape parameter, and W2( ˆΣ(t+1) , ˆΣ(t)) < τ Σ as defined in (14). The tolerances τx, τα, and τΣ are user-defined tolerances. 
+
+Algorithm 1 Adaptive Robust Joint State and Covariance Estimation  
+
+> 1:
+
+Initialize ˆΣ(0) and α(0) ∈ (0 , 1]  
+
+> 2:
+
+repeat  
+
+> 3:
+
+repeat  
+
+> 4:
+
+Compute ˜wi via (9)  
+
+> 5:
+
+Update ˆx via Gauss-Newton  
+
+> 6:
+
+until ∥δx∥2 < τ x 
+
+> 7:
+
+Update ˆΣ via MWCD (13)  
+
+> 8:
+
+Update α⋆ via (8)  
+
+> 9:
+
+until |∇ αJ | < τ α and W2( ˆΣ(t+1) , ˆΣ(t)) < τ Σ
+
+IV. R ESULTS 
+
+The proposed framework is evaluated in two settings, a Monte-Carlo simulation and a real-world UWB localization experiment, both using a random walk process model. All computations are implemented using navlie , a Python package for state estimation [18]. In this experiment, the UWB range is one-dimensional, so the error dimension is 
+
+ne = 1 and the Chi-distribution mode ˜ϵ = √ne − 1 is zero. However, the proposed pipeline remains unchanged, as a mode of zero is naturally accommodated within the problem formulation. The goal in both simulation and experimental settings is to estimate the robot position xi = ( xi, y i) at each time step i. To assess the performance of the proposed approach in a vehicle-agnostic way, no informative process model is exploited. Rather, a random walk process model is used, 
+
+xi = xi−1 + vi, vi ∼ N (0, Q), (15) where vi is the process noise. The measurement model is given by 
+
+yi = ∥xi − ai∥2 + ei, ei ∼ N (0 , R ), (16) where yi is the measured range, ai is the position of the anchor associated with the i-th measurement, and ei is the measurement noise with covariance R.Five joint state and covariance estimators are evaluated, with the loss shape parameter α as defined in (5). The L2 estimator is the standard joint state and covariance estimator with no outlier robustness [2]. The Charbonnier ( α = 1 )and Cauchy ( α = 0 ) estimators are fixed-loss robust joint state and covariance estimators. These values, α = 2,
+
+α = 1 , and α = 0 , were selected through manual tuning, spanning the range of loss functions, and represent the regime a practitioner would naturally explore for heavy-tailed positively skewed outliers of this type. The MCD estimator is used in an ablation study of the proposed framework where in the MWCD covariance update is replaced by the plain MCD estimator, isolating the contribution of the continuous norm-aware weights in the covariance reestimation. The proposed adaptive robust estimator adapts both the loss shape parameter and the measurement covariance sequentially, as described in Section III. Performance is assessed using two metrics. The position estimation accuracy is measured by the Root Mean Square Error (RMSE), computed against the ground truth as 
+
+RMSE = 
+
+vuut 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+∥ˆxi − xi,gt ∥22, (17) where xi,gt is the ground truth state. The covariance esti-mation quality is measured by the Wasserstein-2 distance between the estimated and true measurement covariance in (14). 
+
+A. Monte-Carlo Simulation 
+
+A Monte-Carlo simulation is conducted to evaluate the estimators under controlled inlier and outlier conditions. A robot with a single UWB tag moves while receiving range measurements to nine UWB anchors. Inlier measurement noise is drawn from a zero-mean Gaussian with covariance 
+
+R = σ2, and a controlled fraction of measurements are corrupted with positive biases drawn from a lognormal distribution with a mean of 2.5σ, where σ is the inlier standard deviation, emulating the positively skewed errors characteristic of NLOS propagation. The outlier fraction is varied from 0 % to 50 % , and each condition is averaged over 
+
+30 Monte-Carlo trials. 
+
+Fig. 2: Position RMSE as a function of the outlier fraction, averaged over 30 Monte-Carlo trials. 
+
+Fig. 3: Wasserstein-2 distance between the estimated and true measurement covariance as a function of the outlier fraction, averaged over 30 Monte-Carlo trials. Fig. 2 reports the position RMSE and Fig. 3 the W2
+
+distance between the estimated and true measurement co-variance, both as a function of the outlier fraction. The adaptive robust estimator (ours) maintains a consistently low RMSE and W2 distance across all outlier fractions, with both remaining nearly flat even as the contamination reaches 50 % .In contrast, the L2 estimator degrades steadily in both RMSE and W2 distance as outliers are introduced, since it assigns equal weight to all measurements. Charbonnier achieves an RMSE and W2 distance close to the adaptive robust estimator at low outlier fractions, but both grow progressively as contamination increases, reflecting the limitation of a fixed loss shape. Cauchy maintains a low W2 distance but exhibits a higher RMSE that grows with the outlier fraction, as its ag-gressive downweighting excludes inliers alongside outliers. The MCD ablation keeps a lower RMSE and W2 distance than the fixed-loss baselines, but both remain higher than those of the full framework, confirming that the continuous norm-aware weights of the MWCD update improve both covariance recovery and state estimation as contamination grows. 
+
+B. Real-World Experiment 
+
+A Clearpath Husky unmanned ground vehicle equipped with four Decawave DWM1000 UWB tags was used for data collection, as shown in Fig. 5. Each tag provides range measurements to a set of fixed UWB anchors placed throughout the test environment. Because UWB ranging estimates distance from the time-of-flight of radio signals, it is sensitive to NLOS propagation, which induces positive range biases and heavy-tailed errors [3]. Further degradation arises from antenna delays, inter-tag clock skews, and non-uniform radiation patterns [19]. The Husky was driven along ten independent trajectories within a 40 m 2 indoor area at a nominal forward velocity of 0.4 m s −1, yielding trajectories of approximately 90 s 
+
+each. Four trajectories were collected in an uncluttered environment with no obstacles. The remaining six trajectories were collected with metal obstacles placed in the center of the room to induce NLOS conditions. Trajectories 1 and 2 include obstacles 1, 3, and 5; trajectories 3 and 4 add obstacle 2; and trajectories 5 and 6 further add obstacle 4, as visible in Fig. 4. UWB range measurements were collected at 30 Hz per tag, and ground-truth poses were recorded at 
+
+120 Hz using a motion capture system. The UWB modules were calibrated for antenna delays and pose-dependent biases following the procedure of [19], in order to isolate the effects of NLOS propagation. The state is initialized via multilat-eration using a batch of UWB measurements, providing an initial trajectory estimate [20]. For the uncluttered trajectories, an MCD estimator is first applied to the residuals between the measured UWB ranges and the ground-truth ranges to obtain an initial covariance estimate, after which measurements lying outside the 3σ,where σ is the standard deviation of the estimated covariance, bounds are removed to obtain an approximately Gaussian residual distribution. The L2 covariance estimate is then computed for each uncluttered trajectory and averaged across trajectories, yielding a reference inlier noise level against which the covariance estimates in the cluttered environment are compared. As confirmed by the uncluttered histograms in Fig. 6, the L2 estimator yields a close fit to the residual distribution in the absence of outliers, validating its use as a reference. Fig. 6 shows the range residual distributions and fitted covariance estimates for all estimators in both environ-ments. In the uncluttered environment, the residuals are approximately Gaussian and the adaptive robust estimator recovers a standard deviation ( σ = 0 .17 m) close to the Fig. 4: Trajectory 5 of the Husky in the cluttered environment using the random walk process model. Estimated paths from all five estimators are shown against the motion-capture ground truth. Black dots denote UWB anchor locations and grey rectangles denote metal obstacles. 
+
+Fig. 5: The Clearpath Husky unmanned ground vehicle nav-igating a cluttered environment. UWB tags mounted on the robot and fixed anchors are circled in blue. Metal obstacles placed to induce NLOS conditions are outlined in red. L2 estimate ( σ = 0 .16 m), which serves as the reference in the absence of outliers. In the cluttered environment, the residual distribution exhibits the characteristic heavy-tailed positively skewed profile induced by NLOS propagation. The adaptive robust estimator (ours) recovers a standard deviation (σ = 0 .16 m) essentially identical to the true inlier noise level ( σ = 0.16 m), while the L2 estimator significantly overestimates ( σ = 0 .28 m) due to its sensitivity to outlier-corrupted residuals, Charbonnier overestimates moderately (σ = 0 .20 m), and Cauchy underestimates ( σ = 0 .11 m) by over-suppressing residuals. The MCD ablation also overes-timates ( σ = 0 .20 m), showing that replacing the continu-ous norm-aware weights with the plain MCD reestimation degrades covariance recovery despite an otherwise identical pipeline. 
+
+(a) Uncluttered environment. 
+
+(b) Cluttered environment. 
+
+Fig. 6: Range residual distributions and fitted covariance estimates for each estimator in the random walk experiment. TABLE I: Position RMSE (m) for the random walk experi-ment.                                                  
+
+> Uncluttered Cluttered Method Avg. 123456Avg. L2 0.081 0.117 0.115 0.114 0.114 0.135 0.112 0.118 Adaptive (ours) 0.081 0.091 0.089 0.084 0.101 0.117 0.099 0.097
+> Charbonnier 0.085 0.095 0.091 0.093 0.096 0.115 0.095 0.098 Cauchy 0.107 0.097 0.117 0.122 0.096 0.118 0.095 0.107 MCD (used for ablation) 0.082 0.095 0.095 0.094 0.103 0.121 0.100 0.101
+
+Table I reports the position RMSE across all trajecto-ries for both environments. In the uncluttered environment, the adaptive robust estimator achieves the same average RMSE as L2 ( 0.081 m), confirming that the added robustness mechanism does not degrade performance in the absence of outliers. Cauchy exhibits a notably higher average RMSE (0.107 m) even in the uncluttered case, reflecting the cost of its aggressive downweighting of residuals. In the clut-tered environment, the adaptive robust estimator achieves the lowest average RMSE of 0.097 m, outperforming L2 (0.118 m), Charbonnier ( 0.098 m), and Cauchy ( 0.107 m), demonstrating its ability to suppress NLOS-induced outliers while maintaining accurate state estimation. The MCD ab-lation achieves a higher average RMSE ( 0.101 m) than the full framework, indicating that the continuous norm-aware weights in the MWCD update also benefit state estimation accuracy. V. D ISCUSSION 
+
+In the weighted least-squares formulation, the state update balances contributions from the process model and the mea-surements through the weight matrix W. A poorly estimated measurement covariance directly distorts this balance. When 
+
+ˆΣ is overestimated, as with L2 which assigns unit weights to all measurements, too many outlier-corrupted measure-ments are included in the state update, biasing the estimate. When ˆΣ is underestimated, as with Cauchy, the inflated Mahalanobis distances drive the robust weights toward zero for both inliers and outliers, effectively excluding most measurements from the state update and shifting reliance toward the process model. This underestimation is visible in Fig. 6, where the Cauchy fitted distribution is too narrow to capture the inlier residual spread. 
+
+Fig. 7: Wasserstein-2 distance between the estimated and true measurement covariance for each estimator across LOS and NLOS experiments. The L2 uncluttered W2 distance is zero as it serves as the reference inlier noise level. This mechanism explains why the fixed-loss baselines degrade as the outlier fraction grows in the simulation, while the adaptive robust estimator remains stable. Each fixed loss commits to a single weighting behavior, so it is only well matched to a narrow range of contamination, whereas adapting the loss shape parameter and the recovered covariance to the empirical residual distribution keeps the weighting appropriate across all conditions. The same effect appears in the real-world experiment. Charbonnier, with α = 1 , achieves an RMSE similar to the adaptive robust estimator, as it represents the loss a practitioner familiar with this outlier profile would likely select through manual tuning. However, it overestimates the inlier covariance in the cluttered environment, as visible in Fig. 6, resulting in a miscalibrated uncertainty estimate, and requires manual parameter tuning. The adaptive robust esti-mator recovers the true inlier covariance accurately without any parameter tuning, yielding a well-calibrated uncertainty alongside competitive state estimation accuracy, as confirmed by the W2 distances in Fig. 7. The MCD ablation isolates the role of the continuous weighting in the covariance update. While the MCD subset selection rejects the bulk of the outlier cluster, its binary inclusion rule weights all retained measurements equally, leaving the estimate biased by partially corrupted residuals. The continuous norm-aware weights of the MWCD down-weight these residuals according to their magnitude, recov-ering a covariance closer to the true inlier noise level. This covariance recovery is confirmed by the W2 distances shown in Fig. 7, where the adaptive robust estimator achieves the lowest W2 distance across both LOS and NLOS experi-ments. For the adaptive robust estimator, the uncluttered W2
+
+distance is marginally higher than the cluttered one, though the two remain nearly identical. Across all conditions, the estimated covariance remains close to the estimated true inlier noise level, demonstrating that the proposed MWCD-based covariance update reliably identifies and rejects outlier-corrupted measurements while preserving the statistical in-tegrity of the inlier subset. VI. C ONCLUSIONS 
+
+The contribution of this paper is an adaptive robust frame-work for joint state and covariance estimation under outlier-contaminated measurements. The proposed method combines a norm-aware adaptive robust loss, an IRLS state update, and a MWCD covariance estimator within a unified BCD proce-dure that jointly adapts the state estimate, the measurement covariance, and the loss shape parameter without any manual tuning. The framework was validated in a Monte-Carlo simulation and on real-world UWB localization experiments using a Husky unmanned ground vehicle navigating cluttered NLOS environments. Across both settings, the adaptive robust esti-mator consistently recovered a measurement covariance close to the inlier noise level, achieving the lowest W2 distance among all estimators. In the simulation, it maintained a low RMSE and W2 distance across outlier fractions up to 50 % ,while the fixed-loss baselines degraded as outlier contamina-tion increased. In the real-world experiment, it outperformed all baselines in state estimation accuracy, though Charbon-nier, the best manually tuned fixed-loss alternative for this outlier profile, achieved a comparable RMSE, but required manual tuning and produced a miscalibrated uncertainty estimate. These results demonstrate that accurately recovering the inlier measurement covariance is critical for reliable state estimation, as it ensures that valid measurements are properly incorporated into the state update. The proposed framework consistently delivers accurate covariance estimates and better state estimation accuracy across varying environments, estab-lishing it as a robust and self-tuning solution for real-world localization under NLOS-contaminated measurements. ACKNOWLEDGMENT 
+
+The authors acknowledge the use of Microsoft Copilot to review an initial draft of this paper. The authors reviewed and edited the content of the paper as needed and take full responsibility for the content of this paper. REFERENCES [1] T. D. Barfoot, State Estimation for Robotics: Second Edition , 2nd ed. Cambridge University Press, 2024. [2] K. Khosoussi and I. Shames, “Joint State and Noise Covariance Estimation,” in Proceedings of Robotics: Science and Systems , Los Angeles, CA, USA, 2025. [3] I. Guvenc, C.-C. Chong, and F. Watanabe, “NLOS identification and mitigation for UWB localization systems,” in 2007 IEEE Wireless Communications and Networking Conference , 2007, pp. 1571–1576. [4] P. J. Huber, “Robust Estimation of a Location Parameter,” The Annals of Mathematical Statistics , vol. 35, no. 1, pp. 73 –101, 1964. [5] M. J. Black and A. Rangarajan, “On the unification of line processes, outlier rejection, and robust statistics with applications in early vision,” International Journal of Computer Vision , vol. 19, pp. 57–91, Jul. 1996. [6] K. MacTavish and T. D. Barfoot, “At all costs: A comparison of robust cost functions for camera correspondence outliers,” in 2015 12th Conference on Computer and Robot Vision , 2015, pp. 62–69. [7] J. T. Barron, “A general and adaptive robust loss function,” in 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2019, pp. 4326–4334. [8] N. Chebrolu, T. L¨ abe, O. Vysotska, J. Behley, and C. Stachniss, “Adaptive robust kernels for non-linear least squares problems,” 
+
+IEEE Robotics and Automation Letters , vol. 6, no. 2, pp. 2240–2247, 2021. [9] T. Hitchcox and J. R. Forbes, “Mind the gap: Norm-aware adaptive robust loss for multivariate least-squares problems,” IEEE Robotics and Automation Letters , vol. 7, no. 3, pp. 7116–7123, 2022. [10] T. Pfeifer, “Adaptive estimation using gaussian mixtures,” PhD thesis, Chemnitz University of Technology, 2023. [11] P. J. Rousseeuw and M. Hubert, “Anomaly detection by robust statistics,” WIREs Data Mining and Knowledge Discovery , vol. 8, no. 2, e1236, 2018. [12] J. Kalina and J. Tichavsk´ y, “The minimum weighted covariance determinant estimator for high-dimensional data,” Advances in Data Analysis and Classification , vol. 16, pp. 977–999, 2022. [13] P. Tseng, “Convergence of a block coordinate descent method for nondifferentiable minimization,” Journal of Optimization Theory and Applications , vol. 109, pp. 475–494, Jan. 2001. [14] C. Forbes, M. Evans, N. Hastings, and B. Peacock, Statistical Distributions . Wiley, 2011. [15] P. W. Holland and R. E. Welsch, “Robust regression using iteratively reweighted least-squares,” Communications in Statistics - Theory and Methods , vol. 6, no. 9, pp. 813–827, 1977. [16] S. Boyd and L. Vandenberghe, Convex Optimization . Cambridge University Press, 2004. [17] G. Peyr´ e and M. Cuturi, Computational optimal transport , 2020. arXiv: 1803.00567 [stat.ML] .[18] C. C. Cossette, M. Cohen, V. Korotkine, A. Del Castillo Bernal, M. A. Shalaby, and J. R. Forbes, “Navlie: A python package for state estimation on lie groups,” in 2023 IEEE/RSJ International Confer-ence on Intelligent Robots and Systems (IROS) , 2023, pp. 5282–5287. [19] M. A. Shalaby, C. C. Cossette, J. R. Forbes, and J. Le Ny, “Calibration and uncertainty characterization for ultra-wideband two-way-ranging measurements,” in 2023 IEEE International Conference on Robotics and Automation (ICRA) , 2023, pp. 4128–4134. [20] W. H. Foy, “Position-location solutions by taylor-series estimation,” 
+
+IEEE Transactions on Aerospace and Electronic Systems , vol. AES-12, no. 2, pp. 187–194, 1976.
