@@ -6,52 +6,34 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-19
-- 运行时间：2026-06-19 22:14:26 UTC
+- 最新运行日期：2026-06-20
+- 运行时间：2026-06-20 21:25:28 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：3
-- 速读区：7
+- 本次总论文数：3
+- 精读区：0
+- 速读区：3
 
 ### 今日简报（AI）
-今日推荐10篇论文，精读聚焦时间序列异常检测与水下SLAM，速读涵盖卫星几何一致性、HLS反射率重构及无人机位姿估计。  
-最值得关注的方向：PaAno+提出的多尺度编码与交叉变量注意力机制（9.0分）在异常检测中表现突出，以及基于事件相机的高精度水下SLAM系统（8.0分）为机器人感知提供新思路。  
-建议重点研究PaAno+的跨变量注意力如何迁移至工业传感器数据，并留意事件相机SLAM在水下领域的实用化进展。
-- 详情：[/202606/19/README](/202606/19/README)
+今日阅读3篇速读论文，涵盖SAR港口监测、太赫兹食品检测异常检测及大/小语言模型数据修复。
+
+最值得关注的是高分论文《Spaceborne SAR Change Detection and Coherence Analysis for Maritime Port Monitoring》（7.0/10），其相干分析思路在港口动态监测中具潜力。
+
+建议优先精读该文，或进一步了解SAR相干性在遥感变化检测中的实际应用。
+- 详情：[/202606/20/README](/202606/20/README)
 
 ### 精读区论文标签
-1. [PaAno+: Multiscale Encoding and Cross-Variable Attention for Time Series Anomaly Detection](/202606/19/2606.20055v1-paano-multiscale-encoding-and-cross-variable-attention-for-time-series-anomaly-detection)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：轻量级时间序列异常检测模型，采用多尺度编码和跨变量注意力
-2. [A High-accuracy Event-based Underwater SLAM System](/202606/19/2606.18951v2-a-high-accuracy-event-based-underwater-slam-system)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：使用事件相机的水下SLAM系统，用于自主海洋观测
-3. [A Differentiable Composite Approximation Framework for Autonomous Underwater Vehicle Maneuvering Modeling from Sea-Trial Data](/202606/19/2606.19711v1-a-differentiable-composite-approximation-framework-for-autonomous-underwater-vehicle-maneuvering-modeling-from-sea-trial-data)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：自主水下航行器机动建模
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Geometric Consistency Protocol for Foundation Model Features in Multi-View Satellite Imagery](/202606/19/2606.17564v1-geometric-consistency-protocol-for-foundation-model-features-in-multi-view-satellite-imagery)  
-   标签：评分：7.0/10、query:ocean-qc
-   evidence：面向卫星图像质量的几何一致性评估协议
-2. [HLS-GPT: A Generative Pretrained Transformer (GPT) for Continental-Scale NASA Harmonized Landsat and Sentinel-2 (HLS) Reflectance Reconstruction Across All Bands on Arbitrary Dates](/202606/19/2606.18115v1-hls-gpt-a-generative-pretrained-transformer-gpt-for-continental-scale-nasa-harmonized-landsat-and-sentinel-2-hls-reflectance-reconstruction-across-all-bands-on-arbitrary-dates)  
+1. [Spaceborne SAR Change Detection and Coherence Analysis for Maritime Port Monitoring](/202606/20/2606.18917v1-spaceborne-sar-change-detection-and-coherence-analysis-for-maritime-port-monitoring)  
    标签：评分：7.0/10、query:ocean-obs
-   evidence：生成式预训练Transformer用于Landsat和Sentinel-2反射率重建，支持海洋遥感监测
-3. [Hardware- and Vision-in-the-Loop Validation of Deep Monocular Pose Estimation for Autonomous Maritime UAV Flight](/202606/19/2606.19176v1-hardware--and-vision-in-the-loop-validation-of-deep-monocular-pose-estimation-for-autonomous-maritime-uav-flight)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：自主海上无人机飞行在环验证
-4. [How to spot outliers: an Ensemble Anomaly Detection Framework](/202606/19/2606.20079v1-how-to-spot-outliers-an-ensemble-anomaly-detection-framework)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：时间序列数据集成异常检测框架
-5. [CMDS-AD: Cross-Modal Dual-Stream Decoupling for Few-Shot Anomaly Detection](/202606/19/2606.20300v1-cmds-ad-cross-modal-dual-stream-decoupling-for-few-shot-anomaly-detection)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：跨模态少样本异常检测框架
-6. [ARC: Adaptive Robust Joint State and Covariance Estimation](/202606/19/2606.20428v1-arc-adaptive-robust-joint-state-and-covariance-estimation)  
-   标签：评分：7.0/10、query:ocean-qc
-   evidence：针对异常传感器数据的鲁棒联合状态与协方差估计方法
-7. [How do Self-Supervised Remote Sensing Vision Models Transfer to Downstream Tasks?](/202606/19/2606.13896v1-how-do-self-supervised-remote-sensing-vision-models-transfer-to-downstream-tasks)  
-   标签：评分：6.0/10、query:ocean-obs
-   evidence：自监督地理空间基础模型用于遥感任务迁移
+   evidence：利用星载SAR进行港口监测的变化检测
+2. [Beer-Lambert Guided Representation Learning for Unsupervised Anomaly Detection in Sub-THz Food Inspection Images](/202606/20/2606.16421v1-beer-lambert-guided-representation-learning-for-unsupervised-anomaly-detection-in-sub-thz-food-inspection-images)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：利用比尔-朗伯定律引导的无监督异常检测
+3. [Collaborative Large and Small Language Models for Accurate and Scalable Data Repair](/202606/20/2606.17582v1-collaborative-large-and-small-language-models-for-accurate-and-scalable-data-repair)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：提出结合大语言模型和小语言模型的数据修复方法，与异常检测和数据质量相关
 
 
 <div class="dpr-home-promo-card">
