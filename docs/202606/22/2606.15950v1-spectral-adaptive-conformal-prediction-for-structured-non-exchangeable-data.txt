@@ -1,0 +1,633 @@
+Title: Spectral Adaptive Conformal Prediction for Structured Non-Exchangeable Data
+
+URL Source: https://arxiv.org/pdf/2606.15950v1
+
+Published Time: Tue, 16 Jun 2026 01:46:31 GMT
+
+Number of Pages: 35
+
+Markdown Content:
+# Spectral Adaptive Conformal Prediction for Structured Non-Exchangeable Data 
+
+Jeffery Opoku a,* and David Banahene b
+
+> a
+
+University of Texas Rio Grande Valley, United States 
+
+> b
+
+Florida International University, United States 
+
+> *
+
+Corresponding author. Email: jeffery.opoku01@utrgv.com 
+
+David Banahene. Email: abanahene54@gmail.com 
+
+Abstract 
+
+Conformal prediction gives prediction intervals with finite-sample coverage when the data are exchangeable. Many time-indexed datasets are not exchangeable. They have seasons, recurring regimes, changing frequencies, or other forms of structured dependence. This paper studies a simple way to use that structure. We propose spectral adaptive conformal prediction, a method that forms weighted conformal quantiles using local spectral similarity and then updates the tar-get miscoverage level online. The spectral weights choose calibration residuals that look relevant to the current test point. The adaptive update corrects the long-run miss rate when uncertainty changes over time. We give an approximate coverage result for the fixed spectral weighted quan-tile and a deterministic long-run calibration result for the adaptive update. Simulations with recurring regimes and slowly changing frequencies, together with three U.S. real-data examples, show that the hybrid method can improve on fixed spectral weighting, while also showing that spectral weighting must be monitored through effective sample size diagnostics. 
+
+# 1 Introduction 
+
+Conformal prediction is a useful way to turn point predictions into prediction intervals. Its appeal is that the prediction model can be almost anything. The model may be a regression method, a random forest, a neural network, or a time-series model. The conformal step then uses calibration residuals to choose an interval width with a coverage guarantee [1, 12]. The difficulty is that the cleanest conformal guarantee assumes exchangeability. This is a strong assumption for ordered data. In a time series, the next observation is not just another randomly permuted point. It may belong to a new season, a changing regime, or a different frequency pattern. In such settings, old residuals may not all be equally relevant to the current test point. This issue appears in many ordinary statistical problems. Electricity use changes with season and weather. Retail gasoline prices can stay calm for months and then move sharply during a supply shock. Financial and economic series often have periods of quiet behavior followed by periods of high volatility. In each case, a prediction interval that was well calibrated in the past can become too narrow or too wide later. The practical question is not only whether a method has a formal guarantee under ideal assumptions. It is also whether the method can use the structure that the data visibly contain. There are two common reactions to this problem. One reaction is to use only recent residuals. This is natural, but it can throw away useful older information. If a similar seasonal or oscillatory regime occurred far in the past, then those older residuals may be more useful than recent residuals from a different regime. Another reaction is to update the conformal level online. This can repair the long-run error rate, but it does not by itself say which calibration residuals should be most relevant at a given time. The method studied here combines these two reactions. 1   
+
+> arXiv:2606.15950v1 [stat.ML] 14 Jun 2026 local spectral features Zt
+> spectral weights wt,i
+> weighted quantile
+> prediction interval
+> adaptive update
+> αt+1 observe miss
+
+Figure 1: Spectral adaptive conformal prediction. Spectral features choose relevant calibration residuals. The adaptive update adjusts the target miscoverage level after each observed prediction error. This paper asks a concrete question: can conformal prediction use recurring spectral structure when the data are not exchangeable? Our starting point is simple. If the current part of a series has a certain local spectral pattern, then calibration residuals from earlier parts of the series with similar spectral behavior may be more useful than residuals chosen only by time proximity. This is especially natural for data with recurring seasons, oscillatory regimes, or slowly changing frequencies. We propose spectral adaptive conformal prediction. The method has two parts. First, it computes local spectral features and uses them to weight calibration residuals. Second, it updates the target miscoverage level online, following the feedback idea of adaptive conformal inference [9]. The spectral part chooses relevant residuals. The adaptive part corrects the error rate over time. The word “spectral” is used in a modest sense. We do not assume that the whole series is sta-tionary or that a single global spectrum explains the data. Instead, we compute local summaries of oscillatory behavior over moving windows. These summaries are used as coordinates for similarity. Two times are close if their local frequency content is close. The conformal calibration step then gives more weight to residuals from times whose local spectral behavior resembles the present one. The paper makes four contributions. First, it defines a spectrally weighted conformal method for ordered data. Second, it combines this weighting rule with adaptive conformal updating. Third, it gives a simple theory: an approximate coverage theorem for fixed spectral weighting and a long-run calibration proposition for the adaptive update. Fourth, it tests the method in two simulation settings and on three U.S. real-data examples: utilities, gasoline prices, and Seattle weather. The main finding is that the hybrid method is useful when spectral features provide a stable notion of locality, but it should be accompanied by diagnostics because spectral localization can be too aggressive. 
+
+# 2 Related Work 
+
+2.1 Conformal prediction 
+
+Conformal prediction has developed into a broad framework for distribution-free uncertainty quan-tification. Split conformal prediction gives finite-sample marginal coverage under exchangeability [1, 12]. The main practical attraction is that the conformal step can be placed on top of almost any prediction model. This separation is useful: the statistical model tries to predict the center of the distribution, while the conformal layer calibrates the uncertainty. Several refinements improve efficiency or adaptivity. Jackknife+ methods reuse fitted models to obtain predictive intervals with strong finite-sample properties [3]. Conformalized quantile re-gression combines quantile regression with conformal calibration and can give intervals that adapt 2to heteroscedasticity [13]. These methods show that conformal calibration is not a single algorithm but a general principle: use residual-like scores to correct the uncertainty output of a prediction rule. 
+
+2.2 Beyond exchangeability 
+
+The exchangeability assumption is the main obstacle for time-indexed data. Weighted conformal prediction is one way to relax the ordinary equal-weight calibration rule. Under covariate shift, weights can correct for a change between training and test covariate distributions [16]. More general work studies conformal prediction beyond exchangeability and shows how validity degrades when the symmetry assumption is weakened [4]. Localized conformal prediction uses nearby calibration points to improve conditional behavior [10, 11]. The present paper belongs to this line of work. The key difference is the definition of locality. In many problems, locality means closeness in a covariate vector or closeness in time. Here locality means closeness in local spectral behavior. This choice is natural when the same type of behavior can recur after a long gap. A winter-like residual pattern may be more relevant to the next winter than to the immediately preceding summer. A high-frequency regime in one part of a series may be more relevant to another high-frequency regime than to a nearby low-frequency period. 
+
+2.3 Time-series conformal methods 
+
+For time series, several methods adapt conformal prediction to dependence and distribution shift. EnbPI and sequential predictive conformal inference use temporal information in residuals [19, 20]. Adaptive conformal inference updates the miscoverage level online to control long-run error rates under distribution shift [9]. Other adaptive conformal methods for time series use aggregation, online learning, or dynamic programming ideas [5, 14, 21, 23]. The adaptive update used in this paper is deliberately simple. It is a feedback rule: if the last interval missed, the next interval becomes wider; if the last interval covered, the next interval can become narrower. This rule is attractive because it does not require the source of distribution shift to be modeled correctly. Its limitation is that it reacts after errors occur. Spectral weighting is meant to improve the residual pool before the error is observed. Some recent methods focus on multi-step prediction rather than the one-step calibration prob-lem studied here. Copula conformal prediction and dual-splitting conformal prediction are examples of methods designed for multi-step time-series forecasting [15, 22]. Those methods address a dif-ferent question: how to calibrate a vector of future predictions while accounting for cross-horizon dependence. The present paper instead studies how to choose a relevant calibration residual pool at a single future time point when the series is non-exchangeable. 
+
+2.4 Local spectra and nonstationary time series 
+
+Our method is closest to weighted and localized conformal prediction, but it uses a different notion of locality. Instead of measuring closeness only by covariates or time distance, we measure closeness by local spectral behavior. This connects the method to the literature on locally stationary time series and time-varying spectra [7, 8]. The key assumption is not that the data are exchangeable, but that residual behavior is stable across regions with similar spectral features. The paper should not be read as a full theory of locally stationary conformal prediction. Rather, it uses one lesson from that literature: the frequency content of a time series can change over time, and local frequency summaries can describe this change. The conformal method then uses those 3Table 1: Positioning relative to selected conformal time-series methods. The proposed method is closest to localized and adaptive conformal prediction, but uses local spectral similarity as the localization variable.                               
+
+> Method family Main idea Strength Relation to this paper EnbPI and sequential con-formal [19, 20] Use time-series residual infor-mation and sequential calibra-tion Practical for dependent forecasting errors Time information is central, but spectral recurrence is not the main localization device Adaptive conformal infer-ence [9, 23] Update the target miscoverage level online Controls long-run miss rate under distribution shift Used as one component of the proposed hybrid method Strongly adaptive online conformal [5] Use online-learning tools to adapt over intervals Stronger regret-style adap-tivity across time windows Complementary to spectral localization; could be com-bined with spectral weights Bellman conformal infer-ence [21] Use dynamic programming to choose interval widths over time Optimizes long-run interval behavior under shift Focuses on interval-width policy, while this paper fo-cuses on residual relevance Multi-step conformal meth-ods [15, 22] Calibrate joint or multi-horizon forecasts Handles dependence across forecast horizons Different forecasting target; this paper studies one-step localized calibration Spectral adaptive conformal prediction Weight residuals by local spec-tral similarity and update on-line Uses recurring oscillatory structure and long-run feed-back Proposed method
+
+summaries only for calibration. This keeps the proposal simple enough to combine with many forecasting models. 
+
+# 3 Method 
+
+This section gives the method in a form that can be implemented directly. We first recall the weighted conformal quantile. We then describe the spectral features, the bandwidth choice, and the adaptive update. The method is intentionally modular. A user may change the point predictor, the score function, or the local spectral summary without changing the main conformal idea. Let (X1, Y 1), . . . , (Xn, Y n)be an ordered sample. A fitted model gives a point prediction bf (Xt). On a calibration set Ical ,define residual scores 
+
+Ri = |Yi − bf (Xi)|.
+
+Ordinary split conformal prediction uses an empirical quantile of these residuals and returns [ bf (Xt) − qα, bf (Xt) + qα].
+
+This treats all calibration residuals equally. Equal weighting is reasonable when the calibration scores and the test score are exchangeable. For nonstationary ordered data, this is often too crude. If the calibration set contains several regimes, then the residual distribution at time t may be closer to only part of the calibration set. Weighted conformal prediction replaces the global empirical distribution by a local empirical distribution. For a test index t, let wt,i ≥ 0 be weights satisfying P 
+
+> i∈I cal
+
+wt,i = 1. The weighted conformal quantile is 
+
+qt(α) = inf 
+
+q : X
+
+> i∈I cal
+
+wt,i 1{Ri ≤ q} ≥ 1 − α
+
+ .
+
+4The prediction interval is 
+
+bCt(Xt) = [ bf (Xt) − qt(α), bf (Xt) + qt(α)] .
+
+The weights are based on local spectral features. For each index i, compute a vector Zi ∈ Rd
+
+from a local window around i. In our simulations, Zi is built from normalized local Fourier powers. Other choices, such as wavelet coefficients or local periodogram summaries, are also possible. Define 
+
+dspec (t, i ) = ∥Zt − Zi∥2.
+
+With a Gaussian kernel and bandwidth b > 0, we use 
+
+wt,i = exp {−∥ Zt − Zi∥22/(2 b2)}
+
+P 
+
+> j∈I cal
+
+exp {−∥ Zt − Zj ∥22/(2 b2)} .
+
+3.1 Local spectral features 
+
+The local feature vector Zi is meant to summarize the shape of the series near time i. In the experiments we use a causal moving window of length m: the feature for time i is computed only from observations available before the prediction at time i. Within that window we remove the local mean and compute Fourier powers at a small set of frequencies. The powers are normalized to sum to one. This normalization makes the feature describe the relative frequency content rather than the absolute scale of the series. This choice is useful for two reasons. First, it is interpretable. A large low-frequency component means the local path is slowly moving. A larger seasonal or higher-frequency component means the local path is oscillating more quickly. Second, it is cheap to compute. The feature can be calculated once for all calibration and test points, and the weighted quantile can then be updated quickly. The feature vector does not need to be perfect. It only needs to be informative enough that nearby feature vectors tend to have similar residual behavior. In applications where abrupt jumps matter more than periodic behavior, wavelet summaries may be better. In applications with known calendar structure, one can add calendar variables to the spectral features. The framework only requires a feature vector Zi and a distance between feature vectors. 
+
+3.2 Bandwidth and effective sample size 
+
+The bandwidth b controls how local the calibration rule is. A small bandwidth puts most of the mass on a few calibration residuals that are very close in spectral feature space. This may reduce bias, but it can make the quantile unstable. A large bandwidth spreads weight over many calibration points. This is more stable, but it moves the method back toward ordinary split conformal prediction. We therefore report the effective sample size 
+
+neff (t) = 1
+
+P 
+
+> i∈I cal
+
+w2
+
+> t,i
+
+.
+
+This number is easy to interpret. If all N calibration residuals receive equal weight, then neff (t) = N .If one residual receives nearly all the weight, then neff (t) is close to one. In practice, very small effective sample sizes are a warning sign. They mean the interval is being built from too little calibration information. In the experiments, the bandwidth is selected from a grid by a validation rule on the calibration portion of the sample. The rule favors coverage near the nominal level while avoiding unnecessarily 5wide intervals. This is a simple choice, not a claim of optimality. More sophisticated bandwidth selection is a useful direction for later work. The bandwidth is then held fixed during the reported test period. The adaptive version uses a time-varying miscoverage level αt. At time t, the interval is 
+
+bCSA  
+
+> t
+
+(Xt) = [ bf (Xt) − qt(αt), bf (Xt) + qt(αt)] .
+
+After observing Yt, set 
+
+Mt = 1{Yt /∈ bCSA  
+
+> t
+
+(Xt)}
+
+and update 
+
+αt+1 = αt + γ(α − Mt),
+
+with truncation to keep αt ∈ (0 , 1). Here γ > 0 is a learning rate. 
+
+3.3 Why combine spectral weighting and adaptation? 
+
+The two parts of the method solve different problems. Spectral weighting asks which residuals should be used for the current time point. Adaptive updating asks how wide the interval should be after observing recent mistakes. Either part can be used alone, but the experiments show that neither part is enough in all settings. Fixed spectral weighting can produce intervals that are too narrow when the local residual distribution changes in scale. Ordinary ACI can correct the long-run miss rate, but it does not distinguish between calibration residuals from different local frequency regimes. The hybrid method uses spectral weighting to choose a relevant residual pool and ACI to control the miss rate over time. This is why the method performs well in both simulations and in the U.S. gasoline example. The gasoline series has clear regime changes, and non-adaptive methods badly under-cover. The utilities example also shows a limitation: if spectral weights concentrate too strongly, the effective sample size can become small and coverage can deteriorate. 
+
+Algorithm 1 Spectral adaptive conformal prediction  
+
+> 1:
+
+Fit a prediction rule bf on training data.  
+
+> 2:
+
+Compute calibration residuals Ri = |Yi − bf (Xi)|. 
+
+> 3:
+
+Compute local spectral features Zi for calibration and test points.  
+
+> 4:
+
+Initialize α1 = α. 
+
+> 5:
+
+for each test time t do  
+
+> 6:
+
+Compute spectral weights wt,i using Zt and Zi. 
+
+> 7:
+
+Compute the weighted quantile qt(αt).  
+
+> 8:
+
+Return bCSA  
+
+> t
+
+(Xt) = [ bf (Xt) − qt(αt), bf (Xt) + qt(αt)].  
+
+> 9:
+
+Observe Yt, compute Mt, and update αt+1 = αt + γ(α − Mt).  
+
+> 10:
+
+end for 
+
+The method should help when uncertainty is organized by local oscillatory behavior. It should not be expected to help if the spectral features do not capture the source of nonstationarity. 
+
+3.4 Baselines used in the experiments 
+
+The empirical study compares the proposed method with five baselines. Split conformal uses the ordinary empirical quantile of the calibration residuals. Rolling conformal uses only the most recent calibration residuals. Exponentially weighted conformal gives larger weight to recent residuals and 6smaller weight to older residuals. Adaptive conformal inference updates the target level over time but does not use spectral features. Fixed spectral conformal uses spectral weights but no adaptive update. Spectral adaptive conformal combines the spectral weights and the adaptive update. This set of baselines is useful because each method answers a different question. Split con-formal asks what happens if we ignore ordering. Rolling and exponential conformal ask whether time recency is enough. ACI asks whether feedback alone is enough. Fixed spectral conformal asks whether spectral similarity alone is enough. The hybrid asks whether using both forms of information improves calibration. 
+
+# 4 Theory 
+
+We give two simple results. The first explains the fixed spectral weighted quantile. The second explains the adaptive update. The goal is not to claim exact finite-sample validity without exchange-ability. Exact distribution-free conditional coverage is impossible without additional structure [2]. Instead, we state the assumptions under which the method is expected to behave well. The theory is deliberately modest. It separates two sources of error. The first is a bias term: even after weighting, the calibration residual distribution may not be exactly the same as the test residual distribution. The second is a sampling term: the weighted empirical distribution is only an estimate of the weighted population distribution. The bounds below make both terms visible. They also explain why effective sample size is reported in the empirical section. Let Ft be the distribution function of the test residual Rt = |Yt − bf (Xt)|. Let Fi be the distribution function of calibration residual Ri. The weighted empirical distribution is 
+
+bFt(r) = X
+
+> i∈I cal
+
+wt,i 1{Ri ≤ r}.
+
+Assumption 1 (Spectral smoothness) . There is a constant L > 0 such that 
+
+sup 
+
+> r
+
+|Fi(r) − Ft(r)| ≤ L∥Zi − Zt∥2
+
+for all calibration indices i ∈ I cal .
+
+Assumption 1 says that the residual distribution changes smoothly as the local spectral feature changes. This is not an exchangeability assumption. It allows the residual distribution to vary over time. It only says that if two local windows have similar spectral behavior, then their residual distributions should not be very different. This is the key statistical condition behind the method. 
+
+Assumption 2 (Weighted empirical concentration) . With probability at least 1 − δ,
+
+sup 
+
+> r
+
+bFt(r) − X
+
+> i∈I cal
+
+wt,i Fi(r) ≤ εn.
+
+Assumption 2 is a weighted empirical process condition. It is the weighted analogue of saying that an empirical distribution is close to its target. The quantity εn depends on the weights. If the weights are spread over many calibration points, εn is small. If the weights concentrate on only a few points, εn is larger. This is another reason to monitor the effective sample size. The next proposition gives a simple finite-sample way to read Assumption 2. It is not the most general possible empirical-process result. It is included because it shows the correct scale of the sampling term in terms of neff .7Proposition 1 (Effective-sample-size concentration) . Fix a test point t and condition on the fit-ted model, the features, and the weights wt,i . Suppose the calibration residuals are independent conditional on these quantities. Let 
+
+neff (t) = 1
+
+P 
+
+> i∈I cal
+
+w2
+
+> t,i
+
+.
+
+For any fixed threshold r,
+
+P
+
+ bFt(r) − X
+
+> i∈I cal
+
+wt,i Fi(r) > u 
+
+ ≤ 2 exp {− 2u2neff (t)}.
+
+Consequently, for any finite grid G of thresholds, with probability at least 1 − δ,
+
+max 
+
+> r∈G
+
+bFt(r) − X
+
+> i∈I cal
+
+wt,i Fi(r) ≤
+
+s
+
+log(2 |G| /δ )2neff (t) .
+
+Proof. For fixed r, the variables 1{Ri ≤ r} are independent Bernoulli variables after conditioning. The weighted sum bFt(r) has bounded differences wt,i . Hoeffding’s inequality for weighted sums gives 
+
+P{| bFt(r) − E bFt(r)| > u } ≤ 2 exp 
+
+(
+
+− 2u2
+
+P 
+
+> i∈I cal
+
+w2
+
+> t,i
+
+)
+
+.
+
+Since E bFt(r) = P 
+
+> i∈I cal
+
+wt,i Fi(r), the first statement follows. The grid bound follows by a union bound over r ∈ G .
+
+Remark 1 (Dependence) . The proposition uses conditional independence only to give a clean finite-sample scale. Time-series residuals are rarely independent. Under weak dependence, similar bounds usually hold with an adjusted effective sample size or an additional dependence factor. This is why the paper treats the concentration term as an assumption in the main coverage theorem and uses neff as a diagnostic rather than as a complete guarantee. 
+
+Define 
+
+Bt = X
+
+> i∈I cal
+
+wt,i ∥Zi − Zt∥2.
+
+Lemma 1 (Weighted quantile coverage from CDF error) . Let qt(α) be the weighted empirical 
+
+(1 − α)-quantile. If 
+
+sup 
+
+> r
+
+| bFt(r) − Ft(r)| ≤ η, 
+
+then 
+
+P{Rt ≤ qt(α) | bf , Z t} ≥ 1 − α − η. 
+
+Proof. By definition of the weighted quantile, bFt(qt(α)) ≥ 1 − α. The uniform CDF bound gives 
+
+Ft(qt(α)) ≥ bFt(qt(α)) − η ≥ 1 − α − η. 
+
+Since the interval contains Yt exactly when Rt ≤ qt(α), the claim follows. 8Theorem 1 (Approximate coverage for fixed spectral weighting) . On the event in Assumption 2, 
+
+P{Yt ∈ bCt(Xt) | bf , Z t} ≥ 1 − α − LB t − εn.
+
+Thus the same lower bound holds with probability at least 1 − δ over the calibration sample. Proof. Let F t(r) = P 
+
+> i∈I cal
+
+wt,i Fi(r). By Assumption 1, 
+
+|F t(r) − Ft(r)| ≤ LB t
+
+uniformly in r. By Assumption 2, sup 
+
+> r
+
+| bFt(r) − F t(r)| ≤ εn.
+
+Thus sup r | bFt(r) − Ft(r)| ≤ LB t + εn. At the weighted quantile qt(α), bFt(qt(α)) ≥ 1 − α. Hence 
+
+Ft(qt(α)) ≥ 1 − α − LB t − εn,
+
+which is the desired coverage statement. 
+
+Remark 2 (Interpretation of the bound) . The term LB t measures how well the spectral weights match the current test point. It is small when most weight is placed on calibration points whose features are close to Zt. The term εn measures the price of estimating a quantile with a finite weighted sample. A very small bandwidth may reduce Bt but increase εn. A very large bandwidth may reduce εn but increase Bt. This is the usual bias-variance tradeoff, expressed here for conformal calibration. 
+
+Corollary 1 (Coverage bound with effective sample size) . Under Assumption 1 and the conditional independence conditions of Proposition 1, suppose the weighted empirical concentration term in Assumption 2 is of order 
+
+εn =
+
+s
+
+log(2 |G| /δ )2neff (t)
+
+for a finite threshold grid G used to approximate the weighted quantile. Then the fixed spectral weighted interval satisfies 
+
+P{Yt ∈ bCt(Xt) | bf , Z t} ≥ 1 − α − LB t −
+
+s
+
+log(2 |G| /δ )2neff (t) .
+
+Thus the coverage error is controlled by a spectral mismatch term and a weighted sampling term. Proof. Combine Theorem 1 with the concentration bound in Proposition 1. 
+
+Corollary 2 (Exact exchangeable case as a special case) . If the calibration residuals and test residual are exchangeable and the weights are uniform, then Bt has no role and the method reduces to ordinary split conformal prediction. The usual finite-sample split conformal guarantee is recovered by using the standard conformal quantile correction. 
+
+The corollary is included only to orient the reader. The main interest of the paper is the non-exchangeable case, where uniform weights can be inefficient or badly calibrated. 9Proposition 2 (Long-run calibration of the adaptive update) . Suppose the adaptive update 
+
+αt+1 = αt + γ(α − Mt)
+
+is run for t = 1 , . . . , T , and no truncation occurs. Then 
+
+1
+
+T
+
+> T
+
+X
+
+> t=1
+
+Mt = α + α1 − αT +1 
+
+γT .
+
+If αt ∈ [0 , 1] , then 
+
+1
+
+T
+
+> T
+
+X
+
+> t=1
+
+Mt − α ≤ 1
+
+γT .
+
+Proof. Summing αt+1 − αt = γ(α − Mt) over t = 1 , . . . , T gives 
+
+αT +1 − α1 = γT α − γ
+
+> T
+
+X
+
+> t=1
+
+Mt.
+
+Rearranging proves the identity. The bound follows from |α1 − αT +1 | ≤ 1. 
+
+Remark 3 (What the adaptive result does and does not say) . The proposition is deterministic. It does not require independence, stationarity, or a correct forecasting model. It says that the feedback rule forces the average miss rate toward the target when the update is not trapped by truncation. This is a long-run statement, not a conditional coverage statement. It does not guarantee that every season, every regime, or every subgroup has exact coverage. For that reason, we report subgroup coverage in the simulations and in the real-data examples. 
+
+The theorem and proposition explain the two parts of the hybrid method. Spectral weights reduce mismatch between calibration residuals and the test point. The adaptive update corrects persistent over- or under-coverage over time. The empirical question is whether the combination gives a better coverage-width tradeoff than either component alone. The next sections answer that question in simulations and in three U.S. datasets. 
+
+# 5 Simulation Study 
+
+We compare six methods: split conformal, rolling conformal, exponentially weighted conformal, adaptive conformal inference, fixed spectral conformal, and spectral adaptive conformal. The nom-inal coverage is 90%. Each simulation uses 250 Monte Carlo repetitions in the corrected causal-feature run. The simulations are designed to separate two kinds of non-exchangeability. The first design has recurring regimes. In that setting, useful calibration residuals may be far away in time. The second design has a slowly changing frequency. In that setting, the local structure changes gradually, so time recency and spectral similarity can both be helpful. These designs are simple, but they create the two situations where the proposed method should be judged: recurring structure and gradual spectral drift. For each method we report empirical coverage and average interval width. Coverage alone is not enough, because an excessively wide interval can cover almost everything. Width alone is not enough, because a very narrow interval can undercover badly. The main comparison is therefore the coverage-width tradeoff. 10 Figure 2: Coverage-width tradeoff across the two simulations and the first two U.S. real-data examples. Points closer to the 90% coverage line with smaller width are preferable. 
+
+5.1 Simulation 1: recurring regimes 
+
+The first simulation uses four recurring regimes. Each regime has its own oscillatory pattern and noise level. The regimes return after long gaps. This setting is designed for spectral weighting, because relevant calibration points may be far away in time but close in spectral behavior. The point predictor is intentionally simple. It is not allowed to fully identify the regime. This makes the conformal calibration step important. If the point predictor already removed all nonstationarity, then the calibration problem would be much easier. Here the residuals retain enough structure that calibration methods can be meaningfully compared. Table 2: Simulation 1 overall results. Nominal coverage is 90%. Method Coverage Average width Median width Eff. sample size Bandwidth ACI 0.9012 3.2504 2.9502 – –Exponential 0.9069 3.2837 3.2672 – –Rolling 0.9436 3.8360 3.8142 – –Spectral 0.8941 3.1617 3.1438 351.99 0.2436 Spectral ACI 0.9004 3.2467 2.9718 517.80 0.2436 Split 0.8994 3.1935 3.1851 – –The hybrid method reaches nominal overall coverage. In the hardest regime, its coverage is 11 Coverage 
+
+0.90  
+
+> Split
+> ACI
+> Spec. ACI
+> Split
+> ACI
+> Spec. ACI
+> Simulation 1 Simulation 2
+
+Figure 3: Overall empirical coverage in the two simulation studies. The hybrid spectral adaptive method stays close to the 90% target in both designs. 84.84%, compared with 84.62% for ACI and 73.10% for split conformal. This is evidence that com-bining spectral weights with adaptive updating can help in the difficult recurring regime, although the gain over ACI alone is modest in this design. 
+
+Figure 4: Regime-specific coverage in Simulation 1. Red cells show under-coverage, gold cells show over-coverage, and green cells are close to the 90% target. Figure 4 shows why the average result is not the whole story. Several methods look acceptable on average but fail in a particular regime. This is common in nonstationary problems. A method can have good marginal coverage while still being unreliable in the region where a user most needs accurate uncertainty. Spectral ACI is not perfect in every regime, but it gives the most balanced behavior among the methods considered. 
+
+5.2 Simulation 2: slowly changing frequency 
+
+The second simulation uses a chirp-like signal whose frequency changes slowly over time. The noise level is larger when the local frequency is higher. 12 This design is different from Simulation 1. There are no clean recurring blocks. Instead, the local behavior moves gradually through feature space. A purely spectral method can become conservative because it compares points across a continuum of local frequencies. A purely recent method can work well when the frequency changes slowly, but it may still have trouble when the residual scale changes. Table 3: Simulation 2 overall results. Nominal coverage is 90%. Method Coverage Average width Median width Eff. sample size Bandwidth ACI 0.8993 3.2584 3.1473 – –Exponential 0.9523 3.8366 3.8218 – –Rolling 0.9536 3.8601 3.8601 – –Spectral 0.9401 4.2542 4.1291 151.58 0.1508 Spectral ACI 0.8989 3.2503 3.2045 287.97 0.1508 Split 0.9698 4.1346 4.1361 – –Here ACI and spectral ACI perform similarly overall. The hybrid has coverage 89.89% and average width 3.25. It also gives balanced coverage across frequency bins: 89.60%, 89.99%, and 91.20%. Fixed spectral weighting is too conservative in this design. The adaptive update is therefore essential. 
+
+Figure 5: Frequency-bin coverage in Simulation 2. Spectral ACI stays close to the target across the three frequency bins. Taken together, the simulations show that the proposed method is not simply a way to make intervals wider. In Simulation 1, it improves the difficult regime relative to split conformal. In Simulation 2, it avoids the over-coverage of split, rolling, and fixed spectral methods while keeping 13 Coverage 
+
+0.90 
+
+> Split
+> ACI
+> Spectral
+> Spec. ACI
+> Rolling
+> Exp.
+
+Figure 6: Coverage on the U.S. FRED utilities series. In this example, ordinary ACI is closest to the nominal 90% target; spectral localization is too aggressive. the coverage close to nominal. The strongest pattern is that fixed spectral weighting should be paired with adaptive updating. Table 4: Monte Carlo standard errors for overall simulation coverage and average width. Each simulation uses 250 repetitions. Experiment Method Coverage MCSE Avg. width MCSE Simulation 1 ACI 0.9012 0.0001 3.2504 0.0061 Simulation 1 Spectral 0.8940 0.0012 3.1617 0.0084 Simulation 1 Spectral ACI 0.9004 0.0001 3.2467 0.0064 Simulation 1 Split 0.8994 0.0009 3.1935 0.0065 Simulation 2 ACI 0.8993 0.0001 3.2584 0.0061 Simulation 2 Spectral 0.9401 0.0043 4.2542 0.0462 Simulation 2 Spectral ACI 0.8989 0.0002 3.2503 0.0061 Simulation 2 Split 0.9698 0.0005 4.1346 0.0081 Table 4 shows that the main simulation conclusions are not numerical noise. The Monte Carlo standard errors for ACI and spectral ACI coverage are very small. The fixed spectral method has larger Monte Carlo uncertainty in Simulation 2 because the selected spectral neighborhoods vary more across repetitions, but its over-coverage and larger width are still clear. 
+
+# 6 U.S. Real-Data Examples 
+
+We also test the methods on three U.S. datasets. The first is a monthly utilities series from FRED. The second is a weekly gasoline price series from FRED. The third is a daily Seattle weather series. These examples are not meant to be full economic forecasting models. They are used as transparent real-data checks for ordered American datasets with seasonal structure, changing volatility, and distribution shift. The FRED series are public and reproducible from their FRED identifiers, and the weather series is distributed through the public vega-datasets repository. Both examples use deliberately simple point forecasts. This is a choice, not an accident. The purpose of the section is to study the conformal calibration layer. A highly tuned forecasting model could hide some of the calibration difficulty. By using simple regression forecasts with trend, seasonal Fourier terms, and lagged values, the examples keep the focus on how the different conformal methods respond to residual nonstationarity. 14 The empirical split is chronological. The first 60% of each series is used to fit the point predictor, the next 20% is used for calibration, and the final 20% is held out for testing. No future observations are used when constructing prediction intervals for the test period. This is important because random splits would make the problem artificially easier for ordered data. 
+
+6.1 U.S. electric and gas utilities 
+
+The utilities series is the Federal Reserve industrial production index for electric and gas utilities, NAICS 2211,2 [6]. It is monthly, not seasonally adjusted, and indexed to 2017=100. The task is one-step-ahead monthly prediction. The point forecast uses a simple regression with trend, monthly Fourier terms, and lagged values at one month and twelve months. The first 60% of the series is used for training, the next 20% for calibration, and the final 20% for testing. We use the downloaded FRED values as a univariate ordered series. Table 5: U.S. FRED electricity-related real-data results. Nominal coverage is 90%. Method Coverage Average width Median width Eff. sample size Bandwidth ACI 0.8846 14.0829 13.3681 – –Exponential 0.8365 11.4560 11.4560 – –Rolling 0.8365 11.6562 11.6562 – –Spectral 0.5144 5.9645 4.8006 8.07 0.0400 Spectral ACI 0.7885 13.0532 10.9480 7.09 0.0400 Split 0.8269 10.8861 10.8861 – –Table 5 shows a limitation of spectral localization. Ordinary ACI gives the best overall coverage among the methods considered, reaching 88.46%, close to the 90% target. Split conformal, rolling conformal, and exponentially weighted conformal all under-cover. Fixed spectral weighting gives very narrow intervals, but its coverage is far too low. Spectral ACI improves on fixed spectral weighting, but it still under-covers because the spectral weights have very small effective sample size. The seasonal breakdown tells the same story. Fixed-width methods under-cover strongly in one season and over-cover in others. Spectral ACI improves on fixed spectral weighting, but it does not rescue the utilities example because the effective calibration pool is too small. Figure 7 shows that the main problem is not only average coverage. Several methods have uneven seasonal behavior. Split conformal, for example, has a weak season where its coverage is far below the nominal level. Spectral ACI improves over fixed spectral weighting, but it does not solve the utilities example. This is a useful diagnostic failure: the selected spectral bandwidth is very small and the effective sample size is low. 
+
+6.2 U.S. regular gasoline prices 
+
+The second dataset is the weekly U.S. regular all formulations gasoline price series from the U.S. Energy Information Administration, retrieved through FRED [17]. The series is measured in dol-lars per gallon, is not seasonally adjusted, and is reported weekly. This example is useful because gasoline prices have clear regime changes and periods of sharp movement. As in the utilities exam-ple, the empirical target is interval calibration rather than a fully optimized economic forecasting model. 15 Figure 7: Seasonal coverage in the U.S. utilities example. The seasonal breakdown shows that overall coverage can hide important subgroup behavior. The task is one-step-ahead weekly prediction. The point forecast uses trend terms, weekly Fourier terms, and lagged values at one week, four weeks, and fifty-two weeks. We use the same 60%–20%–20% training, calibration, and test split. Table 6: U.S. FRED gasoline real-data results. Nominal coverage is 90%. Method Coverage Average width Median width Eff. sample size Bandwidth ACI 0.8843 0.3141 0.3159 – –Exponential 0.5730 0.2145 0.2145 – –Rolling 0.5730 0.2145 0.2145 – –Spectral 0.4683 0.1874 0.1980 46.30 0.06 Spectral ACI 0.8953 0.3206 0.3085 62.22 0.06 Split 0.5620 0.2087 0.2087 – –Table 6 gives a sharper stress test than the utilities example. Split conformal, rolling conformal, and exponentially weighted conformal all miss the 90% target by a wide margin. Fixed spectral weighting is too narrow and badly under-covers. The two adaptive methods are much closer to the target, and spectral ACI gives 89.53% coverage with slightly wider average intervals than ordinary ACI. The gasoline example is the clearest empirical case where the hybrid method helps in this paper. The non-adaptive methods are too confident during the test period. Split conformal covers only 56.20%, rolling conformal covers 57.30%, and exponential conformal covers 57.30%. These are not small misses. They show that a calibration set from the past can be badly mismatched to a later period. The adaptive methods respond by increasing interval width after misses. Spectral ACI also 16 Figure 8: Prediction intervals for the final test period of the U.S. utilities example. The pale band shows the 90% spectral adaptive conformal interval. uses local spectral information, and in this example it reaches 89.53% coverage, slightly closer to the 90% target than ordinary ACI. We treat this as evidence that spectral weighting can help in some regimes, not as a claim that it dominates ACI on every time series. 
+
+6.3 Seattle daily maximum temperature 
+
+The third real-data example uses daily Seattle weather observations from the public vega-datasets repository [18]. The response is daily maximum temperature. This example is useful because it is not an economic or energy series, but it still has strong annual structure and short-term weather variation. The task is one-step-ahead daily prediction. The point forecast uses trend terms, annual Fourier terms, and lagged values at one day, seven days, and one year. We use the same chronological 60%–20%–20% training, calibration, and test split. Table 7: Seattle daily maximum temperature results. Nominal coverage is 90%. Method Coverage Average width Median width Eff. sample size Bandwidth ACI 0.9045 9.1345 9.2001 – –Exponential 0.8955 8.9770 8.9770 – –Rolling 0.8409 7.7692 7.7692 – –Spectral 0.8455 7.8209 7.8474 212.67 0.0400 Spectral ACI 0.9045 9.0039 9.0603 321.06 0.0400 Split 0.8409 7.7692 7.7692 – –Table 7 gives a useful third check. Split conformal, rolling conformal, and fixed spectral con-17 Figure 9: Seasonal coverage in the U.S. gasoline example. Adaptive methods are much closer to the target than non-adaptive methods. formal all cover only about 84%. Exponential weighting is closer to the target, covering 89.55%. Ordinary ACI and spectral ACI both cover 90.45%. Spectral ACI has slightly smaller average width than ordinary ACI, but the difference is modest. The main point is that the adaptive update again matters: fixed spectral weighting alone is not enough, while the hybrid method recovers the target coverage without excessive width. 
+
+6.4 Summary of empirical findings 
+
+Across the three real-data examples, three patterns are clear. First, ordinary split conformal can fail badly when the calibration period is not representative of the test period. This is especially clear for gasoline prices and Seattle weather. Second, fixed spectral weighting is not enough on its own. It often gives attractive narrow intervals, but those intervals can undercover. Third, adaptive updating is essential. ACI is the safest baseline in the utilities example, spectral ACI is strongest in the gasoline example, and the two adaptive methods are nearly tied in the Seattle weather example. This mixed outcome is useful: it shows that spectral information helps only when the resulting local residual pool is stable enough. These findings also clarify the role of spectral information. Spectral features should not be treated as magic. They are useful only when they describe a real source of residual heterogeneity. The diagnostics in Figures 7, 9, and 11 are therefore important. If spectral ACI improves subgroup coverage without producing excessive interval width, then the spectral features are probably helping. If it produces very low effective sample sizes or strong under-coverage, then the feature construction or bandwidth choice should be revisited. 18 Figure 10: Prediction intervals for the U.S. gasoline price example. The gasoline series has sharper regime changes than the utilities series, making this a harder empirical check. 
+
+6.5 Additional adaptive benchmark 
+
+To make the empirical comparison less dependent on a single ACI baseline, we also include a multi-window adaptive ACI benchmark. This benchmark runs several rolling calibration windows in parallel and combines their interval widths with online exponential weights. It is meant as a transparent, strongly adaptive comparator in the spirit of recent online conformal work [5]. It is not used to tune spectral ACI. Table 8: Additional real-data benchmark against a multi-window adaptive ACI baseline. Nominal coverage is 90%. The multi-window method is a stronger adaptive baseline because it can shift among several residual-window lengths online.                                                   
+
+> Dataset Method Coverage Average width Median width Eff. sample size U.S. utilities ACI 0.8846 14.0829 13.3681 –U.S. utilities Multi-window ACI 0.8990 14.6493 14.3961 –U.S. utilities Spectral ACI 0.7885 13.0532 10.9480 7.09 U.S. gasoline ACI 0.8843 0.3141 0.3159 –U.S. gasoline Multi-window ACI 0.9008 0.3235 0.3134 –U.S. gasoline Spectral ACI 0.8953 0.3206 0.3085 62.22 Seattle weather ACI 0.9045 9.1345 9.2001 –Seattle weather Multi-window ACI 0.9091 9.6273 9.5743 –Seattle weather Spectral ACI 0.9045 9.0039 9.0603 321.06
+
+Table 8 gives a more demanding comparison. The multi-window adaptive method reaches the nominal target in all three real-data examples, but it usually pays for this with wider intervals. Spectral ACI is not competitive in the utilities example, and the effective sample size explains why. 19 Figure 11: Seasonal coverage in the Seattle weather example. The adaptive methods are closer to the nominal target than split, rolling, or fixed spectral conformal methods. In the gasoline example, spectral ACI is close to the multi-window method while using slightly narrower average intervals. In the Seattle example, spectral ACI matches ordinary ACI coverage and is narrower than both ACI and the multi-window adaptive benchmark. This is the most balanced reading of the results: spectral ACI is not a universal replacement for adaptive conformal methods, but it can add useful information when spectral neighborhoods are stable. 
+
+# 7 Practical Guidance 
+
+This section gives practical advice for using the method. It is included because conformal prediction methods are often judged not only by formal guarantees but also by how easily they can be used without hidden tuning. 
+
+7.1 Choosing the spectral window 
+
+The local window should be long enough to estimate the relevant frequency content but short enough to track change. For monthly data with annual seasonality, a window covering several years is natural. For weekly data with annual seasonality, a window covering several years is also reasonable. If the window is too short, the spectral feature becomes noisy. If it is too long, the feature becomes slow to react to changes. A useful diagnostic is stability of the selected bandwidth and effective sample size. If small changes in the window length lead to very different bandwidths or very small effective sample sizes, then the feature is probably too noisy. In that case, one can use fewer frequencies, a longer window, or additional smoothing. 
+
+7.2 Reading the effective sample size 
+
+The effective sample size is a simple warning light. A large value means the method is borrowing information from many calibration residuals. A very small value means the method is relying on 20 Figure 12: Prediction intervals for the final test period of the Seattle weather example. The orange curves show the spectral adaptive conformal bounds. only a few residuals. Small values are not always bad. If the data contain truly distinct regimes, a local method should focus on the matching regime. But very small values can make weighted quantiles unstable, especially at high coverage levels such as 90% or 95%. In practice, we recommend reporting the average effective sample size and also checking its lower tail. If many test points have very small effective sample size, the bandwidth should be increased or the spectral feature should be simplified. Table 9 gives a practical explanation for the mixed empirical results. In the simulations, and especially for spectral ACI, the effective sample sizes are usually large enough to support stable quantiles. In the U.S. utilities example, the effective sample size is extremely small, so spectral localization is too aggressive. In the gasoline and Seattle weather examples, the effective sample sizes are larger, and spectral ACI is correspondingly more stable. 
+
+7.3 When to prefer spectral ACI 
+
+Spectral ACI is most useful when three conditions hold. First, the data are ordered and non-exchangeable. Second, the non-exchangeability is related to recurring oscillatory or seasonal be-havior. Third, the selected bandwidth still leaves enough effective calibration information for a stable quantile. These conditions are common in energy, climate, traffic, epidemiology, and eco-nomic time series, but they should be checked rather than assumed. The method is less likely to help when the main distribution shift is a one-time level shift with no recurring structure. In that case, a rolling or adaptive method may be enough. It is also less likely to help when the point prediction model already removes almost all structure from the residuals. A good diagnostic is to compare ACI and spectral ACI. If their performance is nearly identical, then the spectral features may not be adding much for that dataset. 21 Table 9: Effective sample size diagnostics for spectral methods. The lower tail is important because weighted quantiles can become unstable when too few calibration residuals receive meaningful weight. Experiment Method Mean 10th pct. Median 90th pct. Simulation 1 Spectral 351.99 102.69 311.29 688.32 Simulation 1 Spectral ACI 517.80 132.06 442.95 1008.53 Simulation 2 Spectral 151.58 3.55 62.88 452.11 Simulation 2 Spectral ACI 287.97 25.43 249.72 623.20 U.S. utilities Spectral 8.07 2.74 3.70 17.98 U.S. utilities Spectral ACI 7.09 1.09 3.33 10.79 U.S. gasoline Spectral 46.30 16.11 41.13 86.51 U.S. gasoline Spectral ACI 62.22 17.49 53.82 115.87 U.S. Seattle weather Spectral 212.67 210.88 213.29 213.96 U.S. Seattle weather Spectral ACI 321.06 232.76 321.33 409.20 
+
+7.4 Sensitivity and robustness checks 
+
+The most important tuning parameter is the spectral bandwidth. A useful robustness check is to rerun the analysis over a small bandwidth grid and record three quantities: test coverage, average interval width, and the lower tail of neff . A bandwidth that gives slightly better coverage but a very small effective sample size should be treated cautiously. This is exactly what happens in the utilities example: the spectral method looks attractive by width, but the effective sample size is too small and coverage fails. The adaptive learning rate γ has a different role. A small γ reacts slowly after misses, while a large γ can make the interval width oscillate. In the experiments we use the same simple value across all real-data examples. This is not claimed to be optimal. It is a deliberate choice to show that the main empirical findings are not coming from aggressive dataset-specific tuning. Table 10 reports this check for the three real-data examples. The gasoline and Seattle conclu-sions are stable: nearby bandwidths and learning rates keep coverage close to 90%. The utilities ex-ample is different. The selected small bandwidth gives low effective sample size and under-coverage. Increasing the bandwidth raises neff and brings coverage much closer to nominal, although with wider intervals. This supports the main diagnostic message of the paper: spectral localization should be monitored, not trusted blindly. 
+
+# 8 Limitations 
+
+The method has several limitations. First, the theory is approximate. The paper does not claim exact finite-sample coverage under arbitrary time dependence. That would be impossible with-out stronger assumptions. Instead, the theory explains when spectral weighting should reduce calibration mismatch and why adaptive updating controls the long-run miss rate. Second, the method depends on the quality of the spectral features. Poor features can make the weighted quantile worse than a simpler baseline. This is why the paper reports effective sample sizes and subgroup coverage. Spectral features should be checked, not trusted blindly. Third, the bandwidth selection rule is simple. It works well enough for the present experiments, but it is not the only possible choice. A more stable validation rule, an online bandwidth update, or an aggregation scheme over several bandwidths could improve performance. 22 Table 10: Sensitivity of spectral ACI to bandwidth and learning rate on the real-data examples. The selected setting is b = 0 .04 , γ = 0 .02 for utilities and Seattle, and b = 0 .06 , γ = 0 .02 for gasoline. Nominal coverage is 90%.                                                                                                        
+
+> Dataset Setting Bandwidth γCoverage Avg. width Median neff
+> U.S. utilities selected 0.04 0.02 0.788 13.05 3.33 U.S. utilities lower γ0.04 0.01 0.784 13.17 3.33 U.S. utilities higher γ0.04 0.04 0.784 12.92 3.33 U.S. utilities wider bandwidth 0.08 0.02 0.870 15.47 11.57 U.S. utilities widest bandwidth 0.12 0.02 0.889 14.63 30.66 U.S. gasoline selected 0.06 0.02 0.895 0.321 53.82 U.S. gasoline lower γ0.06 0.01 0.890 0.315 53.82 U.S. gasoline higher γ0.06 0.04 0.887 0.323 53.82 U.S. gasoline narrower bandwidth 0.04 0.02 0.890 0.324 26.44 U.S. gasoline wider bandwidth 0.08 0.02 0.890 0.316 86.05 Seattle weather selected 0.04 0.02 0.905 9.00 321.33 Seattle weather lower γ0.04 0.01 0.900 8.92 321.33 Seattle weather higher γ0.04 0.04 0.905 9.19 321.33 Seattle weather wider bandwidth 0.08 0.02 0.905 9.07 327.97 Seattle weather widest bandwidth 0.12 0.02 0.905 9.04 328.39
+
+Fourth, the real-data examples are intentionally transparent rather than exhaustive. The U.S. utilities, gasoline, and Seattle weather examples show how the method behaves on American time series with seasonality and regime change, but they should not be read as a complete benchmark. A broader empirical study with load, traffic, climate, and public-health series would be needed before making strong claims across time-series domains. Finally, the present version uses a simple point predictor in order to isolate the calibration layer. This is useful for studying conformal behavior, but it is not the same as a full forecasting competition. With a highly tuned forecasting model, the residual structure may become weaker, and the incremental value of spectral weighting may be smaller. For that reason, the method should be evaluated together with the forecasting model used in the final application. 
+
+# 9 Reproducibility 
+
+All simulations use fixed random seeds. The scripts that generate the simulation tables, real-data tables, and figures are stored with the manuscript. The U.S. economic datasets are downloaded as CSV files from FRED and saved locally before analysis. The Seattle weather data are saved locally before analysis. The main simulation scripts are simulation_study.py and simulation_ slow_frequency.py . The empirical scripts are realdata_us_fred_electricity.py , realdata_ us_fred_gasoline.py , realdata_us_seattle_weather.py , and benchmark_multiwindow_aci. py . The output files used for the tables are stored in results/ , and the figures used in the manuscript are stored in paper/figures/ . This makes the numerical claims in the paper auditable from the source code and saved outputs. The reported simulation results are from the corrected causal-feature run with 250 Monte Carlo repetitions. 
+
+# 10 Discussion 
+
+The simulations suggest that fixed spectral weighting is useful but not enough. It can find relevant residuals, but it may still miss the target coverage when uncertainty changes over time. Adaptive conformal inference fixes long-run coverage, but it does not use spectral information. The hybrid 23 method combines both ideas. Several extensions are natural. The bandwidth could be selected by a more stable validation rule. The spectral features could be learned or replaced by wavelet features. The theory could be sharpened under explicit mixing or locally stationary assumptions. Further empirical work could add regional electricity demand, traffic, climate, and public-health surveillance series. The paper also points to a broader lesson. In non-exchangeable problems, conformal prediction should not be used as a black box. The calibration residuals are data, and they have structure. Sometimes the relevant structure is time recency. Sometimes it is season. Sometimes it is local volatility. In this paper, the structure is local spectral behavior. The best method is the one that uses the right structure while still keeping a calibration mechanism that is simple and auditable. The main message is simple. When data are ordered and non-exchangeable, calibration residuals should not always be treated equally. Spectral similarity gives one principled way to choose relevant residuals. Adaptive updating then keeps the miss rate under control over time. 
+
+# A Additional Method Details 
+
+A.1 Weighted quantile computation 
+
+The weighted quantile used in the paper is computed by sorting the calibration residuals. Let 
+
+R(1) ≤ · · · ≤ R(N ) be the sorted residuals, and let w(j) be the weight attached to R(j). The weighted conformal radius is 
+
+qt(α) = R(k), k = min 
+
+(
+
+j :
+
+> j
+
+X
+
+> ℓ=1
+
+w(ℓ) ≥ 1 − α
+
+)
+
+.
+
+This definition makes clear that the method is still a conformal quantile method. The only change is the distribution used for the quantile. 
+
+A.2 Adaptive truncation 
+
+In the experiments, the adaptive level αt is kept in a compact interval inside (0 , 1). This avoids degenerate intervals caused by extreme values of αt. The deterministic identity in Proposition 2 is exact when no truncation occurs. With truncation, the same feedback intuition remains, but the exact telescoping identity has additional boundary terms. 
+
+A.3 Choice of score 
+
+The paper uses absolute residual scores, 
+
+Ri = |Yi − bf (Xi)|.
+
+This gives symmetric prediction intervals around the point forecast. Other scores could be used. For example, one could use quantile regression scores to obtain asymmetric intervals, or scaled residuals to account for a fitted volatility model. The spectral weighting idea is independent of this choice. 24 B Simulation Design Details 
+
+B.1 Recurring-regime design 
+
+Simulation 1 is built to test whether the method can reuse old but relevant calibration residuals. The data alternate among four recurring regimes. Each regime has a different oscillatory component and a different residual scale. The regimes are not arranged so that the nearest past observations are always the most relevant observations. This is the situation where rolling methods can be wasteful. The main lesson from Simulation 1 is that average coverage can hide regime-specific under-coverage. The regime heatmap in Figure 4 shows this directly. Split conformal has acceptable average coverage, but it performs poorly in the hardest regime. Spectral ACI improves that regime while keeping the overall coverage near the target. 
+
+B.2 Slowly changing frequency design 
+
+Simulation 2 is built to test gradual nonstationarity. The signal changes frequency over time, and the residual scale changes with the local frequency. This design is closer to a locally stationary time-series setting. No method can rely only on recurring block labels, because there are no fixed block labels. The method must track a changing local structure. In this design, split, rolling, and fixed spectral methods are conservative. Spectral ACI gives coverage close to nominal with shorter intervals than those conservative baselines. This supports the idea that adaptive updating is useful even when spectral features are informative. 
+
+# C Additional Empirical Tables 
+
+Table 11: Seasonal coverage for the U.S. utilities example. Method Season 0 Season 1 Season 2 Season 3 ACI 0.7358 0.9245 0.9216 0.9608 Exponential 0.6038 0.9057 0.9020 0.9412 Rolling 0.6038 0.9057 0.9020 0.9412 Spectral 0.3962 0.5283 0.5686 0.5686 Spectral ACI 0.6792 0.7925 0.8627 0.8235 Split 0.5849 0.9057 0.9020 0.9216 Table 12: Seasonal coverage for the U.S. gasoline example. Method Season 0 Season 1 Season 2 Season 3 ACI 0.8889 0.8261 0.8778 0.9451 Exponential 0.5889 0.5217 0.5222 0.6593 Rolling 0.5889 0.5217 0.5222 0.6593 Spectral 0.5333 0.4674 0.3667 0.5055 Spectral ACI 0.9111 0.8696 0.8667 0.9341 Split 0.5778 0.5109 0.5111 0.6484 25 Table 13: Seasonal coverage for the Seattle weather example. Method Season 0 Season 1 Season 2 Season 3 ACI 0.9677 0.8333 0.8913 0.9011 Exponential 1.0000 1.0000 0.8696 0.8791 Rolling 0.8710 1.0000 0.8152 0.8462 Spectral 0.8710 1.0000 0.8261 0.8462 Spectral ACI 0.9677 1.0000 0.8804 0.9011 Split 0.8710 1.0000 0.8152 0.8462 
+
+# D Checklist for Applied Use 
+
+An applied analyst can use the following checklist. First, fit a point prediction model and save out-of-sample residuals on a calibration period. Second, compute causal local spectral features using only information available before the prediction time. Third, choose a bandwidth grid and check the resulting effective sample sizes. Fourth, compare split conformal, ACI, fixed spectral conformal, and spectral ACI. Fifth, report not only overall coverage and width, but also subgroup coverage over seasons, regimes, or other meaningful slices of the test period. The final step is important. A method that only reports overall coverage may look better than it really is. Ordered data often fail in specific periods. A serious empirical analysis should show where the method works and where it does not. 
+
+# E Additional Diagnostic Figures 
+
+This appendix collects extra figures that are useful for reading the empirical results. They are not needed for the main argument, but they make the numerical tables easier to interpret. Figures 13, 14, and 15 show why these datasets are useful for this paper. The utilities series has a repeated seasonal pattern. The gasoline series has stronger regime changes. The Seattle weather series adds a daily seasonal dataset outside economics. Together they test several kinds of non-exchangeability. The utilities coverage and width figures show the main tradeoff. Fixed spectral conformal produces relatively narrow intervals, but its coverage is too low. Spectral ACI is wider and improves over fixed spectral weighting, but ordinary ACI is the better calibrated method for this dataset. The gasoline figures are especially important. They show that under-coverage is not a minor numerical issue in this example. Non-adaptive intervals are narrow because they are not responding to the changed test-period behavior. The adaptive methods produce wider intervals, and that extra width is necessary. The Seattle figures show a more moderate case than gasoline. Non-adaptive methods under-cover, but not as severely as in the gasoline example. Spectral ACI and ordinary ACI both recover the target coverage, with spectral ACI giving a slightly smaller average width. These additional simulation figures give a quick visual summary of Tables 2 and 3. They also reinforce the main conclusion: spectral weighting is useful, but the adaptive update is what keeps the miss rate aligned with the target. 26 Figure 13: U.S. utilities series used in the first real-data example. The visible seasonal movement motivates using local frequency information. 
+
+Figure 14: U.S. regular gasoline price series used in the second real-data example. The series has calm periods, sharp increases, and sharp declines, which makes it a useful test of adaptive calibration. 27 Figure 15: Seattle daily maximum temperature series used in the third real-data example. The annual cycle and day-to-day weather variation make it a useful non-economic check. 
+
+Figure 16: Overall coverage by method for the U.S. utilities example. The dashed line marks the 90% target. 28 Figure 17: Average interval width by method for the U.S. utilities example. Lower width is better only when coverage remains close to the target. 
+
+Figure 18: Overall coverage by method for the U.S. gasoline example. Non-adaptive methods are far below the 90% target. 29 Figure 19: Average interval width by method for the U.S. gasoline example. Adaptive methods widen intervals enough to recover coverage. 
+
+Figure 20: Overall coverage by method for the Seattle weather example. Adaptive methods are closest to the 90% target. 30 Figure 21: Average interval width by method for the Seattle weather example. Spectral ACI is slightly narrower than ordinary ACI while reaching the same overall coverage. 
+
+Figure 22: Overall coverage in Simulation 1. The hybrid spectral adaptive method is close to the target while avoiding the conservatism of rolling conformal. 31 Figure 23: Overall coverage in Simulation 2. Spectral ACI and ordinary ACI are close to the target in the corrected causal-feature run with 250 Monte Carlo repetitions; several non-adaptive methods over-cover. 32 Author Information 
+
+Jeffery Opoku, University of Texas Rio Grande Valley. Email: jeffery.opoku01@utrgv.com .David Banahene, Florida International University. Email: abanahene54@gmail.com .
+
+# Declarations 
+
+Conflict of interest. The authors declare no competing interests. 
+
+Funding. The authors received no specific funding for this work. 
+
+Data and code availability. The empirical datasets used in this paper are publicly available from FRED and the public Seattle weather dataset distributed through vega-datasets. The scripts used to generate the simulation results, real-data results, and figures are included with the project files. 
+
+Declaration of generative AI and AI-assisted technologies in the writing process. 
+
+During preparation of this work, the authors used OpenAI tools to help brainstorm some points, improve language clarity, and debug code. The authors reviewed and edited the output as needed and take full responsibility for the content of the manuscript. 33 References 
+
+[1] Anastasios N. Angelopoulos and Stephen Bates. A gentle introduction to conformal prediction and distribution-free uncertainty quantification. Foundations and Trends in Machine Learning ,16(4):494–591, 2023. [2] Rina Foygel Barber, Emmanuel J. Candes, Aaditya Ramdas, and Ryan J. Tibshirani. The lim-its of distribution-free conditional predictive inference. Information and Inference: A Journal of the IMA , 10(2):455–482, 2021. [3] Rina Foygel Barber, Emmanuel J. Candes, Aaditya Ramdas, and Ryan J. Tibshirani. Predic-tive inference with the jackknife+. The Annals of Statistics , 49(1):486–507, 2021. [4] Rina Foygel Barber, Emmanuel J. Candes, Aaditya Ramdas, and Ryan J. Tibshirani. Confor-mal prediction beyond exchangeability. The Annals of Statistics , 51(2):816–845, 2023. [5] Aadyot Bhatnagar, Huan Wang, Caiming Xiong, and Yu Bai. Improved online conformal prediction via strongly adaptive online learning, 2023. [6] Board of Governors of the Federal Reserve System (US). Industrial Production: Utilities: Electric and Gas Utilities (NAICS = 2211,2) [IPG2211A2N]. Retrieved from FRED, Federal Reserve Bank of St. Louis, 2026. URL https://fred.stlouisfed.org/series/IPG2211A2N .Monthly, not seasonally adjusted, index 2017=100. [7] Rainer Dahlhaus. Fitting time series models to nonstationary processes. The Annals of Statis-tics , 25(1):1–37, 1997. [8] Rainer Dahlhaus and Wolfgang Polonik. Empirical spectral processes for locally stationary time series. Bernoulli , 15(1):1–39, 2009. [9] Isaac Gibbs and Emmanuel Candes. Adaptive conformal inference under distribution shift. 
+
+Advances in Neural Information Processing Systems , 34:1660–1672, 2021. [10] Leying Guan. Localized conformal prediction: A generalized inference framework for conformal prediction. Biometrika , 110(1):33–50, 2023. [11] Ross Hore and Rina Foygel Barber. Conformal prediction with local weights and randomiza-tion, 2023. [12] Jing Lei, Max G’Sell, Alessandro Rinaldo, Ryan J. Tibshirani, and Larry Wasserman. Distribution-free predictive inference for regression. Journal of the American Statistical Asso-ciation , 113(523):1094–1111, 2018. [13] Yaniv Romano, Evan Patterson, and Emmanuel Candes. Conformalized quantile regression. 
+
+Advances in Neural Information Processing Systems , 32, 2019. [14] Thomas Stocker, Michal Malgorzewicz, Matteo Fontana, and Souhaib Ben Taieb. A gentle introduction to conformal time series forecasting, 2025. [15] Sophia Sun and Rose Yu. Copula conformal prediction for multi-step time series forecasting, 2022. 34 [16] Ryan J. Tibshirani, Rina Foygel Barber, Emmanuel J. Candes, and Aaditya Ramdas. Confor-mal prediction under covariate shift. Advances in Neural Information Processing Systems , 32, 2019. [17] U.S. Energy Information Administration. US Regular All Formulations Gas Price [GAS-REGW]. Retrieved from FRED, Federal Reserve Bank of St. Louis, 2026. URL https: //fred.stlouisfed.org/series/GASREGW . Weekly, not seasonally adjusted, dollars per gal-lon. [18] Vega Datasets. Seattle Weather. Retrieved from the vega-datasets repository, 2026. URL 
+
+https://github.com/vega/vega-datasets/blob/main/data/seattle-weather.csv . Daily Seattle weather observations. [19] Chen Xu and Yao Xie. Conformal prediction interval for dynamic time-series. Proceedings of the 38th International Conference on Machine Learning , pages 11559–11569, 2021. [20] Chen Xu and Yao Xie. Sequential predictive conformal inference for time series, 2022. [21] Zitong Yang, Emmanuel Cand` es, and Lihua Lei. Bellman conformal inference: Calibrating prediction intervals for time series, 2024. [22] Qingdi Yu, Zhiwei Cao, Ruihang Wang, Zhen Yang, Lijun Deng, Min Hu, Yong Luo, and Xin Zhou. Dual-splitting conformal prediction for multi-step time series forecasting, 2025. [23] Margaux Zaffran, Aymeric Dieuleveut, Olivier F´ eron, Yannig Goude, and Julie Josse. Adaptive conformal predictions for time series. Proceedings of the 39th International Conference on Machine Learning , pages 25834–25866, 2022. 35

@@ -1,0 +1,856 @@
+Title: Reliability-Aware Prototype Calibration for Frozen Pose-Flow Video Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2606.20312v1
+
+Published Time: Fri, 19 Jun 2026 01:15:39 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# RELIABILITY -A WARE PROTOTYPE CALIBRATION FOR FROZEN 
+
+# POSE -F LOW VIDEO ANOMALY DETECTION 
+
+A P REPRINT 
+
+Ning Dong ∗
+
+School of Information Engineering Suqian University Suqian, China 
+
+dongning@squ.edu.cn 
+
+Yingna Su ∗
+
+School of Information Engineering Suqian University Suqian, China 
+
+suyingna@squ.edu.cn 
+
+Xin Dong 
+
+School of Electronic & Information Engineering Nanjing University of Information Science and Technology Nanjing, China 
+
+Ziyun Jiao 
+
+School of Computer Science and Engineering University of Electronic Science and Technology of China Chengdu, China 
+
+Xinnian Guo 
+
+School of Information Engineering Suqian University Suqian, China 
+
+Zhuangzhuang Pan †
+
+Institute for Advanced Studies Universiti Malaya Kuala Lumpur, Malaysia 
+
+23078403@siswa.um.edu.my 
+
+ABSTRACT 
+
+Pose-flow video anomaly detectors are attractive for one-class surveillance because they provide likelihood-based rankings for tracked skeleton windows. However, a single likelihood score may hide multimodal normal behavior and be sensitive to pose-observation noise. We study a frozen-detector setting in which the pose-flow backbone, cached skeleton tracks, and evaluation pipeline are fixed. Reliability-Aware Prototype Calibration (RPC) is a post-hoc score calibration method for this setting. It adds a standardized nearest-prototype deviation in the frozen latent space to the standardized flow score, and uses keypoint confidence only to gate this added geometric evidence. Thus, RPC preserves the original density signal while correcting the ranking with empirical normal-mode structure under pose reliability. Across two frozen pose-flow backbones and four datasets, RPC improves frame-level AUROC in all eight backbone–dataset pairs, with gains ranging from 0.34 to 4.49 percentage points and averaging 2.03 points. Ablation and reliability analyses show that prototype deviation is the main corrective signal, while reliability gating is most useful when pose observations are less trustworthy. These results suggest that lightweight post-hoc calibration can strengthen cached pose-flow systems when retraining or reproducing the full pose pipeline is impractical. Code is available github.com/iNing10/RPC .
+
+Keywords: Video anomaly detection; Frozen pose-flow detectors; One-class anomaly detection; Score calibration 
+
+1 Introduction 
+
+Video anomaly detection aims to identify events that deviate from normal patterns in surveillance videos [ 1 , 2]. It plays an important role in public space monitoring, transportation safety, and networked surveillance systems [ 3, 4]. 
+
+> ∗
+
+Equal contribution. 
+
+> †
+
+Corresponding author. 
+
+> arXiv:2606.20312v1 [cs.CV] 18 Jun 2026
+
+RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+In practice, abnormal events are rare, diverse, and often unavailable during training, making one-class learning from normal videos a common and realistic setting [ 5 , 6 ]. For human-centered scenes, skeleton-based representations provide a compact and task-relevant alternative to raw visual appearance. By focusing on tracked body poses, they largely suppress the influence of background clutter, identity, and illumination, while retaining essential cues of human motion and interaction [7]. Pose-flow detectors provide a natural backbone for one-class skeleton-based anomaly detection [ 8]. They model normal pose sequences with normalizing flows and rank test windows by likelihood-derived scores, e.g., negative log-likelihood. However, likelihood primarily reflects density under the learned model rather than the behavioral abnormality itself. Previous studies have shown that deep generative likelihoods can be misaligned with out-of-distribution semantic detection [ 9], and that normalizing flows can overemphasize local statistical regularities instead of capturing the decision boundary between normal and abnormal behavior [ 10 ]. This limitation becomes particularly pronounced in surveillance videos. Normal behavior is inherently multimodal [ 11 ]. Walking, stopping, turning, interacting, and viewpoint-dependent motion may occupy different regions of the learned latent space. A single negative log-likelihood score does not explicitly assess whether a test skeleton lies close to any empirical mode of normal behavior. This motivates a complementary normal-reference signal that checks whether a test skeleton lies close to empirical modes observed in normal training data. Rather than assuming the frozen latent space to be a perfect semantic manifold, we exploit the empirical geometry exposed by the trained detector to calibrate anomaly ranking. Pose observation quality introduces another source of ambiguity. Skeletons are produced by upstream pose detectors and trackers rather than by pristine motion sensors [ 12 ]. Occlusion, truncation, small person scale, motion blur, and identity switches can reduce keypoint confidence or corrupt coordinate estimates. However, low keypoint confidence alone does not indicate anomalous behavior. Using confidence directly as anomaly evidence risks penalizing difficult but normal observations, instead of true abnormal behavior. A more conservative strategy is to let confidence modulate the contribution of geometry-based evidence. This separation is consistent with generalized out-of-distribution detection, where density, distance, and other evidence types provide distinct sources of information [ 13 ]. It also aligns with recent skeleton-based studies that highlight the impact of pose quality on anomaly detection [14]. Most recent skeleton-based video anomaly detectors address these challenges by improving the detector itself. Explicit distribution modeling, contracted skeletal kinematics, and semantic action cues improve the representation or the training objective [ 7 ]. These detector-centric advances are important, but they leave a practical gap when the detector and the cached pose tracks must remain fixed. In surveillance deployments and retrospective benchmark studies, pose extraction and tracking are expensive, sensitive to implementation details, and difficult to reproduce exactly [ 12 , 15 ]. As a result, cached skeleton tracks and released detector checkpoints often become the starting point for further adaptation. In this setting, the anomaly score is often the only practical interface for adaptation. A useful score-level calibration method should therefore preserve the frozen pose-flow detector, recover information compressed by the likelihood score, and exploit pose confidence without turning observation unreliability into an anomaly cue. We propose Reliability-Aware Prototype Calibration (RPC), a reliability-aware normal-mode calibration method for likelihood-based pose-flow anomaly scoring. RPC starts from the observation that a frozen pose-flow pipeline already exposes three complementary quantities, namely a likelihood-derived density score, a latent representation of normal motion, and keypoint confidence values. It summarizes normal training latents into normal behavior prototypes and measures each test window by its deviation to the nearest prototype. The resulting prototype deviation score is standardized and used as an additive correction to the standardized likelihood score, while a confidence reliability gate modulates only this added prototype term. In this way, RPC enriches the original likelihood ranking with normal-mode structure and pose-observation reliability, without neural retraining or changes to the backbone, cached skeleton tracks, or evaluation pipeline. Across two frozen pose-flow backbones and four datasets, RPC improves frame-level AUROC over the reproduced likelihood-only baselines in all eight settings. In summary, the contributions of this paper are: • We formulate frozen pose-flow adaptation as a score-level calibration problem that separates flow density evidence, empirical normal-mode deviation, and pose-observation reliability. • We introduce a post-hoc prototype deviation score in the frozen latent space and combine it with the standardized likelihood-derived score as a conservative ranking correction, rather than a new generative density model. • We design a reliability-gated calibration rule that treats keypoint confidence as observation reliability, not anomaly evidence, and gates only the added prototype deviation. • We show across two frozen pose-flow backbones and four datasets that RPC improves frame-level anomaly ranking without backbone retraining. Ablations and reliability-oriented analyses further support the proposed prototype and reliability design. 2RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+2 Related Work 
+
+2.1 Skeleton-Based and Pose-Flow Video Anomaly Detection 
+
+Video anomaly detection has been studied through reconstruction, prediction, density estimation, weak supervision, retrieval, and multimodal reasoning, as summarized in recent surveys [ 16 , 17 ]. In human-centered surveillance scenes, skeleton-based methods provide a motion-focused alternative to appearance-based representations by operating on tracked pose trajectories. They reduce appearance-related clutter, such as scene texture, identity, and illumination variation, while preserving body motion and interaction cues. Their effectiveness, however, depends critically on the quality of the upstream pose estimation and tracking pipeline. Recent skeleton-based detectors improve normality modeling through explicit distribution learning, contracted skeletal kinematics, and semantic action-level priors [18]. Pose-flow detectors are particularly relevant to our setting because they provide likelihood-derived anomaly scores in a one-class training regime. STG-NF models pose graph sequences with normalizing flows, and DA-Flow further strengthens this family with dual attention [ 8, 19 ]. These methods primarily improve the detector through representation design or training-time modeling. By contrast, our work considers a complementary post-hoc setting where the pose-flow detector, checkpoint, and cached pose tracks are already fixed. This shifts the focus from training a new detector to calibrating the anomaly ranking produced by an existing frozen detector. 
+
+2.2 Likelihood, Prototype, and Post-hoc Normality Scoring 
+
+Likelihood-based scoring is appealing in one-class detection because it provides a scalar ranking with respect to the normal training distribution. However, density evidence does not necessarily align with semantic abnormality. Deep generative models can assign unintuitive likelihoods to out-of-distribution samples, and normalizing flows may rely on local correlations rather than the desired semantic boundary [ 9, 10 ]. Generalized out-of-distribution detection similarly treats density and distance as related but distinct sources of evidence [13]. Prototype, memory, and clustering mechanisms provide a complementary way to expose the structure of normal behavior. Video anomaly detectors have used memory banks, partitioned normal references, and clustering objectives to represent reusable normal patterns [ 11 , 20 ]. In skeleton anomaly detection, GEPC uses clustered pose graph embeddings as part of its detector design [ 21 ]. These works motivate prototype-based normal references, but they typically incorporate the reference structure into training. Our use of prototypes is narrower. The frozen flow score remains the primary density signal, and prototypes provide compact reference statistics for empirical normal modes. This differs from replacing the flow score with a Gaussian model, kNN score, OC-SVM, or isolation score in the latent space. RPC therefore calibrates an existing pose-flow ranking instead of constructing a standalone latent detector. 
+
+2.3 Pose Reliability and Score Calibration 
+
+Skeleton anomaly scores are affected by the reliability of the upstream pose estimation and tracking pipeline. Occlusion, truncation, small person scale, motion blur, and tracking switches can perturb keypoints before they are observed by the anomaly detector. Recent methods have begun to account for this uncertainty more explicitly. SeeKer incorporates detector confidence into a keypoint-level density estimator, while multimodal evidential learning models reliability under open-world weak supervision [ 14 ]. These studies highlight the importance of observation quality, but they typically modify the estimator, supervision setting, or modality fusion mechanism. In contrast, RPC keeps the frozen likelihood estimator unchanged and uses confidence only to modulate the added prototype-based geometric evidence. This reliability view is related to calibration, but its target differs from classical neural calibration. Standard calibration usually concerns the reliability of posterior probabilities rather than the ranking quality of anomaly scores [ 22 ]. Our target is narrower: score-level calibration for anomaly ranking with a frozen one-class detector. RPC does not claim posterior calibration and does not infer abnormality from low confidence. Instead, confidence controls how strongly prototype deviation contributes to the final ranking. An unreliable skeleton may still receive a high anomaly score from the frozen likelihood estimator, but its distance to normal behavior prototypes may partly reflect pose error rather than behavioral deviation. 
+
+3 Methodology 
+
+3.1 Overview 
+
+RPC is a post-hoc score-level calibration method for frozen pose-flow detectors. It keeps the backbone, pose cache, and evaluation pipeline fixed, and changes only the window-level anomaly ranking score. A pose pipeline converts tracked 3RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT ... 
+
+Test video 
+
+Clip 2D keypoint coordinates Confidence scores 
+
+Skeleton window (test) 
+
+Frozen pose-flow backbone Keypoint confidence …
+
+Latent feature Frozen pose-flow backbone (unchanged) Input test window 
+
+xⱼᵗᵉ = {(P ⱼ,ₜᵗᵉ , C ⱼ,ₜᵗᵉ )} ₜ₌₁ᵀ 
+
+... 1 2 T
+
+Frozen pose-flow detector 
+
+fθ 
+
+> Likelihood-derived score
+
+ℓⱼᵗᵉ  
+
+> Latent feature
+
+hⱼᵗᵉ  
+
+> Keypoint confidences
+
+Cⱼ,₁:T ᵗᵉ 
+
+RPC (ours): post-hoc score calibration post-hoc, training-free calibration Training (normal only) 
+
+Dₜᵣ = {x ᵢᵗʳ }ᵢ₌₁ᴺ 
+
+> (normal windows only)
+> Frozen detector
+
+fθ
+
+hᵢᵗʳ ℓᵢᵗʳ 
+
+> Prototype fitting
+> (K-means on normal latent features)
+
+... 
+
+{c ₖ}ₖ₌₁ᴷ 
+
+> Cluster diagonal variances
+> σ²ₖ,₁σ²ₖ,₂σ²ₖ,M
+
+vₖ,ₘ
+
+> Normalization statistics from normal training windows
+
+μₗ , σₗ , μ_d, σ_d 
+
+> Computed once offline and fixed for evaluation
+
+Test-time scoring 1 Likelihood path Standardize (using μₗ, σₗ)
+
+ℓ̂ⱼᵗᵉ  
+
+> 2
+
+Prototype path 
+
+hⱼᵗᵉ + Prototypes & variances 
+
+> (from training) ...
+> {c ₖ}ₖ₌₁ᴷ , v ₖ,ₘ
+> Nearest-prototype diagonal Mahalanobis distance
+> h(x)
+
+dⱼᵗᵉ Standardize (using μ_d, σ_d) d̂ ⱼᵗᵉ 
+
+> Reliability-aware fusion (ours)
+
+sⱼᵗᵉ = ℓ̂ⱼᵗᵉ + αgⱼᵗᵉ d̂ⱼᵗᵉ 
+
+> Reliability gates only the prototype term; likelihood remains ungated.
+
+sⱼᵗᵉ 
+
+> Frozen frame aggregation
+
+Agg_bb 
+
+... 
+
+> Frame-level anomaly scores
+
+aₜ  
+
+> 1tT
+> Evaluate AUROC
+
+Likelihood score Frozen pose-flow backbone (unchanged) Input test window 
+
+xⱼᵗᵉ = {(P ⱼ,ₜᵗᵉ , C ⱼ,ₜᵗᵉ )} ₜ₌₁ᵀ 
+
+... 1 2 T
+
+Frozen pose-flow detector 
+
+fθ 
+
+> Likelihood-derived score
+
+ℓⱼᵗᵉ  
+
+> Latent feature
+
+hⱼᵗᵉ  
+
+> Keypoint confidences
+
+Cⱼ,₁:T ᵗᵉ 
+
+RPC (ours): post-hoc score calibration post-hoc, training-free calibration Training (normal only) 
+
+Dₜᵣ = {x ᵢᵗʳ }ᵢ₌₁ᴺ 
+
+> (normal windows only)
+> Frozen detector
+
+fθ
+
+hᵢᵗʳ ℓᵢᵗʳ 
+
+> Prototype fitting
+> (K-means on normal latent features)
+
+... 
+
+{c ₖ}ₖ₌₁ᴷ 
+
+> Cluster diagonal variances
+> σ²ₖ,₁σ²ₖ,₂σ²ₖ,M
+
+vₖ,ₘ
+
+> Normalization statistics from normal training windows
+
+μₗ , σₗ , μ_d, σ_d 
+
+> Computed once offline and fixed for evaluation
+
+Test-time scoring 1 Likelihood path Standardize (using μₗ, σₗ)
+
+ℓ̂ⱼᵗᵉ  
+
+> 2
+
+Prototype path 
+
+hⱼᵗᵉ + Prototypes & variances 
+
+> (from training) ...
+> {c ₖ}ₖ₌₁ᴷ , v ₖ,ₘ
+> Nearest-prototype diagonal Mahalanobis distance
+> h(x)
+
+dⱼᵗᵉ Standardize (using μ_d, σ_d) d̂ⱼᵗᵉ  
+
+> 3
+
+Reliability path Me fid Reli bilit tReliability-aware fusion (ours) 
+
+sⱼᵗᵉ = ℓ̂ⱼᵗᵉ + αgⱼᵗᵉ d̂ⱼᵗᵉ 
+
+> Reliability gates only the prototype term; likelihood remains ungated.
+
+sⱼᵗᵉ 
+
+> Frozen frame aggregation
+
+Agg_bb 
+
+... 
+
+> Frame-level anomaly scores
+
+aₜ  
+
+> 1tT
+> Evaluate AUROC
+
+Likelihood path 
+
+Latent space K-means on normal latents Diagonal variance Normalization statistics Frozen pose-flow backbone 
+
+Normal skeleton (From train) ……
+
+Normalization statistics from training 
+
+aPrototype path bReliability path c
+
+Standardize (using )
+
+Standardize (using )
+
+Reliability Gate 0 1
+
+Reliability-aware fusion score time/frame 
+
+> abnormal
+> baseline RPC
+
+Improved frame-level anomaly ranking Test-time scoring 
+
+0.96 0.88 0.71 0.63 ... 
+
+Nearest prototype 
+
+... 
+
+Figure 1: Overall framework of RPC. The frozen backbone remains unchanged, while prototypes, normalization statistics, and reliability gates calibrate the final score. human trajectories into skeleton windows. Each skeleton window is denoted by 
+
+x = {(Pt, C t)}Tt=1 , (1) where T denotes the window length, Pt ∈ RJ×2 contains the coordinates of J keypoints at frame t, and Ct ∈ [0 , 1] J
+
+contains the corresponding keypoint confidence scores. The training set Dtr = {xtr 
+
+i }Ni=1 contains only normal skeleton windows, whereas the test set Dte = {xte 
+
+j }Mj=1 may contain both normal and abnormal behavior. A window-level detector assigns a scalar anomaly score ste 
+
+j = s(xte 
+
+j ) to each test window, with larger values indicating stronger abnormality. In our setting, the trained pose-flow detector fθ is frozen. Given a skeleton window x, the detector provides a latent code z = fθ (x) and a likelihood-derived baseline score sflow (x)
+
+sflow (x) = ℓ(x) = − log pθ (x). (2) A fixed pooling operator ϕ maps z = fθ (x) to the feature used for prototype fitting, 
+
+h(x) = ϕ(z). (3) 
+
+h(x) is obtained by flattening the latent representation exposed by the frozen detector after its flow-based scoring path, without introducing any trainable projection. Together with the likelihood-derived score and keypoint confidence values, this feature defines the information available for calibration. RPC uses normal training windows to fit prototype statistics and score-normalization constants, and then applies these statistics to calibrate each test-window score. Figure 1 summarizes the overall framework. Since benchmark annotations are frame-level, calibrated window scores are converted into frame-level anomaly scores using the frozen backbone’s original aggregation rule. Let I(t) = {j : xte 
+
+j is assigned to frame t} denote the test-window indices that contribute to frame t. We write this mapping as 
+
+at = Agg bb 
+
+ {ste 
+
+j : j ∈ I (t)} , (4) where Agg bb denotes the original window-to-frame and multi-person aggregation rule of the reproduced backbone. Performance is measured by frame-level AUROC computed from {at} and the frame labels. 
+
+3.2 Prototype Deviation 
+
+To add normal-mode structure to the frozen likelihood ranking, RPC fits prototypes on normal training features in the latent space exposed by the frozen detector. These prototypes are not interpreted as semantic action classes. They are 4RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+compact reference statistics used to measure how far a test window lies from the empirical normal modes observed during training. For each normal training window xtr  
+
+> i
+
+, let htr  
+
+> i
+
+= h(xtr  
+
+> i
+
+). We fit K normal behavior prototypes on the normal training features using K-means: 
+
+{ck}Kk=1 = arg min  
+
+> {ck}
+> N
+
+X
+
+> i=1
+
+min  
+
+> 1≤k≤K
+
+∥htr  
+
+> i
+
+− ck∥22. (5) Since normal behavior need not occupy one compact region, multiple prototypes provide a more flexible normal reference than a single global center. This step uses only normal training windows and introduces no abnormal labels, neural updates, or additional detector objective. The resulting prototypes are therefore post-hoc statistics of the frozen latent space. For a test feature hte  
+
+> j
+
+= h(xte  
+
+> j
+
+), prototype deviation is defined as its distance to the nearest normal behavior prototype. Our main implementation uses a diagonal Mahalanobis distance, which accounts for mode-dependent variance in the latent space and prevents high-variance dimensions from dominating the score merely because of scale. Training features are first assigned to their nearest Euclidean prototype. For prototype k and latent dimension m, the diagonal variance is 
+
+vk,m = max  Var {htr  
+
+> i,m
+
+: πtr  
+
+> i
+
+= k}, ϵ  , (6) where πtr  
+
+> i
+
+is the prototype assignment of htr  
+
+> i
+
+and ϵ = 10 −6. For empty clusters, we use the global training variance as a fallback. For a test window xte  
+
+> j
+
+, the raw prototype deviation is then 
+
+dte  
+
+> j
+
+= dproto (xte  
+
+> j
+
+) = min 
+
+> k
+
+X
+
+> m
+
+(hte  
+
+> j,m
+
+− ck,m )2
+
+vk,m 
+
+!1/2
+
+. (7) We use the diagonal Mahalanobis distance for all reported results since it provides scale-aware nearest-prototype scoring while keeping the calibration post-hoc, gradient-free, and free of additional neural parameters. Before fusion, the likelihood and prototype terms are standardized using statistics estimated only from normal training windows. The means and standard deviations are computed from {ℓ(xtr  
+
+> i
+
+)}Ni=1 and {dproto (xtr  
+
+> i
+
+)}Ni=1 . For each test window xte  
+
+> j
+
+, we compute 
+
+ˆℓte  
+
+> j
+
+= ℓ(xte  
+
+> j
+
+) − μℓ
+
+σℓ
+
+, ˆdte  
+
+> j
+
+= dte  
+
+> j
+
+− μd
+
+σd
+
+. (8) This normalization places density and distance on the same normal-training scale, so the fusion weight α controls the strength of the prototype correction rather than compensating for arbitrary score ranges. 
+
+3.3 Reliability-Gated Score Calibration 
+
+Since the prototype distance is pose-dependent, its contribution should depend on the reliability of the observed keypoints. For a test window xte  
+
+> j
+
+= {(P te 
+
+> j,t
+
+, C te 
+
+> j,t
+
+)}Tt=1 , let (Cte 
+
+> j,t
+
+)r be the confidence of keypoint r at frame t. Missing keypoints receive confidence zero when the upstream pose track stores them as missing. The raw test-window reliability is defined as the clipped mean confidence: 
+
+qte  
+
+> j
+
+= 1
+
+T J 
+
+> T
+
+X
+
+> t=1
+> J
+
+X
+
+> r=1
+
+clip  (Cte 
+
+> j,t
+
+)r , 0, 1 . (9) For all retained skeleton windows, at least one keypoint has positive confidence in the window, so qte  
+
+> j
+
+∈ (0 , 1] . The candidate γ = 0 corresponds to ungated prototype fusion, for which (qte  
+
+> j
+
+)0 = 1 for all valid windows. This quantity uses only confidence values already produced by the pose pipeline and requires no separate uncertainty estimator. The reliability gate for the same test window is 
+
+gte  
+
+> j
+
+= max  (qte  
+
+> j
+
+)γ , ρ  , (10) where γ controls the gate curvature and ρ is a reliability floor. Values γ > 1 suppress low confidence windows more strongly, whereas γ < 1 softens the attenuation and keeps the prototype term closer to its ungated form. The final gated RPC score for test window xte  
+
+> j
+
+is 
+
+ste  
+
+> j
+
+= sRPC (xte  
+
+> j
+
+) = ˆℓte  
+
+> j
+
++ αg te  
+
+> j
+
+ˆdte  
+
+> j
+
+. (11) This calibration rule leaves the standardized negative log-likelihood ungated. As a result, an unreliable test skeleton can still be ranked as anomalous by the frozen density model, but it cannot dominate the calibrated score solely through a prototype distance that may reflect pose estimation error. The gate acts as a conservative controller of geometric evidence, rather than as a confidence-based anomaly detector. 5RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+Table 1: Statistics of the evaluated datasets. All numeric values are frame counts. The HR variants follow Flaborea et al. [7] and remove nonhuman or appearance dominated anomalies from the corresponding original datasets.                                    
+
+> Dataset Total Train Val Test Normal Abnormal Public characterization SHTech [23] 317,398 274,515 –42,883 300,308 17,090 13 real scenes, 130 abnormal events SHTech-HR [7] 313,212 274,515 –38,697 297,090 16,122 HR dataset, 6 nonhuman test videos removed UBN [24] 236,902 116,087 28,175 92,640 147,887 89,015 29 scenes, 22 anomaly types, official validation split UBN-HR [7] 234,751 116,087 28,175 90,489 147,887 86,864 HR dataset, validation split kept unchanged
+
+4 Experiments 
+
+4.1 Datasets and Metrics 
+
+We evaluate RPC on four datasets, which are ShanghaiTech Campus [ 23 ], UBnormal [ 24 ], and their human-related variants ShanghaiTech-HR and UBnormal-HR [ 7 ]. These datasets support skeleton-based video anomaly detection under the one-class setting. For compactness, tables and figures use SHTech for ShanghaiTech and UBN for UBnormal. HR denotes the human-related dataset variant. Table 1 reports the public statistics for these datasets. These counts are not derived from our cached skeleton tracks. SHTech contains real campus surveillance videos with multiple scenes, crowded activities, illumination changes, and diverse abnormal events. UBN is a synthetic benchmark with an official validation split, diverse virtual scenes, and anomaly types that differ across splits. These datasets cover complementary regimes. SHTech reflects real surveillance variation, while UBN provides diverse anomaly types and an official validation split. SHTech-HR and UBN-HR are human-related datasets derived from the corresponding original datasets. They remove nonhuman or appearance-dominated anomalies that skeleton motion cannot reliably explain, such as events dominated by vehicles or fire. This makes the evaluation target better aligned with skeleton-only pose-flow detectors. All detectors are trained in the one-class setting. Only normal skeleton windows are used to compute frozen detector statistics, fit prototype centers and diagonal variances, and estimate normalization constants. Window-level scores are converted into frame-level anomaly scores by the corresponding frozen backbone evaluation pipeline. We report frame-level area under the receiver operating characteristic curve, denoted as AUROC. 
+
+4.2 Implementation Details 
+
+We use STG-NF [ 8] and DA-Flow [ 19 ] as the frozen pose-flow baselines and apply RPC on top of their reproduced checkpoints. The checkpoint, cached skeleton input, and evaluation pipeline are then kept fixed. RPC uses the final latent variable produced by the frozen flow after the forward transformation. All calibration runs use flattened latent features, diagonal Mahalanobis distance, reliability floor ρ = 0 , and 30 K-means iterations. Hyperparameters are selected once for each original dataset and reused for its HR variant without accessing any test data. For UBN, we use the official validation split to select K, α, and γ, and then freeze the selected values for both UBN and UBN-HR. Since SHTech has no official validation split in the one-class setting, we construct a training-only proxy validation set from normal SHTech training trajectories, following the use of self-supervised or proxy tasks for VAD model selection [ 25 – 27 ]. Specifically, 20% of normal training skeleton windows are held out as the proxy set, while the remaining 80% are used to fit prototypes and estimate normalization statistics. The SHTech proxy set contains clean held-out normal samples, behavior-preserving corrupted variants with confidence corruption or mild dropout and jitter, and pseudo anomalies generated from the same held-out trajectories. The pseudo-anomaly transformations include velocity drift, acceleration bumps, local limb shifts, temporal warping, speed-up, pose freezing, pose-scale jumps, and track-fragment replacement. We select the hyperparameters with the highest validation AUROC on the SHTech proxy validation set and the UBN official validation split. The finite coordinate search uses the following predefined candidate space: 
+
+K ∈ { 2, 4, 6, 8, 10 , 16 , 32 , 48 , 64 , 80 },α ∈ { 0, 0.25 , 0.5, 0.75 , 1.0, 1.25 , 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 6.0, 8.0, 10 .0},γ ∈ { 0, 0.25 , 0.5, 0.75 , 1.0, 1.25 , 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 6.0, 8.0, 10 .0, 12 .0, 16 .0}.
+
+The distance, reliability mode, normalization, pooling rule, and reliability floor are fixed before final evaluation. Table 2 records the frozen per-dataset configurations used in the experiments. 6RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+Table 2: Hyperparameter configurations of RPC for each dataset and frozen backbone. Hyperparameters are selected once on SHTech proxy validation or UBN official validation and then reused for the corresponding HR dataset. 
+
+Dataset STG-NF DA-Flow 
+
+K α γ K α γ
+
+SHTech 8 0.25 1.0 48 0.25 1.0 SHTech-HR 8 0.25 1.0 48 0.25 1.0 UBN 80 1.25 3.5 64 4.00 3.5 UBN-HR 80 1.25 3.5 64 4.00 3.5 
+
+Table 3: Main frame-level AUROC (%) results. Values are mean ± standard deviation over five seeds. Bold values mark the best result in each row. Gain is measured relative to the corresponding baseline. 
+
+Backbone Dataset Baseline Traditional post-hoc Ours Gaussian kNN OC-SVM IsoForest RPC Gain STG-NF SHTech 85 .52 ±0.32 84 .65 ±0.24 83 .22 ±0.21 83 .51 ±0.32 84 .97 ±0.38 85 .89 ±0.33 +0.37 STG-NF SHTech-HR 87 .06 ±0.28 86 .31 ±0.20 85 .00 ±0.34 84 .75 ±0.32 86 .71 ±0.09 87 .56 ±0.26 +0.50 STG-NF UBN 71 .81 ±0.57 71 .07 ±0.10 73 .38 ±1.42 69 .99 ±0.65 71 .04 ±0.54 74 .66 ±1.53 +2.85 STG-NF UBN-HR 72 .30 ±0.61 71 .47 ±0.10 73 .79 ±1.24 70 .34 ±0.12 71 .26 ±0.51 75 .39 ±1.57 +3.09 DA-Flow SHTech 84 .81 ±0.47 84 .27 ±0.14 82 .87 ±0.17 83 .32 ±0.30 84 .67 ±0.21 85 .15 ±0.36 +0.34 DA-Flow SHTech-HR 86 .46 ±0.41 85 .90 ±0.17 84 .57 ±0.21 84 .48 ±0.44 86 .31 ±0.10 87 .00 ±0.30 +0.54 DA-Flow UBN 74 .46 ±0.69 72 .89 ±0.69 74 .49 ±0.19 70 .04 ±1.15 71 .61 ±0.45 78 .54 ±0.47 +4.08 DA-Flow UBN-HR 75 .06 ±0.72 73 .37 ±0.73 75 .18 ±0.29 71 .37 ±0.71 71 .99 ±0.48 79 .55 ±0.39 +4.49 
+
+4.3 Main Results 
+
+We first test whether post-hoc score calibration improves frozen pose-flow detectors. Table 3 compares the reproduced likelihood-only baseline, traditional post-hoc methods applied to the same frozen features, and RPC. All results are reported as mean ± standard deviation over five seeds. Baseline denotes the reproduced likelihood-only detector for each frozen backbone. The traditional post-hoc methods include Gaussian modeling, kNN, OC-SVM, and Isolation Forest. Their hyperparameters are selected using the same validation rule as RPC. RPC improves over the reproduced baseline for both frozen backbones and all four datasets. The gains range from 
+
++0 .34 points on DA-Flow SHTech to +4 .49 points on DA-Flow UBN-HR, with an average gain of +2 .03 points. RPC also achieves the best result in every row of Table 3. These results indicate that the frozen likelihood score and prototype deviation provide complementary evidence. In this frozen setting, preserving the original likelihood ranking and using prototype deviation as a corrective signal is more effective than replacing the score with a standalone latent-space detector. 
+
+4.4 Comparison with Recent Methods 
+
+Table 4 places the calibrated frozen pose-flow detectors in the context of recent VAD methods. The comparison includes RGB, multimodal, memory, diffusion, language-based, skeleton, pose, and trajectory methods. STG-NF+RPC obtains 85.89 on SHTech and 87.56 on SHTech-HR, while DA-Flow+RPC obtains 78.54 on UBN and 79.55 on UBN-HR. These results position the calibrated pose-flow detectors favorably among recent skeleton- and pose-based methods. The table also shows that the calibrated pose-flow detectors remain competitive in a broader comparison that includes methods using richer visual or multimodal cues. This is notable because RPC does not change the input modality, retrain the detector, or introduce a new representation learner. Instead, the improvements are obtained by calibrating the scores of existing frozen pose-flow backbones. The comparison therefore highlights the practical value of post-hoc calibration for upgrading skeleton-based VAD systems under fixed-backbone and cached-trajectory constraints. 
+
+4.5 Ablation Analysis 
+
+Table 5 evaluates which score components are responsible for the improvement of RPC. Results are averaged over the eight dataset pairs in Table 3, with each dataset averaged over five seeds. Starting from the reproduced baseline score, unnormalized and Euclidean prototype distances give limited or inconsistent gains. Using the diagonal Mahalanobis prototype improves the mean AUROC by +1 .27 points and improves all eight datasets. This shows that normal-mode deviation is the main added signal. 7RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+Table 4: Comparison with recent video anomaly detection methods using frame-level AUROC (%). Rows are grouped by method type for readability. Bold and underline mark the best and second best entries in each dataset column. Our rows report the five-seed mean.                                                                                                       
+
+> Year Type Method SHTech SHTech-HR UBN UBN-HR
+> RGB, video, memory, and multimodal methods
+> 2024 Video SSL AED-MAE [28] 79.10 –58.50 –2024 Video SSL MGST [29] 85.10 –––2024 Memory and patch VideoPatchCore [30] 85.10 –––2024 Diffusion DiffVAD [31] 81.90 –––2024 LLM reasoning AnomalyRuler [32] 85.20 –––2025 Video SSL STP [26] 81.10 –––2025 Video graph SSL STG-SL [33] 76.80 –––2025 Patch diffusion MA-PDM [34] 79.20 –63.40 –2026 LVLM, zero-shot AnyAnomaly [35] 79.70 –74.50 –2026 RGB, flow, and pose SC-MAFC [36] 84.60 –––
+> Skeleton, pose, and trajectory methods
+> 2024 Skeleton and trajectory TrajREC [37] –77.90 68.00 68.20 2024 Skeleton and trajectory TSGAD [38] 80.60 81.77 ––2024 Skeleton transformer PoseWatch [39] 85.75 87.23 ––2025 Skeleton keypoint density SeeKer [14] 85.50 86.90 77.90 –
+> Ours: score calibration on frozen pose-flow backbones
+> 2026 Ours, score calibration STG-NF+RPC 85.89 87.56 74.66 75.39 2026 Ours, score calibration DA-Flow+RPC 85.15 87.00 78.54 79.55
+
+Table 5: Ablation analysis of RPC with mean AUROC (%) and Gain. Each row is averaged over the eight dataset pairs and five seeds. Positive datasets count how many dataset-level means improve over the corresponding baseline score.                                     
+
+> Variant Mean AUROC (%) Gain Positive datasets Baseline 79.68 ––Baseline + unnormalized prototype distance 79.55 −0.14 2/8 Baseline + Euclidean prototype 79.84 +0 .15 5/8 Baseline + diagonal Mahalanobis prototype 80.95 +1 .27 8/8 Baseline + prototype ×q(linear gate, γ= 1 )81.60 +1 .91 8/8 Baseline + prototype ×shuffled reliability 80.92 +1 .24 8/8 Baseline + prototype ×inverse reliability 79.08 −0.60 2/8 RPC = Baseline + prototype ×qγ81.72 +2.03 8/8
+
+Reliability gating further improves the prototype correction. The row with q is the linear gate special case of RPC, equivalently setting γ = 1 , and it raises the average gain to +1 .91 points. Allowing the selected curvature qγ gives the final score and reaches +2 .03 points. Shuffling the reliability values weakens the result, while inverse reliability reduces the mean below the baseline. These controls show that the direction of the gate matters. Keypoint confidence acts as reliability control for prototype evidence, not as an arbitrary scaling factor. 
+
+4.6 Score Rank Distributions 
+
+Figure 2 compares the rank distributions of frame scores before and after calibration. For each method and dataset, scores are converted to rank percentiles only for visualization. A better ranking places normal frames toward low percentiles and abnormal frames toward high percentiles. After applying RPC, the abnormal distribution moves further to the high percentile region, while the normal distribution remains concentrated at lower percentiles. This pattern is clearest on UBN, where both frozen backbones also show larger gains in Table 3. On SHTech and SHTech-HR, the visual shift is smaller because the baseline scores already rank many abnormal frames near the high percentile end. This visual trend is consistent with the larger UBN gains in Table 3, and with the smaller gains on SHTech where the baseline rank distribution is already more separated. 8RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 0.00 0.25 0.50 0.75 1.00 
+
+> 0%
+> 5%
+> 10% Frequency (%)
+
+SHTech     
+
+> AUROC=85.9
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+
+SHTech-HR     
+
+> AUROC=87.4
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+
+UBN     
+
+> AUROC=71.1
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+
+UBN-HR                                                 
+
+> AUROC=71.6
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10% Frequency (%)  AUROC=86.3
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+> AUROC=87.9
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+> AUROC=76.4
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+> AUROC=77.1
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10% Frequency (%)  AUROC=85.4
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+> AUROC=87.0
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+> AUROC=73.5
+> 0.00 0.25 0.50 0.75 1.00
+> 0%
+> 5%
+> 10%
+> AUROC=74.0
+> 0.00 0.25 0.50 0.75 1.00 Score rank percentile
+> 0%
+> 5%
+> 10% Frequency (%)  AUROC=85.6
+> 0.00 0.25 0.50 0.75 1.00 Score rank percentile
+> 0%
+> 5%
+> 10%
+> AUROC=87.4
+> 0.00 0.25 0.50 0.75 1.00 Score rank percentile
+> 0%
+> 5%
+> 10%
+> AUROC=79.2
+> 0.00 0.25 0.50 0.75 1.00 Score rank percentile
+> 0%
+> 5%
+> 10%
+> AUROC=80.0
+> STG-NF Baseline STG-NF Full RPC DA-Flow Baseline DA-Flow Full RPC
+
+Normal Abnormal 
+
+Figure 2: Rank distributions of frame scores before and after calibration. Scores are converted to rank percentiles within each method for visualization. A better ranking places normal frames toward the left and abnormal frames toward the right. Columns show SHTech, SHTech-HR, UBN, and UBN-HR. Rows show STG-NF Baseline, STG-NF+RPC, DA-Flow Baseline, and DA-Flow+RPC. Bars are proportional histograms, and solid curves are Gaussian-smoothed profiles. All AUROC values are computed from the original frame scores (seed = 42) .
+
+4.7 Analysis by Pose Reliability 
+
+Table 6 evaluates whether the reliability gate behaves consistently across different levels of pose quality. For each dataset pair, test frames are sorted by segment-level reliability and divided into low, middle, and high reliability groups. We then compute frame-level AUROC within each group for the baseline score, the prototype score, and the full RPC score. The full score improves over the baseline score in all three groups, with gains of +3 .88 , +3 .43 , and +2 .51 points from low to high reliability. It also improves over the prototype score in all groups. The additional gain over prototype calibration is largest in the low reliability group, where the full score adds +2 .36 points. The margin becomes smaller in the middle and high reliability groups, where prototype evidence is already more stable. This pattern supports the intended role of reliability gating. It gives the strongest correction when pose observations are less reliable, while preserving the benefit of prototype evidence when pose reliability is higher. 
+
+4.8 Robustness to Controlled Pose Perturbations 
+
+To assess robustness to test-time pose degradation, we perturb only the test skeletons and evaluate the resulting frame-level ranking. The perturbations cover four common pose failures, including confidence corruption, coordinate jitter, 9RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+Table 6: AUROC (%) by pose reliability group, averaged over the eight backbone–dataset pairs. Test frames are divided into low, middle, and high reliability groups by segment reliability (seed = 42) .                        
+
+> Reliability split Baseline Prototype Full RPC Full −Baseline Full −Prototype Low 75.18 76.70 79.06 +3 .88 +2 .36
+> Mid 79.99 82.81 83.42 +3 .43 +0 .61
+> High 76.92 79.15 79.43 +2 .51 +0 .28
+
+Table 7: Controlled pose perturbations. Coordinate jitter uses Gaussian noise in normalized coordinate units. Tracking switch replaces a contiguous track segment with another skeleton from the same clip.                         
+
+> Noise type Low Mid High Confidence corruption Scale by 0.8 Scale by 0.5 Randomize confidence Coordinate jitter σ= 0 .01 σ= 0 .03 σ= 0 .05
+> Keypoint dropout Drop 10% Drop 30% Drop 50%
+> Tracking switch 20% frames 40% frames 60% frames
+
+keypoint dropout, and tracking switches. Each type is applied at low, middle, and high severity for every backbone and dataset. Table 7 shows the perturbations. Figure 3 reports the AUROC difference between the full RPC score and the baseline score, averaged over low, middle, and high severities for each perturbation type. The calibrated score gives the clearest gains under coordinate jitter and confidence corruption, with average improvements of +2 .60 and +1 .59 points. Tracking switches are close to neutral on average, with a small positive difference of +0 .27 points. Keypoint dropout is the main failure case, with an average difference of −0.61 points. Unlike jitter or confidence corruption, dropout removes joints from the pose structure itself. This can distort the latent geometry used by both the flow model and the prototype distance. The reliability gate can reduce the authority of the prototype term, but it cannot recover the missing body structure. As a result, the added prototype evidence may lose discriminative contrast under severe missing joints. 
+
+4.9 Sensitivity and Runtime 
+
+This experiment evaluates how RPC behaves when one numerical parameter is varied at a time. We change the number of prototypes K, prototype weight α, and reliability curvature γ, while keeping the other parameters fixed. Figure 4 reports the mean AUROC over five seeds with standard deviation bands. The curves clarify what each parameter controls. Increasing K first improves the coverage of normal motion patterns, especially on UBN, where normal behavior is more diverse. Once enough prototypes are available, further increasing 
+
+K brings limited gains. The α curves show how much prototype evidence should modify the baseline ranking, while the γ curves show how strongly unreliable poses should suppress that evidence. These trends indicate that the selected parameters are not isolated optima, but fall in stable ranges that match the intended roles of the three components. For runtime evaluation, RPC adds no trainable parameters. The prototype bank is built once from normal training windows as an offline calibration step. At test time, the added computation is nearest-prototype scoring, reliability gating, and score fusion. The measured overhead varies across settings because the prototype count and latent dimensionality differ across configurations. The average overhead is 0.118 ms per frame, supporting RPC as a lightweight post-hoc calibration module for frozen pose-flow detectors. 
+
+4.10 Qualitative Case Studies 
+
+The case studies examine how the aggregate gains appear in individual clips. Figure 5 shows selected SHTech and UBN clips under the two frozen backbones. The figure compares the frozen baseline score with the final RPC score. On SHTech, the baseline score is already well aligned with the abnormal intervals, so RPC mainly sharpens local responses near the shaded regions. On UBN, the baseline score is less consistent. The calibrated score raises responses inside abnormal intervals and suppresses several high responses in normal regions, producing clearer temporal separation. This two-sided change is important for frame-level ranking, because abnormal frames should move above normal frames rather than all scores increasing together. This indicates that RPC improves the relative ordering of normal and abnormal frames, rather than simply increasing all scores in the clip. 10 RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT STG-NF SHTech STG-NF SHTech-HR STG-NF UBN STG-NF UBN-HR DA-Flow SHTech DA-Flow SHTech-HR DA-Flow UBN DA-Flow UBN-HR Average                                  
+
+> Coordinate jitter Keypoint dropout Confidence corruption Tracking switch
+> +0.47 +0.53 +4.77 +5.09 +0.20 +0.20 +4.59 +4.95 +2.60 -0.08 -0.10 -0.34 -0.20 -0.02 -0.02 -2.43 -1.72 -0.61 +0.33 +0.38 +2.75 +2.87 +0.11 +0.11 +3.03 +3.15 +1.59 +0.22 +0.16 +0.22 +0.39 +0.21 +0.21 +0.12 +0.60 +0.27 −4
+> −2024
+> AUROC gain over baseline (points)
+
+Figure 3: Noise robustness gain of the full RPC score over the baseline score. Each cell reports the AUROC gain in points, averaged over low, middle, and high severity for the corresponding perturbation type. The rightmost column reports the mean across all eight settings. Red cells indicate improved robustness over the baseline score, while blue cells indicate lower performance. 0 20 40 60 80                            
+
+> Number of prototypes K
+> 70
+> 75
+> 80
+> 85
+> 90
+> STG-NF AUROC (%)
+> 0.0 2.5 5.0 7.5 10.0
+> Prototype weight α
+> 70
+> 75
+> 80
+> 85
+> 90
+> 0510 15
+> Reliability curvature γ
+> 70
+> 75
+> 80
+> 85
+> 90
+> 020 40 60 80
+> Number of prototypes K
+> 70
+> 75
+> 80
+> 85
+> 90
+> DA-Flow AUROC (%)
+> 0.0 2.5 5.0 7.5 10.0
+> Prototype weight α
+> 75
+> 80
+> 85
+> 0510 15
+> Reliability curvature γ
+> 75
+> 80
+> 85
+> SHTech SHTech-HR UBN UBN-HR
+
+Figure 4: Sensitivity of RPC over five seeds for the number of prototypes K, prototype weight α, and reliability curvature γ. Each curve varies one parameter while keeping the others fixed to the reported configuration. The vertical axis reports frame-level AUROC (%) and the shaded bands denote one standard deviation over five seeds. 
+
+5 Discussion 
+
+5.1 Interpreting Prototype Evidence 
+
+The role of prototype deviation is best understood as a ranking correction rather than as a new detector. The frozen likelihood score remains useful because it preserves the density evidence learned by the pose-flow model. The prototype term adds a different view. It asks whether the latent representation is close to empirical normal modes observed in training. This explains why replacing the flow score with standalone latent-space detectors is weaker than calibrating the original score. In heterogeneous scenes, especially UBN and UBN-HR, the nearest-prototype geometry provides additional separation because normal behavior is less well represented by a single scalar likelihood ranking. 
+
+5.2 Reliability Gating as Evidence Control 
+
+The reliability analysis clarifies why the gate is useful. Its main effect is not to create a new confidence-based anomaly signal, but to decide when prototype geometry should be trusted. When reliability is low, prototype distance is more likely to mix behavioral deviation with pose estimation error. Gating therefore prevents this noisy geometric evidence from overwhelming the likelihood ranking. When reliability is high, the gate stays close to ungated prototype fusion, 11 RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 0 100 200 300 400              
+
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00 Score percentile
+> SHTech
+> AUROC: 81.8/82.4
+> 0100 200 300 400
+> UBN
+> AUROC: 80.0/95.6
+> 0100 200 300 400 Frame
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00 Score percentile  AUROC: 73.8/77.0
+> 0100 200 300 400 Frame
+> AUROC: 55.8/96.5
+> STG-NF DA-Flow
+> Baseline Full RPC
+
+Figure 5: Case studies on selected SHTech and UBN clips. Columns and rows are datasets and frozen backbones, respectively. Shaded regions mark abnormal intervals. Curves show frame-level anomaly score percentiles for baseline and RPC. AUROC pairs are ordered as baseline and RPC and are computed from the original scores (seed = 42) .allowing the method to retain the benefit of normal-mode correction. This behavior supports the intended interpretation of reliability as evidence control. 
+
+5.3 Failure Modes 
+
+The controlled perturbation study reveals a clear boundary of score-level calibration. RPC remains helpful when the pose is noisy but still structurally informative, such as under coordinate jitter or confidence corruption. In contrast, keypoint dropout removes body-structure information that both the likelihood score and the prototype distance depend on. Reliability gating can reduce the influence of questionable prototype evidence, but it cannot reconstruct missing geometry or repair the cached skeleton sequence. This limitation is inherent to the frozen post-hoc setting. Once the cached pose track loses critical joints or body configuration, the latent representation may no longer contain the normal-motion geometry needed by the prototype bank. Improving this failure case would require better pose recovery, uncertainty-aware tracking, or additional cached cues beyond skeleton coordinates. 
+
+5.4 Limitations 
+
+The first limitation is proxy fidelity. For SHTech and SHTech-HR, hyperparameters are selected without using test videos, trajectories, scores, or labels, but the proxy anomalies remain synthetic approximations of abnormal behavior. They cover common pose and trajectory degradations, not the full space of real abnormal events. For datasets without official validation splits, transparent proxy construction and candidate-space disclosure are therefore important for reproducibility. The second limitation is information availability. RPC operates only on cached skeleton tracks, frozen latent features, likelihood scores, and keypoint confidence. It does not modify pose extraction, tracking, representation learning, or window-to-frame aggregation. Consequently, it cannot recover missing body structure or use appearance and object cues that were never stored in the cache. 12 RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+6 Conclusion 
+
+We presented RPC, a post-hoc score calibration method for frozen pose-flow video anomaly detectors. By adding a reliability-gated nearest-prototype deviation to the standardized likelihood score, RPC corrects the frozen ranking with empirical normal-mode structure while keeping the backbone, cached skeleton tracks, and evaluation pipeline unchanged. Experiments on two frozen pose-flow backbones and four datasets show consistent frame-level AUROC improvements, and the analyses indicate that prototype deviation provides the main correction while reliability gating controls pose-dependent geometric evidence. The approach is lightweight and practical for cached pose-flow systems, but it remains bounded by the information present in the skeleton cache. Future work may extend the same post-hoc view to cached appearance, object, or tracking-uncertainty cues. 
+
+References 
+
+[1] Waqas Sultani, Chen Chen, and Mubarak Shah. Real-world anomaly detection in surveillance videos. In 
+
+2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 6479–6488. IEEE, 2018. doi: 10.1109/CVPR.2018.00678. [2] Yuwei Wu, Haifeng Sang, and Fei Li. Anomaly detection method of surveillance video based on global-local information. Knowledge-Based Systems , 317:113530, 2025. [3] Yang Liu, Dingkang Yang, Yan Wang, Jing Liu, Jun Liu, Azzedine Boukerche, Peng Sun, and Liang Song. Generalized video anomaly event detection: Systematic taxonomy and comparison of deep models. ACM Computing Surveys , 56(7):1–38, 2024. doi: 10.1145/3645101. [4] Jing Liu, Yang Liu, Jieyu Lin, Jielin Li, Liang Cao, Peng Sun, Bo Hu, Liang Song, Azzedine Boukerche, and Victor C. M. Leung. Networking systems for video anomaly detection: A tutorial and survey. ACM Computing Surveys , 57(10):1–37, 2025. doi: 10.1145/3729222. [5] Wen Liu, Weixin Luo, Dongze Lian, and Shenghua Gao. Future frame prediction for anomaly detection – a new baseline. In 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 6536–6545. IEEE, 2018. doi: 10.1109/CVPR.2018.00684. [6] Lukas Ruff, Robert Vandermeulen, Nico Goernitz, Lucas Deecke, Shoaib Ahmed Siddiqui, Alexander Binder, Emmanuel Müller, and Marius Kloft. Deep one-class classification. In Jennifer Dy and Andreas Krause, editors, 
+
+Proceedings of the 35th International Conference on Machine Learning , volume 80 of Proceedings of Machine Learning Research , pages 4393–4402. PMLR, 2018. [7] Alessandro Flaborea, Guido Maria D’Amely di Melendugno, Stefano D’Arrigo, Marco Aurelio Sterpa, Alessio Sampieri, and Fabio Galasso. Contracting skeletal kinematics for human-related video anomaly detection. Pattern Recognition , 156:110817, 2024. doi: 10.1016/j.patcog.2024.110817. [8] Or Hirschorn and Shai Avidan. Normalizing flows for human pose anomaly detection. In 2023 IEEE/CVF International Conference on Computer Vision (ICCV) , pages 13499–13508. IEEE, 2023. doi: 10.1109/ICCV5107 0.2023.01246. [9] Eric Nalisnick, Akihiro Matsukawa, Yee Whye Teh, Dilan Görür, and Balaji Lakshminarayanan. Do deep generative models know what they don’t know? In International Conference on Learning Representations , 2019. [10] Polina Kirichenko, Pavel Izmailov, and Andrew Gordon Wilson. Why normalizing flows fail to detect out-of-distribution data. In Advances in Neural Information Processing Systems , volume 33, 2020. [11] Peng Xing and Zechao Li. Visual anomaly detection via partition memory bank module and error estimation. 
+
+IEEE Transactions on Circuits and Systems for Video Technology , 33(8):3596–3607, 2023. doi: 10.1109/TCSVT. 2023.3237562. [12] Sheng Jin, Lumin Xu, Jin Xu, Can Wang, Wentao Liu, Chen Qian, Wanli Ouyang, and Ping Luo. Whole-body human pose estimation in the wild. In Proceedings of the European Conference on Computer Vision (ECCV) ,pages 196–214, 2020. [13] Jingkang Yang, Kaiyang Zhou, Yixuan Li, and Ziwei Liu. Generalized out-of-distribution detection: A survey. 
+
+International Journal of Computer Vision , 132(12):5635–5662, 2024. doi: 10.1007/s11263-024-02117-4. [14] Anja Deli´ c, Matej Grˇ ci´ c, and Siniša Šegvi´ c. Sequential keypoint density estimator: An overlooked baseline of skeleton-based video anomaly detection. In 2025 IEEE/CVF International Conference on Computer Vision (ICCV) , pages 11579–11589. IEEE, 2025. doi: 10.1109/ICCV51701.2025.01077. [15] Mykhaylo Andriluka, Umar Iqbal, Eldar Insafutdinov, Leonid Pishchulin, Anton Milan, Juergen Gall, and Bernt Schiele. PoseTrack: A benchmark for human pose estimation and tracking. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , pages 5167–5176, 2018. doi: 10.1109/CVPR.2018.00542. 13 RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+[16] Yong Su, Yuyu Tan, Meng Xing, and Simin An. Vpe-wsvad: Visual prompt exemplars for weakly-supervised video anomaly detection. Knowledge-Based Systems , 299:111978, 2024. [17] Muaz Al Radi and Sajid Javed. Hierarchical vision-language model with comprehensive language description for video anomaly detection. Knowledge-Based Systems , page 115466, 2026. [18] Canhui Tang, Sanping Zhou, Haoyue Shi, and Le Wang. Action hints: Semantic typicality and context uniqueness for generalizable skeleton-based video anomaly detection. Pattern Recognition , 179:113898, 2026. doi: 10.1016/j. patcog.2026.113898. [19] Ruituo Wu, Yang Chen, Jian Xiao, Bing Li, Jicong Fan, Frédéric Dufaux, Ce Zhu, and Yipeng Liu. DA-Flow: Dual attention normalizing flow for skeleton-based video anomaly detection. IEEE Transactions on Multimedia ,27:8847–8858, 2025. doi: 10.1109/TMM.2025.3607708. [20] Shaoming Qiu, Jingfeng Ye, Jiancheng Zhao, Lei He, Liangyu Liu, Bicong E., and Xinchen Huang. Video anomaly detection guided by clustering learning. Pattern Recognition , 153:110550, 2024. doi: 10.1016/j.patcog.2 024.110550. [21] Amir Markovitz, Gilad Sharir, Itamar Friedman, Lihi Zelnik-Manor, and Shai Avidan. Graph embedded pose clustering for anomaly detection. In 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 10536–10544. IEEE, 2020. doi: 10.1109/CVPR42600.2020.01055. [22] Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q. Weinberger. On calibration of modern neural networks. In Doina Precup and Yee Whye Teh, editors, Proceedings of the 34th International Conference on Machine Learning ,volume 70 of Proceedings of Machine Learning Research , pages 1321–1330. PMLR, 2017. [23] Weixin Luo, Wen Liu, and Shenghua Gao. A revisit of sparse coding based anomaly detection in stacked RNN framework. In 2017 IEEE International Conference on Computer Vision (ICCV) , pages 341–349. IEEE, 2017. doi: 10.1109/ICCV.2017.45. [24] Andra Acsintoae, Andrei Florescu, Mariana-Iuliana Georgescu, Tudor Mare, Paul Sumedrea, Radu Tudor Ionescu, Fahad Shahbaz Khan, and Mubarak Shah. UBnormal: New benchmark for supervised open-set video anomaly detection. In 2022 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 20111– 20121. IEEE, 2022. doi: 10.1109/CVPR52688.2022.01951. [25] Mariana-Iuliana Georgescu, Antonio Barbalau, Radu Tudor Ionescu, Fahad Shahbaz Khan, Marius Popescu, and Mubarak Shah. Anomaly detection in video via self-supervised and multi-task learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 12742–12752, 2021. [26] Qingyang Yang, Chuanxu Wang, Peng Liu, Zitai Jiang, and Jiajiong Li. Video anomaly detection via self-supervised and spatio-temporal proxy tasks learning. Pattern Recognition , 158:111021, 2025. doi: 10.1016/j.patc og.2024.111021. [27] Clement Fung, Chen Qiu, Aodong Li, and Maja Rudolph. Model selection of anomaly detectors in the absence of labeled validation data. arXiv preprint arXiv:2310.10461 , 2024. doi: 10.48550/arXiv.2310.10461. [28] Nicolae-Catalin Ristea, Florinel-Alin Croitoru, Radu Tudor Ionescu, Marius Popescu, Fahad Shahbaz Khan, and Mubarak Shah. Self-distilled masked auto-encoders are efficient video anomaly detectors. In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 15984–15995. IEEE, 2024. doi: 10.1109/CVPR52733.2024.01513. [29] Menghao Zhang, Jingyu Wang, Qi Qi, Haifeng Sun, Zirui Zhuang, Pengfei Ren, Ruilong Ma, and Jianxin Liao. Multi-scale video anomaly detection by multi-grained spatio-temporal representation learning. In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 17385–17394. IEEE, 2024. doi: 10.1109/CVPR52733.2024.01646. [30] Sunghyun Ahn, Youngwan Jo, Kijung Lee, and Sanghyun Park. VideoPatchCore: An effective method to memorize normality for video anomaly detection. In Computer Vision – ACCV 2024 , pages 312–328. Springer Nature Singapore, 2024. doi: 10.1007/978-981-96-0908-6_18. [31] Menghao Zhang, Jingyu Wang, Qi Qi, Pengfei Ren, Haifeng Sun, Zirui Zhuang, Lei Zhang, and Jianxin Liao. Safeguarding sustainable cities: Unsupervised video anomaly detection through diffusion-based latent pattern learning. In Kate Larson, editor, Proceedings of the Thirty-Third International Joint Conference on Artificial Intelligence, IJCAI-24 , pages 7572–7580. International Joint Conferences on Artificial Intelligence Organization, 2024. doi: 10.24963/ijcai.2024/838. [32] Yuchen Yang, Kwonjoon Lee, Behzad Dariush, Yinzhi Cao, and Shao-Yuan Lo. Follow the rules: Reasoning for video anomaly detection with large language models. In Computer Vision – ECCV 2024 , pages 304–322. Springer Nature Switzerland, 2024. doi: 10.1007/978-3-031-73004-7_18. 14 RPC for Frozen Pose-Flow Video Anomaly Detection A P REPRINT 
+
+[33] Meng Xing, Zhiyong Feng, Yong Su, Yiming Zhang, Changjae Oh, Valeriya Gribova, Vladimir Fedorovich Filaretov, and Deshuang Huang. Spatio-temporal graph-based self-labeling for video anomaly detection. Neuro-computing , 627:129576, 2025. doi: 10.1016/j.neucom.2025.129576. [34] Hang Zhou, Jiale Cai, Yuteng Ye, Yonghui Feng, Chenxing Gao, Junqing Yu, Zikai Song, and Wei Yang. Video anomaly detection with motion and appearance guided patch diffusion model. Proceedings of the AAAI Conference on Artificial Intelligence , 39(10):10761–10769, 2025. doi: 10.1609/aaai.v39i10.33169. [35] Sunghyun Ahn, Youngwan Jo, Kijung Lee, Sein Kwon, Inpyo Hong, and Sanghyun Park. AnyAnomaly: Zero-shot customizable video anomaly detection with LVLM. In 2026 IEEE/CVF Winter Conference on Applications of Computer Vision (WACV) , pages 3026–3035. IEEE, 2026. doi: 10.1109/WACV61042.2026.00296. [36] Chuanxu Wang, Zitai Jiang, Haigang Deng, and Chunjuan Yan. A video anomaly detection framework based on semantic consistency and multi-attribute feature complementarity. Pattern Recognition , 170:112016, 2026. doi: 10.1016/j.patcog.2025.112016. [37] Alexandros Stergiou, Brent De Weerdt, and Nikos Deligiannis. Holistic representation learning for multitask trajectory anomaly detection. In 2024 IEEE/CVF Winter Conference on Applications of Computer Vision (WACV) ,pages 6715–6725. IEEE, 2024. doi: 10.1109/WACV57701.2024.00659. [38] Ghazal Alinezhad Noghre, Armin Danesh Pazho, and Hamed Tabkhi. An exploratory study on human-centric video anomaly detection through variational autoencoders and trajectory prediction. In 2024 IEEE/CVF Winter Conference on Applications of Computer Vision Workshops (WACVW) , pages 995–1004. IEEE, 2024. doi: 10.1109/WACVW60836.2024.00109. [39] Ghazal Alinezhad Noghre, Armin Danesh Pazho, and Hamed Tabkhi. PoseWatch: A transformer-based architecture for human-centric video anomaly detection using spatio-temporal pose tokenization, 2024. 15

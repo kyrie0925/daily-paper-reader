@@ -1,0 +1,749 @@
+Title: ReA-OVCD: Reliability-Aware Open-Vocabulary Change Detection via Semantic and Spatial Refinement
+
+URL Source: https://arxiv.org/pdf/2606.20032v1
+
+Published Time: Fri, 19 Jun 2026 00:50:24 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+> JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 1
+
+# ReA-OVCD: Reliability-Aware Open-Vocabulary Change Detection via Semantic and Spatial Refinement 
+
+Hongming Zhu , Huaji Chen , Bowen Du , Member, IEEE, Sicong Liu , Senior Member, IEEE, and Qin Liu 
+
+Abstract —Unlike traditional remote sensing change detection that relies on predefined categories, Open-Vocabulary Change Detection (OVCD) identifies land cover changes flexibly using arbitrary text prompts. However, existing methods suffer from an inherent trade-off when modeling changes: instance-level comparison overlooks fine-grained semantic variations (e.g., par-tial building extensions), while direct pixel comparison proves unreliable, yielding unstable responses and boundary artifacts due to semantic ambiguity and spatial inconsistency. To this end, we propose an efficient training-free Reliability-Aware Open-Vocabulary Change Detection (ReA-OVCD) framework. It first derives candidate change regions from pixel-wise semantic dis-crepancies to ensure flexible and detailed localization. To ensure reliability, it subsequently introduces a collaborative refinement strategy to explicitly model change validity from both semantic and spatial perspectives. Specifically, we develop a Semantic Change Reasoning (SCR) module that reassesses changes by jointly analyzing distributional divergence and response varia-tion, enabling the suppression of incidental inconsistencies while preserving reliable semantic shifts. In addition, a Boundary-aware Change Refinement (BCR) module is designed to mitigate artifacts stemming from boundary misalignment and uncertainty through validating whether candidate regions are supported by reliable interior pixels. Extensive experiments across multiple datasets (LEVIR-CD, WHU-CD, DSIFN, and SECOND) demon-strate that our method consistently outperforms state-of-the-art approaches, achieving FC 
+
+> 1
+
+improvements of 2.13% to 9.75% with higher computational efficiency. The code is publicly available at https://github.com/Funny0101/ReA-OVCD. 
+
+Index Terms —Remote Sensing Imagery, Open-vocabulary change detection, Training free, Reliability-Aware Refinement 
+
+I. I NTRODUCTION 
+
+# ACCURATE spatiotemporal monitoring is crucial for un-derstanding Earth’s surface dynamics. In this context, remote sensing change detection serves as a foundational tool, aiming to identify changes in land cover over time from a pair of images captured in the same geographical area [1]. It plays a vital role in climate change tracking, disaster damage assessment, and urban expansion monitoring [2]–[4]. Depending on the semantic level of the task, traditional change detection can be categorized into binary change de-tection (BCD) and semantic change detection (SCD). The                        
+
+> This work was supported in part by the National Key R&D Program of China under Grant 2023YFC3805305, in part by the Program of Shanghai Subject Chief Scientist under Grant 23XD1433900, in part by the National Natural Science Foundation of China under Grant 62576250, and in part by the National Natural Science Foundation of China under Grant 62406227. (Corresponding author: Bowen Du.) Hongming Zhu, Huaji Chen, Bowen Du, and Qin Liu are with the School of Computer Science and Technology, Tongji Univer-sity, Shanghai 200092, China (e-mail: zhu hongming@tongji.edu.cn; 2534072@tongji.edu.cn; bowendu@tongji.edu.cn; qin.liu@tongji.edu.cn). Sicong Liu is with the College of Surveying and Geo-Informatics, Tongji University, Shanghai 200092, China (e-mail: sicong.liu@tongji.edu.cn).
+
+former primarily focuses on determining whether changes have occurred yet lacks semantic understanding [5], [6]; the latter further introduces class label information, enabling the identification of specific land cover change types [7], [8]. However, both paradigms are typically based on the closed-set assumption, where the category space is predefined and shared between training and inference. In practice, land cover types are diverse and researchers often need to flexibly define targets of interest according to specific tasks(e.g., composite concepts like impervious surface rather than low-level classes such as pavement that provided during training [9]). This mismatch significantly limits the adaptability of conventional methods when encountering unseen categories. In recent years, breakthroughs in foundational models [10]–[12] have made open-vocabulary change detection (OVCD) increasingly fea-sible. OVCD aims to identify semantic changes using natural language descriptions without the need for predefined category labels. To fully realize this potential, operating in a training-free manner has emerged as an appealing paradigm to avoid introducing category bias, thereby fully unleashing the innate generalization of foundational models. Existing OVCD methods are largely built upon instance-level comparison paradigms [13], [14], where changes are detected by establishing correspondences based on geometric or feature similarity. While effective for object-level matching, such approaches inherently struggle to capture fine-grained semantic variations within objects (e.g., partial building ex-tensions). In contrast, pixel-level methods [15] enable more detailed semantic analysis by comparing category predictions at each spatial location, yet are prone to false positives in open-vocabulary settings. Specifically, due to the open cat-egory space, pixel predictions are often unstable and exhibit ambiguous distributions, with no clearly dominant class. How-ever, pixel-level change decisions are ultimately derived from discretized predictions. Consequently, pixels near the decision boundary can experience label flips under minor perturbations, producing false positives even though the underlying semantics remain nearly identical. Moreover, in remote sensing imagery, slight geometric misalignments and segmentation uncertainties near object boundaries jointly introduce systematic boundary shifts across temporal predictions. However, pixel-level com-parison methods treat each pixel independently and ignore spatial context, which amplifies these shifts and produces strip-like spurious change responses along object edges. To address these issues, we propose an efficient training-free Reliability-Aware Open-Vocabulary Change Detection (ReA-OVCD) framework, which balances fine-grained change perception and prediction reliability while considering com-putational efficiency throughout the overall design. Specif- 
+
+> arXiv:2606.20032v1 [cs.CV] 18 Jun 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 2
+
+ically, we first employ a unified open-vocabulary perceiver to efficiently encode semantic information across bi-temporal images. Subsequently, candidate change regions are derived from label discrepancies to facilitate fine-grained change local-ization. Rather than directly trusting such change indications, we further evaluate their reliability through a low-overhead collaborative semantic and spatial refinement: For the semantic inconsistency induced by ambiguous pre-dictions, our key insight is that true changes typically man-ifest as structured shifts in semantic distributions, meaning that class probabilities are substantially redistributed across categories, and as significant variations in response intensity, where the prediction confidence of at least one category changes markedly. In contrast, incidental label flips caused by minor perturbations usually do not exhibit such patterns. Based on this, we introduce a Semantic Change Reasoning (SCR) module that reassesses change reliability by jointly modeling distribution-level divergence and response variation, thereby suppressing unstable changes while preserving semantically meaningful ones. As for the spurious changes caused by segmentation uncertainty and boundary misalignment, our key observation is that they are predominantly concentrated near semantic boundaries, whereas pixels located far from edges in both temporal images tend to be more stable. Based on this, we design a Boundary-aware Change Refinement (BCR) module that evaluates the reliability of candidate change regions by incorporating spatial context. In practice, this corresponds to retaining regions supported by reliable interior pixels while removing those dominated by boundary-induced responses. This design is particularly effective for structured objects such as buildings in high-resolution imagery, although its benefit may be limited for highly fragmented natural land covers. Nev-ertheless, it achieves a balance between suppressing boundary artifacts and preserving region integrity. In summary, the main contributions of this paper are as follows:  
+
+> •
+
+We propose the efficient training-free ReA-OVCD frame-work that enables reliable change detection while pre-serving fine-grained change perception, overcoming the instability of direct pixel comparison in open-vocabulary settings with higher computation efficiency.  
+
+> •
+
+We introduce a collaborative refinement mechanism that explicitly models change reliability: the SCR mitigates false positives caused by ambiguous semantic predictions; the BCR reduces artifacts near boundaries that arise from geometric misalignment and segmentation uncertainties.  
+
+> •
+
+Extensive experiments on multiple datasets demonstrate that the proposed method significantly outperforms ex-isting approaches, validating its effectiveness, efficiency and generalization capability in OVCD tasks. II. R ELATED WORK 
+
+A. Segment Anything Model 
+
+SAM [10] pioneered the promptable universal image seg-mentation paradigm, enabling unified zero-shot promptable segmentation capabilities across multiple downstream visual tasks through pretraining on large-scale datasets. Subsequently, numerous models emerged, focusing on enhancing its per-formance and efficiency. For instance, HQ-SAM [16] intro-duced high-quality tokens to enhance segmentation quality; methods like FastSAM [17], MobileSAM [18], TinySAM [19], and EfficientViT-SAM [20] significantly reduced model inference costs through lightweight network architectures or distillation strategies, enabling real-time inference on resource-constrained devices. Building upon this foundation, the SAM series gradually expanded to more complex visual tasks. SAM 2 [21] extended segmentation capabilities from single-frame images to video scenes, enabling cross-frame object tracking and mask propagation through the introduction of memory at-tention mechanisms. The newly proposed SAM 3 [22] further introduces the Promptable Concept Segmentation task, which can directly localize and segment arbitrary semantic concepts. This provides a crucial foundation for open-vocabulary change detection while avoiding the feature alignment issues common in traditional multi-model combination approaches. 
+
+B. Traditional Change Detection 
+
+Change detection aims to identify land cover changes by comparing feature differences between dual-phase images. Traditional approaches predominantly employ CNN-based Siamese networks [23]–[25] to extract multi-temporal features, combined with attention-based feature fusion modules to en-hance change detection capabilities. However, constrained by sparse annotated data [26], [27], these models exhibit limited understanding of change semantics. With advancements in foundational models, studies like ChangeCLIP [28], TextSCD [29], and CKCD [30] leverage CLIP’s visual-text alignment capability to introduce textual modalities, thereby enhanc-ing semantic representation and suppressing false changes. Meanwhile, SAM-based change detection research contin-ues to emerge: SAMCD [6] and SCM [31] utilize SAM’s robust segmentation and localization capabilities to identify change regions, while AnyChange [32] achieves zero-shot change localization through latent space matching. Further-more, approaches like BiSAM-CD [33] and Change3D [34] redefine change detection from a video modeling perspective. Additionally, studies like UniChange [35] attempt to unify BCD and SCD tasks using multimodal large language models. However, these approaches still face significant limitations: while some can detect changes under zero-shot conditions, they cannot identify change categories; methods capable of semantic recognition typically rely on fixed category sets or specific dataset training, making them unsuitable for practical application scenarios. 
+
+C. Open-Vocabulary Change Detection 
+
+OVCD aims to identify semantic changes without the need for predefined categories. Existing methods can be broadly categorized into two types: training-based and training-free. Training-based approaches typically involve constructing ded-icated datasets and training strategies tailored to the change detection task. Semantic-CD [36] transforms the problem into a dual-temporal semantic prediction difference, ViLaCD-R1 [37] utilizes vision-language alignment capabilities to identify JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 3Output         
+
+> Frozen
+> 𝐼 (𝑌 1(𝑥 )≠𝑌 2(𝑥 ))
+> 1
+> 2(D 𝐽 𝑆 (𝑥 )+~
+> 𝐷 𝑙 𝑜 𝑔 𝑖 𝑡 (x))
+> Scalar Multiply
+> Sigmoid
+> Distance Transform
+
+Change Mask 
+
+> Threshold
+> Argmax
+
+Processing Pipeline 
+
+3. Boundary-Aware Change Refinement 
+
+2. Semantic Change Reasoning  
+
+> Y1Y2
+> SAM3  Semantic
+> Presence
+> Instance
+
+1. Semantic Parsing   
+
+> 𝑚 1𝑚 2
+> 𝑊 c
+> Core
+> Boundary
+> Y
+> N
+> Djs Dlogit
+> Component
+> Filtering
+> Postprocessing
+
+Input 
+
+> T2
+> T1
+
+Prompts(C)  
+
+> building
+> roof house
+> background
+> Fig. 1. Overall architecture of the proposed ReA-OVCD framework. Given bi-temporal images T1 and T2 and a set of open-vocabulary queries C, we first employ a frozen SAM-3 to extract and fuse multi-head outputs, producing pixel-wise semantic logits and corresponding label maps. In the SCR stage, an initial change mask is derived from label discrepancy, which is further refined by jointly modeling Jensen–Shannon divergence and response difference to suppress spurious responses. Finally, the BCR module mitigates boundary-induced false positives by confidence weighting based on distance transform and preserves the structural integrity of genuine change regions via connected component analysis, yielding the final high-quality change masks.
+
+change regions and UniVCD [15] fuses features from SAM and CLIP through feature aligning. While achieving strong discriminative capabilities, their performance depends on the distribution of training data and often compromises open-vocabulary capabilities to some extent. In contrast, training-free methods require no additional training and are more aligned with the open-vocabulary setting. DynamicEarth [13] and OV-CD [38] performs change detection through a loosely coupled multi-model cascade, where separate modules han-dle different sub-tasks, but suffers from feature inconsis-tency and error accumulation. AdaptOVCD [39] enhances change representation through multi-level feature fusion, while OpenDPR [40] leverages a diffusion model to generate change-aware examples that guide the detection process. How-ever, these approaches still rely on multi-stage or multi-model designs, resulting in increased architectural complexity and reduced structural coherence. OmniOVCD [14] attempts to build a unified framework, yet still fundamentally relies on instance-level matching, which may struggle to capture localized semantic variations and remain sensitive to seman-tic ambiguity. Furthermore, recent studies [41], [42] have demonstrated that open-vocabulary semantic segmentation can provide dense pixel-level semantic representations. This offers a promising alternative for modeling fine-grained changes, motivating us to revisit pixel-level modeling with improved reliability and spatial consistency. III. M ETHODOLOGY 
+
+A. Framework Overview 
+
+Given a pair of registered remote sensing images captured at different times, denoted respectively as I1, I 2 ∈ RH×W ×3,and a set of open categories C = {c0, c 1, . . . , c N } consisting of natural language descriptions. Here, H and W denote the resolution of the input images, c0 represents the background category, and N denotes the number of target categories of in-terest. The objective of the OVCD is to extract changes in rel-evant regions based on C without the need for additional fine-tuning for the target categories. Specifically, for each query 
+
+ci in the set C, a binary change mask M ci 
+
+> change
+
+∈ { 0, 1}H×W
+
+is generated independently, where 1 indicates that the region associated with that concept has changed, and 0 indicates that no change has occurred. Unlike traditional semantic change detection, the categories in OVCD are no longer restricted to a predefined label space, but are dynamically specified by arbitrary text queries. To address the limitations of existing OVCD methods in capturing fine-grained semantic changes while maintaining prediction reliability, we propose ReA-OVCD, an efficient training-free framework for open-vocabulary change detection. As shown in the figure 1, the overall process primarily comprises three core stages. The first stage is open-vocabulary semantic feature extraction. We utilize a unified SAM-3 to generate dense semantic logits and probability distributions JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 4
+
+for the queried categories through multi-head fusion, thereby avoiding the redundant feature extraction overhead introduced by existing multi-stage parsing pipelines. Subsequently, start-ing from candidate change regions derived from discrete label discrepancies, a lightweight Semantic Change Reasoning (SCR) is performed within the semantic domain. By modeling differences in semantic distributions and changes in response intensity across temporal features, it successfully suppresses spurious changes caused by incidental label inconsistencies and retains regions with reliable semantic shifts. Finally, Boundary-aware Change Refinement (BCR) is performed in the spatial domain. Specifically, within sparse candidate change regions, regions lacking sufficient reliable interior pix-els are removed, while those with consistent interior support are preserved, thereby improving the structural integrity of detected changes. 
+
+B. Bi-temporal Open-Vocabulary Semantic Parsing 
+
+To obtain high-quality open-vocabulary semantic features without training, we employ a frozen SAM-3 model as a uni-fied feature extractor, which avoids the error accumulation of traditional multi-model stacking and improves computational efficiency. [14] To accommodate both the precise boundary delineation of structured objects (e.g., buildings) and the semantic spatial continuity of land cover areas (e.g., water), we draw on the design philosophy of SegEarth-OV-3 [41] to simultaneously activate and aggregate the outputs of both the instance and semantic heads during decoding. Specifically, the first step of this process is the instance aggregation operation. For a given query in C, the instance header generates P candidate instances. Let their correspond-ing instance-level logit maps and confidence scores be denoted as L(p) 
+
+> inst
+
+∈ RH×W and s(p) 
+
+> conf
+
+∈ [0 , 1] , respectively. To integrate the sparse instance predictions into a continuous semantic response, we take the maximum of the weighted instance responses at the pixel level x:
+
+Linst agg (x) = P
+
+max 
+
+> p=1
+
+
+
+L(p)
+
+> inst
+
+(x) · s(p)
+
+> conf
+
+
+
+(1) where Linst agg ∈ RH×W is the aggregated instance response map. This operation suppresses interference from low-quality candidates and retains high-confidence instance boundaries. Subsequently, the aggregated instance response is fused with the dense semantic logit map Lsem ∈ RH×W that produced by the semantic head via pixel-wise max-pooling: 
+
+Lf used (x) = max  Lsem (x), L inst agg (x) , (2) This fusion strategy, yielding Lf used ∈ RH×W , combines instance-level precision with semantic-level global consis-tency, thereby enhancing the overall modeling capability for targets at different scales. Furthermore, in open-vocabulary scenarios, large-scale query vocabulary introduces a significant number of categories that do not actually exist in the image, leading to noise and hallucination issues in semantic responses. To address this, we employ the model’s category presence score Spres ∈ [0 , 1] to perform soft suppression on the fused response: 
+
+Lf inal (x) = Lf used (x) · Spres (3) This soft suppression operation yields Lf inal ∈ RH×W , which explicitly reduces the response strength of irrelevant categories and improves the reliability of semantic predictions. Given that a single semantic category may correspond to multiple synonymous query terms, let Qc ⊂ C denote the subset of queries corresponding to category c, we perform maximum aggregation over these synonymous queries at the category level to obtain the category-specific response map: 
+
+Lc(x) = max  
+
+> q∈Q c
+
+Lf inal,q (x), (4) where Lc ∈ RH×W . By stacking the responses of all N
+
+unique semantic categories, we obtain the holistic semantic logit tensor L ∈ RN ×H×W . Finally, we extract the initial class label Y (x) corresponding to the maximum response value across the category dimension for each pixel: 
+
+Y (x) = arg max  
+
+> c∈C
+
+Lc(x) (5) Concurrently, to filter out background predictions with low confidence, we introduce a probability threshold θprob . If a pixel’s maximum logical response falls below this threshold, it is forcibly assigned to the background class c0. By applying the aforementioned processing pipeline to the dual-phase im-ages separately, we obtain their respective segmentation logit tensors L1, L2 ∈ RN ×H×W , along with the filtered semantic label maps Y1, Y 2 ∈ RH×W , which are subsequently utilized by the following procedures. 
+
+C. Semantic Change Reasoning 
+
+Existing change detection methods typically rely on com-paring cross-temporal predictions after discretizing continuous semantic responses using argmax . However, this strategy im-plicitly assumes that semantic predictions are stable, which does not hold in open-vocabulary settings. Due to the ambigu-ity of category boundaries, pixel-level predictions often exhibit uncertain distributions, where minor perturbations can lead to label flips and consequently introduce spurious changes. To address this, we propose Semantic Change Reasoning (SCR) module, which reassesses the reliability of candidate changes by modeling cross-temporal differences in continuous semantic distributions instead of relying solely on discrete label comparison. First, based on the discrete prediction results Y1 and Y2 ob-tained above, we construct a preliminary hard change indicator map Hchange ∈ { 0, 1}H×W :
+
+Hchange (x) = I Y1(x)̸ = Y2(x) (6) where I(·) is the standard indicator function, which evaluates to 1 if the condition is met and 0 otherwise. While this pixel-wise operation is significantly more efficient than computation-ally expensive cross-instance matching for capturing potential change regions, it still contains a large number of spurious changes due to label instability. Therefore, further constraints and filtering are required within the continuous semantic space. Based on the dense logit outputs L1 and L2 from the dual-temporal branches, we first convert them into normalized probability distributions along the class dimension, which JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 5
+
+enables a meaningful comparison of semantic distributions. Specifically, we apply the Softmax function to obtain the pixel-level class probabilities: 
+
+P ct (x) = exp( Lct (x)) 
+
+P 
+
+> j∈C
+
+exp( Ljt (x)) , t ∈ { 1, 2} (7) This formulation produces the continuous probability distri-bution Pt ∈ [0 , 1] N ×H×W . Since reliable semantic changes typically involve substantial redistribution of semantic proba-bilities across categories, we employ the Jensen-Shannon (JS) divergence to measure the overall difference between the two semantic distributions. Compared to simple subtraction, is pro-vides a symmetric and robust measure of the shape discrepancy between two probability distributions. It is formulated as: 
+
+M c(x) = 12
+
+ P1(x) + P2(x), (8) 
+
+DJS (x) = 12
+
+> N
+
+X
+
+> c=1
+
+P c 
+
+> 1
+
+(x) log 
+
+ P c 
+
+> 1
+
+(x)
+
+M c(x)
+
+
+
++ 12
+
+> N
+
+X
+
+> c=1
+
+P c 
+
+> 2
+
+(x) log 
+
+ P c 
+
+> 2
+
+(x)
+
+M c(x)
+
+
+
+,
+
+(9) where M c(x) is the mean distribution and DJS ∈ RH×W
+
+is the pixel-wise JS divergence. While effective, it may not fully characterize variations in response magnitude. Therefore, to additionally capture confidence-level response changes for highly activated categories,we further calculate the maximum response difference Dlogit ∈ RH×W at the raw logit level: 
+
+Dlogit (x) = max   
+
+> c∈{ 1,...,N }
+
+|Lc
+
+> 1
+
+(x) − Lc
+
+> 2
+
+(x)| , (10) Subsequently, we perform a weighted fusion of these two com-plementary metrics to formulate a comprehensive continuous change representation: 
+
+Sf usion (x) = 12 DJS (x) + 12 ˜Dlogit (x), (11) where ˜Dlogit denotes the min-max normalized response differ-ence, which is used to align its numerical scale with DJS for stable and balanced fusion. Finally, by masking this continuous fusion score with the initial hard change constraint, we derive the reliable semantic change score: 
+
+Schange (x) = Hchange (x) · Sf usion (x), (12) By setting a threshold θchange , we obtain the refined base change mask Mbase ∈ { 0, 1}H×W :
+
+Mbase (x) = I Schange (x) > θ change 
+
+. (13) Furthermore, to seamlessly unify BCD and SCD tasks within an open-vocabulary framework, we formulate the change detection process as a category-specific query task. Specifically, for a queried target class c, we first utilize the dual-temporal discrete labels Y1 and Y2 to generate its independent binary masks: mc
+
+> 1
+
+(x) = I(Y1(x) = c) and 
+
+mc
+
+> 2
+
+(x) = I(Y2(x) = c). By combining this with the global indicator Mbase , we define the initial change prediction for class c as: 
+
+M cbase (x) = Mbase (x) · I mc
+
+> 1
+
+(x)̸ = mc
+
+> 2
+
+(x) (14) Notably, the entire process relies solely on lightweight element-wise tensor operations. Without introducing any ad-ditional complex procedures, its computational overhead is negligible compared with the backbone inference process. 
+
+D. Boundary-aware Change Refinement 
+
+Although the SCR module effectively mitigates spurious changes caused by semantic uncertainty, the candidate change mask M cbase lacks explicit spatial structural constraints. By treating each pixel as an independent entity, pixel-wise com-parisons inherently overlook spatial continuity. Consequently, due to the coupled effects of segmentation uncertainty and slight geometric misalignment in bi-temporal remote sensing imagery, systematic boundary shifts frequently occur. These shifts are amplified during cross-temporal pixel-wise com-parison, manifesting as strip-like false positives along object edges. Since these artifacts lack stable interior support, their fundamental origin is boundary ambiguity rather than genuine semantic structural transformation. To address this, we propose a Boundary-Aware Change Refinement (BCR) module to evaluate the spatial reliability of candidate regions. Our core assumption is that pseudo-changes are predom-inantly clustered near semantic boundaries, whereas pixels located far from boundaries exhibit higher semantic stability. Therefore, for a specific queried class c, a changed pixel is considered reliable only if it maintains a safe distance from the semantic boundaries in both temporal phases. To quantify this spatial reliability, we extract the undirected spatial boundaries of the binary masks mc 
+
+> 1
+
+and mc
+
+> 2
+
+, denoted as Bc 
+
+> 1
+
+and Bc
+
+> 2
+
+, respectively. We then compute the Euclidean Distance Transform (DT) from each pixel to the nearest boundary of its corresponding phase, yielding the distance maps dc
+
+> 1
+
+, d c 
+
+> 2
+
+∈ RH×W . We define the continuous spatial confidence Rc(x) of a changing pixel as the minimum of its distances to the boundaries of both phases: 
+
+Rc(x) = min  dc
+
+> 1
+
+(x), d c
+
+> 2
+
+(x) (15) where Rc(x) ≥ 0 denotes the continuous distance field. Using the sigmoid function, we map this distance field to a smooth spatial confidence weight: 
+
+W c(x) = 11 + exp 
+
+
+
+− Rc(x)−τc
+
+> s
+
+ , (16) where W c ∈ [0 , 1] H×W defines the confidence weight map, 
+
+τc is the boundary tolerance threshold set for class c, and s is the smoothing scale parameter. When W c(x) > 0.5, the pixel is considered a high-confidence “core change pixel” located sufficiently far from the semantic boundary. While W c(x) provides a robust pixel-level confidence mea-sure, applying a hard threshold directly would cause the boundaries of genuine change regions to contract, thereby compromising their structural integrity. To resolve this, we shift our perspective from isolated pixels to spatial regions. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 6
+
+We assume that genuine changes must form spatially con-sistent regions with sufficient internal evidence, rather than existing solely as boundary artifacts. Therefore, we implement component-level decision-making. For any connected compo-nent Ki within the category candidate region M cbase , if the proportion of high-confidence core change pixels contained within Ki exceeds a pre-set internal proportion threshold 
+
+ρ ∈ (0 , 1] , the entire connected component is deemed to represent a genuine structural change: 
+
+M cout (Ki) = 
+
+(
+
+1, if    
+
+> P
+> x∈KiI(Wc(x)>0.5)
+> |Ki|
+
+≥ ρ
+
+0, otherwise , (17) where M cout ∈ { 0, 1}H×W forms the refined change mask for class c, and |Ki| denotes the area (i.e., the number of pixels) of the connected component. This mechanism success-fully suppresses false positives caused by edge misalignment while ensuring the complete topological structure of regions with genuine changes. Finally, as a post-processing step, the refinement results for all categories are merged, followed by morphological opening and small region removal to eliminate isolated outliers from the final binary mask. Crucially, by operating lightweight analysis exclusively on the sparse candidate regions, BCR ensures exceptional com-putational efficiency, particularly in dense scenes where actual changes are typically rare. 
+
+Algorithm 1 Reliability-Aware OVCD 
+
+Require: Bi-temporal images I1, I 2; Target vocabulary C;Parameters θchange , τ c, s, ρ .
+
+Ensure: Final per-class change masks {M cout }Nc=1 . 
+
+> 1:
+
+Use SAM3 to extract pixel-wise semantic logits L1, L2 ∈
+
+RN ×H×W and obtain discrete labels Y1, Y 2; 
+
+> 2:
+
+Generate hard change mask: Hchange = I(Y1̸ = Y2); 
+
+> 3:
+
+Compute JS divergence DJS and normalized logit differ-ence ˜Dlogit from L1, L2; 
+
+> 4:
+
+Compute fusion score: Sf usion = 12 DJS + 12 ˜Dlogit ; 
+
+> 5:
+
+Derive change score: Schange = Hchange · Sf usion ; 
+
+> 6:
+
+Obtain base mask: Mbase = I(Schange > θ change ); 
+
+> 7:
+
+for each class c ∈ { 1, 2, . . . , N } do  
+
+> 8:
+
+Compute class masks mc
+
+> 1
+
+, m c 
+
+> 2
+
+from Y1, Y 2; 
+
+> 9:
+
+Extract candidate mask: M cbase = Mbase · I(mc
+
+> 1
+
+̸ = mc
+
+> 2
+
+); 
+
+> 10:
+
+Compute boundary distance maps dc
+
+> 1
+
+, d c 
+
+> 2
+
+via DT;  
+
+> 11:
+
+Compute spatial confidence: Rc = min( dc
+
+> 1
+
+, d c
+
+> 2
+
+); 
+
+> 12:
+
+Convert to confidence weights: W c = σ (Rc − τc)/s ; 
+
+> 13:
+
+Filter connected components Ki ∈ M cbase : M cout =
+
+S n
+
+Ki 1
+
+> |Ki|
+
+P 
+
+> x∈Ki
+
+I(W c(x) > 0.5) ≥ ρ
+
+o
+
+; 
+
+> 14:
+
+end for  
+
+> 15:
+
+return Final semantic change masks {M cout }Nc=1 
+
+E. Summary 
+
+Building upon the open-vocabulary semantic parsing ca-pabilities of foundation models (e.g., SAM-3), ReA-OVCD adopts a pixel-level semantic modeling framework and intro-duces a collaborative refinement strategy to explicitly model change reliability. Specifically, starting from an initial change estimation derived from semantic label inconsistencies, can-didate changes are first reassessed in the semantic domain by modeling distribution-level shifts and response variations, which reduces sensitivity to ambiguous predictions. This is followed by boundary-aware refinement in the spatial domain, where change regions are validated based on boundary-aware reliability and interior pixel support, thereby suppressing ar-tifacts caused by misalignment and segmentation uncertainty. By integrating semantic reassessment and spatial validation into a unified pipeline, the proposed method goes beyond detecting simple appearance or disappearance events. It en-ables accurate identification of fine-grained local changes, such as partial building extensions, while mitigating the in-stability of naive pixel-wise comparisons. Ultimately, ReA-OVCD preserves the flexibility of pixel-level modeling while significantly improving the reliability and spatial consistency of change detection through a lightweight refinement strategy. The complete workflow is summarized in Algorithm 1. IV. D ATASET AND EXPERIMENTAL SETUP 
+
+A. Datasets 
+
+LEVIR-CD [43] is a large-scale, high-resolution, dual-temporal remote sensing benchmark dataset for building change detection. The dataset is primarily derived from high-resolution commercial satellite imagery sourced from the Google Earth platform, with a spatial resolution of 0.5 meters. The imagery covers multiple urban areas in Texas, USA, be-tween 2002 and 2018. The scenes feature significant seasonal variations in lighting and a diverse range of building types (such as large warehouses and dense residential estates), with a primary focus on the construction, extension and demolition of buildings. The dataset is divided into 445 training pairs, 64 validation pairs and 128 test pairs, with the image resolution maintained at 1024×1024 pixels. 
+
+WHUCD [44] dataset was released by Wuhan University and is derived from an airborne high-resolution remote sensing platform. This dataset possesses extremely high spatial reso-lution (0.2 meters), providing exceptionally rich textural detail and geometric features. The scenes authentically document the surface topography and the damage to and reconstruction of buildings in the Christchurch region of New Zealand before and after the 2011 earthquake. The dataset focuses primarily on changes in large, relatively sparsely distributed building structures, with ideal lighting conditions and relatively simple, distinct variations. Following cropping and pre-processing, this paper constructed a test set comprising 690 pairs of images with a resolution of 512×512 pixels. 
+
+DSIFN [45] dataset is also constructed using high-resolution satellite imagery from the Google Earth platform, with a spatial resolution of approximately 2 meters. This dataset is highly representative of typical urban scenes, cover-ing six major and medium-sized cities in China including Bei-jing, Shanghai and Shenzhen from 2000 to 2019. Compared to other datasets, the scene characteristics of DSIFN place greater emphasis on high-density urban expansion, featuring irregular shape variations, blurred boundaries, and significant interference noise (such as sensor noise), which places higher JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 7
+
+demands on the model’s robustness. The dataset is divided into 3,600 training pairs, and 48 test pairs, all maintained at a resolution of 512×512. 
+
+SECOND [46] is a remote sensing image dataset specif-ically designed for multi-class semantic change detection, with data sourced from multi-source high-resolution aerial and satellite remote sensing platforms. It features a wide range of spatial resolutions, spanning from 0.5 to 3 meters. The dataset covers multiple cities in China and provides detailed annotations of complex semantic transitions between six major land cover classes. Furthermore, the scenes incorporate real-world challenges such as boundary ambiguity and luminance noise. For the experiments, the image resolution was uniformly set to 512×512 pixels, and the dataset was split into 2,968 training pairs and 1,694 test pairs. This paper selects a combination of test sets from the aforementioned four datasets to construct a comprehensive evaluation benchmark. These datasets not only span different sensor types (commercial satellites and aerial imagery) and spatial resolutions (0.2 m to 3 m), but their scene charac-teristics also cover a range from the addition or removal of individual buildings, dense urban expansion, to complex multi-class land cover semantic transformations. By conduct-ing validation directly on these test sets, we can objectively demonstrate the robustness of the proposed method in handling complex and variable remote sensing scenarios, as well as its generalization capability in performing open-vocabulary recognition and reasoning across diverse real-world contexts.                        
+
+> TABLE I TEXT PROMPT CONSTRUCTION FOR ALL DATASETS . E ACH SEMANTIC CLASS IS EXPANDED INTO MULTIPLE SYNONYMS ,EACH OF WHICH SERVES AS AN INDEPENDENT QUERY .
+> Dataset Class Text Prompts
+> LEVIR-CD Background ground, road, vegetation Building building, roof, house WHU-CD Background ground, road, vegetation Building building, roof, house DSIFN Background ground, road, vegetation, farmland Building building, house, roof, urban structure SECOND Background background Water water, river, lake, pond, reservoir, stream N.v.g. Surface bare ground, bare soil, barren, dirt, sand Low Veg. low vegetation, grass, lawn, shrub, grass-land, meadow Tree tree, trees, forest, woodland, canopy, grove Building building, roof, house, structure Playground sports field, running track, athletic track, stadium
+
+B. Text Prompt Construction 
+
+Table I outlines the text prompts constructed for all datasets. To enrich the semantic representation and capture the diverse visual appearances of geographical entities, we employ a lightweight synonym expansion strategy. For each semantic class (Column 2), we select common descriptors (Column 3) based on dataset priors, where each term serves as an independent query to interact with visual features. Notably, this prompt construction is carefully tailored to dataset charac-teristics. To establish a clear semantic separation for the BCD datasets(LEVIR-CD, WHU-CD, DSIFN), we define back-ground prompts using representative non-building land-cover categories(terms like ground , road , and vegetation ), allowing minor dataset-specific adaptations (e.g., adding farmland for DSIFN). In contrast, SECOND dataset inherently involves multi-class competition. Therefore, we expand foreground categories but strictly retain the raw background label. This design effectively prevents semantic overlap and maintains mutual exclusivity among categories. 
+
+C. Evaluation Metrics 
+
+This paper adopts standard metrics from the change detec-tion field and calculates them uniformly across change classes. Based on the prediction results, we identify True Positives (TP) as correctly detected change pixels, False Positives (FP) as unchanged pixels incorrectly predicted as changes, and False Negatives (FN) as actual change pixels missed by the model. Accordingly, the Precision and Recall for the change class are defined as: Precision C = TP TP + FP , Recall C = TP TP + FN . (18) To provide a more comprehensive assessment, we adopt 
+
+FC 
+
+> 1
+
+as the primary evaluation metric and IoU C as a key supplementary metric: 
+
+FC 
+
+> 1
+
+= 2 · Precision C · Recall C
+
+Precision C + Recall C , (19) IoU C = TP TP + FP + FN . (20) Here, FC 
+
+> 1
+
+balances both precision and recall, providing a comprehensive reflection of detection completeness and false positive suppression capability. IoU C is more sensitive to region overlap and boundary alignment, enabling a more rigorous assessment of the spatial quality of the detected regions. For the SCD task, this paper calculates per-class F1
+
+and per-class IoU for each change category, supplemented by category means as reference statistics. Considering the severe class imbalance inherent in change detection tasks, we adopt the FC 
+
+> 1
+
+score as the primary evaluation metric, with IoU C
+
+serving as a supplementary standard metric. 
+
+D. Experimental Design 1) Compared Method: We conduct comparative experi-ments using a variety of representative algorithms, cover-ing traditional zero-shot methods and state-of-the-art OVCD methods. Specifically, among the mainstream OVCD methods, we selects open source AdaptOVCD as the primary base-line; simultaneously, two representative pipelines proposed in DynamicEarth are introduced: IMC (based on APE [47] and DINOv2 [48]) and MCI (based on SAM, DINOv2 and SegEarth-OV [49]), as well as the latest OmniOVCD, UniVCD and OpenDPR models. Furthermore, the zero-shot comparison includes SCM, AnyChange, and BiSAM-CD to validate the effectiveness of our method under a training-free setting. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 8             
+
+> TABLE II COMPARISON WITH STATE -OF -THE -ART METHODS ON LIVER-CD, WHU-CD, AND DSIFN DATASETS . T HE BEST AND SECOND BEST PERFORMANCES ARE HIGHLIGHTED .FC
+> 1SERVES AS THE PRIMARY EVALUATION METRIC . P RECISION ( P REC . ), R ECALL ( R EC . ), AND IoU CARE STANDARD EVALUATION METRICS . M ETHODS MARKED WITH †INDICATE RESULTS CITED DIRECTLY FROM THEIR ORIGINAL PAPERS .
+
+Method Venue LIVER-CD (%) WHU-CD (%) DSIFN (%) 
+
+Prec. Rec. IoU C FC 
+
+> 1
+
+Prec. Rec. IoU C FC 
+
+> 1
+
+Prec. Rec. IoU C FC
+
+> 1
+
+Traditional Training-free methods 
+
+Anychange [32] NIPS 24 20.46 81.06 19.53 32.68 13.67 95.43 13.58 23.91 32.80 50.89 24.91 39.89 SCM [31] IGARSS 24 24.55 63.98 19.15 32.15 23.99 48.73 21.57 35.49 42.43 20.27 15.89 27.43 BiSAM-CD(GT) [33] TGRS 25 78.89 57.87 50.11 66.76 93.07 79.46 75.02 85.72 93.55 12.23 12.13 21.63 
+
+Open-vocabulary methods 
+
+IMC [13] AAAI 25 58.45 65.32 44.61 61.70 87.26 76.09 68.48 81.29 90.97 15.46 15.22 26.42 MCI [13] AAAI 25 45.75 64.05 36.40 53.38 63.41 67.93 48.80 65.59 68.87 44.22 36.85 53.86 UniVCD † [15] arXiv 25 65.10 81.40 56.70 72.30 73.30 86.80 66.00 79.50 – – – –OmniOVCD † [14] arXiv 26 – – 67.20 80.40 – – 66.50 79.90 – – – –OpenDPR † [40] CVPR 26 – – 44.80 61.90 – – 54.30 70.40 – – – –AdaptOVCD [39] arXiv 26 62.83 74.10 51.52 68.00 80.60 72.85 61.99 76.53 53.34 63.64 40.88 58.04 ours – 74.00 93.28 70.26 82.53 88.48 92.21 82.33 90.31 62.28 74.36 51.27 67.79 
+
+2) Quantitative Evaluation: We conduct comprehensive quantitative evaluations on three widely-used BCD bench-marks (DSIFN, LEVIR-CD, and WHU-CD) as well as a representative SCD dataset, SECOND. Since most existing zero-shot methods focus on BCD tasks, no comparison is made with them on the SCD task. 
+
+3) Qualitative Evaluation: To provide a intuitive com-parison, we conduct a qualitative analysis against several representative approaches that share the same task and have publicly available implementations. Specifically, we select typical samples from the BCD datasets and category-specific samples from the SECOND dataset to evaluate the semantic change recognition capabilities. 
+
+4) Efficiency Evaluation: We evaluate the computational efficiency of proposed framework by comparing it with other training-free approaches under a unified hardware and ex-perimental setting. We report latency, throughput, and peak GPU memory consumption as efficiency metrics, together with 
+
+FC 
+
+> 1
+
+score to reflect the trade-off between performance and computational cost. 
+
+5) Ablation Study: To validate the effectiveness of the proposed framework, we conduct a progressive ablation study from the overall architecture to the internal module designs. We further analyze intermediate representations via qualitative visualizations to better understand the role of each module. 
+
+E. Experimental Settings 
+
+All experiments were conducted on a single NVIDIA RTX 3090 GPU, with the algorithms implemented using the PyTorch framework. This paper utilizes the officially open-sourced SAM 3 model, which by default resizes all input images to a resolution of 1008×1008. In terms of input resolution, both our method and the IMC pipeline employ a 512×512 sliding window for inference on the LEVIR-CD dataset; all other experiments follow Section IV-A. To ensure the fairness of the comparison, each baseline retains its orig-inal configuration and core algorithmic workflow, with only necessary compatibility adjustments made. For our method, the hyperparameters s and ρ are fixed across all datasets. Other parameters are kept consistent whenever possible, with only minimal dataset-specific adjustments to threshold-related values when necessary to account for characteristics of each dataset. V. E XPERIMENTAL RESULTS 
+
+A. Quantitative Evaluation 
+
+To comprehensively evaluate the effectiveness of the pro-posed ReA-OVCD, we compare it against traditional zero-shot methods and recent OVCD approaches across multiple benchmark datasets. 
+
+1) Building Change Detection: As shown in Table II, we conduct a comprehensive quantitative comparison on three binary building change detection datasets with distinct scene characteristics. The results show that our method achieves the best performance across all datasets, verifying the robust generalization capability of the framework in various complex real-world scenarios. On the high-resolution WHU-CD dataset, buildings are relatively large and sparsely distributed so that the recognition difficulty is relatively lower. Our method achieves an impressive FC 
+
+> 1
+
+of 90 .31% and an IoU C of 82 .33% .This not only significantly surpasses the current best OVCD method IMC but also outperforms the traditional zero-shot method BiSAM-CD that relies on ground-truth prompts. This performance gain can be attributed to the proposed collab-orative reliability-aware refinement strategy. By reassessing ambiguous semantic discrepancies and suppressing boundary-related artifacts, the framework enables more accurate lo-calization of subtle changes while maintaining robustness. For the LEVIR-CD dataset, which is also high-resolution but characterized by dense building changes, traditional instance-level methods are highly prone to missing detections or JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 9        
+
+> TABLE III PER -CLASS COMPARISON ON THE SECOND DATASET . T HE BEST AND SECOND BEST PERFORMANCES ARE HIGHLIGHTED .FC
+> 1SERVES AS THE PRIMARY EVALUATION METRIC AND IoU CARE STANDARD EVALUATION METRIC . M ETHODS MARKED WITH †INDICATE RESULTS CITED DIRECTLY FROM THEIR ORIGINAL PAPERS .
+
+Method Building Tree Water Low veg. N.v.g. Surface Playground Avg. 
+
+IoU C FC 
+
+> 1
+
+IoU C FC 
+
+> 1
+
+IoU C FC 
+
+> 1
+
+IoU C FC 
+
+> 1
+
+IoU C FC 
+
+> 1
+
+IoU C FC 
+
+> 1
+
+IoU C FC
+
+> 1
+
+IMC 31.74 48.19 10.89 19.64 12.34 21.97 0.40 0.79 0.00 0.00 26.93 42.43 13.72 22.17 MCI 38.65 55.75 15.38 26.66 15.39 26.68 21.17 34.95 27.91 43.65 22.39 36.59 23.48 37.38 UniVCD † 43.20 60.40 18.90 31.90 8.20 15.20 24.90 39.80 28.00 43.70 0.00 0.00 20.53 31.83 OmniOVCD † 45.20 62.30 16.70 28.60 21.20 35.00 24.50 39.30 27.70 43.40 27.00 42.40 27.05 41.83 OpenDPR † 42.40 59.50 20.90 34.50 17.50 29.80 23.00 37.40 30.20 46.40 37.30 54.30 28.55 43.65 
+
+AdaptOVCD 44.98 62.05 12.67 22.49 23.34 37.84 21.21 34.99 33.99 50.74 29.28 45.30 27.58 42.24 
+
+ours 59.12 74.31 19.40 32.48 26.09 41.39 27.95 43.69 34.80 51.63 24.74 39.67 32.02 47.19 
+
+erroneously merging adjacent targets. Our method effectively alleviates this issue, achieving the highest FC 
+
+> 1
+
+of 82 .53% .Furthermore, on the DSIFN dataset that presents severe chal-lenges such as low resolution, blurred boundaries and intense environmental noise, our method maintains a robust FC 
+
+> 1
+
+of 
+
+67 .79% , exceeding AdaptOVCD by a substantial margin. This robustness on degraded data stems from explicitly reassessing the reliability of initial discrete change indications, rather than directly relying on them. By modeling semantic variations in the continuous probability distribution space, the SCR module reduces sensitivity to minor confidence fluctuations and effectively suppresses spurious change responses. 
+
+2) Land Cover Change Detection: Unlike binary building detection, multi-class semantic change detection requires the model not only to locate changes but also to accurately iden-tify complex semantic transitions. Table III presents the per-class quantitative evaluation results on the SECOND dataset, which features a wide spatial resolution span ( 0.5 m to 3
+
+m) as well as diverse real-world urban scenes with com-plex semantic transitions. In this task, ReA-OVCD achieves the highest average FC 
+
+> 1
+
+and IoU C of 47 .19% and 32 .02% ,respectively, comprehensively outperforming all models (for instance, in terms of average FC 
+
+> 1
+
+, OpenDPR scores 43 .65% 
+
+and AdaptOVCD scores 42 .24% ). Analyzing the class-specific characteristics, our method demonstrates a particularly dom-inant advantage in the Building category, which possesses clear geometric structures (achieving an FC 
+
+> 1
+
+of 74 .31% , far exceeding OmniOVCD’s 62 .30% ). This improvement aligns with the design of the BCR module, which favors to pre-serve change regions supported by reliable interior pixels and is particularly effective for structurally coherent objects. Moreover, for land cover categories that emphasize spatial continuity and exhibit high semantic ambiguity (such as Water ,
+
+Low veg. , and N.v.g. Surface ), our method also achieves the best performance. However, the proposed method shows relatively limited performance on sparse categories such as 
+
+Playground . We attribute this to the scarcity of such samples and their weak semantic distinctiveness, where playground re-gions often exhibit strong visual overlap with N.v.g. Surface or surrounding Low vegetation . As a result, the foundation model tends to over-activate on visually similar regions, leading to reduced prediction precision. Nevertheless, the overall quanti-tative results clearly indicate that when confronting real-world remote sensing scenes with immense resolution variations and complex semantics, adopting a pixel-level refinement strategy provides a more generalizable and accurate solution. 
+
+B. Qualitative Evaluation 
+
+As shown in Figure 2, we present a unified qualitative comparison across four datasets, including LEVIR-CD, WHU-CD, DSIFN (left part), and SECOND (right part). For each dataset, the visualization is organized in a row-wise manner, where each row (from top to bottom) sequentially shows Image 1 (T1), Image 2 (T2), the ground truth (GT), our method (Ours), AdaptOVCD, IMC, and MCI. This enables a direct comparison of different methods under consistent visual contexts, facilitating a comprehensive evaluation of change detection quality across diverse scenarios. For the three BCD datasets (LEVIR-CD, WHU-CD, and DSIFN), our method demonstrates consistent superiority in handling building-related changes. Specifically, in dense urban scenes (e.g., LEVIR-CD), our method achieves robust change identification with a notably lower miss rate compared with AdaptOVCD, while preserving clear object boundaries and avoiding the erroneous merging of adjacent buildings observed in IMC and MCI. This behavior aligns with our framework de-sign, which stabilizes semantic comparison while maintaining boundary integrity. On the WHU-CD dataset, our method not only detects complete building additions but also accurately captures partial expansions. In contrast, competing methods often fail in cases involving localized changes. Our method effectively addresses this limitation by enabling fine-grained change modeling. For the DSIFN dataset, where buildings and vegetation are often interwoven, our method accurately captures urban expansion while significantly suppressing false responses in unchanged regions. This improvement can be at-tributed to the proposed reliability-aware semantic refinement, which enhances the stability of pixel-level comparisons under complex semantic distributions. For the semantic change detection dataset SECOND (right part of Figure 2), we further evaluate performance across six land cover categories. Overall, our method exhibits strong JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 10       
+
+> Fig. 2. Qualitative analysis on LEVIR-CD, WHU-CD, DSIFN, and SECOND (left part for the three BCD datasets, right part for SECOND). From top to bottom, each row shows: Image 1 (T1), Image 2 (T2), Ground Truth (GT), our method (Ours), AdaptOVCD, IMC, and MCI. Color legend: Building, Tree, Water, Low Vegetation, N.v.g. Surface, Playground.
+
+stability and consistency across categories with diverse spatial characteristics. For the building category, our method suc-cessfully identifies both regular expansions and complex non-rigid transformations, such as morphological reconstruction between temporal phases. Such cases are challenging for instance-level matching methods, which typically either over-detect or entirely miss these changes. For the tree category, our method effectively handles both large contiguous regions and scattered small-scale changes, while competing methods often struggle with multi-scale consistency. For the water category, where changes frequently occur as gradual boundary shifts (e.g., shrinking or drying), our method demonstrates superior capability in modeling such non-rigid variations compared to rigid mask-based approaches. Similarly, for low vegetation and 
+
+N.v.g. Surface , our method effectively preserves intra-region structural details, avoiding to label entire ambiguous areas as changed while ignoring subtle internal variations (e.g., roads interleaved within newly grown vegetation). Specifically, our method produces more precise change boundaries that better reflect the actual spatial layout. For playground regions, our method further achieves more accurate contour delineation and prevents the leakage of surrounding structures (e.g., buildings) into the predicted regions, an issue that often plagues baseline methods Overall, the qualitative analysis intuitively demonstrates that the proposed semantic–spatial collaborative refinement strategy effectively improves change detection reliability by suppressing unstable semantic discrepancies and preserving spatially consistent change patterns. 
+
+C. Efficiency Analysis 
+
+We conduct a systematic comparison with representative OVCD approaches under identical experimental conditions. All methods are benchmarked on a single NVIDIA RTX 3090 GPU. Since the computational cost of instance-based baselines is highly sensitive to object density, evaluating on synthetic noise is practically meaningless. Therefore, we choose to measure runtime statistics on the actual WHU-CD test set, where the relatively sparse building distribution ensures a fair and realistic benchmark for comparative methods. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 11                    
+
+> TABLE IV QUANTITATIVE COMPARISON OF EFFICIENCY AND PERFORMANCE ACROSS
+> OVCD METHODS . B EST RESULTS ARE HIGHLIGHTED IN BOLD .
+> Method FC1
+> (%) Latency (ms) Throughput (pair/min) Memory (GB)
+> IMC 81.29 1576.90 38.06 12.85 MCI 65.59 2096.52 28.63 6.55 AdaptOVCD 76.53 6144.03 9.77 10.57
+> Ours 90.31 936.30 64.08 5.53
+
+As shown in Table IV, our method attains the highest 
+
+FC 
+
+> 1
+
+score (90.31%) while simultaneously reducing latency to 936.30 ms per pair, outperforming all competing methods. Compared with baseline method AdaptOVCD, our approach reduces latency by over 80% and improves throughput by more than 6×, while also significantly lowering memory consumption. Compared with IMC and MCI pipelines, our method not only delivers superior accuracy but also maintains lower computational cost. This efficiency advantage comes from multiple factors. First, using a frozen SAM-3 backbone for feature extraction avoids the cascading overhead of multi-model pipelines. Second, directly modeling changes via pixel-wise comparison elimi-nates the need for costly cross-instance association.In addition, the SCR module only involves lightweight tensor operations, while the BCR module relies on simple distance transform and connected-component filtering on sparse candidate re-gions, resulting in low additional computational overhead. Meanwhile, although synonym-based query expansion intro-duces additional forward passes, the overall efficiency remains superior. Overall, the results demonstrate that ReA-OVCD achieves a favorable balance between detection performance and computational efficiency, making it suitable for large-scale or real-time remote sensing applications. 
+
+D. Ablation Study 
+
+To systematically validate the effectiveness of the proposed ReA-OVCD framework, we conduct progressive ablation stud-ies at both the module level and the intra-module level. Specifically, we analyze the individual and joint contributions of the SCR and the BCR module from the perspective of semantic and spatial reliability.                                                 
+
+> TABLE V ABLATION STUDY OF INTEGRATING SCR AND BCR. R ESULTS ON
+> SECOND ARE REPORTED AS CLASS -AVERAGED SCORES . B EST PERFORMANCE ON EACH DATASET IS SHOWN IN BOLD .
+> Method LEVIR-CD WHU-CD DSIFN SECOND avg.
+> IoU CFC
+> 1IoU CFC
+> 1IoU CFC
+> 1IoU CFC
+> 1
+> Baseline (XOR) 54.52 70.57 48.26 65.10 40.36 57.51 27.24 41.49 SCR only 61.67 76.29 62.99 77.29 49.01 65.78 29.64 44.52 BCR only 65.55 79.19 82.31 90.30 43.14 60.27 30.29 45.04 SCR + BCR 70.26 82.53 82.33 90.31 51.27 67.79 32.02 47.19
+
+1) Overall Module Integration: As shown in Table V, we establish a baseline by directly applying a logical XOR op-eration on the bi-temporal discrete semantic labels. When the  
+
+> Fig. 3. Qualitative analysis of the proposed SCR and BCR modules through intermediate visualization. From left to right, each row shows Image 1 (T1), Image 2 (T2), the initial hard change map, the result after applying SCR, the final prediction with both SCR and BCR (Ours), and the ground truth (GT). From top to bottom, examples are selected from LEVIR-CD, WHU-CD, and DSIFN, respectively.
+
+SCR module is introduced independently, the model achieves significant improvements across all four datasets (e.g., FC
+
+> 1
+
+increases of 5.72% on LEVIR-CD and 12.19% on WHU-CD). This indicates that reassessing semantic discrepancies in the continuous probability space improves semantic reliability by reducing sensitivity to ambiguous predictions and incidental label inconsistencies. When applying the BCR module indi-vidually, consistent performance improvements can also be ob-served across most datasets. In relatively simple datasets such as WHU-CD, where semantic ambiguity is limited, boundary correction alone is sufficient to achieve strong performance. This suggests that modeling boundary-aware spatial reliability effectively suppresses artifacts caused by misalignment and preserves the structural integrity of change regions. However, on more complex datasets (e.g., DSIFN), where changes involve substantial semantic variation and intra-class diversity, the gains brought by BCR become less pronounced compared to SCR. This observation suggests that spatial refinement alone is insufficient when semantic inconsistency dominates the error source, highlighting the necessity of semantic reliability mod-eling. When the SCR and BCR modules are jointly integrated, the model reaches its optimal performance across the board. The results highlight a strong complementarity between the two modules: SCR enhances semantic reliability by filtering unstable semantic discrepancies, while BCR enforces spatial reliability by validating region-level support and suppressing boundary artifacts, resulting in more reliable and structurally consistent change detection. To further understand the distinct roles of SCR and BCR, we visualize intermediate results in Figure 3. From the vi-sual comparisons, we observe that the two modules address fundamentally different failure modes rooted in semantic and spatial unreliability. First, SCR reduces false positives caused by unstable semantic predictions. As shown in the second row, the initial hard change map(Column 3) produces spurious responses in unchanged regions due to label fluctuations near decision boundaries. After applying SCR(Column 4), these responses are effectively suppressed, leading to more reliable semantic comparisons. Second, BCR alleviates boundary arti-facts in the change maps. As observed in the first and third JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 12 
+
+rows, the initial predictions exhibit band-like responses along object boundaries, mainly caused by slight misregistration and segmentation uncertainty. Further integrating BCR(Column 5), these boundary artifacts are significantly reduced, resulting in more spatially coherent change regions.                                                
+
+> TABLE VI ABLATION STUDY OF DIFFERENT COMPONENTS WITHIN SCR. “JS”
+> DENOTES JENSEN -S HANNON DIVERGENCE , “L OGIT DIFF ”REPRESENTS LOGIT -LEVEL DISCREPANCY . B EST PERFORMANCE IS SHOWN IN BOLD .
+> Method LEVIR-CD WHU-CD DSIFN SECOND avg.
+> IoU CFC
+> 1IoU CFC
+> 1IoU CFC
+> 1IoU CFC
+> 1
+> Baseline (XOR) 54.52 70.57 48.26 65.10 40.36 57.51 27.24 41.49 JS only 65.07 78.84 70.07 82.40 45.32 62.37 25.42 39.12 LogitDiff only 60.95 75.74 62.98 77.28 48.83 65.62 29.66 44.57 Full SCR 61.67 76.29 62.99 77.29 51.27 67.79 29.64 44.52
+
+2) Intra-module Ablation of SCR: Table VI presents the ablation of internal components within the SCR module. We have observed compelling cross-dataset behavior differences. Specifically, using Jensen-Shannon divergence(JS) alone pro-duces substantial improvements on all BCD datasets, suggest-ing is is highly effective for identifying whether semantic responses between bi-temporal images become inconsistent. However, the improvement becomes unstable on the SEC-OND, where the performance drops below the baseline. We attribute this phenomenon to the fact that JS divergence mainly captures relative distribution differences. However, in multi-category scenarios, low-confidence predictions across several semantically similar classes may still produce noticeable distri-bution shifts, leading to ambiguous or noisy change responses. In contrast, applying Logit Difference(LogitDiff) explicitly models response intensity variation and therefore achieves better robustness on complex semantic scenarios such as SECOND, while also maintaining competitive performance on DSIFN. This indicates that magnitude-aware discrepancy mod-eling is important for suppressing minor semantic fluctuations and highlighting meaningful category transitions. Overall, the full SCR achieves the most stable performance across all datasets. This indicates that jointly modeling distribution-level shifts and response variations provides a more reliable characterization of semantic change, consistent with our design hypothesis.                                           
+
+> TABLE VII ABLATION STUDY OF BCR. “P IXEL -LEVEL BCR” RETAINS ONLY PIXELS WITH HIGH BOUNDARY -AWARE CONFIDENCE ,WHILE “R EGION -AWARE
+> BCR” FURTHER VALIDATES CONNECTED REGIONS BASED ON INTERIOR HIGH -CONFIDENCE SUPPORT . B EST PERFORMANCE IS SHOWN IN BOLD .
+> Method LEVIR-CD WHU-CD DSIFN SECOND avg.
+> IoU CFC
+> 1IoU CFC
+> 1IoU CFC
+> 1IoU CFC
+> 1
+> Baseline (XOR) 54.52 70.57 48.26 65.10 40.57 57.72 27.24 41.49 Pixel-level BCR 52.84 69.15 70.40 82.63 37.95 55.02 26.68 41.10 Region-aware BCR 65.55 79.19 82.31 90.30 41.65 58.81 30.29 45.04
+
+3) Intra-module Ablation of BCR: Table VII evaluates the effectiveness of different spatial reliability modeling strategies within BCR. Retaining only pixels with high boundary-aware confidence substantially improves performance on WHU-CD, where FC 
+
+> 1
+
+increases from 65.10% to 82.63%. This indicates that boundary misalignment artifacts constitute the dominant error source in this dataset, and can be effectively suppressed through boundary-aware spatial confidence estimation. How-ever, directly filtering pixels according to boundary confidence inevitably removes many valid pixels located near semantic boundaries. As a result, genuine change regions may become fragmented or structurally incomplete, especially on more complex datasets such as LEVIR-CD, DSIFN, and SECOND, where changed objects often exhibit irregular structures or thin boundary regions. These results demonstrate that relying solely on pixel-level reliability is insufficient for preserving coherent semantic structures. After further introducing region-level validation based on interior high-confidence support, performance improves consistently across all datasets. Instead of requiring every changed pixel to be individually reliable, the proposed strategy only requires a candidate region to contain sufficient stable interior evidence. This allows boundary pixels with lower confidence to be preserved as part of a globally reliable region, thereby simultaneously suppressing boundary artifacts and maintaining structural completeness. These re-sults validate the core assumption of BCR: genuine semantic changes should not only exhibit local spatial reliability, but also possess consistent region-level structural support. VI. C ONCLUSION 
+
+In this paper, we propose ReA-OVCD, a training-free frame-work for open-vocabulary change detection, aiming to achieve fine-grained change perception while maintaining prediction reliability. Specifically, we adopt a paradigm that first derives initial change indications from pixel-wise semantic discrep-ancies and then collaboratively refines it through explicit reliability modeling in both semantic and spatial perspectives. To address the instability caused by semantic ambiguity, we posit that true changes are characterized by structured shifts in semantic distributions and significant variations in response intensity, rather than mere label flips. Based on this insight, the SCR module operationalizes this hypothesis by jointly modeling distribution-level divergence and response variation, thereby effectively mitigating spurious changes. To handle spa-tial artifacts induced by geometric misalignment and boundary uncertainty, we further assume that true changes should form spatially consistent regions with sufficient reliable interior support, rather than being confined to boundary areas. Accord-ingly, the BCR module evaluates candidate change regions by checking the proportion of reliable core they contain, which effectively suppresses boundary-induced false responses. Ex-tensive experiments on multiple benchmark datasets, including LEVIR-CD, WHU-CD, DSIFN, and SECOND, demonstrate that ReA-OVCD consistently achieves superior training-free performance across diverse scenarios. Moreover, owing to its efficiency-oriented design, it also achieves competitive compu-tational efficiency. Overall, ReA-OVCD achieves a favorable balance between fine-grained change perception, prediction reliability, and computational efficiency, showing promising potential for practical large-scale remote sensing change mon-itoring applications. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 13 
+
+REFERENCES [1] G. Cheng, Y. Huang, X. Li, S. Lyu, Z. Xu, H. Zhao, Q. Zhao, and S. Xiang, “Change detection methods for remote sensing in the last decade: A comprehensive review,” Remote Sensing , vol. 16, no. 13, 2024. [2] X.-P. Song, M. C. Hansen, S. V. Stehman, P. V. Potapov, A. Tyukavina, E. F. Vermote, and J. R. Townshend, “Global land change from 1982 to 2016,” Nature , vol. 560, no. 7720, pp. 639–643, 2018. [3] Z. Zheng, Y. Zhong, J. Wang, A. Ma, and L. Zhang, “Building damage assessment for rapid disaster response with a deep object-based semantic change detection framework: From natural disasters to man-made disasters,” Remote Sensing of Environment , vol. 265, p. 112636, 2021. [4] Z. Lv, H. Huang, X. Li, M. Zhao, J. A. Benediktsson, W. Sun, and N. Falco, “Land cover change detection with heterogeneous remote sensing images: Review, progress, and perspective,” Proceedings of the IEEE , vol. 110, no. 12, pp. 1976–1991, 2022. [5] W. G. C. Bandara and V. M. Patel, “A transformer-based siamese net-work for change detection,” in IGARSS 2022 - 2022 IEEE International Geoscience and Remote Sensing Symposium , pp. 207–210, 2022. [6] J. Wang, F. Liu, L. Jiao, H. Wang, S. Li, L. Li, P. Chen, X. Liu, and W. Ma, “Change knowledge-guided vision-language remote sens-ing change detection,” IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1–13, 2025. [7] R. Caye Daudt, B. Le Saux, A. Boulch, and Y. Gousseau, “Multitask learning for large-scale semantic change detection,” Computer Vision and Image Understanding , vol. 187, p. 102783, 2019. [8] L. Ding, J. Zhang, H. Guo, K. Zhang, B. Liu, and L. Bruzzone, “Joint spatio-temporal modeling for semantic change detection in remote sensing images,” IEEE Transactions on Geoscience and Remote Sensing ,vol. 62, pp. 1–14, 2024. [9] Q. Weng, “Remote sensing of impervious surfaces in the urban areas: Requirements, methods, and trends,” Remote Sensing of Environment ,vol. 117, pp. 34–49, 2012. Remote Sensing of Urban Environments. [10] A. Kirillov, E. Mintun, N. Ravi, H. Mao, C. Rolland, L. Gustafson, T. Xiao, S. Whitehead, A. C. Berg, W.-Y. Lo, P. Dollar, and R. Girshick, “Segment anything,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pp. 4015–4026, October 2023. [11] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Krueger, and I. Sutskever, “Learning transferable visual models from natural language supervi-sion,” in Proceedings of the 38th International Conference on Machine Learning (M. Meila and T. Zhang, eds.), vol. 139 of Proceedings of Machine Learning Research , pp. 8748–8763, PMLR, 18–24 Jul 2021. [12] H. Zhang, F. Li, S. Liu, L. Zhang, H. Su, J. Zhu, L. Ni, and H.-Y. Shum, “DINO: DETR with improved denoising anchor boxes for end-to-end object detection,” in The Eleventh International Conference on Learning Representations , 2023. [13] K. Li, X. Cao, Y. Deng, C. Pang, Z. Xin, H. Qiao, T. Gong, D. Meng, and Z. Wang, “Dynamicearth: How far are we from open-vocabulary change detection?,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 40, pp. 6279–6287, 2026. [14] X. Zhang, D. Li, Y. Xia, X. Dong, H. Yu, J. Wang, and Q. Li, “Omniovcd: Streamlining open-vocabulary change detection with sam 3,” arXiv preprint arXiv:2601.13895 , 2026. [15] Z. Zhu and B. Yang, “Univcd: A new method for unsupervised change detection in the open-vocabulary era,” arXiv preprint arXiv:2512.13089 ,2025. [16] L. Ke, M. Ye, M. Danelljan, Y. liu, Y.-W. Tai, C.-K. Tang, and F. Yu, “Segment anything in high quality,” in Advances in Neural Information Processing Systems (A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and S. Levine, eds.), vol. 36, pp. 29914–29934, Curran Associates, Inc., 2023. [17] X. Zhao, W. Ding, Y. An, Y. Du, T. Yu, M. Li, M. Tang, and J. Wang, “Fast segment anything,” arXiv preprint arXiv:2306.12156 , 2023. [18] C. Zhang, D. Han, Y. Qiao, J. U. Kim, S.-H. Bae, S. Lee, and C. S. Hong, “Faster segment anything: Towards lightweight sam for mobile applications,” arXiv preprint arXiv:2306.14289 , 2023. [19] H. Shu, W. Li, Y. Tang, Y. Zhang, Y. Chen, H. Li, Y. Wang, and X. Chen, “Tinysam: Pushing the envelope for efficient segment anything model,” in Proceedings of the AAAI conference on artificial intelligence , vol. 39, pp. 20470–20478, 2025. [20] Y. Xiong, B. Varadarajan, L. Wu, X. Xiang, F. Xiao, C. Zhu, X. Dai, D. Wang, F. Sun, F. Iandola, et al. , “Efficientsam: Leveraged masked image pretraining for efficient segment anything,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pp. 16111–16121, 2024. [21] N. Ravi, V. Gabeur, Y.-T. Hu, R. Hu, C. Ryali, T. Ma, H. Khedr, R. R¨ adle, C. Rolland, L. Gustafson, et al. , “Sam 2: Segment anything in images and videos,” arXiv preprint arXiv:2408.00714 , 2024. [22] N. Carion, L. Gustafson, Y.-T. Hu, S. Debnath, R. Hu, D. Suris, C. Ryali, K. V. Alwala, H. Khedr, A. Huang, et al. , “Sam 3: Segment anything with concepts,” arXiv preprint arXiv:2511.16719 , 2025. [23] R. Caye Daudt, B. Le Saux, and A. Boulch, “Fully convolutional siamese networks for change detection,” in 2018 25th IEEE International Conference on Image Processing (ICIP) , pp. 4063–4067, 2018. [24] S. Fang, K. Li, J. Shao, and Z. Li, “Snunet-cd: A densely connected siamese network for change detection of vhr images,” IEEE Geoscience and Remote Sensing Letters , vol. 19, pp. 1–5, 2022. [25] A. Codegoni, G. Lombardi, and A. Ferrari, “Tinycd: a (not so) deep learning model for change detection,” Neural Computing and Applica-tions , vol. 35, no. 11, pp. 8471–8486, 2023. [26] S. S. Kannan and B.-C. Min, “Zeroscd: Zero-shot street scene change detection,” in 2025 IEEE International Conference on Robotics and Automation (ICRA) , pp. 4665–4671, 2025. [27] W. Shi, M. Zhang, R. Zhang, S. Chen, and Z. Zhan, “Change detection based on artificial intelligence: State-of-the-art and challenges,” Remote Sensing , vol. 12, no. 10, 2020. [28] S. Dong, L. Wang, B. Du, and X. Meng, “Changeclip: Remote sensing change detection with multimodal vision-language representation learn-ing,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 208, pp. 53–69, 2024. [29] H. Huang, Q. Cheng, D. Zhu, X. Huang, and Q. Zhao, “Textscd: Leveraging text-based semantic guidance for remote sensing image semantic change detection,” ISPRS Annals of the Photogrammetry, Remote Sensing and Spatial Information Sciences , pp. 383–389, 2025. [30] J. Wang, F. Liu, L. Jiao, H. Wang, S. Li, L. Li, P. Chen, X. Liu, and W. Ma, “Change knowledge-guided vision-language remote sens-ing change detection,” IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1–13, 2025. [31] X. Tan, G. Chen, T. Wang, J. Wang, and X. Zhang, “Segment change model (scm) for unsupervised change detection in vhr remote sensing images: a case study of buildings,” in IGARSS 2024-2024 IEEE Inter-national Geoscience and Remote Sensing Symposium , pp. 8577–8580, IEEE, 2024. [32] Z. Zheng, Y. Zhong, L. Zhang, and S. Ermon, “Segment any change,” in Advances in Neural Information Processing Systems (A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, and C. Zhang, eds.), vol. 37, pp. 81204–81224, Curran Associates, Inc., 2024. [33] Y. Qin, J. Chen, C. Wang, and C. Pan, “Bisam-cd: Zero-shot remote sensing change detection via bidirectional temporal memory in sam2,” 
+
+IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1– 12, 2025. [34] D. Zhu, X. Huang, H. Huang, H. Zhou, and Z. Shao, “Change3d: Revisiting change detection and captioning from a video modeling perspective,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pp. 24011–24022, June 2025. [35] X. Zhang, D. Li, X. Dong, T. Wu, H. Yu, J. Wang, Q. Li, and X. Li, “Unichange: Unifying change detection with multimodal large language model,” arXiv preprint arXiv:2511.02607 , 2025. [36] Y. Zhu, L. Li, K. Chen, C. Liu, F. Zhou, and Z. Shi, “Semantic-cd: Re-mote sensing image semantic change detection towards open-vocabulary setting,” in IGARSS 2025 - 2025 IEEE International Geoscience and Remote Sensing Symposium , pp. 6388–6392, 2025. [37] X. Ma, S. Feng, B. Zhang, and B. Wang, “Vilacd-r1: A vision-language framework for semantic change detection in remote sensing,” arXiv preprint arXiv:2512.23244 , 2025. [38] Y. Zhuang, C. Huo, H. Yu, and D. Wu, “Ov-cd:open vocabulary change detection for vhr remote sensing images,” in IGARSS 2025 - 2025 IEEE International Geoscience and Remote Sensing Symposium , pp. 8147– 8151, 2025. [39] M. Dou, S. Qiu, M. Hu, Y. Chen, H. Ye, X. Liao, and Z. Sun, “Adap-tovcd: Training-free open-vocabulary remote sensing change detection via adaptive information fusion,” arXiv preprint arXiv:2602.06529 ,2026. [40] Q. Guo, J. Wang, Y. Liu, and Y. Zhong, “Opendpr: Open-vocabulary change detection via vision-centric diffusion-guided prototype retrieval for remote sensing imagery,” arXiv preprint arXiv:2603.27645 , 2026. [41] K. Li, S. Zhang, Y. Deng, Z. Wang, D. Meng, and X. Cao, “Segearth-ov3: Exploring sam 3 for open-vocabulary semantic segmentation in remote sensing images,” arXiv preprint arXiv:2512.08730 , 2025. [42] M. Xu, Z. Zhang, F. Wei, H. Hu, and X. Bai, “Side adapter network for open-vocabulary semantic segmentation,” in Proceedings of the JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 14 
+
+IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pp. 2945–2954, June 2023. [43] H. Chen and Z. Shi, “A spatial-temporal attention-based method and a new dataset for remote sensing image change detection,” Remote Sensing , vol. 12, no. 10, 2020. [44] S. Ji, S. Wei, and M. Lu, “Fully convolutional networks for multisource building extraction from an open aerial and satellite imagery data set,” 
+
+IEEE Transactions on Geoscience and Remote Sensing , vol. 57, no. 1, pp. 574–586, 2019. [45] C. Zhang, P. Yue, D. Tapete, L. Jiang, B. Shangguan, L. Huang, and G. Liu, “A deeply supervised image fusion network for change detection in high resolution bi-temporal remote sensing images,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 166, pp. 183–200, 2020. [46] K. Yang, G.-S. Xia, Z. Liu, B. Du, W. Yang, M. Pelillo, and L. Zhang, “Asymmetric siamese networks for semantic change detection in aerial images,” IEEE Transactions on Geoscience and Remote Sensing , vol. 60, pp. 1–18, 2022. [47] Y. Shen, C. Fu, P. Chen, M. Zhang, K. Li, X. Sun, Y. Wu, S. Lin, and R. Ji, “Aligning and prompting everything all at once for universal visual perception,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pp. 13193–13203, June 2024. [48] M. Oquab, T. Darcet, T. Moutakanni, H. V. Vo, M. Szafraniec, V. Khali-dov, P. Fernandez, D. HAZIZA, F. Massa, A. El-Nouby, M. Assran, N. Ballas, W. Galuba, R. Howes, P.-Y. Huang, S.-W. Li, I. Misra, M. Rabbat, V. Sharma, G. Synnaeve, H. Xu, H. Jegou, J. Mairal, P. Labatut, A. Joulin, and P. Bojanowski, “DINOv2: Learning robust visual features without supervision,” Transactions on Machine Learning Research , 2024. Featured Certification. [49] K. Li, R. Liu, X. Cao, X. Bai, F. Zhou, D. Meng, and Z. Wang, “Segearth-ov: Towards training-free open-vocabulary segmentation for remote sensing images,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pp. 10545–10556, June 2025.
