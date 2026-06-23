@@ -6,40 +6,58 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-22
-- 运行时间：2026-06-22 22:43:31 UTC
+- 最新运行日期：2026-06-23
+- 运行时间：2026-06-23 21:08:40 UTC
 - 运行状态：成功
-- 本次总论文数：6
-- 精读区：1
+- 本次总论文数：12
+- 精读区：7
 - 速读区：5
 
 ### 今日简报（AI）
-1) 今日聚焦行为异常检测与水下图像增强，精读一篇高可解释性移动轨迹异常检测论文（8分），速读三篇涵盖图像处理、自适应预测与低速率攻击检测。  
-2) 最值得关注：**可解释的行为异常检测**方法，兼顾精度与可理解性；其次**融合先验知识与物理分解的水下图像增强**（7分）实用性强。  
-3) 建议优先精读《IBAD》理解其可解释性设计思路，速读水下图像增强方法作为辅助参考，可尝试将异常检测模型迁移至其他行为数据场景。
-- 详情：[/202606/22/README](/202606/22/README)
+1) 今日精选12篇论文，聚焦海洋智能感知与少样本异常检测两大热点，精读7篇中2篇获9.0高分。  
+2) 最值得关注的两大方向：基于稀疏点引导的融合模型实现高精度海藻分割；利用正常世界模型实现少样本边界校准的异常检测。  
+3) 建议普通读者重点挖掘海洋监测与异常检测的交叉应用，如黑暗船只定位、多AUV协同追踪等现实场景。
+- 详情：[/202606/23/README](/202606/23/README)
 
 ### 精读区论文标签
-1. [IBAD: Interpretable Behavioral Anomaly Detection on Human Mobility Data](/202606/22/2606.16023v1-ibad-interpretable-behavioral-anomaly-detection-on-human-mobility-data)  
+1. [Sparse Point-Guided Fusion of Supervised and Self-Supervised Learning Model for Seaweed Segmentation](/202606/23/2606.21026v1-sparse-point-guided-fusion-of-supervised-and-self-supervised-learning-model-for-seaweed-segmentation)  
+   标签：评分：9.0/10、query:ocean-obs
+   evidence：用于海洋数字孪生中蓝碳量化的海藻分割
+2. [Learning a Normal World Model for Few-Shot Boundary-Calibrated Abnormality Detection](/202606/23/2606.22261v1-learning-a-normal-world-model-for-few-shot-boundary-calibrated-abnormality-detection)  
+   标签：评分：9.0/10、query:anomaly-id
+   evidence：使用正常世界模型和超图熵进行少样本异常检测
+3. [Quality Assessment of Spectroscopic Data Reduction Pipelines Using Artificial Intelligence: Scrutinizing Data Release 2 from the DESI Survey](/202606/23/2606.21035v1-quality-assessment-of-spectroscopic-data-reduction-pipelines-using-artificial-intelligence-scrutinizing-data-release-2-from-the-desi-survey)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：可解释行为异常检测方法
+   evidence：用于质量评估的无监督异常检测管道
+4. [Distinguishing indistinguishable attractors: Unsupervised anomaly detection with reservoir computers](/202606/23/2606.21322v1-distinguishing-indistinguishable-attractors-unsupervised-anomaly-detection-with-reservoir-computers)  
+   标签：评分：8.0/10、query:ocean-qc
+   evidence：应用于气候等动力系统的无监督异常检测
+5. [HiMatch-AD: DINOv3-driven Hierarchical Matching for Training-free Medical Anomaly Detection](/202606/23/2606.22556v1-himatch-ad-dinov3-driven-hierarchical-matching-for-training-free-medical-anomaly-detection)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：无需训练的医学异常检测方法，使用DINOv3
+6. [Weighted Score-Oriented Losses for Temporally Localized Event Prediction](/202606/23/2606.23145v1-weighted-score-oriented-losses-for-temporally-localized-event-prediction)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：时间序列异常检测的损失函数
+7. [Time-domain anomalies in solar and stellar flares](/202606/23/2606.23482v1-time-domain-anomalies-in-solar-and-stellar-flares)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：使用深度SVDD进行时间序列光变曲线的无监督异常检测
 
 ### 速读区论文标签
-1. [Fusing Transferred Priors and Physics-based Decomposition for Underwater Image Enhancement](/202606/22/2606.15648v1-fusing-transferred-priors-and-physics-based-decomposition-for-underwater-image-enhancement)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：水下图像增强提升海洋观测数据质量
-2. [Spectral Adaptive Conformal Prediction for Structured Non-Exchangeable Data](/202606/22/2606.15950v1-spectral-adaptive-conformal-prediction-for-structured-non-exchangeable-data)  
+1. [CMDS-AD: Cross-Modal Dual-Stream Decoupling for Few-Shot Anomaly Detection](/202606/23/2606.20300v2-cmds-ad-cross-modal-dual-stream-decoupling-for-few-shot-anomaly-detection)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：谱自适应共形预测用于非交换时间序列，通过预测区间检测异常值
-3. [A Predictive Neural Network Architecture for Early Detection of Low-Rate Cyberattacks](/202606/22/2606.18771v1-a-predictive-neural-network-architecture-for-early-detection-of-low-rate-cyberattacks)  
+   evidence：提出跨模态异常检测框架，可迁移至数据异常识别
+2. [Sea-Scan: High-Accuracy, ML-based Dark Vessel Detection and Localisation via Weakly Supervised DAS Monitoring](/202606/23/2606.21326v1-sea-scan-high-accuracy-ml-based-dark-vessel-detection-and-localisation-via-weakly-supervised-das-monitoring)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：使用分布式声学传感的海洋ML船只检测
+3. [Multi-AUV Marine Life Tracking with Single Hydrophone Payloads via a Hidden Markov Model Equipped Particle Filter](/202606/23/2606.22335v1-multi-auv-marine-life-tracking-with-single-hydrophone-payloads-via-a-hidden-markov-model-equipped-particle-filter)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：多AUV自主海洋生物追踪系统
+4. [MambaADv2: Evolving Duality-enhanced State Space Model for Unsupervised Anomaly Detection](/202606/23/2606.23126v1-mambaadv2-evolving-duality-enhanced-state-space-model-for-unsupervised-anomaly-detection)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：基于状态空间模型的无监督异常检测
+5. [Sum-of-Squares Degree Barriers for the Reweighted-Hinge Method in Robust Halfspace Learning: A Christoffel-Function Characterization](/202606/23/2606.17215v1-sum-of-squares-degree-barriers-for-the-reweighted-hinge-method-in-robust-halfspace-learning-a-christoffel-function-characterization)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：基于预测神经网络的网络攻击早期检测，一种异常检测技术
-4. [ReA-OVCD: Reliability-Aware Open-Vocabulary Change Detection via Semantic and Spatial Refinement](/202606/22/2606.20032v1-rea-ovcd-reliability-aware-open-vocabulary-change-detection-via-semantic-and-spatial-refinement)  
-   标签：评分：6.0/10、query:ocean-obs
-   evidence：遥感变化检测用于海洋生态监测
-5. [Reliability-Aware Prototype Calibration for Frozen Pose-Flow Video Anomaly Detection](/202606/22/2606.20312v1-reliability-aware-prototype-calibration-for-frozen-pose-flow-video-anomaly-detection)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：视频异常检测中的分数校准方法
+   evidence：鲁棒学习中离群点去除的理论分析
 
 
 <div class="dpr-home-promo-card">
