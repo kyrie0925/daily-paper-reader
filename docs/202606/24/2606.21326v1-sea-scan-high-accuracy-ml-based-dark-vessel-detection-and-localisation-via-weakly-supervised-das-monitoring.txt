@@ -1,0 +1,70 @@
+Title: Sea-Scan: High-Accuracy, ML-based Dark Vessel Detection and Localisation via Weakly Supervised DAS Monitoring
+
+URL Source: https://arxiv.org/pdf/2606.21326v1
+
+Published Time: Tue, 23 Jun 2026 00:49:49 GMT
+
+Number of Pages: 4
+
+Markdown Content:
+# Sea-Scan: High-Accuracy, ML-based Dark Vessel Detection and Localisation via Weakly Supervised DAS Monitoring 
+
+Tian Tian (1) , Agastya Raj (1) , Lara Flanagan (1) , John Kennedy (2) , Marco Ruffini (1) (1) School of Computer Science and Statistics, IRIS Research Group, ADAPT Research Centre, Trinity College Dublin, Ireland 
+
+> (2)
+
+School of Engineering, ADAPT Research Centre, Trinity College Dublin, Ireland tianti@tcd.ie 
+
+Abstract We present an ML-based vessel detection and localization system, trained with weak supervision from imperfect AIS labels, that achieves a 97.8% detection rate at 1.98% false-trigger rate, successfully identifies dark-vessel events from unlabeled data. 
+
+Introduction 
+
+Dark vessels operating with disabled or absent Automatic Identification System ( AIS ) transpon-ders pose direct threats to critical subsea infras-tructure, including fiber-optic cables carrying over 95% of intercontinental data traffic. 1 Detecting these vessels requires sensing modalities inde-pendent of cooperative transponders. Distributed Acoustic Sensing ( DAS ) transforms existing sub-sea fiber into a continuous sensor array with meter-scale spatial resolution over hundreds of kilome-ters, capable of detecting vessel-radiated noise without additional hardware. 2, 3 The key challenge is converting this raw sensing capability into reli-able, automated detection at operational scale. Prior DAS -based vessel detection has followed two directions. Array-processing and propagation-modeling approaches 4–6 can localize vessels but require calibrated environmental parameters and expert tuning that limit scalability. Recent deep learning methods 7–10 reduce manual configura-tion by training on AIS-aligned DAS data, but face three limitations that restrict operational use. First, models are typically developed on short cable seg-ments (a few to tens of kilometers), 9, 10 where noise characteristics and seabed coupling con-ditions are relatively uniform; performance across the full heterogeneity of a long-range link remains undemonstrated. Second, detection is often sim-plified to binary presence/absence classification 8
+
+or restricted to strong wake-crossing signatures, 7
+
+precluding along-cable localization and early de-tection of approaching vessels. Third, and most critically, AIS-derived labels are treated as reliable ground truth despite systematic noise from timing and position misalignment, intermittent reporting, and AIS-silent targets, which biases both training and evaluation. In this work, we present Sea-Scan, an ML-based end-to-end detection and localization frame-work, built on encoder backbone, designed to learn from imperfect AIS supervision at long-range scale. We report results from 35 days of continuous DAS monitoring over a 120 km sub-sea cable in the Irish Sea. The main contribu-tions of the proposed framework include: (i) a weakly supervised training objective combining top-K Multiple-Instance Learning ( MIL ) with tempo-ral smoothness constraints which accommodates label noise; (ii) a factorized spatio-temporal de-tection head that separates temporal event detec-tion from along-cable localization via multiplica-tive gating, suppressing false activations in the absence of segment-wide temporal evidence; and (iii) a hysteresis-based triggering mechanism with trend consistency filtering, converting continuous model outputs into stable detection alerts. On held-out test set spanning the full cable, the sys-tem achieves 97.8% detection rate at 1.98% false-trigger rate, with median along-cable localization error of 239.9 m relative to AIS-reported cross-ing positions. Applied to segments with no AIS-reported vessels, Sea-Scan identifies 42 candi-date dark vessel transits with spectral signatures indicative of vessel radiated noise. 
+
+Detection Framework Preprocessing . Fig.1 summarizes the Sea-Scan pipeline from raw DAS recordings to detection alerts. The raw strain-rate signal is bandpass-filtered into three sub-bands (4–16, 16–32, 32–64 Hz) and one broadband channel (4–64 Hz). Vessel-radiated noise typically spans from below 10 Hz to beyond 1 kHz, but the 61.28 m gauge length in our deployment imposes spatial averag-ing that attenuates content above ∼60 Hz. Within this bandwidth, different vessels exhibit distinct spectral energy distributions across sub-bands, motivating the multi-band decomposition. For each band, the amplitude envelope is extracted via the Hilbert transform and decimated to 0.625 Hz, re-taining only slowly-varying energy relevant to ves-sel transits on minute timescales. The resulting four-band tensor is tiled with 50% overlap in time and channel, and each tile is z-score normalized per band to compensate for sensitivity and Signal-to-Noise Ratio ( SNR ) variation along the cable. For weak supervision, AIS position reports are in-terpolated and projected onto the cable to form  
+
+> arXiv:2606.21326v1 [cs.SD] 19 Jun 2026 Fig. 1: End-to-end pipeline of the proposed DAS vessel detection and localization framework.
+
+a binary corridor mask: channels within ±2 km are labeled positive. This radius accounts for un-certainty from projection error and lateral extent of seabed acoustic coupling. The mask is inten-tionally conservative, providing candidate-positive regions that the model must learn to refine. 
+
+Model Structure. The encoder back-bone adopts the hierarchical three-stage spatio-temporal architecture, 11 progressively downsam-pling time and channel dimensions through local attention in early stages and split temporal/spatial attention in the final stage. Multi-scale features are fused via a Feature Pyramid Network (FPN) to pro-duce a dense feature map zF ∈ RB×DF ×T ×C . For detection, we decouple when a vessel is present from where along the cable it is located using two parallel branches. A temporal branch aggregates 
+
+zF over all channels via a 1D CNN to produce a per-timestep activity score Pt ∈ [0 , 1] , while a spatial branch applies a 2D CNN to produce a dense time–channel map Pt,c ∈ [0 , 1] . The final confidence map is formed by multiplicative gat-ing: Mt,c = Pt · Pt,c . This factorization reflects a physical prior: Pt acts as a global gate, requiring sustained temporal evidence (e.g., the gradually increasing then decreasing energy characteristic of a vessel transit) before any spatial detection is expressed. Impulsive interference which might be spatially localized but lacks the sustained temporal structure is suppressed by the gating mechanism. 
+
+Training Objective. The loss combines three terms designed for noisy AIS supervision: (i) a top-K MIL loss on Pt within AIS-positive intervals, where only the top 10% of timesteps per positive bag contribute gradients, preventing penalization of mislabeled portions of the corridor, (ii) a nega-tive suppression with Huber temporal smoothing, and (iii) pixel-wise Binary Cross-Entropy ( BCE )plus Dice on the time-channel map to calibrate along-cable localization. 
+
+Event Triggering. Pt is converted to alerts via hysteresis thresholding: a candidate is opened when Pt > θ hi , confirmed if Pt remains above θlo 
+
+for Ndwell samples, and cleared when Pt < θ lo . A trend consistency filter additionally requires that over a backward window of Nback samples, the fraction of positive increments exceeds θslope , re-jecting impulsive interference that lacks the grad-ual energy increase characteristic of an approach-ing vessel. 
+
+Experimental Setup 
+
+The experiment was conducted on the Emerald Fibre Bridge Link (EFBL), a UK–Ireland subsea route with a total fiber length of ∼120 km be-tween Wales and Dublin, of which 12 km is on land. Unless stated otherwise, all distances in this work refer to offshore along-cable distance. DAS measurements were acquired using an Op-toDAS interrogator from Alcatel Submarine Net-works (ASN), configured at 625 Hz sampling rate, 61.28 m gauge length, and 30.64 m channel spac-ing. Data were collected from 17 April to 22 May 2025 (35 days), totaling ∼14 TB of raw record-ings. Using AIS-assisted screening, we identified 1,518 vessel-crossing events. Negative samples were extracted as 30-minute windows over 5 km cable sections with no AIS-reported vessels within 
+
+±10 km, yielding 4,343 noise events. The dataset was split into 70% for training and 30% for testing. During training, tiles were balanced to 70% ves-sel and 30% noise by randomly subsampling the noise class. Preprocessing and inference were performed on a single NVIDIA GeForce RTX 4090 GPU and a 13th Gen Intel ® Core ™ i9-13900K CPU, Fig. 2: Detection example across 120 km of cable over a 2-hour interval. (a) EFBL cable route and AIS vessel trajectories. (b) Multi-band DAS envelope intensity. (c) AIS-reported vessel characteristics for the four crossings. (d) AIS-derived mask of proximity corridor, projected on to the time-distance grid. (e) Temporal activity score Pt for each 5 km cable segment. (f) Final confidence map Mt,c with threshold contours. 
+
+with 64 GB RAM. 
+
+Results and Discussion 
+
+On the balanced test set of 454 vessel-crossing events and 454 noise events, the model achieves a detection rate of 97.8% (TP=444, FN=10) and a false-trigger rate of 1.98% (FP=9, TN=445). Of the 10 missed detections, 6 involved vessels at offshore distances exceeding 85 km, consistent with increased noise level from at the far end of the cable. For localization, the predicted confidence map achieves a Dice score of 0.612 and IoU of 0.579 against the AIS-derived corridor mask. The peak-confidence location has a median offset of 239.9 m along the cable relative to AIS-reported crossing positions. Fig. 2 reports, for demonstration purposes, an example of detection over the full offshore aperture by processing a two-hour interval (10:00–12:00 UTC, 2 May 2025). AIS recorded four crossings at offshore distances of 31.7, 57.4, 80.6, and 81.9 km, over that two-hour interval, spanning a 13 m lifeboat (38 ton) to a 211 m Ro-Ro car-rier (43,532 ton). The temporal activity score Pt
+
+per 5 km segment (Fig. 2 (e)) and predicted con-fidence map Mt,c (Fig. 2 (f)) produce spatially coherent detections that coincide with elevated DAS energy across all four crossings, including the small-vessel case with comparatively weak acoustic signatures. For a 30 min × 10 km tile, Sea-Scan requires 139 s of CPU preprocessing on average, and 0.238 s for GPU inference. This means a 10s time slot over 120km can be pro-cessed in 9.3 s, making the system capable of real time operation. To evaluate dark-vessel detection, we applied Sea-Scan to the full noise dataset (i.e., with no AIS information). The model flagged 42 of 4,343 noise events above the detection threshold. Manual re-view confirmed distinct tonal spectral components consistent with vessel-radiated noise. These can-didate dark-vessel transits, undetectable by AIS-based monitoring, demonstrate the operational capability motivating this work. 
+
+Conclusion 
+
+We showed how weakly supervised learning of DAS data that accommodates noisy AIS labels, can deliver automated, real time vessel detection and localization across a 120 km link, on com-modity compute hardware. The system achieves 97.8% detection at 1.98% false-trigger rate with 239.9 m median localization error, and identified 42 candidate dark vessel transits in AIS-silent seg-ments, confirmed by spectral signatures consistent with vessel radiated noise. 
+
+Acknowledgments 
+
+This publication has emanated from research con-ducted with the financial support of Research Ireland and the Department of Defence under the Research Ireland-Department of Defence grant number 24/FIP/-DO/13340P, in addition to 18/RI/5721 and 13/RC/2106 P2. 
+
+References 
+
+[1] F. Mazzarella, M. Vespe, A. Alessandrini, D. Tarchi, G. Aulicino, and A. Vollero, “A novel anomaly detection ap-proach to identify intentional ais on-off switching,” Expert Systems with Applications, vol. 78, 02 2017. [2] A. F. Baird et al. , “Ocean space surveillance and real-time event characterization using distributed acoustic sensing on submarine networks,” Seismol. Res. Lett. , 96(2A), 691– 705, Jan. 2025. [3] A. Xenaki, P. Gerstoft, E. Williams, and S. Abadi, “Overview of distributed acoustic sensing: Theory and ocean applications,” J. Acoust. Soc. Am. , 158(1), 801– 825, Jul. 2025. [4] D. Rivet et al. , “Preliminary assessment of ship detection and trajectory evaluation using distributed acoustic sens-ing on an optical fiber telecom cable,” J. Acoust. Soc. Am. ,149(4), 2615–2627, Apr. 2021. [5] M. Landrø et al. , “Sensing whales, storms, ships and earthquakes using an Arctic fibre optic cable,” Sci. Rep. ,12(1), 19226, Nov. 2022. [6] B. Paap et al. , “Leveraging distributed acoustic sensing for monitoring vessels using submarine fiber-optic cables,” 
+
+Appl. Ocean Res. , 154, 104422, Jan. 2025. [7] W. Huang et al. , “DAShip: A large-scale annotated dataset for ship detection using distributed acoustic sensing tech-nique,” IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens. , 18, 4093–4107, 2025. [8] E. E. Ramirez-Torres et al. , “Vessel detection and local-ization using distributed acoustic sensing in submarine optical fiber cables,” arXiv:2509.11614, Sep. 2025. [9] C. Zhang, W. Zhu, B. A. Romanowicz, R. M. Allen, K. Soga, and Y. Wu, “A deep learning framework for marine acoustic and seismic monitoring with distributed acoustic sensing,” arXiv:2603.14844, Mar. 2026. [10] J. Shao, Y. Wang, Y. Zhang, X. Zhang, and C. Zhang, “Tracking moving ships using distributed acoustic sensing data,” IEEE Geosci. Remote Sens. Lett. , 22, 1–5, 2025. [11] K. Li et al. , “UniFormer: Unified transformer for efficient spatiotemporal representation learning,” arXiv:2201.04676, 2022.

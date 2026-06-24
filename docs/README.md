@@ -6,58 +6,53 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-23
-- 运行时间：2026-06-23 21:08:40 UTC
+- 最新运行日期：2026-06-24
+- 运行时间：2026-06-24 21:10:11 UTC
 - 运行状态：成功
-- 本次总论文数：12
-- 精读区：7
-- 速读区：5
+- 本次总论文数：11
+- 精读区：5
+- 速读区：6
 
 ### 今日简报（AI）
-1) 今日精选12篇论文，聚焦海洋智能感知与少样本异常检测两大热点，精读7篇中2篇获9.0高分。  
-2) 最值得关注的两大方向：基于稀疏点引导的融合模型实现高精度海藻分割；利用正常世界模型实现少样本边界校准的异常检测。  
-3) 建议普通读者重点挖掘海洋监测与异常检测的交叉应用，如黑暗船只定位、多AUV协同追踪等现实场景。
-- 详情：[/202606/23/README](/202606/23/README)
+今天共处理11篇论文，精读5篇、速读6篇，涵盖时间序列、海洋监测等多个领域。最值得关注的是高分论文《TimeLAVA》关于时间序列的数据估值方法与《Sea-Scan》中基于弱监督DAS的高精度暗船检测技术。建议优先精读这两篇，体会时间序列估值框架和弱监督监测在具体场景中的创新应用。
+- 详情：[/202606/24/README](/202606/24/README)
 
 ### 精读区论文标签
-1. [Sparse Point-Guided Fusion of Supervised and Self-Supervised Learning Model for Seaweed Segmentation](/202606/23/2606.21026v1-sparse-point-guided-fusion-of-supervised-and-self-supervised-learning-model-for-seaweed-segmentation)  
-   标签：评分：9.0/10、query:ocean-obs
-   evidence：用于海洋数字孪生中蓝碳量化的海藻分割
-2. [Learning a Normal World Model for Few-Shot Boundary-Calibrated Abnormality Detection](/202606/23/2606.22261v1-learning-a-normal-world-model-for-few-shot-boundary-calibrated-abnormality-detection)  
+1. [TimeLAVA: Learning-Agnostic Data Valuation for Time Series](/202606/24/2606.18729v2-timelava-learning-agnostic-data-valuation-for-time-series)  
    标签：评分：9.0/10、query:anomaly-id
-   evidence：使用正常世界模型和超图熵进行少样本异常检测
-3. [Quality Assessment of Spectroscopic Data Reduction Pipelines Using Artificial Intelligence: Scrutinizing Data Release 2 from the DESI Survey](/202606/23/2606.21035v1-quality-assessment-of-spectroscopic-data-reduction-pipelines-using-artificial-intelligence-scrutinizing-data-release-2-from-the-desi-survey)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：用于质量评估的无监督异常检测管道
-4. [Distinguishing indistinguishable attractors: Unsupervised anomaly detection with reservoir computers](/202606/23/2606.21322v1-distinguishing-indistinguishable-attractors-unsupervised-anomaly-detection-with-reservoir-computers)  
-   标签：评分：8.0/10、query:ocean-qc
-   evidence：应用于气候等动力系统的无监督异常检测
-5. [HiMatch-AD: DINOv3-driven Hierarchical Matching for Training-free Medical Anomaly Detection](/202606/23/2606.22556v1-himatch-ad-dinov3-driven-hierarchical-matching-for-training-free-medical-anomaly-detection)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：无需训练的医学异常检测方法，使用DINOv3
-6. [Weighted Score-Oriented Losses for Temporally Localized Event Prediction](/202606/23/2606.23145v1-weighted-score-oriented-losses-for-temporally-localized-event-prediction)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：时间序列异常检测的损失函数
-7. [Time-domain anomalies in solar and stellar flares](/202606/23/2606.23482v1-time-domain-anomalies-in-solar-and-stellar-flares)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：使用深度SVDD进行时间序列光变曲线的无监督异常检测
+   evidence：用于质量控制和异常检测的时间序列数据估值
+2. [Sea-Scan: High-Accuracy, ML-based Dark Vessel Detection and Localisation via Weakly Supervised DAS Monitoring](/202606/24/2606.21326v1-sea-scan-high-accuracy-ml-based-dark-vessel-detection-and-localisation-via-weakly-supervised-das-monitoring)  
+   标签：评分：8.0/10、query:ocean-obs
+   evidence：基于机器学习的水声传感船只检测系统，用于海洋监控
+3. [Per-Span Microwave Frequency Fiber Interferometry in Subsea Cables for Scalable Deep-Ocean Geophysical Monitoring](/202606/24/2606.21905v1-per-span-microwave-frequency-fiber-interferometry-in-subsea-cables-for-scalable-deep-ocean-geophysical-monitoring)  
+   标签：评分：8.0/10、query:ocean-obs
+   evidence：海底电缆光纤干涉测量用于海洋地球物理监测
+4. [Multi-AUV Marine Life Tracking with Single Hydrophone Payloads via a Hidden Markov Model Equipped Particle Filter](/202606/24/2606.22335v1-multi-auv-marine-life-tracking-with-single-hydrophone-payloads-via-a-hidden-markov-model-equipped-particle-filter)  
+   标签：评分：8.0/10、query:ocean-obs
+   evidence：自主水下航行器用于海洋动物跟踪
+5. [Autonomous Subsea Cable Search and Tracking with Graph-Optimised Priors and Visual Tracking](/202606/24/2606.23606v1-autonomous-subsea-cable-search-and-tracking-with-graph-optimised-priors-and-visual-tracking)  
+   标签：评分：8.0/10、query:ocean-obs
+   evidence：基于图优化先验的AUV自主电缆搜索与跟踪
 
 ### 速读区论文标签
-1. [CMDS-AD: Cross-Modal Dual-Stream Decoupling for Few-Shot Anomaly Detection](/202606/23/2606.20300v2-cmds-ad-cross-modal-dual-stream-decoupling-for-few-shot-anomaly-detection)  
+1. [Scalable Bayesian Additive Models for Stellar Flare Detection via Amortized Gaussian Process Inference and Hidden Markov Models](/202606/24/2606.22601v1-scalable-bayesian-additive-models-for-stellar-flare-detection-via-amortized-gaussian-process-inference-and-hidden-markov-models)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：提出跨模态异常检测框架，可迁移至数据异常识别
-2. [Sea-Scan: High-Accuracy, ML-based Dark Vessel Detection and Localisation via Weakly Supervised DAS Monitoring](/202606/23/2606.21326v1-sea-scan-high-accuracy-ml-based-dark-vessel-detection-and-localisation-via-weakly-supervised-das-monitoring)  
+   evidence：基于贝叶斯加性模型和高斯过程的时间序列异常检测方法
+2. [ISOPoT: Imaging Sonar Odometry by Point Tracking](/202606/24/2606.23006v1-isopot-imaging-sonar-odometry-by-point-tracking)  
    标签：评分：7.0/10、query:ocean-obs
-   evidence：使用分布式声学传感的海洋ML船只检测
-3. [Multi-AUV Marine Life Tracking with Single Hydrophone Payloads via a Hidden Markov Model Equipped Particle Filter](/202606/23/2606.22335v1-multi-auv-marine-life-tracking-with-single-hydrophone-payloads-via-a-hidden-markov-model-equipped-particle-filter)  
-   标签：评分：7.0/10、query:ocean-obs
-   evidence：多AUV自主海洋生物追踪系统
-4. [MambaADv2: Evolving Duality-enhanced State Space Model for Unsupervised Anomaly Detection](/202606/23/2606.23126v1-mambaadv2-evolving-duality-enhanced-state-space-model-for-unsupervised-anomaly-detection)  
+   evidence：用于水下自主导航的声纳里程计
+3. [Bayesian Mixture Models for Histograms: with Applications to Large Datasets](/202606/24/2606.24001v1-bayesian-mixture-models-for-histograms-with-applications-to-large-datasets)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：基于状态空间模型的无监督异常检测
-5. [Sum-of-Squares Degree Barriers for the Reweighted-Hinge Method in Robust Halfspace Learning: A Christoffel-Function Characterization](/202606/23/2606.17215v1-sum-of-squares-degree-barriers-for-the-reweighted-hinge-method-in-robust-halfspace-learning-a-christoffel-function-characterization)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：鲁棒学习中离群点去除的理论分析
+   evidence：贝叶斯混合模型用于直方图数据，可应用于大数据异常检测
+4. [From Open Waters to Enclosed Cabins: ProteusVPR for Cross-Scene Visual Place Recognition in Maritime Perception and Cabin Inspection](/202606/24/2606.24234v1-from-open-waters-to-enclosed-cabins-proteusvpr-for-cross-scene-visual-place-recognition-in-maritime-perception-and-cabin-inspection)  
+   标签：评分：7.0/10、query:ocean-obs
+   evidence：用于自主机器人检查的海洋感知
+5. [UniverSat: Resolution- and Modality-Agnostic Transformers for Earth Observation](/202606/24/2606.23503v1-universat-resolution--and-modality-agnostic-transformers-for-earth-observation)  
+   标签：评分：6.0/10、query:ocean-obs
+   evidence：适用于海洋遥感的传感器无关地球观测模型
+6. [Efficient Time-Domain Simulation of USV Motions in Short-Crested Irregular Waves Using an IRF-Based Framework](/202606/24/2606.24130v1-efficient-time-domain-simulation-of-usv-motions-in-short-crested-irregular-waves-using-an-irf-based-framework)  
+   标签：评分：6.0/10、query:ocean-obs
+   evidence：无人水面航行器运动仿真，用于无人海洋观测
 
 
 <div class="dpr-home-promo-card">

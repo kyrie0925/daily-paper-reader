@@ -1,0 +1,1402 @@
+Title: Bayesian Mixture Models for Histograms: with Applications to Large Datasets
+
+URL Source: https://arxiv.org/pdf/2606.24001v1
+
+Published Time: Wed, 24 Jun 2026 00:18:54 GMT
+
+Number of Pages: 33
+
+Markdown Content:
+# Bayesian Mixture Models for Histograms: with Applications to Large Datasets 
+
+Richard L. Warr ∗1, Fernando A. Quintana 2, Alessandra Guglielmi 3 and Mario Beraha 4
+
+> 1
+
+Department of Statistics, Brigham Young University 
+
+> 2
+
+Department of Statistics, Pontificia Universidad Cat´ olica de Chile 
+
+> 3
+
+Department of Mathematics, Politecnico di Milano 
+
+> 4
+
+Department of Economics, Management and Statistics, University of Milano-Bicocca 
+
+Abstract 
+
+In many real-world scenarios, especially those involving privacy constraints or data summa-rization, data are available only in aggregated forms, such as histograms or frequency tables. This work introduces a novel Bayesian method for inferring the underlying population distribution by fitting a mixture model to binned data. While we focus on mixtures of normal distributions, the framework is flexible and can be extended to other distributional families. We place a prior distribution on the number of mixture components, accommodating both finite and countably infinite mixtures, and perform inference using reversible jump MCMC. The proposed approach demonstrates strong performance on large-scale data, showcasing the potential of nonparametric Bayesian modeling in practical applications. Furthermore, we extend the method to model multiple histograms simultaneously and cluster them using the Dirichlet process. This enables information sharing across populations and provides a principled posterior probability to as-sess homogeneity between groups. Some theoretical results supporting the performance of our proposed methodology are also discussed. 
+
+MSC 2020: 62F15, 62G07, 60G57, 62F12, 62H30, 65C05 
+
+Keywords: binned data, clustering, density estimation, Dirichlet process, posterior consistency 
+
+# 1 Introduction 
+
+In an era where data are often collected and shared in aggregated forms, such as histograms or frequency tables, there is a need for statistical methods that can accurately recover underlying population distributions from such summaries. This scenario often arises due to privacy constraints, storage limitations, or practical data collection processes. Traditional Bayesian modeling approaches often assume access to raw data, making them unsuitable or inefficient in these contexts. To address this challenge, we propose a Bayesian mixture modeling approach that directly models histograms or binned data. Our model is a mixture distribution which estimates the latent probability density function of the underlying population. Although we focus primarily on a mixture of Gaussian distributions, the proposed framework is quite general and can be extended to other families of distributions. A prior is placed on the number of mixture components, allowing for both finite and countably infinite mixtures, and posterior samples are obtained using reversible 
+
+> ∗
+
+warr@stat.byu.edu 
+
+1
+
+> arXiv:2606.24001v1 [stat.ME] 22 Jun 2026
+
+jump Markov chain Monte Carlo (RJMCMC) methods. Furthermore, we extend our basic mixture model to handle multiple histograms by clustering them using a Dirichlet process (DP), which enables information sharing across groups and yields posterior probabilities for assessing homogeneity between populations. While Bayesian nonparametric methods such as Dirichlet process mixture (DPM) models have shown strong theoretical appeal and modeling flexibility, their computational cost becomes prohibitive as the dataset grows. In particular, posterior sampling from DPM models scales poorly with the number of observations, making them impractical for modern large-scale data problems. A substantial body of research has explored alternatives and approximations to mitigate this issue, but many existing solutions involve complex or domain-specific trade-offs. In contrast, the method we present is conceptually simple and computationally efficient, with inference that scales approximately linearly with the number of bins in the histogram or frequency table. Through simulation studies and theoretical developments, we demonstrate that our approach not only offers substantial speed improvements but also retains consistency with the true underlying distribution. These properties make our proposed model a promising and scalable solution for mixture modeling in the context of large or summarized datasets. 
+
+1.1 Literature Review 
+
+The need for statistical models for histograms or binned data has grown due to increasing concerns around privacy and large-scale data summarization. Traditional approaches, which rely on raw, individual-level data, are often unavailable or unsuitable in many contexts. We outline a few key works which led us to the development and/or facilitated the methodology discussed in this article. From a frequentist perspective, Wasserman (2006) demonstrated that classical histogram es-timators can converge to the true density under mild smoothness conditions. Theoretical results are derived by introducing a histogram-based likelihood and proving convergence in the limit of growing sample sizes and bin counts. Alternatively, Billard and Kim (2017) introduced hierarchical clustering techniques tailored for histogram-valued data, laying the foundation for symbolic data analysis in settings where only aggregated information is available. Furthermore, Sam´ e et al. (2006) consider a classification approach based on binned data, employing the EM algorithm. Similarly, Shirazi et al. (2023) use EM and Monte Carlo EM to estimate the underlying mean and variance structure from grouped (binned) data. From a Bayesian point of view, Lambert and Eilers (2009) estimate smooth densities via penalized splines in the logarithmic scale, with a roughness penalty approach. Alston and Mengersen (2010) consider density estimation for a finite Gaussian mixture model to estimate the underlying distribution from which binned data are collected. Parameter estimation under a similar framework is considered in Gau et al. (2014). More recently, and more closely connected to our proposal, Mart´ ınez and D´ ıaz-Avalos (2024) proposed a model-based approach for clustering binned data, demonstrating the advantages of probabilistic modeling frameworks for such summaries. Additionally, Simensen et al. (2026) propose a Bayesian approach for constructing irregular histograms, in which both 2the number and locations of bins are learned from data. This complements our framework, which accommodates potentially unequal binning intervals and focuses on inference given aggregated observations. The Reversible Jump MCMC algorithm introduced by Richardson and Green (1997) allows users to estimate the number of components for mixture models with a prior on the number of components. This work explicitly allows implementation of posterior simulation algorithms for cases where the proposed moves imply changes in the dimensions of the underlying parameter vectors. Similarly, Neal (2000) outlined efficient MCMC methods for Dirichlet process mixture (DPM) models, which are widely used in nonparametric Bayesian inference. These computational approaches using one-at-a-time updates, while powerful, do not scale well as the number of observations becomes large. Not only might one be interested in estimating a distribution given by a single population, but clustering distributions of multiple populations could be beneficial. Some previous works have approached this problem. For example, the nested Dirichlet process (Rodriguez et al., 2008) allows for shared mixture distributions across groups. The hierarchical Dirichlet process (HDP) framework introduced by Teh et al. (2004), allows for shared mixture components across groups. Similar constructions are those in Denti et al. (2023) and D’Angelo and Denti (2026), based on the assumption that all groups share a common set of atoms and differ through group-specific weights. A related yet more parsimonious approach is the semi-hierarchical Dirichlet process developed by Beraha et al. (2021), which provides computational and modeling advantages when the groups are expected to be partially but not fully exchangeable. Other works include Argiento et al. (2020), Lijoi et al. (2023), Duan et al. (2025) and references therein. A common aspect in these works is the construction of a model for several related distributions by relating atoms and/or weights related to individual observations and/or groups. In contrast, our proposal for a single histogram employs no atoms, while the extension to multiple histograms treats entire distributions as atoms. Again, this is a feature of the data, where only binned counts are available. Some generalizations of the notion of histograms have been explored in the literature. Canale and Dunson (2011) developed mixtures of rounded continuous kernel distributions for discrete count data. More recently, Goh et al. (2024) developed sparse tree-based and list-based models for density estimation in the context of binary/categorical data. 
+
+1.2 Our Contributions 
+
+As our first contribution, we present a framework for analyzing data from a single histogram when the original observations are missing or masked for data privacy, and only binned frequencies are available. The goal is the estimation of the true underlying population distribution generating the original observations. As noted earlier, the great majority of nonparametric approaches rely on access to the original data, and thus, cannot be employed in our context. A second contribution is an efficient posterior simulation scheme tailored to our first model that scales well with the number of bins, but that is not affected by the total sample size (i.e. the sum of bin frequencies). This is 3a genuinely distinctive feature of our approach, compared to the usual behavior reported for the computational aspects of traditional Bayesian nonparametric models. Our third contribution is the extension of the model to the case of multiple samples of binned data, where the parameters specifying each population distribution are assumed to be a sample from a Dirichlet process. A fourth contribution is a suitable posterior simulation scheme for the multi-sample case, that employs some specifically designed moves to facilitate the parameter space exploration. We began with a discussion of previous work and the challenges and motivations for modeling histogram data. The remainder of the paper is organized as follows. We introduce our modeling framework in Section 2, starting with the single-histogram case before extending it to accommodate multiple histograms, similar in concept to the nested DP and the hierarchical DP. Some theoretical properties are also developed. Section 3 delves into the computational strategies used for inference and Section 4 presents some simulation studies, emphasizing the scalability and efficiency of our methods. To demonstrate the practical value of the approach, we present two applications in Section 5, one using U.S. flight time data and the other U.S. COVID-19 mortality data. We conclude in Section 6 by discussing the implications of our work and some thoughts for future research. 
+
+# 2 Models 
+
+In this section, we describe the two models that are fundamental to this article. First, we introduce a model for estimating the population distribution from a single histogram, which may be regarded as a sufficient statistic for the data. Next, given multiple histograms, we propose a hierarchical model to estimate the population distribution for each histogram. This model allows for the possibility that two or more histograms were generated from a common distribution. In this way, we equivalently address the problem of clustering the underlying distributions which have generated the data binned into different histograms, or of assessing homogeneity between groups. We conclude the section with additional details relevant to the models. 
+
+2.1 Model for a Single Histogram 
+
+Suppose there exists a vector y = ( y1, . . . , y n) containing observations such that yj | G iid 
+
+∼ G for 
+
+j = 1 , . . . , n , where G is an unknown cumulative distribution function (CDF) that we wish to estimate. However, in many cases the individual values in y are unobserved, and only bin counts are available. Define a histogram H = ( τ , v), where τ is a vector of bin boundaries that partitions R, with 
+
+τm−1 < τ m for all m = 1 , . . . , M . For convenience, let τ0 ≡ −∞ and τM ≡ ∞ . Using I(·) as the indicator function, define 
+
+vm =
+
+> n
+
+X
+
+> j=1
+
+I τm−1 < y j ≤ τm
+
+, for m = 1 , . . . , M, 
+
+where vm represents the number of observations contained in the mth bin. Without loss of generality, 4we construct the bins such that v1 = 0 and vM = 0, and denote the vector of bin counts as 
+
+v = (0 , v 2, v 3, . . . , v M −1, 0) .
+
+Thus, H is fully specified by τ and v. In this work, given y, we treat τ as fixed and known, with 
+
+τ1 < min {y} and τM −1 > max {y}.Some additional notation is required before defining the model. Let K be a random positive integer representing the number of components in the mixture model we introduce below. Let 
+
+w denote a probability vector of length K, satisfying the constraints wk ≥ 0 and PKk=1 wk = 1. Similarly, let p be a probability vector of length M , with pm ≥ 0 and PMm=1 pm = 1. Finally, let Φ( · | μ, σ 2) denote the CDF of the Normal distribution with mean μ and variance σ2.Our proposed model for histograms is: 
+
+v | p ∼ Multinomial ( n, p)
+
+pm = ˜G(τm) − ˜G(τm−1) for m = 1 , . . . , M 
+
+˜G(·) = 
+
+> K
+
+X
+
+> k=1
+
+wkΦ   · | μk, σ 2
+
+> k
+
+
+
+K ∼ Discrete distribution on N+
+
+w | K ∼ Dirichlet ( γ, . . . , γ )
+
+μ1, . . . , μ K | K ∼ Continuous distribution on RK ,
+
+and such that μ1 < μ 2 < . . . < μ K
+
+σ2 
+
+> k
+
+| K iid 
+
+∼ Continuous distribution on R+
+
+, for k = 1 , . . . , K. 
+
+(1) We include a few clarifying remarks about the model. First, τ is fixed and known; in general, no constraints on equal bin widths are required. Second, the mixture distribution ˜G is defined using Gaussian kernels, although this assumption could be relaxed if desired. We note that ˜G is how the true underlying G is modeled, and that ˜G is deterministic given K, w, μ, and σ2 . Finally, specific priors for K, {μk} | K, and {σ2
+
+> k
+
+} | K are not given here; however, when needed, these distributions are defined in the simulation studies and applications. This model is highly flexible and, depending on the prior placed on K, may be viewed as a mixture of mixtures (MFM; Miller and Harrison, 2018). It is worth mentioning that our MFM type approach can be easily replaced by alternative ways to construct the weights, such as stick-breaking priors (Ishwaran and James, 2001), or any other suitable nonparametric mixture. Our choice here is motivated by the good properties of MFMs and by the ease of implementation. Later in the paper, we show that under suitable regularity conditions, the posterior of ˜G converges to G (i.e., is consistent in n and M ) for a broad class of distributions, G.52.2 Posterior consistency of the binned density estimator 
+
+We now study the consistency of a “binned” density estimator obtained from the posterior of model (1) . Let M = Mn be the number of bins; for m = 1 , . . . , M , let ℓm = τm − τm−1 the length of the 
+
+m-th bin. The binned density is 
+
+gb(x) = 
+
+> M
+
+X
+
+> m=1
+
+pm
+
+ℓm
+
+1(τm−1 < x ≤ τm).
+
+Assume now that the unobserved data Y1, . . . , Y n are i.i.d. from a true density g∗. Without loss of generality, we assume that g∗ is supported on [0 , 1]. The Hellinger distance between two densities 
+
+g1 and g2 on [0 , 1] is denoted by 
+
+h2(g1, g 2) = 12
+
+Z 10
+
+p g1(x) − pg2(x)
+
+2
+
+dx. 
+
+The next theorem establishes a quantitative consistency result for the posterior of gb at g∗. To this end, we assume the following conditions hold: 1. The true density g∗ is β-H¨ older continuous on [0 , 1], for some β > 0, and there exist constants 0 < c − < c + < ∞ such that c− ≤ g∗(x) ≤ c+ for every x ∈ [0 , 1]. 2. The binning refines with n and is uniform, that is, τm = m/M n for m = 0 , . . . , M n, and 
+
+Mn ≍
+
+ n
+
+log n
+
+1/(2 s+1) 
+
+.
+
+3. In model (1), the prior on K has unbounded support and there exists CK < ∞ such that Π( K = k) ≥ exp( −CK k log k)for all sufficiently large k. Conditional on K, the ordered means are the order statistics of K
+
+i.i.d. draws from a density gμ such that gμ is bounded away from zero on an open interval containing [0 , 1]. Finally, if σk denotes the component standard deviation, the prior for σk
+
+satisfies, for some constants cσ > 0, rσ > 0, and σ0 > 0, Πσ([ t, 2t]) ≥ cσtrσ
+
+for every 0 < t < σ 0.
+
+Theorem 1. Under the assumptions above, there exists A < ∞ such that 
+
+Π h(gb, g ∗) > A 
+
+ log nn
+
+s/ (2 s+1) 
+
+| v
+
+!
+
+→ 0
+
+in Pg∗ -probability. 
+
+6The proof of Theorem 1 (see the Appendix) is based on an application of the general theory of posterior convergence for non-i.i.d. data from Ghosal and van der Vaart (2007). This is needed because the sequence of multinomial experiments induced by the refining partitions forms a triangular array. The theorem is stated for the binned density gb, rather than for the random mixture density underlying eG. This distinction is important because the likelihood depends on the density only through the bin probabilities p1, . . . , p M . Therefore, the data cannot distinguish between two densities with the same bin masses but different behavior inside the bins. Without additional assumptions preventing oscillations below the bin width, Hellinger contraction of the random density itself need not follow from binned data. 
+
+2.3 Model for Multiple Histograms 
+
+The ideas underlying our proposed hierarchical model are, in some respects, comparable to the nested DP described in Rodriguez et al. (2008) and the hierarchical DP in Teh et al. (2006). However, in our model, the underlying items being clustered are discrete counts rather than individual observations. Suppose we have N histograms indexed by i = 1 , . . . , N . Let yi = ( yi, 1, . . . , y i,n i ) denote the data vector underlying the ith histogram, where ni is the length of that vector. We assume that 
+
+yi,j | Gi iid 
+
+∼ Gi, for j = 1 , . . . , n i,
+
+where Gi is the CDF of an unknown continuous distribution that we want to estimate. Let Mi denote the number of bins in the ith histogram. Define τi = ( τi, 0, . . . , τ i,M i ) to be the corresponding bin boundaries, where τi,m −1 < τ i,m for all m = 1 , . . . , M i. For convenience, let 
+
+τi, 0 ≡ −∞ and τi,M i ≡ ∞ . Additionally, define 
+
+vi,m =
+
+> ni
+
+X
+
+> j=1
+
+I τi,m −1 < y i,j ≤ τi,m 
+
+, for m = 1 , . . . , M i,
+
+so that vi,m is the number of observations contained in the mth bin of the ith histogram. Without loss of generality, we construct the bins such that vi, 1 = 0 and vi,M i = 0, and write 
+
+vi := (0 , v i, 2, v i, 3, . . . , v i,M i−1, 0) .
+
+We denote the ith histogram by Hi, which is fully specified by vi and τi. Again, we treat τi | yi as fixed and known. For notation, let Ki be a random positive integer representing the number of components in the 
+
+ith mixture model. Let wi be a probability vector of length Ki with elements wi,k for k = 1 , . . . , K i,satisfying the constraints wi,k ≥ 0 and PKi 
+
+> k=1
+
+wi,k = 1. Similarly, let pi be a probability vector of length Mi with elements pi,m for m = 1 , . . . , M i, such that pi,m ≥ 0 and PMi 
+
+> m=1
+
+pi,m = 1. 7The model, in hierarchical form, is: 
+
+vi | pi ind 
+
+∼ Multinomial ( ni, pi) for i = 1 , 2, . . . , N pi,m = ˜Gi(τi,m ) − ˜Gi(τi,m −1) for m = 1 , . . . , M i
+
+˜Gi(·) = 
+
+> Ki
+
+X
+
+> k=1
+
+wi,k Φ   · | μi,k , σ 2
+
+> i,k
+
+ Ki, wi, μi, σ2
+
+> i
+
+ | F iid 
+
+∼ FF | α, η ∼ DP (α, Q η)
+
+α ∼ Continuous Distribution on R+
+
+Qη = p(K⋆) p(w⋆ | K⋆) p(μ⋆ | K⋆) p(σ2⋆ | K⋆)
+
+K⋆ ∼ Discrete distribution on N+
+
+w⋆ | K⋆ ∼ Dirichlet (1 /K ⋆, . . . , 1/K ⋆)
+
+μ⋆
+
+> 1
+
+, . . . , μ ⋆K⋆ | K⋆ ∼ Continuous distribution on RK⋆
+
+,
+
+and such that μ⋆ 
+
+> 1
+
+< μ ⋆ 
+
+> 2
+
+< . . . < μ ⋆K⋆
+
+σ2⋆k | K⋆ iid 
+
+∼ Continuous distribution on R+
+
+, for k = 1 , . . . , K ⋆,
+
+(2) where η is a vector of parameters containing K⋆, w⋆, μ⋆, and σ2⋆k . The baseline distribution Qη,adopted when defining model (2) , has the MFM form and extends the model for a single histogram. In other words, data from each individual histogram arises marginally from a distribution that behaves exactly as in (1). This model, through the Dirichlet process, allows two (or more) distinct histograms, Hi and Hj ,to share the same underlying distribution, such that ˜Gi = ˜Gj . We demonstrate the capabilities of this model through simulation studies and an application. 
+
+2.4 Centering and Scaling Histograms 
+
+As a practical consideration, we conclude that the model is more manageable and that posterior sampling exhibits better mixing when the data are centered and scaled. The models and accom-panying theory remain unchanged regardless of whether centering and scaling are applied. The primary difference is that centering and scaling facilitate more standardized priors and proposal distributions, leading to improved mixing in the MCMC implementation. When individual observations are available, centering and scaling are straightforward. However, additional details must be specified when working with histogram data. We do not claim that the approach described here is optimal in any sense, but we find it intuitive and easily reversible after model fitting. Our centering and scaling procedure for a given histogram is as follows: 1. Compute the midpoint of each bin with positive counts. 2. Convert each count into an equivalent number of pseudo-observations, each taking the value of the corresponding bin midpoint. 8Algorithm 1 MCMC Sampling for a Single Histogram 
+
+Require: Histogram bin counts v, bin boundaries τ , number of posterior samples T , tuning parameters ( γw, γμ, γσ), and a pmf on K. 
+
+> 1:
+
+Initialization: Select initial values for the parameters K, w, μ, and σ2 such that 
+
+p(K, w, μ, σ2 | v, τ ) > 0.  
+
+> 2:
+
+for t = 1 to T do  
+
+> 3:
+
+Update w: Metropolis-Hastings (M-H) proposal w∗ ∼ Dirichlet( γw w(t−1) ).  
+
+> 4:
+
+Update μ: This is a M-H step using proposal μ∗ ∼ N (μ(t−1) , γ μ Ik).  
+
+> 5:
+
+Update σ2: This is a M-H step using proposal 1 /σ2∗ ∼ N (1 /σ2( t−1) , γ σ Ik).  
+
+> 6:
+
+Propose a Split or a Merge: Proposals are the same as in R&G, with acceptance probabilities defined in (11) of R&G with one caveat: Palloc ≡ 1, since histogram bins are not assigned to specific components.  
+
+> 7:
+
+Propose a Birth or a Death: Proposals are the same as in R&G, with acceptance probabilities defined in (12) of R&G with two caveats: we consider all components to be empty and include the likelihoods (proposed/current) into the ratio.  
+
+> 8:
+
+end for 
+
+3. Compute the mean μ† and standard deviation σ† of these pseudo-observations. 4. Construct new bin boundaries τ † 
+
+> m
+
+= ( τm − μ†)/σ † for m = 0 , 1, . . . , M . The bin counts v
+
+remain unchanged. To reverse the centering and scaling, one simply evaluates ˜G (x − μ†)/σ † from the model in (1). When comparing multiple histograms using the model in (2) , a practical approach is to aggregate all pseudo-observations and compute common centering and scaling parameters, μ† and σ†, across all histograms. 
+
+# 3 Posterior Sampling 
+
+In this section we detail the Markov chain Monte Carlo implementation for the models specified in (1) and (2). 
+
+3.1 Posterior Sampling for a Single Histogram 
+
+One challenge in implementing this model is that allowing the number of components K to vary changes the dimensionality of the parameter vectors w, μ, and σ2. To account for this, we employ the Reversible Jump MCMC algorithm described in Richardson and Green (1997) (R&G) for finite Gaussian mixture models. With minor modifications to account for the absence of individual-level observations, we closely follow R&G’s approach. The resulting MCMC sampling scheme is outlined in Algorithm 1. Each iteration consists of updating the parameters w, μ, and σ2, followed by proposals which influence K: to split or merge mixture components followed by a birth or a death of a mixture component. Note that the normal proposal distributions in Algorithm 1 are parameterized using a precision matrix, we follow that same convention through the remainder of the article. 9A few notes regarding the MCMC sampling scheme. We must make a few adjustments to the R&G’s approach since we don’t assign individual observations to a mixture component. The modifications are: First, when updating the component parameters we don’t have conjugacy so we use Metropolis and Metropolis-Hastings steps. Next, in the merge-split step, the term Palloc in R&G’s (11) doesn’t exist in our formulation (therefore it is set to 1). Finally, in the birth-death step there is no concept of empty components, thus in R&G’s (12) we include the likelihood ratio, since it no longer cancels, additionally, we set the number of empty clusters ( k0) to be the current number of components. 
+
+3.2 For Multiple Histograms 
+
+When considering multiple histograms, we model each individually while also allowing for common ˜G using the Dirichlet process (DP). The DP induces a partition of the N histograms and we denote the cluster label of the ith histogram to be ci, and c as the vector of all cluster labels. To account for the fact that different cluster label vectors may represent the same partition, we restrict c to be in canonical form, in which, it uniquely represents a partition using cluster-label notation. We adopt the following canonical labeling of a partition. The first item is assigned to cluster 1. For each subsequent item, its cluster label is chosen as the smallest positive integer consistent with the existing partition: it is assigned label 1 if it belongs to the same cluster as item 1; otherwise, it may be assigned label 2, and so on, creating a new label only when the item does not belong to any previously formed cluster. In this way, if the partition contains J clusters, each cluster label 
+
+cj ∈ { 1, 2, . . . , J }.Since our approach to clustering histograms is standard, we can use common MCMC approaches at the partition level of the model. We reference the Chinese Restaurant Process (CRP; see Pitman, 1996) and its probability mass function (pmf) to ensure we have valid initial values for c and α. For posterior sampling of c, we use the standard one-at-a-time updates of Neal’s Algorithm 8 (Neal, 2000). The details of our MCMC scheme are outlined in Algorithm 2. 
+
+# 4 Simulations 
+
+In this section we conduct simulation studies for the proposed models. Before considering each model we outline some common details for all of the simulations. To generate a histogram from sampled data we do the following: First, sample the appropriate distribution. Next, two small amounts of random noise (both iid from a U(0 , 0.1)) are subtracted from and added to the minimum and the maximum observations, respectively. The resultant quantities are used to define τ1 and τM −1 respectively. The remaining bin boundaries are then equally spaced between τ1 and τM −1.For posterior sampling in each scenario we obtain 200,000 draws from the posterior distribution. For burn-in we discard the first half of the chain, and for thinning we keep every 10th draw. The resulting number of posterior samples is 10,000. 10 Algorithm 2 MCMC Sampling for Multiple Histograms 
+
+Require: For i = 1 , . . . , N , histogram bin counts vi, bin boundaries τi, number of posterior samples 
+
+T , tuning parameters ( γw, γμ, γσ), m (a tuning parameter in Neal’s Algorithm 8), common pmf for all Ki, prior distributions for α, K⋆, w⋆ | K⋆, μ⋆ | K⋆, and σ2⋆ | K⋆. 
+
+> 1:
+
+Initialization: For i = 1 , . . . , N , select values for ci, Ki, wi, μi, σ2 
+
+> i
+
+, and α such that 
+
+p(Ki, wi, μi, σ2 
+
+> i
+
+| vi, τi) > 0, c in canonical form such that ci = cn if and only if Ki = Kn,
+
+wi = wn, μi = μn, and σ2 
+
+> i
+
+= σ2
+
+> n
+
+, and pcrp (α, c) > 0, where pcrp is the pmf of the CRP.  
+
+> 2:
+
+for t = 1 to T do  
+
+> 3:
+
+Update α(t): We use the augmentation method of Escobar and West (1995).  
+
+> 4:
+
+for i = 1 to N do  
+
+> 5:
+
+Update c(t) 
+
+> i
+
+using Neal’s Algorithm 8. Note: the proposed m clusters have associated parameter values drawn from Qη, i.e., the distributions for K⋆, w⋆ | K⋆, μ⋆ | K⋆, and 
+
+σ2⋆ | K⋆. 
+
+> 6:
+
+Put c(t) into canonical form.  
+
+> 7:
+
+end for  
+
+> 8:
+
+for l = 1 to L(t) do (where L(t) is the number of clusters defined by c(t))Note: likelihoods in this loop consist of all histograms with cluster label l. 
+
+> 9:
+
+Simultaneously simulate w(t) 
+
+> i
+
+for all i ∈ { 1, . . . , N } such that c(t) 
+
+> i
+
+= l. This is a Metropolis-Hastings step with proposal w∗ 
+
+> i
+
+∼ Dirichlet( γw w(t−1)  
+
+> i
+
+).  
+
+> 10:
+
+Simultaneously simulate μ(t) 
+
+> i
+
+for all i ∈ { 1, . . . , N } such that c(t) 
+
+> i
+
+= l. This is a Metropolis step using proposal μ∗ 
+
+> i
+
+∼ N (μ(t−1)  
+
+> i
+
+, γ μIk).  
+
+> 11:
+
+Simultaneously simulate σ2 for all i ∈ { 1, . . . , N } such that c(t) 
+
+> i
+
+= l. This is a Metropolis step using proposal 1 /σ2∗ 
+
+> i
+
+∼ N (1 /σ2( t−1)  
+
+> i
+
+, γ σIk).  
+
+> 12:
+
+Propose a Split or a Merge: For ˜Gl, propose a split or merge for one of its mixture components as described in R&G, with acceptance probabilities given in (11) of R&G, with one caveat: Palloc ≡ 1, since histogram bins are not assigned to specific components. If a split or a merge was accepted, update all K(t) 
+
+> i
+
+, w(t) 
+
+> i
+
+, μ(t) 
+
+> i
+
+, σ2( t) 
+
+> i
+
+for all i ∈ { 1, . . . , N }
+
+such that c(t) 
+
+> i
+
+= l. 
+
+> 13:
+
+Propose a Birth or a Death: For the histogram associated with cluster label l,propose the birth or a death of a mixture component as described in R&G, with acceptance probabilities defined in (12) of R&G with two caveats: we consider all components to be empty and include the likelihood (proposed/current) into the ratio. If a birth or a death was accepted, update all K(t) 
+
+> i
+
+, w(t) 
+
+> i
+
+, μ(t) 
+
+> i
+
+, σ2( t) 
+
+> i
+
+for all i ∈ { 1, . . . , N }
+
+such that c(t) 
+
+> i
+
+= l. 
+
+> 14:
+
+end for  
+
+> 15:
+
+end for 
+
+4.1 For a Single Histogram 
+
+To demonstrate the properties of our method we considered the well known galaxy dataset (Postman et al., 1986; Roeder, 1990). After centering and scaling the data, we construct a plausible mixture of four normal distributions which could have generated the data and which we use as the “true” 11 distribution for the simulations in this section. This contrived CDF is: 
+
+F (x) = 782 Φ
+
+ x + 2 .436 0.1
+
+
+
++ 13 82 Φ
+
+ x + 0 .25 0.1
+
+
+
++59 82 Φ
+
+ x − 0.35 0.5
+
+
+
++ 382 Φ
+
+ x − 2.677 0.25 
+
+
+
+,
+
+(3) where Φ( ·) is the CDF of the standard normal distribution. The following priors were used for the simulations in Section 4.1. 
+
+K ∼ Geometric(0 .15) × I (1 ≤ K ≤ 30) 
+
+w | K ∼ Dirichlet(1 , . . . , 1) 
+
+μ | K ∼ Normal ( 0, 0.01 × IK ) × I( μ1 < μ 2 < · · · < μ K )1/σ 2 
+
+> k
+
+| K iid 
+
+∼ Gamma(1 , 0.01) for k = 1 , . . . , K. 
+
+We specified the prior on K to roughly approximate the average number of clusters for the CRP with mass parameter set to 1. The other priors were chosen to be sufficiently diffuse for these scenarios and are dependent on the assumption that the data are roughly centered and scaled. The computations in this article were accomplished on a Linux server with 2 Intel Xeon 6787P processors with a total of 503GB of RAM. In this first simulation we assumed several sample sizes and number of possible bins and determine how close we estimate the truth using the model in (1) . To determine “closeness” between two measures ν1 and ν2 we use the Wasserstein-1 distance which can be defined in a one dimensional setting as: 
+
+W1(ν1, ν 2) = 
+
+Z ∞−∞ 
+
+F1(x) − F2(x) dx (4) (Vallender, 1974), where F1 and F2 are the respective CDFs. Additionally, the chosen sample sizes were 100, 200, 400, 800, 1600, 3200, and 6400. The number of bins varied from 5 to 50 by increments of 5. For each of these samples sizes and number of bins, 30 datasets were randomly generated. For each dataset a model was fit, and the average posterior CDF was calculated from the posterior samples. Specifically, each posterior draw produced a mixture distribution with an associated CDF, and all posterior CDFs were averaged to estimate the mean posterior CDF. Using this mean posterior CDF, the Wasserstein distance was calculated with respect to the true data generating distribution given in (3) . The average distance for the 30 replications of each sample size and number of bins represents a single point in the following plots. Figure 1 shows the results of the simulation. For a fixed sample size, the average distance from the true CDF initially decreases from 5 bins to 10 bins, and from 10 bins to 15 bins. However, after increasing the number of bins to 25 or 30, the average distance from the truth doesn’t show meaningful improvement. The plot also shows that as the sample size increases, the distance from the truth decreases (as one might expect). Thus more data appears to produce a better mixture model density estimate. 12 0.1 0.2     
+
+> 10 20 30 40 50
+> Number of Bins (M)
+> Wasserstein−1 Distance
+> Sample Size (n)
+> 100
+> 200
+> 400
+> 800
+> 1600
+> 3200
+> 6400
+
+Figure 1: The results of a simulation study which varied the sample size and number of bins. The results are compared with the Wasserstein’s distance from the true data generating distribution. It is evident that a higher number of samples improves performance and, to a point, more bins also produces better performance. 
+
+The same simulation results are shown in Figure 2 with the lines and x-axis changing roles. From this view, we see that the performance of 5 bins is quite bad, but as the number of bins increases, the performance stabilizes. It is difficult to distinguish any meaningful difference in the performance between bin sizes of 25-50. 0.1 0.2    
+
+> 02000 4000 6000
+> Sample Size (n)
+> Wasserstein−1 Distance
+> Number of Bins (M)
+> 5
+> 10
+> 15
+> 20
+> 25
+> 30
+> 35
+> 40
+> 45
+> 50
+
+Figure 2: Similar to Figure 1, this plot shows that using more bins allows for improved performance with larger samples. With a large number of samples, the performance of 25-50 bins is difficult to distinguish. 
+
+The results of this simulation study indicate that the model appears to be consistent (as shown in Section 2.2) as the number of samples and bins increase. Additionally, from a practical perspective, the number of bins has a significant effect on the model’s accuracy for a given sample size. 
+
+4.1.1 Comparison with the DPM Model 
+
+In this section we compare our model with the traditional Dirichlet process mixture (DPM) model to the original data. This is an interesting comparison in that our model and the DPM model are very similar. The primary difference is that the DPM model uses all the data, whereas our proposed model only uses the binned data. Using our model, we demonstrate how the computational time 13 scales much better (in n) than the DPM, and that the loss of accuracy can be minimal. To date, fitting a DPM to a very large dataset is not computationally feasible. However, our method scales extremely well with sample size. Using the previous simulation scenario, we compared our method to a DPM model analyzing the same (but unbinned) data using the BNPmix R package (Corradin et al., 2021). Again, using 30 replicates for each sample size we plot the averaged results. The timing numbers are shown in Figure 3. One can observe with each horizontal dashed line, that as the number of samples increases, the computational time for the DPM model steadily moves up. The computational time of our method, shown in solid lines, appears very similar for each of the four sample sizes. However, the computational time of our method increases, but only as a function of the number of bins, as shown by the increasing slope of the solid lines. It is important to note that, in this case, the computational speed of our method does not appear to be meaningfully affected by the sample size. 10 20 30      
+
+> 10 20 30 40 50
+> Number of Bins (M)
+> CPU Time (in minutes)
+> Sample Size (n)
+> 800
+> 1600
+> 3200
+> 6400
+> Figure 3: Timing comparisons with the DPM at four different sample sizes. As the number of samples goes up the DPM’s computation increases (dashed lines), however, our method is nearly invariant to the sample size, but its computation time increases as the number of bins increases (solid lines).
+
+Although the timing numbers look promising, the model accuracy is also of prime consideration. Figure 4 shows the accuracy of our model (solid lines) compared with the DPM model. It is clear, as long as there are a sufficient number of samples and bins, the accuracy of our model is not an issue. And under certain conditions, it appears to have similar accuracy as the DPM model (dashed lines). Figure 4 clearly shows that using a sufficient number of bins is important to model behavior, but in this example, the gains in accuracy tail off after using 30 or more bins when the sample size is sufficiently large. 
+
+4.1.2 Misspecified Comparison with the DPM Model 
+
+In the previous simulations the “true” model was assumed to be a mixture of Gaussian kernels. In these simulations we explore the effect of modeling a mixture distribution using a mixture of non-Gaussian kernels. The “true” model is assumed to have a density of: 
+
+f (x) = .4 × Gamma (x + 5 , 6, 3) + .2 × t(x, 5) + .4 × t(x − 4, 3) .
+
+14 0.02 0.03 0.04 0.05 0.06 0.07     
+
+> 10 20 30 40 50
+> Number of Bins (M)
+> Wasserstein−1 Distance
+> Sample Size (n)
+> 800
+> 1600
+> 3200
+> 6400
+
+Figure 4: Comparisons of accuracy with the DPM model (dashed lines) at four different sample sizes. Clearly with sufficient data and number of bins our method (solid lines) achieves the accuracy of the DPM model. 
+
+Using this model as the data generating distribution, the model in (1) is now misspecified in the kernel. We consider the same comparisons with the DPM as in Section 4.1.1. Figure 5 shows that the sample size now appears to play a role in the computation time. As the bins increase we see a separation of the solid lines. A major factor in this phenomenon is that, as the sample size n
+
+increases, more mixture components K are needed to better describe the asymmetry and the thicker tails of the “true” model. So although the sample size influences the computation time for our proposed model, the primary factor in computing time is still the number of bins. We also notice that for the sample sizes of 3200 and 6400, the computation times for the DPM have noticeably increased (compared to Figure 3). 025 50 75     
+
+> 10 20 30 40 50
+> Number of Bins (M)
+> CPU Time (in minutes)
+> Sample Size (n)
+> 800
+> 1600
+> 3200
+> 6400
+
+Figure 5: Timing comparisons with the DPM for the misspecified case using four different sample sizes. Clearly as the number of samples goes up the computation time (in minutes) for the DPM increases, however, our method is somewhat invariant to the sample size, but its computation slows as the number of bins increase. 
+
+In regards to accuracy with a misspecified kernel in the model, our model’s accuracy is slower to match the accuracy of the DPM. This is shown in Figure 6. So while the solid lines are approaching 15 the dashed lines (of similar colors), they do not match as closely as with the case of the correctly specified kernels. 0.0 0.1 0.2 0.3      
+
+> 10 20 30 40 50
+> Number of Bins (M)
+> Wasserstein−1 Distance
+> Sample Size (n)
+> 800
+> 1600
+> 3200
+> 6400
+> Figure 6: Comparisons of accuracy with the DPM model for the misspecified case using four different sample sizes. Clearly with sufficient data and number of bins our method begins to match the accuracy of the DPM model.
+
+4.2 Clustering Multiple Histograms 
+
+We evaluate the performance of the hierarchical model in (2) for clustering multiple histograms. The primary objectives of this simulation are to assess the model’s ability to recover the true clustering structure while simultaneously estimating the underlying population distributions. We expect the model performance to primarily be a function of three things: the sample size, the number of bins, the number of histograms being clustered. Generally, computation time will slow as these quantities increase, but the accuracy should improve. The following metrics provide a meaningful way to assess model performance. To determine how well the model estimates the density for a given histogram we again consider the Wasserstein-1 distance, as defined in (4) . To measure how well the model clusters similar histograms, we use the adjusted Rand index (ARI) (Hubert and Arabie 1985). The ARI determines the similarity of two given partitions, with values ranging between -1 and 1, with a value of 1 denoting two identical partitions. An ARI value of 0 suggests partition agreement equivalent to random assignment. In our simulation scenario we consider 100 histograms. The goal is to model their underlying generating densities and determine if any histograms are generated from the same population, by clustering them together. Each true population density is the mixture of two normal distributions 16 as follows: 
+
+F1(x) = 0 .4 Φ 
+
+ x + 1 0.8
+
+
+
++ 0 .6 Φ 
+
+ x − 10.8
+
+
+
+,F2(x) = 0 .6 Φ 
+
+ x + 1 0.8
+
+
+
++ 0 .4 Φ 
+
+ x − 10.8
+
+
+
+,F3(x) = 0 .5 Φ ( x − 1) + 0 .5 Φ ( x − 3) ,F4(x) = 0 .5 Φ ( x + 1) + 0 .5 Φ ( x + 3) .
+
+(5) The simulation is designed by generating 10 histograms from Population 1 (i.e., F1(x) in (5) ), 40 histograms from Populations 2 and 4 and the final 10 histograms from Population 3. The densities for these populations are shown in Figure 7. Here we specify the choices of the priors and hyperparameters for the model in (2) for this simulation study. They are: 
+
+α ∼ Gamma(2 , 4) 
+
+K⋆ ∼ Geometric(0 .5) × I (1 ≤ K⋆ ≤ 45) 
+
+w⋆ | K⋆ ∼ Dirichlet(1 , . . . , 1) 
+
+μ⋆ | K⋆ ∼ Normal ( 0, 0.01 IK⋆ ) × I( μ⋆ 
+
+> 1
+
+< μ ⋆ 
+
+> 2
+
+< · · · < μ ⋆K⋆ )1/σ 2⋆k | K⋆ iid 
+
+∼ Gamma(1 , 0.01) for k = 1 , . . . , K ⋆.−6 −4 −2 0 2 4 60.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35                   
+
+> Population 1's Density
+> −6 −4 −2 0246
+> Population 2's Density
+> −6 −4 −2 0246
+> Population 3's Density
+> −6 −4 −2 0246
+> Population 4's Density
+
+Figure 7: The four distributions which generated the data for this simulation study. 
+
+We specified 7 sample sizes and number of bins configurations, each defining a separate row in Table 1. On average, we expect the model accuracy to improve as both the number of bins and sample size increases. For each sample size and number of bin configurations we ran the model 30 times and took the mean of the results. The four center columns in Table 1 show the mean Wasserstein-1 distance for each histogram’s posterior mean CDF estimate to its true generating CDF. As expected, the distance to the true distributions generally decrease with more samples and more bins. Additionally, the populations that have 40 histograms associated (versus 10) appear to have smaller distances to the truth, which we attribute to more sharing of information within a cluster. In the second to last column we consider the ARI between the random partition induced by sampling from a DP in (2) and the 17 Table 1: The results from simulating each cell 30 times and taking the mean values. As can be seen, the distance from the true distribution decreases for each population as the sample size and the number of bins increases. Also, the clustering of like populations improves with an increase of sample size and number of bins as demonstrated with the mean adjusted Rand index (ARI). 
+
+Wasserstein-1 Distance Mean Sample Number Population: Posterior Time Size of Bins 1 2 3 4 ARI (hours) 100 10 0.297 0.078 0.083 0.078 0.847 8.4 100 15 0.247 0.091 0.080 0.078 0.877 9.3 1,000 15 0.012 0.007 0.015 0.008 1.000 11.9 1,000 20 0.012 0.006 0.014 0.008 1.000 15.8 10,000 20 0.010 0.012 0.010 0.011 0.999 44.1 10,000 25 0.014 0.013 0.013 0.015 1.000 61.2 10,0000 25 0.009 0.008 0.009 0.009 0.982 70.1 true clustering (the 4 population clusters). The mean posterior ARI is shown, and it also typically improves with more samples and more bins. The mean time to sample from the posterior is given in the last column of Table 1. The results from this simulation study demonstrate that the proposed framework effectively clusters histogram-valued data while recovering the underlying distributions. The Dirichlet process prior facilitates information sharing across histograms, and in principle, improves performance over considering each histogram in isolation. As demonstrated, the method is robust to heterogeneous binning boundaries, making it suitable for applications involving aggregated data. 
+
+# 5 Applications 
+
+In this section we demonstrate our method in two scenarios. In the first, we consider modeling the density of only one histogram, but with a large amount of data. The second application considers many histograms in which we estimate the population density and, in the hierarchical fashion of the model in (2), allow some sharing of estimated population densities among the histograms. These two applications demonstrate the usefulness of the models in (1) and (2) proposed in this paper. 
+
+5.1 U.S. Airline Flight Times 
+
+The U.S. Bureau of Transportation Statistics (BTS) publishes monthly data which tracks the flight time for all domestic flights in the United States. We consider a four month window from January to April 2025. As one might imagine, there are many domestic U.S. flights in one month. During this four month time-frame there were roughly 2.23 million flights, of which roughly 2.19 million have a recorded flight time. These flight times are recorded in whole minutes. The flights ranged in length from 8 minutes to 715 minutes. A barchart of the flights times less than 350 minutes is shown in Figure 8 with thin black vertical lines. One can see from this plot, these flight times are multi-modal and skewed to the right. 18 To model the density of these flight times using the traditional DPM model is very time consuming. However, using our method, we can fit an accurate mixture model to these data in a reasonably fast time. This application demonstrates our method’s ability to model a large amount of data using binning. We consider several versions of our model based on the number of bins to show the time and accuracy trade-off for more or fewer bins. We employ the model in (1) and the choices for distributions on K, w | K, μ | K, and σ2 | K are: 
+
+K ∼ Geometric(0 .5) × I (1 ≤ K ≤ 30) 
+
+w | K ∼ Dirichlet (1 /K, . . . , 1/K )
+
+μ | K ∼ Normal ( 0, 0.01 IK ) × I( μ1 < μ 2 < · · · < μ K )1/σ 2 
+
+> k
+
+| K iid 
+
+∼ Gamma(1 , 0.01) , for k = 1 , . . . , K. 
+
+(6) There are 680 unique flight time values, each recorded in whole minutes. Because we have the actual observations, we can experiment somewhat with accuracy and computational trade-offs. We consider five different size configurations for the bins τ . With no loss of data fidelity we start with 723 bins, then combining different values of observations 363 bins, 183 bins, 93 bins and finally 48 bins. For each scenario we specify τ as follows: 723 bins: τ = ( −∞ , −0.5, 0.5, 1.5, . . . , 718 .5, 719 .5, ∞),
+
+363 bins: τ = ( −∞ , −0.5, 1.5, 3.5, . . . , 717 .5, 719 .5, ∞),
+
+183 bins: τ = ( −∞ , −0.5, 3.5, 7.5, . . . , 715 .5, 719 .5, ∞),
+
+93 bins: τ = ( −∞ , −0.5, 7.5, 15 .5, . . . , 711 .5, 719 .5, ∞),
+
+48 bins: τ = ( −∞ , −0.5, 15 .5, 31 .5, . . . , 703 .5, 719 .5, ∞).
+
+The bin counts are computed for each τ . Following which, the τ vectors are then centered and scaled by subtracting 120 and dividing that result by 72. We ran 10 chains for each model. Similar to the simulations, for each chain we obtained 200,000 posterior draws, discarded half for burn-in, and then thinned by keeping every 100th sample. Combining the 10 chains resulted in 10,000 posterior samples. Some results for the model with 723 bins are displayed in Figure 8. The figure shows a barchart of the raw data in black (with flight times less than 350 minutes), plotted with 100 draws of the posterior mixture density in red lines. At a glance the model fits the data quite well, and captures the multimodal and skewed shape. As expected, some of the individual spikes are smoothed over. In Figure 9 we compare the mean posterior CDFs for the five different binning schemes with the posterior base measure of a DP fit directly to the data. In other words, xi | G iid 
+
+∼ G for 
+
+i ∈ { 1, . . . , 2188776 }, and G ∼ DP (α, G 0). The posterior of G | x is also a DP with base measure: 
+
+αG 0(t) + n ˆF (t)
+
+α + n ,
+
+19 0 50 100 150 200 250 300 350 0.000  0.002  0.004  0.006  0.008 
+
+Flight Times (in minutes) Density 
+
+Barchart of the data 100 posterior pdfs Figure 8: A comparison of a barchart of the flight times less than 350, in black, compared with 100 posterior draws of the fitted mixture model pdf (utilizing 723 bins), in red. 0 50 100 150 200 250 300 350 0.0  0.2  0.4  0.6  0.8  1.0 
+
+> Flight Time (in minutes) CDFs
+> DP base measure 48 bin model 93 bin model 183 bin model 363 bin model 723 bin model
+
+(a) CDF estimates of flight time data. 18 20 22 24 26 28 30 0.000  0.010  0.020  0.030  
+
+> Flight Time (in minutes) CDFs
+> DP base measure 48 bin model 93 bin model 183 bin model 363 bin model 723 bin model
+
+(b) Zoomed-in view of left plot. 
+
+Figure 9: Comparison of the DP posterior base measure to the mean posterior CDF using the model in (1) with 5 different bin sizes. In the left plot it appears that all the models are in fairly close agreement. The left plot is a zoomed-in view and shows some differences between the 5 models (in color), where the DP is in black. As the number of bins increases, the closer the models get to a smoothed version of the DP. 
+
+where we selected α = 1, G0(t) is the CDF of Gamma (1 , 1/55), n = 2 , 188 , 776, ˆF (t) is the empirical CDF, and t represents time in minutes. This comparison demonstrates that our model, across several possible binning schemes, can capture the behavior of the estimated distribution in a manner comparable to a largely empirical approach, while importantly providing a smooth estimate. It is difficult to detect any difference between the CDFs in Figure 9a, with the exception of some very slight bumps before time 50 (where a small mode exists). A zoomed-in version of the CDFs is displayed in Figure 9b. At this resolution, we can detect that the models with fewer bins have more difficulty capturing the more subtle behavior of the data. As the number of bins is increased the model accuracy also appears to improve. The remainder of the results are contained in Table 2. The average CPU time for each chain is reported along with the posterior mean of K and its standard deviation. We also aimed at 20 Table 2: Comparison of five different bin size configurations for the model in (1) and the DPM model for the U.S. flight time data. The CPU Time is the average minutes in CPU time used to compute 200,000 posterior samples (the lower bound for the DPM estimate is an extrapolation from only 1,000 samples). E[K] and SD( K) are the average number of posterior clusters and the standard deviation, respectively. 
+
+Number of Bins CPU Time (minutes) E[K] SD( K)48 47.9 17.7 2.1 93 102.7 21.6 2.6 183 200.8 23.3 2.2 363 403.0 24.6 3.2 723 719.2 22.6 2.4 
+
+∞ (DPM) >3,000 — —comparing with DPM model as we did for the simulated data. However, timing for the DPM model was difficult to estimate. When running 1,000 samples we measured a little over 1.5 seconds per MCMC iteration. However, the chains had not converged and the number of mixture components 
+
+K was lower than we’d expect—this has a dramatic effect on the timing. When trying to run more than 2,000 iterations, the software would crash due to memory problems. Therefore, the estimated CPU time for the DPM model is an underestimate. This is a clear example where the standard BNP approach has problems due to the large amount of data. However, our model does well, it includes uncertainty, and was computed in the range of 1 to 12 hours (depending on the number of bins). For timing considerations, it is important to note that the BNPmix package is using compiled code and our code is not. 
+
+5.2 U.S. COVID-19 Mortality Counts 
+
+The U.S. Center for Disease Control (CDC) published the COVID-19 mortality counts for each state. According to the CDC website, the data contain “deaths involving COVID-19, pneumonia, and influenza reported to [National Center for Health Statistics] by sex, age group, and jurisdiction of occurrence.” These data are totals from the beginning of the pandemic until September 27, 2023. They reported counts by state, age group, and sex in addition to other information. In total, there were more than 1.1 million deaths reported. We consider the following histograms. Mortality counts for the following age groups: 0-17 years, 18-29 years, 30-39 years, 40-49 years, 50-64 years, 65-74 years, 75-84 years, 85 years and over. Data were collected for all 50 U.S. states in addition to the District of Columbia, Puerto Rico, and New York City. In the data, there were 106 tables of mortality counts (53 geographical areas multiplied by 2, for females and males). For ease of terminology we will use the term state for the geographical regions although District of Columbia, Puerto Rico, and New York City are not U.S. states. It is of note that the CDC did not report mortality counts for a bin when numbers were below 10. However, we were able to solve for some missing values by deduction from the totals. For those that we could not ascertain, we combined bins and bin counts. This approach resulted in 94 state/sex groups having all 8 bins available, 11 groups having 7 bins, and 1 group with only 6 bins. Additionally, to better control behavior of the right tail of the mixture model we created a 21 somewhat arbitrary upper bound of age 100 for the 85 years and over bin. The resulting mixture models are somewhat sensitive to this choice, however, 100 seemed to be reasonable given that less than 0.03% of the U.S. population is older than 100 (Schaeffer, 2024). Bins for ages less than 0 and greater than 100 are forced to have counts of zero. For this application we used common centering and scaling constants for all histograms to ensure we didn’t degrade the model’s ability to detect differences in distributional shifts. Code for data preparation is available upon request. Although one could model the data only by state, we felt that sex was an important variable that should be used to better explain the data. Overall, the reported CDC mortality numbers were roughly 52K females and 63K males during that time-frame. Additionally, using the bin midpoints, the average age at death for females and males was 76.6 and 72.9 years old, respectively. With these differences in mind, it seemed appropriate to differentiate the data by sex. In this application N = 106, Mi = 8 for all state/sex groups except 12 (as described above). We apply the model given in (2) . Specific choices were made for several of the priors and hyperparameters: 
+
+α ∼ Gamma(2 , 4) 
+
+K⋆ ∼ Geometric(0 .9) × I (1 ≤ K⋆ ≤ 8) 
+
+w⋆ | K⋆ ∼ Dirichlet(1 , . . . , 1) 
+
+μ⋆ | K⋆ ∼ Normal ( 0, 0.01 IK⋆ ) × I( μ⋆ 
+
+> 1
+
+< μ ⋆ 
+
+> 2
+
+< · · · < μ ⋆K⋆ )1/σ 2⋆k | K⋆ iid 
+
+∼ Gamma(1 , 1) for k = 1 , . . . , K ⋆
+
+Since the max number of bins, with a non-zero count, is 8, we bound K⋆ in {1, 2, . . . , 8} to ensure there is at most 8 mixture components for every histogram, thus alleviating problems related to overfitting. To obtain 200,000 posterior samples for one chain it took an average of roughly 21 hours. Half the samples were discarded for burn-in, and for thinning, every 100th draw was kept. We ran 10 chains and obtained a total of 10,000 posterior samples. On average there were about 6 clusters in the posterior partition, with a min and a max of 4 and 8, respectively. We found a point estimate of the partition by using the default settings of salso 
+
+(Dahl et al., 2022). The resulting partition is shown in Figure 10 (one map is for female data and the other for male data). It was not practical to display the District of Columbia, New York City, and Puerto Rico on the maps, however, they were assigned to clusters: 2, 4, and 4 for females and 1, 2, and 2 for males, respectively (see the legend in Figure 10). It is clear from both maps that there are spatial relationships. Additionally, there are clear sex effects on mortality—no states have both females and males in the same cluster. 22 Female Mortality Clustering Cluster 123456Male Mortality Clustering Figure 10: COVID-19 mortality clustering by U.S. state and sex. There are clear spatial effects as well as differences in mortality by sex. No states have females and males in the same cluster. 0 20 40 60 80 100 
+
+> Age at COVID−19 Mortality
+> Cluster 1: mean mortality 70.7 Cluster 2: mean mortality 73.1 Cluster 3: mean mortality 74.8 Cluster 4: mean mortality 76.3 Cluster 5: mean mortality 77.6 Cluster 6: mean mortality 79.3
+
+Figure 11: Posterior mean density for each cluster (fixed at the salso estimate), as shown in Figure 10. The average age at mortality for each cluster is given in the legend. 
+
+Re-running the model with the partition fixed at the salso point estimate, we show the posterior mean mortality distributions for each of the six clusters in Figure 11. Together, Figures 10 and 11 show that COVID-19 mortality distributions have a substantial geographic effect as well as a strong sex effect. While it might be tempting to make broad statements on COVID-19 mortality over geography and sex, we highlight that age demographics of each state surely influence the results. Additionally, it is well known that in the U.S., females have a longer life expectancy than males (Murphy et al., 2024), so it is not surprising that for every state, the mortality distributions for females have a higher mean than those for males. 
+
+# 6 Discussion 
+
+This paper introduces two novel Bayesian mixture models designed for analyzing data available in binned or histogram form, a common scenario in applications involving privacy, summarization, or storage constraints. The proposed models fit a mixture distribution, with a focus on mixtures of 23 normal components, to approximate the underlying continuous density of the population. Additional innovations are the models’ ability to scale efficiently with the number of observations, offering a practical alternative to traditional Bayesian nonparametric methods such as Dirichlet process mixture models, which become computationally burdensome for large datasets. The models and analysis were restricted to the case of histograms arising from univariate data. Generalizations to higher dimensions (2 or 3) might be possible in practice, but the computations would become harder. We established theoretical support for the first model by proving consistency results under mild regularity conditions, ensuring that the inferred distribution converges to the true data-generating process as the sample size increases. The simulation studies further demonstrate the models’ performance in terms of both estimation accuracy and computational speed, comparing favorably with existing approaches. These experiments highlight the method’s scalability and robustness across a variety of scenarios. We conducted a simulation study to demonstrate some desirable properties of the second model. Additionally, we applied the second model to a COVID-19 mortality dataset composed of multiple histograms. By incorporating a Dirichlet process clustering mechanism, the model allowed for joint analysis of multiple populations, enabling information sharing and providing posterior probabilities for homogeneity across U.S. states and sexes. This application illustrates the practical utility of the approach in complex, real-data settings. Together, the theoretical guarantees, empirical performance, and real-world applicability make these models a compelling and scalable approach for density estimation and clustering of binned data. 
+
+# Acknowledgments 
+
+Fernando Quintana was partially funded by ANID through the FONDECYT Regular project 1260012. 
+
+# References 
+
+Alston, C. L. and Mengersen, K. L. (2010). Allowing for the effect of data binning in a Bayesian normal mixture model. Computational Statistics and Data Analysis , 54(4):916–923. Argiento, R., Cremaschi, A., and Vannucci, M. (2020). Hierarchical normalized completely random measures to cluster grouped data. Journal of the American Statistical Association , 115(529):318– 333. Beraha, M., Guglielmi, A., and Quintana, F. A. (2021). The semi-hierarchical Dirichlet process and its application to clustering homogeneous distributions. Bayesian Analysis , 16(4):1187–1219. Billard, L. and Kim, J. (2017). Hierarchical clustering for histogram data. Wiley Interdisciplinary Reviews: Computational Statistics , 9(5):e1405. 24 Canale, A. and Dunson, D. B. (2011). Bayesian kernel mixtures for counts. Journal of the American Statistical Association , 106(496):1528–1539. Corradin, R., Canale, A., and Nipoti, B. (2021). BNPmix: An R package for Bayesian nonparametric modeling via Pitman-Yor mixtures. Journal of Statistical Software , 100(15):1–33. Dahl, D. B., Johnson, D. J., and M¨ uller, P. (2022). Search algorithms and loss functions for Bayesian clustering. Journal of Computational and Graphical Statistics , 31(4):1189–1201. Denti, F., Camerlenghi, F., Guindani, M., and Mira, A. (2023). A common atoms model for the bayesian nonparametric analysis of nested data. Journal of the American Statistical Association ,118(541):405–416. Duan, Y., Guo, S., Wang, W., and M¨ uller, P. (2025). Immune profiling among colorectal cancer subtypes using dependent mixture models. Journal of the American Statistical Association ,120(550):671–684. D’Angelo, L. and Denti, F. (2026). A finite-infinite shared atoms nested model for the bayesian analysis of large grouped data sets. Bayesian Analysis , 21(1):105–138. Escobar, M. D. and West, M. (1995). Bayesian density estimation and inference using mixtures. 
+
+Journal of the american statistical association , 90(430):577–588. Gau, S., de Dieu Tapsoba, J., and Lee, S. (2014). Bayesian approach for mixture models with grouped data. Computational Statistics , 29(5):1025–1043. Ghosal, S. and van der Vaart, A. W. (2007). Convergence rates of posterior distributions for non-iid observations. Annals of Statistics , 35(1):192–223. Goh, S. T., Semenova, L., and Rudin, C. (2024). Sparse density trees and lists: An interpretable alternative to high-dimensional histograms. INFORMS Journal on Data Science .Hubert, L. and Arabie, P. (1985). Comparing partitions. Journal of classification , 2(1):193–218. Ishwaran, H. and James, L. F. (2001). Gibbs sampling methods for stick-breaking priors. Journal of the American Statistical Association , 96(453):161–173. Lambert, P. and Eilers, P. H. C. (2009). Bayesian density estimation from grouped continuous data. 
+
+Computational Statistics & Data Analysis , 53(4):1388–1399. Lijoi, A., Pr¨ unster, I., and Rebaudo, G. (2023). Flexible clustering via hidden hierarchical dirichlet priors. Scandinavian Journal of Statistics , 50(1):213–234. Mart´ ınez, A. F. and D´ ıaz-Avalos, C. (2024). A model-based approach for clustering binned data. 
+
+arXiv preprint arXiv:2409.07738 .25 Miller, J. W. and Harrison, M. T. (2018). Mixture models with a prior on the number of components. 
+
+Journal of the American Statistical Association , 113(521):340–356. Murphy, S. L., Kochanek, K. D., Xu, J. Q., and Arias, E. (2024). Mortality in the United States, 2023. Technical Report 521, National Center for Health Statistics, Hyattsville, MD. NCHS Data Brief, no 521. Hyattsville, MD: National Center for Health Statistics. 2024. DOI: https://dx.doi.org/10.15620/cdc/170564. Neal, R. M. (2000). Markov chain sampling methods for Dirichlet process mixture models. Journal of computational and graphical statistics , 9(2):249–265. Pitman, J. (1996). Some developments of the Blackwell-MacQueen urn scheme. Lecture Notes-Monograph Series , pages 245–267. Postman, M., Huchra, J. P., and Geller, M. J. (1986). Probes of large-scale structure in the corona borealis region. Astronomical Journal (ISSN 0004-6256), vol. 92, Dec. 1986, p. 1238-1247. ,92:1238–1247. Richardson, S. and Green, P. J. (1997). On Bayesian analysis of mixtures with an unknown number of components (with discussion). Journal of the Royal Statistical Society Series B: Statistical Methodology , 59(4):731–792. Rodriguez, A., Dunson, D. B., and Gelfand, A. E. (2008). The nested Dirichlet process. Journal of the American statistical Association , 103(483):1131–1154. Roeder, K. (1990). Density estimation with confidence sets exemplified by superclusters and voids in the galaxies. Journal of the American Statistical Association , 85(411):617–624. Sam´ e, A., Ambroise, C., and Govaert, G. (2006). A classification em algorithm for binned data. 
+
+Computational Statistics & Data Analysis , 51(2):466–480. Schaeffer, K. (2024). U.s. centenarian population is projected to quadruple over the next 30 years. 
+
+Pew Research Center . Accessed: YYYY-MM-DD. Shirazi, Z. A., da Silva, J. P. A. R., and de Souza, C. P. E. (2023). Parameter estimation for grouped data using EM and MCEM algorithms. Communications in Statistics - Simulation and Computation , 52(12):6513–6528. Simensen, O. H., Christensen, D., and Hjort, N. L. (2026). Random irregular histograms. Computa-tional Statistics & Data Analysis , 220:108367. Teh, Y., Jordan, M., Beal, M., and Blei, D. (2004). Sharing clusters among related groups: Hierarchical Dirichlet processes. Advances in neural information processing systems , 17. Teh, Y. W., Jordan, M. I., Beal, M. J., and Blei, D. M. (2006). Hierarchical Dirichlet processes. 
+
+Journal of the american statistical association , 101(476):1566–1581. 26 Vallender, S. S. (1974). Calculation of the Wasserstein distance between probability distributions on the line. Theory of Probability & Its Applications , 18(4):784–786. Wasserman, L. (2006). All of nonparametric statistics . Springer Science & Business Media. 27 A Proof of Theorem 1 
+
+For the proof, write 
+
+Bn,m =
+
+ m − 1
+
+Mn
+
+, mMn
+
+
+
+, m = 1 , . . . , M n.
+
+For a density f , define the binning map 
+
+p(n) 
+
+> m
+
+(f ) = 
+
+Z
+
+> Bn,m
+
+f (x)dx, m = 1 , . . . , M n,
+
+and write 
+
+p(n)(f ) = 
+
+
+
+p(n)1 (f ), . . . , p (n) 
+
+> Mn
+
+(f )
+
+
+
+.
+
+The associated binned density is 
+
+TMn f (x) = MnMnX
+
+> m=1
+
+p(n) 
+
+> m
+
+(f )1Bn,m (x).
+
+For a posterior draw g from model (1), gb = TMn g. We also write 
+
+p∗,n = p(n)(g∗).
+
+The observed count vector satisfies 
+
+v ∼ Multinomial( n, p ∗,n ).
+
+Finally, let 
+
+ηn =
+
+r Mn log nn ≍ M −sn ≍
+
+ log nn
+
+s/ (2 s+1) 
+
+.
+
+We use the following four lemmas. 
+
+Lemma 1 (Hellinger identity for binned densities) . For any two densities f and g on [0 , 1] ,
+
+h2(TMn f, T Mn g) = h2(p(n)(f ), p (n)(g)) ,
+
+where the Hellinger distance on the right-hand side is the Hellinger distance between probability vectors. 
+
+28 Proof. By construction, TMn f and TMn g are constant on each bin. Therefore, 
+
+h2(TMn f, T Mn g) = 12
+
+> Mn
+
+X
+
+> m=1
+
+Z
+
+> Bn,m
+
+q 
+
+Mnp(n) 
+
+> m
+
+(f ) −
+
+q
+
+Mnp(n) 
+
+> m
+
+(g)
+
+2
+
+dx 
+
+= 12
+
+> Mn
+
+X
+
+> m=1
+
+1
+
+Mn
+
+q 
+
+Mnp(n) 
+
+> m
+
+(f ) −
+
+q
+
+Mnp(n) 
+
+> m
+
+(g)
+
+2
+
+= 12
+
+> Mn
+
+X
+
+> m=1
+
+q 
+
+p(n) 
+
+> m
+
+(f ) −
+
+q
+
+p(n) 
+
+> m
+
+(g)
+
+2
+
+= h2(p(n)(f ), p (n)(g)) .
+
+Lemma 2 (Bias of the reference histogram) . If g∗ is β-H¨ older continuous on [0 , 1] , s = β ∧ 1, and 
+
+0 < c − ≤ g∗ ≤ c+ < ∞, then 
+
+h(TMn g∗, g ∗) ≤ CM −sn
+
+for some constant C < ∞.Proof. Since g∗ is β-H¨ older continuous and s = β ∧ 1, there exists L < ∞ such that 
+
+|g∗(x) − g∗(y)| ≤ L|x − y|s
+
+for every x, y ∈ [0 , 1]. If x ∈ Bn,m , then 
+
+|TMn g∗(x) − g∗(x)| = Mn
+
+Z
+
+> Bn,m
+
+g∗(y)dy − g∗(x)
+
+≤ Mn
+
+Z
+
+> Bn,m
+
+|g∗(y) − g∗(x)|dy 
+
+≤ LM −sn .
+
+Thus, 
+
+∥TMn g∗ − g∗∥∞ ≤ LM −sn .
+
+Moreover, since TMn g∗ is a binwise average of g∗, it also satisfies 
+
+c− ≤ TMn g∗(x) ≤ c+
+
+for every x ∈ [0 , 1]. Hence, for a, b ∈ [c−, c +], (√a − √b)2 = (a − b)2
+
+(√a + √b)2 ≤ (a − b)2
+
+4c−
+
+.
+
+29 Therefore, 
+
+h2(TMn g∗, g ∗) ≤ 18c−
+
+Z 10
+
+(TMn g∗(x) − g∗(x)) 2dx ≤ L2
+
+8c−
+
+M −2sn .
+
+The result follows. 
+
+Lemma 3 (Tests in the multinomial model) . Let p0 = p∗,n . There exist tests φn and constants 
+
+c > 0, A0 < ∞ such that 
+
+Ep0 φn ≤ exp( −cnη 2
+
+> n
+
+)
+
+and 
+
+sup 
+
+> p:h(p,p 0)>A 0ηn
+
+Ep(1 − φn) ≤ exp( −cnη 2
+
+> n
+
+)
+
+for all sufficiently large n.Proof. This is the standard testing bound for multinomial experiments under Hellinger loss. The class of multinomial probability vectors on Mn categories has bracketing entropy bounded by 
+
+H[] (ϵ, PMn , h ) ≤ CM n log( C/ϵ )for a universal constant C < ∞. Since 
+
+nη 2 
+
+> n
+
+= Mn log n, 
+
+and 
+
+Mn log(1 /η n) ≤ CM n log n, 
+
+the bracketing-integral condition in the likelihood-ratio testing theorem of Wong and Shen is satisfied. This gives tests with exponentially small type I and type II errors at Hellinger separation of order 
+
+ηn.
+
+Lemma 4 (MFM prior thickness for the binned probabilities) . Let g be the random probability density function induced by the mixture of finite mixture model in (1) . Under the prior assumptions in Theorem 1, there exist constants C < ∞ and c > 0 such that 
+
+Π
+
+
+
+K(p∗,n , p (n)(g)) ≤ cη 2
+
+> n
+
+, V (p∗,n , p (n)(g)) ≤ cη 2
+
+> n
+
+
+
+≥ exp( −Cnη 2
+
+> n
+
+),
+
+where 
+
+K(p, q ) = 
+
+> Mn
+
+X
+
+> m=1
+
+pm log pm
+
+qm
+
+and 
+
+V (p, q ) = 
+
+> Mn
+
+X
+
+> m=1
+
+pm
+
+
+
+log pm
+
+qm
+
+2
+
+.
+
+Proof. Since g∗ is bounded away from zero and infinity, there exist constants 0 < a − < a + < ∞
+
+30 such that a−
+
+Mn
+
+≤ p∗,n m ≤ a+
+
+Mn
+
+for all m = 1 , . . . , M n. We construct a subset of the MFM parameter space on which the induced binned probabilities are close to p∗,n .Set K = Mn, and let 
+
+xm = m − 1/2
+
+Mn
+
+, m = 1 , . . . , M n
+
+be the bin midpoints. Consider the event En on which 
+
+|wm − p∗,n m | ≤ bη np∗,n m
+
+for every m = 1 , . . . , M n,
+
+|μm − xm| ≤ 18Mn
+
+for every m = 1 , . . . , M n, and 
+
+σm ∈
+
+ aMn
+
+√log n , 2aMn
+
+√log n
+
+
+
+for every m = 1 , . . . , M n, where a > 0 is sufficiently small and b > 0 is sufficiently small. On En, the m-th Gaussian component is centered well inside the m-th bin and has scale of order 1/(Mn
+
+√log n). Therefore its probability of falling outside the m-th bin is bounded by 
+
+ρn ≤ C1n−C2
+
+where C2 can be made arbitrarily large by choosing a sufficiently small. In particular, we choose a
+
+so that, for all large n,
+
+ρn ≤ bη n
+
+a−
+
+Mn
+
+.
+
+It follows that, on En,
+
+|p(n) 
+
+> m
+
+(g) − wm| ≤ ρn
+
+for every m = 1 , . . . , M n. Therefore, 
+
+|p(n) 
+
+> m
+
+(g) − p∗,n m | ≤ | wm − p∗,n m | + ρn ≤ 2bη np∗,n m
+
+for every m = 1 , . . . , M n. Taking b sufficiently small, this implies 
+
+p(n) 
+
+> m
+
+(f )
+
+p∗,n m
+
+− 1 ≤ 12 .
+
+Using the elementary bounds | log (1 + u)| ≤ C|u| and ( log (1 + u)) 2 ≤ Cu 2 for |u| ≤ 1/2, we obtain 
+
+K(p∗,n , p (n)(g)) ≤ C3η2
+
+> n
+
+31 and 
+
+V (p∗,n , p (n)(g)) ≤ C3η2
+
+> n
+
+on En.It remains to lower bound Π( En). By assumption, Π( K = Mn) ≥ exp( −CK Mn log Mn).
+
+Conditional on K = Mn, the Dirichlet prior with fixed parameter α > 0 assigns at least exp( −C4Mn log n)mass to the relative neighborhood 
+
+|wm − p∗,n m | ≤ bη np∗,n m , m = 1 , . . . , M n.
+
+This follows from Stirling’s formula and from the fact that all p∗,n m are of order 1 /M n.Next, since the ordered means are the order statistics of i.i.d. draws from a density bounded away from zero on an interval containing [0 , 1], the prior mass of the event 
+
+|μm − xm| ≤ 18Mn
+
+, m = 1 , . . . , M n
+
+is bounded below by exp( −C5Mn log Mn).
+
+Finally, by the scale-prior assumption, Π
+
+
+
+σm ∈
+
+ aMn
+
+√log n , 2aMn
+
+√log n
+
+
+
+, m = 1 , . . . , M n
+
+
+
+≥
+
+
+
+cσ
+
+ aMn
+
+√log n
+
+rσ Mn
+
+≥ exp( −C6Mn log n).
+
+Combining the four lower bounds, and using Mn log Mn ≤ CM n log n, gives Π( En) ≥ exp( −C7Mn log n).
+
+Since nη 2 
+
+> n
+
+= Mn log n, this is Π( En) ≥ exp( −C7nη 2
+
+> n
+
+).
+
+The result follows because En is contained in the binned Kullback–Leibler neighborhood displayed at the beginning of the lemma. We now prove the theorem. By the testing lemma and the prior-thickness lemma, the posterior contraction theorem for non-i.i.d. triangular-array experiments (Ghosal and van der Vaart, 2007) 32 yields Π
+
+
+
+h(p(n)(g), p ∗,n ) > A 1ηn | v
+
+
+
+→ 0in Pg∗ -probability, for a sufficiently large constant A1 < ∞. By the Hellinger identity, Π ( h(TMn g, T Mn g∗) > A 1ηn | v) → 0in Pg∗ -probability. Finally, by the triangle inequality, 
+
+h(TMn g, g ∗) ≤ h(TMn g, T Mn g∗) + h(TMn g∗, g ∗).
+
+By the bias lemma, 
+
+h(TMn g∗, g ∗) ≤ CM −sn .
+
+Therefore, for a sufficiently large constant A2 < ∞,Π  h(TMn g, g ∗) > A 2(ηn + M −sn ) | v → 0in Pg∗ -probability. Since gb = TMn f , and since 
+
+ηn + M −sn ≍
+
+ log nn
+
+s/ (2 s+1) 
+
+,
+
+the claim follows. 33
