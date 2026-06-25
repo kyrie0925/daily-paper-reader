@@ -1,0 +1,1282 @@
+Title: MATCH: Flow Matching for Multi-View Anomaly Detection
+
+URL Source: https://arxiv.org/pdf/2606.24375v1
+
+Published Time: Wed, 24 Jun 2026 00:56:02 GMT
+
+Number of Pages: 41
+
+Markdown Content:
+# MATCH: Flow Matching for Multi-View Anomaly Detection 
+
+Mathis Kruse , Melissa Schween , and Bodo Rosenhahn 
+
+Institute for Information Processing, L3S, Leibniz University Hannover, Germany 
+
+{kruse,schween,rosenhahn}@tnt.uni-hannover.de 
+
+Abstract. Detecting anomalies in industrial objects is an important topic for increasing production efficiency. More complex objects often require the analysis of several view points, which has led to the field of multi-view anomaly detection. We present MATCH , the first multi-view anomaly detection method based on Flow Matching (FM). With the ODE formulation of Flow Matching, we can estimate likelihoods and thereby derive an anomaly score to detect anomalies in multi-view image data at object, image, and pixel-level. The architectural flexibility of FM models allows us to efficiently transform features of different spatial sizes to the normal distribution. We evaluate thoroughly on the already estab-lished Real-IAD data set and are also the first to provide a comprehen-sive evaluation of popular anomaly detection methods for the MANTA-Tiny data set. MATCH achieves state-of-the-art performance in both anomaly detection and segmentation, all while running on consumer-level hardware. By omitting the costly divergence term needed for likelihood estimation, we ensure that MATCH is usable in real-time production scenarios. Lastly, several ablation studies are conducted to validate the methodological choices. Code: https://github.com/m-kruse98/MATCH 
+
+Keywords: Anomaly Detection · Flow Matching · Multi-View Data 
+
+## 1 Introduction 
+
+Any production pipeline may inevitably produce some defective products, either through human error or machine failures. Therefore, detecting anomalies has al-ways been a key task in increasing the efficiency and robustness of any industrial manufacturing line. However, anomalies can be very rare and are often impos-sible to predict beforehand, while there is a vast availability of defect-free data. This has led to the birth of semi-supervised anomaly detection (AD), where models learn from normal data only. With the rise of deep learning, several popular AD benchmarks, along with well-performing methods, have been proposed [6, 83]. The bulk of AD research focuses on single-view images, where objects are usually rigidly aligned in the exact same spot in front of the camera. However, as objects get more complex, a single camera may no longer suffice to detect all possible anomalies. More sophisticated production lines and the ubiquitous usage of imaging systems have  
+
+> arXiv:2606.24375v1 [cs.CV] 23 Jun 2026 2M. Kruse et al.
+
+caused multi-view anomaly detection to gain more traction [64,80]. This lets the multi-view AD models also detect anomalies, that may not be covered by just a single camera. The new setting of multi-view AD has not only spawned a variety of new data sets [22, 64, 80] but also many new AD methods [43, 44, 49]. An example of such a detection task is visualized in Fig. 1, where anomalies are only present in some views.          
+
+> Fig. 1: Qualitative comparison of Multi-Flow [43], Reverse Distillation (RD4AD) [17], and MATCH (ours) on the white tablet and short button category of MANTA-Tiny. While Multi-Flow struggles with its foreground extraction and RD4AD detects some false positives, MATCH most accurately segments all anomalies.
+
+Currently, a large variety of well-performing AD models use Normalizing Flows for estimating the likelihood of an image [27,46,57,58,68]. However, these Normalizing Flow models, which are almost always chosen to be models based on RealNVP [21], may struggle to handle the high dimensionality of (multi-view) images. Furthermore, their coupling block architecture limits them to a few transformation steps of expressivity. A new generative modelling technique termed Flow Matching [47] has begun to gain interest very quickly. Contrary to RealNVP, it can use more general network architectures and more easily repre-sent even very high-dimensional data, while still functioning as both a generative model and a method for density estimation. This is especially interesting for the task of multi-view AD. Here, image data is usually very high dimensional, es-pecially when different view points of an object need to be considered. In AD, very small deviations in the data may already constitute an anomaly. Thus, the decision boundary between normal and anomalous data may be a manifold of much smaller size, embedded within the high-dimensional data. This makes flow matching better suited for multi-view anomaly detection. A toy example, which visualizes the effect of learning a high-dimensional distribution, is shown in Fig. 2. Clearly, Flow Matching outperforms the inflexible RealNVP model, as it captures the underlying distribution even when it is embedded in higher dimensions. Therefore, we propose Multi-view Anomaly Detection using Flow Ma tch ing, abbreviated to MATCH . To the best of our knowledge, it is the first Flow MATCH: Flow Matching for Multi-View Anomaly Detection 3  
+
+> Fig. 2: Sampling the "Two Moons" data set, with Flow Matching and RealNVP. Sim-ilar to AD problems, where small deviances need to be detected in a high dimensional feature space, we embed the two-dimensional moons in d-dimensional space. While the expressiveness of Flow Matching handles high dimensions well, the less flexible Real-NVP architecture starts to struggle early on. Experimental details are in the appendix.
+
+Matching-based solution to multi-view AD. We leverage the capabilities in ex-pressiveness to process feature maps of different spatial resolutions. Adding onto that, a few key simplifications are proposed to simplify the likelihood estima-tion and achieve new state-of-the-art results for both detecting and segmenting anomalies in popular multi-view AD benchmarks. All the while, our model still remains fast to use, reaching 18 .77 FPS on consumer-level GPUs. We summarize our contributions as follows: 
+
+– We propose a Flow Matching-based multi-view anomaly detection model, outperforming previous methods on both Real-IAD and MANTA-Tiny. 
+
+– We propose to omit the divergence term during likelihood estimation, which increases model throughput and thereby real-world usability, while leaving the detection performance unharmed and the score meaningful. 
+
+– We are the first to thoroughly benchmark the MANTA-Tiny data set. 
+
+– We release all code upon acceptance. 
+
+## 2 Related Work 
+
+We provide an overview of (multi-view) anomaly detection, as well as recent developments in Normalizing Flows, including Flow Matching. 
+
+2.1 Anomaly Detection 
+
+Overview. In recent years, research on anomaly detection (AD) has seen lots of success, with most of the popular benchmark data sets, such as MVTec AD [6] solved with almost perfect scores [4, 50, 56]. In almost all cases, AD is learned in a semi-supervised fashion, where only anomaly-free data is available during training, and one model is trained per object class. Some newer research started incorporating data modalities other than RGB, like depth information or normal maps [7, 11, 82]. Besides focusing on structural properties of single objects, some benchmarks also include logical anomalies, multiple objects, occlusions, and vast varieties of normal patterns [5, 36]. 4 M. Kruse et al. 
+
+Besides data sets, there exist lots of categories of AD methods. Firstly, 
+
+Reconstruction-based methods aim to reconstruct the image features through some bottleneck mechanism [8, 24, 29, 78]. Closely related are student-teacher networks , which distil information from a (potentially frozen) teacher network into a student network [4, 17, 59, 61, 77]. Some works also incorporate anoma-lous information , either real or synthetically generated, to cast the task into a supervised problem [19, 50, 70, 76]. As large vision-language-models (VLM) be-come more potent, zero-shot AD focuses on detecting anomalies without any prior knowledge [26, 39, 75, 81]. Using one model for all classes within a data set, a task termed multi-class anomaly detection , has also seen a rise in popular-ity [29, 31, 67]. Many methods, including ours, may be grouped into the field of density estimation . By learning the distribution of the normal training data, the like-lihood of a sample is approximated and used as the anomaly score. Methods based on k-nearest Neighbors (kNN) or memory banks form one strand of re-search [14, 16, 45, 56], but rely heavily on the choice of features [35]. A more principled way of estimating the density is offered by Normalizing Flows (NF), which have seen wide application in AD [27, 43, 46, 57, 58, 68]. Here, the network explicitly learns the likelihood of a given sample using maximum likelihood es-timation. A natural next step from NFs is Flow Matching [47], which is the core of our method as will be explained in Sections 2.2 and 3. 
+
+Multi-view Anomaly Detection. Mirroring real industrial scenarios with complex objects, a single camera may not suffice to capture all anomalies. Therefore, research on multi-view anomaly detection has started gaining traction, with the Real-IAD data set [64] serving as a new important benchmark. It shows each object from five different view points, with anomalies having to be detected both in an image-wise, as well as an aggregated object/sample-wise fashion. First methods for this exact setting have been proposed already [43], with some of them focused on multi-class AD [33]. Fan et al . present MANTA, a data set which features a camera setup very similar to Real-IAD [22]. MANTA covers a much higher variety of samples and categories, while also being magnitudes larger than anything before. Therefore, the authors also released MANTA-Tiny, a subset with largely the same test split, which is more easily usable for research purposes and solely used in this paper next to Real-IAD. To the best of our knowledge, we are the first to report comprehensive benchmark results on MANTA-Tiny with our experiments. Another strand of research on multi-view AD uses more complex objects with dozens or up to hundreds of views per object [66,79,80]. Here, approaches based on novel-view synthesis methods have seen the most success [23, 44, 66, 80]. This remains, however, limited to one inflexible 3D model of normal samples, which fails when there is a larger variability of objects. This is something naturally addressed by most other anomaly detection methods, as they do not explic-itly save one normal prototype to compare to. Concretely, density estimation techniques like Flow Matching allow for learning more complex distributions of normal samples. MATCH: Flow Matching for Multi-View Anomaly Detection 5
+
+There exist other variants of AD that intersect with multi-view/3D methods, such as finding one abnormal object out of many [10], leveraging 3D ground truth information [9], or dealing with complex lighting scenarios [12, 66]. All of these multi-view settings have significantly increased the difficulty in anomaly detection benchmarks and thereby inspired the research community. 
+
+2.2 Normalizing Flows 
+
+Preliminaries. The concept of Normalizing Flows [48] (NF) is based in the change of variables formula, which forms a relationship between a source dis-tribution p (usually a standard Gaussian) and the target or data distribution q,which are both distributions over Rd. The NF model ϕ : Rd → Rd learns the mapping between data samples x ∼ q and p via 
+
+q (x) = p (ϕ (x)) det 
+
+ ∂ϕ ∂x (x)
+
+
+
+, (1) with p (·) and q (·) denoting the respective probability density functions (PDFs). Most notably, the flow ϕ, usually parametrized by a neural network, needs to be both invertible and have a Jacobian whose determinant is easy to compute. This has lead to the creation of specifically designed networks, that retain these properties [20, 41, 54, 55], with RealNVP being used the most in the anomaly detection literature for its ease of use [21, 43, 57]. Regular NFs usually chain together several invertible transformations ϕ =
+
+ϕn ◦ . . . ◦ ϕ1, limiting their expressivity by the number of chained flows n. This is alleviated with Continuous Normalizing Flows (CNF), which aim to learn the change in probability mass at every step using an ODE formulation [13]. The flow model now mimics the velocity field u : Rd × [0 , 1] → Rd, learning the transformation needed to move a sample from p0 at time t = 0 to p1 = q at time t = 1 . In practice, however, CNFs are notoriously costly to train, requiring solving the entire ODE for a single training step [13, 25]. 
+
+Flow Matching. With Flow Matching (FM) [47] training of CNFs has been simplified greatly by constructing conditional probability paths guiding from noise p to data q. Formally, an ODE is defined by its time-dependent vector field 
+
+ut, which is solved by its respective flow ϕt(x0) as 
+
+ddt ϕt (x0) = ut (ϕt (x0)) , (2) where the flow solution aims to satisfy 
+
+ϕt (x0) ∼ pt with initial condition ϕ0 (x0) ∼ p0. (3) Thus, we aim to learn the vector field ut, such that its flow ϕt generates the probability path from p0 to p1, where each pt is again a distribution over Rd.As shown by Lipman et al . [47], the marginal vector field ut (x0) turns out to 6 M. Kruse et al. 
+
+be equivalent to the expectation of the conditional vector field over the data distribution as 
+
+ut (x0) = Ex1∼q [ut (x0|x1)] . (4) Thereby, sampling data x1 ∼ q and regressing against the conditional vector field ut (x0|x1) suffices for learning a valid flow. This conditional vector field can easily be constructed given the available data, e.g . using Gaussian proba-bility paths. This also results in the loss becoming a simple regression against the constructed conditional vector field. Subsequent work has explored differ-ent probability paths and other formulations, resulting in models with strong generative capabilities [15, 62]. 
+
+## 3 Method 
+
+Problem Statement. During training, anomaly-free multi-view images of a certain object category are given. At inference, both anomalous and defect-free images appear, with the model having to detect the occurring anomalies. An object is considered anomalous if there is an anomaly visible in any of its views. 
+
+Objective. As motivated with Fig. 2, the distribution of normal images is learned using FM, specifically the optimal transport conditional Flow Matching (OT-CFM) formulation [62]. The loss for optimizing the parameters θ of the flow network uθt is 
+
+LOT CFM = Ex0∼p0,x 1∼qt∼U [0 ,1] 
+
+|| uθt (xt) − (x1 − x0) || 2, (5) where p0 is standard normal Gaussian noise, q the data distribution and xt =(1 − t)x0 + tx 1 an intermediate point along the flow. Using the trained uθt and any off-the-shelf ODE solver, we can use our al-gorithm in two ways. Running the ODE from t = 0 to t = 1 transforms noise 
+
+x0 ∼ p into data samples x1 ∼ q (generative direction). Reversing it, and in-tegrating the ODE from t = 1 to t = 0 lets us move real data samples to the Gaussian space, where we are able to measure likelihoods (density estimation direction). The likelihood of a sample x will serve as a proxy for the anomaly score and may be calculated as 
+
+log p1 (x1) = log p0 (x0) −
+
+Z 10
+
+div  uθt
+
+ (xt) dt,  (6) where p0 (x0) is the density of the resulting sample in Gaussian space and div  uθt
+
+ the divergence of the vector field at the intermediate solutions xt ∼ pt
+
+along which we integrate. In practice, this divergence term is estimated using methods such as Hutchinson’s trace estimator [38] or randomized quasi monte-carlo (RQMC) [53]. Even then, estimating the divergence term would result in (at the very least) one backpropagation per ODE step, which would vastly increase the computational requirements. This would leave the model unsuitable for de-ployment in real-time industrial production scenarios. An ablation conducted MATCH: Flow Matching for Multi-View Anomaly Detection 7                    
+
+> Fig. 3: Overview of MATCH . A frozen feature encoder Eiis used for latent embeddings. With these, intermediate latent vectors xitare sampled, and, together with time tand view vinformation, fed through a bottleneck, and into the decoder layers Di. The Flow Matching loss LOT CFM is applied and lets our model learn the trajectory from data space
+> qto Gaussian space p. Running the model with an ODE from t= 1 to 0lets us produce anomaly maps, which segment any anomalous regions.
+
+in Sec. 4.4 shows that omitting the divergence term greatly saves computation time and memory while still performing well for AD. Thus, our anomaly score just becomes S (x) = − log p0 (x0) , which in prac-tice, calculated along the feature dimension, becomes 
+
+S(x1) = − log p0 (x0) = || x0|| 2
+
+2 + d
+
+2 log (2 π) , (7) where x0 is the sample in Gaussian space, and d the feature dimensionality. This score may be interpreted, up to the additive constant, as the squared Maha-lanobis distance of the sample x0 to the standard Gaussian N (0 , I ). This inter-pretation is used in many related papers on AD and normalizing flows [27,57,58]. 
+
+3.1 Model Architecture 
+
+Normalizing flows trained on raw images have been shown to fail in detecting anomalies [42]. Further, Flow Matching, just as diffusion models, performs well on latent feature distributions [15]. Therefore, the flow is instead learned on the latent distribution of a WideResNet [69] (pre-trained on ImageNet [18]) which serves as a frozen feature extractor. We take inspiration by the ReverseDistillation (RD) architecture [17], with a high-level schematic of our adapted architecture shown in Fig. 3. A longer and completely in-depth graph of all layers and blocks can be found in the supplement in Sec. A. Firstly, the data samples are extracted from the first three layers Ei of the WideResNet as {xi 
+
+> 1
+
+∼ qi}3
+
+> i=1
+
+, where i denotes the current layer of the extractor. To train, a time step t ∈ U (0 , 1) and noise of the same size as the latent features {xi 
+
+> 0
+
+∼ pi}3 
+
+> i=1
+
+are sampled. Then, the intermediate features {xit = (1 − t)xi 
+
+> 0
+
++ tx i
+
+> 1
+
+}3 
+
+> i=1
+
+are constructed as a linear combination and 8 M. Kruse et al. 
+
+fed through a bottleneck. After that, several ResNet-style layers Di in reversed order are used to reconstruct features to the correct spatial dimension, similar to the architecture for RD4AD [17]. 
+
+Time and View Embedding. To make the model usable for Flow Match-ing, we embed the time step information t using a 1024 -dimensional sinusoidal positional encoding [63] and a simple two-layer MLP with SiLU activation [37]. Similarly, the index of the current view v is fed into a learned embedding layer as well as an MLP with the same dimensions. Both view and time information are concatenated, passed through another fully connected (FC) layer with SiLU activation and added to the output of the bottleneck. They also serve as input to the reconstruction layers Di, with each layer having their own FC and SiLU layer for fine-tuning features to their needs. 
+
+Bottleneck Network. The input features {xit ∈ RCi×Hi×Wi }3 
+
+> i=1
+
+are fed into the bottleneck network, consisting of an alignment network and bottleneck blocks. For the alignment , the map at i = 3 has the lowest feature resolution. We thereby run the other maps through a down sampling using 3 × 3 convolutional layers with stride 2, using one layer for i = 2 , and two for i = 1 . The spatially aligned maps are then concatenated to produce one feature vector. Each of the mentioned convolutional layer consist of its respective convolution followed by group normalization with 32 groups, and ReLU activation. Afterwards, three ResNet-style bottleneck blocks [17, 34] (again with group normalization) further distil the feature representation, forcing the network to focus on the normal structures found in training only. Residual connections are either directly imple-mented, or using a downsampling with another convolution. 
+
+Decoder Blocks. The decoder consists of three layers Di each consisting of 
+
+di decoder blocks, that progressively upsample the bottleneck feature represen-tation back to the original spatial dimensions, which mostly follows RD [17, 72]. These decoder blocks use 1×1 convolutions followed by 3×3 convolutions with a stride of 2 for upsampling [72], group normalization, ReLU activation and a final 
+
+1 × 1 convolution. Here, the time-view embedding is again added to the latent features. Again, the residual connection may be done either using an identity map or a single transposed convolutional layer for upsampling. 
+
+Anomaly Scores. We produce three anomaly score maps Mi ∈ RHi×Wi
+
+by calculating the anomaly score along the feature dimension of our decoded features as in Eq. (7). All of these maps are resized to the full spatial dimension of our images using bilinear interpolation. For segmentation, we simply use the combination of all maps Msegment = P 
+
+> i
+
+Mi as our final segmentation map. This includes both good segmentation of high-level defects, as well as the tiny low-level and hard-to-spot anomalies. For detection, it has been shown that higher level representations are bet-ter suited to produce a single per-image anomaly score [42]. Thereby, we use 
+
+Mdetect = M2 + M3 as the sum of only the last two anomaly maps, which mostly focuses on higher-level concepts while not being influenced too much by lower level deviations. The final image-wise anomaly score is then produced by taking the maximum value found in this detection map Mdetect . To produce a MATCH: Flow Matching for Multi-View Anomaly Detection 9
+
+sample-wise anomaly score, we again take a maximum across all anomaly scores produced for one multi-view instance. 
+
+## 4 Experiments 
+
+We evaluate our method on data sets Real-IAD [64] and MANTA-Tiny [22], while also reporting numbers for many competing state-of-the-art approaches. 
+
+4.1 Data Set and Metrics 
+
+We use both Real-IAD [64] and MANTA-Tiny [22] for evaluating our method. Real-IAD [64] is a large multi-view anomaly detection data set, made up of 30 dif-ferent object classes taken from industrial production contexts, totalling roughly 100k normal and 50k anomalous images. Defects such as scratches, missing parts or deformations are some of the most common categories of anomalies. MANTA [22] contains multi-view images of tiny objects , with the different object classes spanning across the categories of agriculture, medicine, electronics, mechanics, and groceries. With MANTA being about five times the size of Real-IAD, a smaller benchmark called MANTA-Tiny has been proposed, where images are resized and the amount of training instances is reduced to roughly match previous data sets and increase its popularity. The test sets of both splits remain largely the same. Depending on the category, defects may appear as misprints, stains, scratches, mold, or mildew, amongst many other possible faults. For quantitative results, we report detection performance using the Area Un-der the Receiver Operating Curve (AUROC), which is independent of a specific threshold. The AUROC will be reported both image-wise (i.e . each image is treated independently, named I-AUROC) and sample-wise , where all images be-longing to the same object are grouped together to form one single anomaly score (named S-AUROC). Lastly, for segmenting the anomalies, we also report the AUROC in a pixel-wise fashion (P-AUROC), as well as P-AP (average pre-cision), and the more balanced P-AUPRO metric [6]. 
+
+4.2 Implementation Details 
+
+All experiments are run on a Linux machine with a RTX 3090 consumer GPU. All metrics are calculated efficiently using the GPU-optimized ADEval library [74]. We resize all images to 256 × 256 pixels, resulting in extracted feature maps of sizes (256 ×64 ×64) , (512 ×32 ×32) , and (1024 ×16 ×16) using the WideResNet50. For optimization we use the AdamW optimizer [51] with a learning rate of 
+
+1e−4, momentum parameters β1,2 = (0 .9, 0.95) , and weight decay set to 0.01 .Contrary to most NF models, we do not need any clipping or scaling for the gradients [2]. The decoder layers Di consists of 3, 4 and 6 decoder blocks respec-tively. All convolutional layers work with a base width of 768 dimensions. We train on both data sets for 150 epochs with a batch size of 8. For inference using the ODE, we use the simple Euler method with step sizes of 0.2, resulting in 510 M. Kruse et al.                                                                     
+
+> Table 1: Both segmentation and image-wise detection metrics averaged across all classes of Real-IAD [64]. The best performing method is marked in bold with the runner-up underlined. Our method is run n= 5 times. Detection Metrics ( ↑)Segmentation Metrics ( ↑)Method I-AUROC S-AUROC P-AUROC P-AUPRO P-AP CFA [45] 71.44 77.53 95.58 79.05 13.63 DSR [71] 58.86 52.83 75.47 56.02 17.03 EfficientAD [4] 77.26 86.91 89.64 71.31 13.18 FastFlow [68] 79.26 92.30 90.18 66.99 06.16 Multi-Flow [43] 90.27 95.85 96.47 87.91 12.42 PaDiM [16] 89.27 91.33 94.22 75.33 06.73 RD4AD [17] 89.26 93.46 98.81 92.70 32.65 SimpleNet [50] 86.37 94.89 93.90 78.87 18.36 STFPM [65] 71.74 74.99 91.41 74.47 15.83
+> MATCH (ours )91.17 ±0.08 95.63 ±0.09 99.24 ±0.01 94.76 ±0.03 32.68 ±0.03
+
+forward passes per inference batch. We will later make this choice more founded in an ablation in Sec. 4.4. 
+
+Baselines. A variety of state-of-the-art AD methods are reproduced using the Anomalib [1] and ADer [74] benchmarking libraries. We chose them to be exe-cuted with the same consumer-level GPUs and setup as our method. The base-lines include CFA [45], DSR [71], EfficientAD [4], FastFlow [68], Multi-Flow [43], PaDiM [16], ReverseDistillation (RD4AD) [17], SimpleNet [50], and STFPM [65]. 
+
+4.3 Anomaly Detection Results 
+
+We run MATCH on both Real-IAD and MANTA-Tiny. For Real-IAD, all met-rics are reported in Tab. 1. Here, we outperform all competitors in most metrics by convincing margins, reaching an I-AUROC of 91 .17 for detection, and an P-AUPRO of 94 .76 for segmentation, all while being very stable with a standard deviation of .08 and .03 respectively. Most notably, the direct flow-based com-petitor Multi-Flow, based on RealNVP, underperforms in detection by roughly one point, while MATCH is far more precise at segmentation, as visible in the P-AUPRO. This strengthens us in our claim that FM is better able to handle the high dimensionality of the feature maps, as it is still able to pinpoint the locations of the occurring anomalies. As for the sample-wise detection (with S-AUROC), we equip all baselines with a simple max-aggregation, just as used by MATCH , to calculate their scores. We achieve an S-AUROC of 95 .63 on Real-IAD. This score only lacks slightly behind the most direct competitor Multi-Flow, which is also optimized for multi-view AD, by .2 points. On all other metrics and tasks, we outperform the baselines, especially in segmentation tasks. Segmentation results for the newly proposed and until now not thoroughly evaluated MANTA-Tiny data set are presented in Tabs. 2 and 3. The most im-MATCH: Flow Matching for Multi-View Anomaly Detection 11 
+
+Table 2: Anomaly Segmentation results on MANTA-Tiny measured as P-AUPRO 
+
+(↑) and grouped by category. The best performing method is marked in bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR Effic.AD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH                                                                            
+
+> [45] [71] [4] [68] [43] [16] [17] [50] [65] (ours)
+> Agriculture 43.07 50.07 54.92 48.33 69.41 63.57 69.74 59.92 48.22 75.52 ±0.05
+> Electronics 59.62 57.21 89.30 72.18 84.35 84.01 92.79 84.71 56.91 93.93 ±0.02
+> Groceries 39.35 46.43 66.72 43.81 63.28 55.23 56.52 61.78 34.48 70.03 ±0.05
+> Mechanics 71.35 65.34 87.72 76.98 87.39 86.98 94.41 85.47 80.47 96.35 ±0.02
+> Medicine 67.93 58.46 78.26 75.66 83.38 79.71 82.75 80.11 70.20 89.10 ±0.04
+> MANTA-Tiny 61.64 58.26 80.83 69.65 81.76 79.43 85.59 79.42 64.19 89.66 ±0.02
+
+Table 3: Anomaly Segmentation results on MANTA-Tiny measured as Pixel-AUROC (↑) and grouped by category. The best performing method is marked in 
+
+bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR Effic.AD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH                                                                            
+
+> [45] [71] [4] [68] [43] [16] [17] [50] [65] (ours)
+> Agriculture 70.84 63.73 84.50 71.67 84.92 83.36 87.22 87.19 76.60 87.50 ±0.02
+> Electronics 86.60 76.05 95.63 91.39 95.28 95.62 98.28 96.49 83.18 98.47 ±0.00
+> Groceries 73.48 64.92 86.78 71.05 85.58 75.25 83.26 86.76 67.36 85.92 ±0.04
+> Mechanics 87.09 70.32 94.73 91.59 97.00 95.9 98.28 96.41 92.70 98.55 ±0.00
+> Medicine 82.85 67.54 90.17 89.62 91.70 91.62 92.66 91.87 89.54 95.53 ±0.02
+> MANTA-Tiny 83.16 70.20 92.21 87.35 93.07 91.85 94.60 93.63 85.50 95.65 ±0.01
+
+portant results on segmentation are presented with the P-AUPRO in Tab. 2. Here, we achieve a P-AUPRO of 89 .66 across all categories, which outperforms all baselines. We further note that classes containing a larger variance in their normal samples, such as the naturally produced agriculture and groceries cat-egories, are far harder to solve than categories focusing on classical industrial contexts. Also, the ReverseDistillation (RD4AD) model almost always comes in second, highlighting the effectiveness of the chosen architecture. Still, the Flow Matching formulation managed to gain very strong improvements, with a P-AUPRO more than four points higher. Only in the detection metric I-AUROC does MATCH fall behind, as Sim-pleNet is able to get a score of 93 .19 while MATCH reaches a competitive 90 .66 .We posit that this may be due to the much higher variance in defects found in MANTA-Tiny, as some tiny defects may be harder to translate into a high score for the entire image. Handling this issue may be interesting for future work. Lastly, we also evaluated our model (trained on MANTA-Tiny) on the full MANTA test split, which is roughly 70% identical. We observed no noticeable performance drops, as shown in the supplementary. This shows MANTA-Tiny to be a good real-world benchmark, that is worth exploring. For both of the mentioned benchmarks, we provide a variety of qualitative anomaly maps in Fig. 4. Here, the high segmentation quality of MATCH be-comes apparent, which is a clear advantage to preceding Normalizing Flow-based methods [43, 58]. We also provide additional qualitative segmentations for every 12 M. Kruse et al.  
+
+> Fig. 4: A selection of qualitative anomaly maps for classes audiojack, PCB, and regu-lator of Real-IAD (top row). The bottom row shows goji berries, soybeans, and wafer resistors of MANTA-Tiny. Pictured are the original RGB image, ground truth segmen-tation maps and the resulting anomaly maps overlayed on RGB.
+
+category of MANTA-Tiny, as well as an analysis of some failure cases in the supplement in Sec. F, together with the comprehensive results for all metrics on both data sets in Sec. G. 
+
+4.4 Ablation Studies 
+
+We conduct ablations to motivate design choices and provide further insight. Fig. 5 shows the impact of different base widths of our network. The AD per-formance being best around a width of 768 confirms that strong and expressive (FM-based) models are most suited. Also, matching the parameter count of RD4AD to MATCH , RD4AD reaches an I-AUROC of 86 .75 , confirming that gains stem from the FM formulation, and not just model capacity. We do not consider higher widths, as we want MATCH to remain usable on affordable consumer-level hardware. 
+
+Impact of the Divergence Term. As described in Sec. 3, we omit the di-vergence term in Eq. (6), which is equal to the trace of the Jacobian matrix tr [∂xut (x)] , to increase the computational efficiency of our model. There are several possible methods to estimate this divergence term. Using Hutchinson’s trace estimator, we may sample M vectors z ∼ Z = N (0 , I ) and calculate 
+
+div (ut) ( x) = tr [∂xut (x)] = Ez∼Z tr zT ∂xut (x) z (8) as an unbiased estimator of the divergence [48], which is added to the anomaly score to form the likelihood. By increasing the number of random vectors M > 0,we get a more accurate estimation. While Hutchinson’s estimator draws its z vectors independent of each other, we may try to decrease the variance in our prediction by sampling them from MATCH: Flow Matching for Multi-View Anomaly Detection 13 
+
+a dependent distribution. This is the basis for randomized quasi monte-carlo (RQMC) [53]. For the vectors for RQMC we use Latin hypercube sampling [52], due to the high dimensionality of our feature vectors. The results for all estima-tion methods are shown in Tab. 4 for different values for M .    
+
+> Fig. 5: Varying the feature dimension for bot-tleneck and decoder from 32 to 768 . All of the metrics linearly rise with higher dimensions.
+
+Including the divergence does not lead to any noticeable gains for the detection AUROC. The same behavior applies to all met-rics, as completely shown in the supplementary materials. Most interestingly, with M = 1 , the di-vergence only makes up a total of 
+
+.57% of the final score magnitude on Real-IAD, since |div (uθt )| 
+
+> |log( x0)|
+
+=0.0057 . Moreover, leaving it out gets a boost of at least three times more model executions per sec-ond. Also, increasing M linearly increases both execution time and memory requirements, while also not gain-ing any precision in detection. We hypothesize that our model learns a very smooth vector field flowing from p0 to p1, which has almost no noticeable local divergence. Furthermore, this strengthens us in our decision to leave RealNVP-style models behind, which rely on architectures specifically designed to make this divergence tractable. Lastly, the flexibility gained with Flow Matching (as was visualized in Fig. 2) also provides an advantage on important real-world benchmarks, when comparing it to its more constrained RealNVP competitors. 
+
+Impact of ODE Solver. We test a variety of popular methods for solving ODEs on the Real-IAD data set. For this we choose methods with fixed step sizes, namely the Euler method, the Midpoint method, and the fourth order variant of Runge-Kutta (RK4) [30]. We vary their step sizes from 0.2 to 0.05 
+
+and record their impact on AD performance and model throughput (as FPS) in Tab. 5. We also compare to the adaptive step version of Runge-Kutta (Dopri5). Additional adaptive solvers, such as Euler-Heun, Fehlberg2, or Bosh3 achieved similar scores, but are reported in the supplementary for brevity. Going from Euler to Midpoint to RK4, the amount of function evaluations per batch doubles. This is also visible in the throughput, which gives the Euler method a clear edge for fast in-production use, since it is the only method capable of processing more than 10 images per second. The adaptive Dopri5-solver is slower than all competing methods while not bringing any more precision to the detection. However, none of the methods show an all-too-clear advantage in the measured AUROC except for the Euler method. Here, a small improvement can be measured only for the higher step sizes. All other methods achieve an AUROC of roughly 91 .06 , irrespective of step size. 14 M. Kruse et al. 
+
+Table 4: I-AUROC for the divergence term from Eq. (6) on Real-IAD, with vary-ing number of samples M . Without the divergence, FPS & average memory im-proves, while detection is unchanged. Method M = 0 M = 1 M = 2 M = 4                    
+
+> I-AUROC  MATCH 91.172 ---Hutchinson [38] -91.170 91.169 91.170 RQMC [53] -91.170 91.170 91.170 (↑)FPS 18.77 5.40 3.16 1.56 (↓)Memory (GB) 8.88 10.28 10.70 11.45
+
+Table 5: I-AUROC for different ODE solvers with varying step size parameter on Real-IAD. Increasing the step size also linearly decreases the amount samples pro-cessed per second. Metric I-AUROC ( ↑) FPS ( ↑)Step size 0.05 0.1 0.2 0.05 0.1 0.2 Euler 91.09 91.12 91.17 3.26 6.54 13.13         
+
+> Midpoint 91.06 91.06 91.08 1.63 3.27 6.55 RK4 91.06 91.07 91.07 0.62 1.24 2.48 Dopri5 ←−−91.06 −−→←−−0.48 −−→
+
+Clear hypotheses can, however, not be made, as the AUROC improvement with Euler lies roughly within the standard deviation reported in Tab. 1. Never-theless, the simplicity still makes the Euler method the fastest and best usable ODE solver for our AD use case, as there is no trade-off between speed and ac-curacy. It is also consistent with previous research, which showed no substantial numerical errors, when using simpler ODE solvers [47]. 
+
+Supplementary Experiments. We conduct three additional experiments in our supplementary materials in Secs. B to D, to further validate our model’s strength. Firstly, we report metrics for the classic MVTec AD benchmark in the appendix, where MATCH is still competitive. Furthermore, we also test the popular multi-class AD setting. Even though MATCH is not explicitly fo-cused on multi-class AD, it achieves a very competitive I-AUROC of 87 .5 on Real-IAD, only slightly beaten by Dinomaly [29]. Lastly, we highlight the ro-bustness to other backbones, by swapping MATCH and PaDiM & RD4AD to a DINOv3 [60] backbone. Even then, the AD performance stays the same or deteriorates slightly. Furthermore, with all methods fixed to a DINOv3 back-bone, MATCH still outperforms the other methods. Still, we prefer the classic WideResNet due to its lower computational costs. 
+
+## 5 Conclusion 
+
+We have proposed MATCH , an effective framework for detecting anomalies in the multi-view setting. Using the simple Flow Matching formulation and a multi-layer feature extraction pipeline, we are able to establish state-of-the-art results on Real-IAD, as well as new comprehensive benchmarking results on MANTA-Tiny. Future work will focus on including more prior knowledge, such as explicit 3D constraints or multi-view correspondences, into the Flow Matching pipeline. More recent improvements in Flow Matching and generative modelling, such as energy matching [3], may also suit themselves to future endeavours in anomaly detection. MATCH: Flow Matching for Multi-View Anomaly Detection 15 
+
+## Acknowledgements 
+
+This work was supported by the MWK of Lower Saxony within Hybrint (VWZN4219) and LCIS (VWZN4704), the Deutsche Forschungsgemeinschaft (DFG) under Ger-many’s Excellence Strategy within the Cluster of Excellence PhoenixD (EXC2122) and Quantum Frontiers (EXC2123), the European Union under grant agreement no. 101136006 – XTREME. 
+
+## References 
+
+1. Akcay, S., Ameln, D., Vaidya, A., Lakshmanan, B., Ahuja, N., Genc, U.: Anoma-lib: A deep learning library for anomaly detection. In: 2022 IEEE International Conference on Image Processing (ICIP). pp. 1706–1710. IEEE (2022) 2. Ardizzone, L., Lüth, C., Kruse, J., Rother, C., Köthe, U.: Guided image genera-tion with conditional invertible neural networks. arXiv preprint arXiv:1907.02392 (2019) 3. Balcerak, M., Amiranashvili, T., Terpin, A., Shit, S., Bogensperger, L., Kaltenbach, S., Koumoutsakos, P., Menze, B.: Energy matching: Unifying flow matching and energy-based models for generative modeling. arXiv preprint arXiv:2504.10612 (2025) 4. Batzner, K., Heckler, L., König, R.: Efficientad: Accurate visual anomaly detection at millisecond-level latencies. In: Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV). pp. 128–138 (January 2024) 5. Bergmann, P., Batzner, K., Fauser, M., Sattlegger, D., Steger, C.: Beyond dents and scratches: Logical constraints in unsupervised anomaly detection and localization. International Journal of Computer Vision 130 (4), 947–969 (2022) 6. Bergmann, P., Fauser, M., Sattlegger, D., Steger, C.: Mvtec ad–a comprehen-sive real-world dataset for unsupervised anomaly detection. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 9592–9600 (2019) 7. Bergmann, P., Jin, X., Sattlegger, D., Steger, C.: The mvtec 3d-ad dataset for unsu-pervised 3d anomaly detection and localization. In: Proceedings of the 17th Inter-national Joint Conference on Computer Vision, Imaging and Computer Graphics Theory and Applications, VISIGRAPP 2022, Volume 5: VISAPP, Online Stream-ing, February 6-8, 2022. pp. 202–213. SCITEPRESS (2022) 8. Bergmann, P., Löwe, S., Fauser, M., Sattlegger, D., Steger, C.: Improving unsu-pervised defect segmentation by applying structural similarity to autoencoders. In: Proceedings of the 14th International Joint Conference on Computer Vision, Imag-ing and Computer Graphics Theory and Applications, VISIGRAPP 2019, Volume 5: VISAPP, Prague, Czech Republic, February 25-27, 2019. pp. 372–380 (2019) 9. Bhunia, A., Li, C., Bilen, H.: Looking 3d: Anomaly detection with 2d-3d align-ment. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024. pp. 17263–17272. IEEE (2024). 
+
+https://doi.org/10.1109/CVPR52733.2024.01634 , https://doi.org/10.1109/ CVPR52733.2024.01634 
+
+10. Bhunia, A., Li, C., Bilen, H.: Odd-one-out: Anomaly detection by compar-ing with neighbors. In: IEEE/CVF Conference on Computer Vision and Pat-tern Recognition, CVPR 2025, Nashville, TN, USA, June 11-15, 2025. pp. 16 M. Kruse et al. 20395–20404. Computer Vision Foundation / IEEE (2025). https://doi.org/ 10.1109/CVPR52734.2025.01899 , https://openaccess.thecvf.com/content/ CVPR2025/html/Bhunia_Odd-One-Out_Anomaly_Detection_by_Comparing_with_ Neighbors_CVPR_2025_paper.html 
+
+11. Bonfiglioli, L., Toschi, M., Silvestri, D., Fioraio, N., De Gregorio, D.: The eyecan-dies dataset for unsupervised multimodal anomaly detection and localization. In: Proceedings of the 16th Asian Conference on Computer Vision (ACCV2022 (2022), aCCV 12. Cao, Y., Cheng, Y., Xu, X., Zhang, Y., Sun, Y., Tan, Y., Zhang, Y., Huang, X., Shen, W.: Visual anomaly detection under complex view-illumination interplay: A large-scale benchmark. arXiv preprint arXiv:2505.10996 (2025) 13. Chen, R.T., Rubanova, Y., Bettencourt, J., Duvenaud, D.K.: Neural ordinary dif-ferential equations. Advances in neural information processing systems 31 (2018) 14. Cohen, N., Hoshen, Y.: Sub-image anomaly detection with deep pyramid corre-spondences. arXiv preprint arXiv:2005.02357 (2020) 15. Dao, Q., Phung, H., Nguyen, B., Tran, A.: Flow matching in latent space. arXiv preprint arXiv:2307.08698 (2023) 16. Defard, T., Setkov, A., Loesch, A., Audigier, R.: Padim: a patch distribution model-ing framework for anomaly detection and localization. In: International Conference on Pattern Recognition. pp. 475–489. Springer (2021) 17. Deng, H., Li, X.: Anomaly detection via reverse distillation from one-class em-bedding. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 9737–9746 (2022) 18. Deng, J., Dong, W., Socher, R., Li, L.J., Li, K., Fei-Fei, L.: Imagenet: A large-scale hierarchical image database. In: 2009 IEEE conference on computer vision and pattern recognition. pp. 248–255. Ieee (2009) 19. Ding, C., Pang, G., Shen, C.: Catching both gray and black swans: Open-set supervised anomaly detection. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2022, New Orleans, LA, USA, June 18-24, 2022. pp. 7378–7388. IEEE (2022). https://doi.org/10.1109/CVPR52688.2022.00724 ,
+
+https://doi.org/10.1109/CVPR52688.2022.00724 
+
+20. Dinh, L., Krueger, D., Bengio, Y.: NICE: non-linear independent components esti-mation. In: Bengio, Y., LeCun, Y. (eds.) 3rd International Conference on Learning Representations, ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Workshop Track Proceedings (2015), http://arxiv.org/abs/1410.8516 
+
+21. Dinh, L., Sohl-Dickstein, J., Bengio, S.: Density estimation using real NVP. In: 5th International Conference on Learning Representations, ICLR 2017, Toulon, France, April 24-26, 2017, Conference Track Proceedings. OpenReview.net (2017), 
+
+https://openreview.net/forum?id=HkpbnH9lx 
+
+22. Fan, L., Fan, D., Hu, Z., Ding, Y., Di, D., Yi, K., Pagnucco, M., Song, Y.: MANTA: A large-scale multi-view and visual-text anomaly detection dataset for tiny objects. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2025, Nashville, TN, USA, June 11-15, 2025. pp. 25518–25527. Computer Vision Foundation / IEEE (2025). https://doi.org/10.1109/CVPR52734.2025.02376 
+
+23. Galappaththige, C.J., Lai, J., Windrim, L., Dansereau, D.G., Sünderhauf, N., Miller, D.: Multi-view pose-agnostic change localization with zero labels. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2025, Nashville, TN, USA, June 11-15, 2025. pp. 11600–11610. Computer Vision Foundation / IEEE (2025). https://doi.org/10.1109/CVPR52734.2025.01083 ,
+
+https://openaccess.thecvf.com/content/CVPR2025/html/Galappaththige_ MATCH: Flow Matching for Multi-View Anomaly Detection 17 
+
+Multi- View_Pose- Agnostic_Change_Localization_with_Zero_Labels_CVPR_ 2025_paper.html 
+
+24. Gong, D., Liu, L., Le, V., Saha, B., Mansour, M.R., Venkatesh, S., van den Hen-gel, A.: Memorizing normality to detect anomaly: Memory-augmented deep au-toencoder for unsupervised anomaly detection. In: 2019 IEEE/CVF International Conference on Computer Vision, ICCV 2019, Seoul, Korea (South), October 27 -November 2, 2019. pp. 1705–1714. IEEE (2019). https://doi.org/10.1109/ICCV. 2019.00179 , https://doi.org/10.1109/ICCV.2019.00179 
+
+25. Grathwohl, W., Chen, R.T.Q., Bettencourt, J., Sutskever, I., Duvenaud, D.: FFJORD: free-form continuous dynamics for scalable reversible generative mod-els. In: 7th International Conference on Learning Representations, ICLR 2019, New Orleans, LA, USA, May 6-9, 2019. OpenReview.net (2019), https://openreview. net/forum?id=rJxgknCcK7 
+
+26. Gu, Z., Zhu, B., Zhu, G., Chen, Y., Tang, M., Wang, J.: Anomalygpt: Detect-ing industrial anomalies using large vision-language models. In: Wooldridge, M.J., Dy, J.G., Natarajan, S. (eds.) Thirty-Eighth AAAI Conference on Artificial Intel-ligence, AAAI 2024. pp. 1932–1940. AAAI Press (2024). https://doi.org/10. 1609/AAAI.V38I3.27963 , https://doi.org/10.1609/aaai.v38i3.27963 
+
+27. Gudovskiy, D., Ishizaka, S., Kozuka, K.: Cflow-ad: Real-time unsupervised anomaly detection with localization via conditional normalizing flows. In: Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 98–107 (2022) 28. Guo, J., Lu, S., Jia, L., Zhang, W., Li, H.: Recontrast: Domain-specific anomaly detection via contrastive reconstruction. In: Oh, A., Naumann, T., Glober-son, A., Saenko, K., Hardt, M., Levine, S. (eds.) Advances in Neural Infor-mation Processing Systems 36: Annual Conference on Neural Information Pro-cessing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023 (2023), http://papers.nips.cc/paper_files/paper/2023/hash/ 228b9279ecf9bbafe582406850c57115-Abstract-Conference.html 
+
+29. Guo, J., Lu, S., Zhang, W., Chen, F., Li, H., Liao, H.: Dinomaly: The less is more philosophy in multi-class unsupervised anomaly detection. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2025, Nashville, TN, USA, June 11-15, 2025. pp. 20405–20415. Computer Vision Foundation / IEEE (2025). https://doi.org/10.1109/CVPR52734.2025.01900 , https:// openaccess.thecvf.com/content/CVPR2025/html/Guo_Dinomaly_The_Less_Is_ More_Philosophy_in_Multi- Class_Unsupervised_Anomaly_CVPR_2025_paper. html 
+
+30. Hairer, E., Wanner, G., Nørsett, S.P.: Solving ordinary differential equations I: Nonstiff problems. Springer (1993) 31. He, H., Bai, Y., Zhang, J., He, Q., Chen, H., Gan, Z., Wang, C., Li, X., Tian, G., Xie, L.: Mambaad: Exploring state space models for multi-class unsuper-vised anomaly detection. In: Globersons, A., Mackey, L., Belgrave, D., Fan, A., Paquet, U., Tomczak, J.M., Zhang, C. (eds.) Advances in Neural Infor-mation Processing Systems 38: Annual Conference on Neural Information Pro-cessing Systems 2024, NeurIPS 2024, Vancouver, BC, Canada, December 10 - 15, 2024 (2024), http://papers.nips.cc/paper_files/paper/2024/hash/ 833b21da1956c6b92f6df253bf655cf5-Abstract-Conference.html 
+
+32. He, H., Zhang, J., Chen, H., Chen, X., Li, Z., Chen, X., Wang, Y., Wang, C., Xie, L.: A diffusion-based framework for multi-class anomaly detection. In: Wooldridge, M.J., Dy, J.G., Natarajan, S. (eds.) Thirty-Eighth AAAI Conference on Artificial 18 M. Kruse et al. Intelligence, AAAI 2024, Thirty-Sixth Conference on Innovative Applications of Artificial Intelligence, IAAI 2024, Fourteenth Symposium on Educational Advances in Artificial Intelligence, EAAI 2014, February 20-27, 2024, Vancouver, Canada. pp. 8472–8480. AAAI Press (2024). https://doi.org/10.1609/AAAI.V38I8.28690 ,
+
+https://doi.org/10.1609/aaai.v38i8.28690 
+
+33. He, H., Zhang, J., Tian, G., Wang, C., Xie, L.: Learning multi-view anomaly de-tection with efficient adaptive selection. IEEE Transactions on Multimedia (2026) 34. He, K., Zhang, X., Ren, S., Sun, J.: Deep residual learning for image recognition. In: 2016 IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2016, Las Vegas, NV, USA, June 27-30, 2016. pp. 770–778. IEEE Computer Society (2016). https://doi.org/10.1109/CVPR.2016.90 , https://doi.org/10.1109/ CVPR.2016.90 
+
+35. Heckler, L., König, R., Bergmann, P.: Exploring the importance of pretrained feature extractors for unsupervised anomaly detection and localization. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023 - Workshops, Vancouver, BC, Canada, June 17-24, 2023. pp. 2917–2926. IEEE (2023). https://doi.org/10.1109/CVPRW59228.2023.00293 , https://doi.org/ 10.1109/CVPRW59228.2023.00293 
+
+36. Heckler-Kram, L., Neudeck, J.H., Scheler, U., König, R., Steger, C.: The mvtec ad 2 dataset: Advanced scenarios for unsupervised anomaly detection. arXiv preprint arXiv:2503.21622 (2025) 37. Hendrycks, D., Gimpel, K.: Gaussian error linear units (gelus). arXiv preprint arXiv:1606.08415 (2016) 38. Hutchinson, M.F.: A stochastic estimator of the trace of the influence matrix for laplacian smoothing splines. Communications in Statistics-Simulation and Com-putation 18 (3), 1059–1076 (1989) 39. Jeong, J., Zou, Y., Kim, T., Zhang, D., Ravichandran, A., Dabeer, O.: Winclip: Zero-/few-shot anomaly classification and segmentation. In: IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition, CVPR 2023, Vancouver, BC, Canada, June 17-24, 2023. pp. 19606–19616. IEEE (2023). https://doi.org/ 10.1109/CVPR52729.2023.01878 , https://doi.org/10.1109/CVPR52729.2023. 01878 
+
+40. Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. In: Bengio, Y., LeCun, Y. (eds.) 3rd International Conference on Learning Representations, ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Conference Track Proceedings (2015), http://arxiv.org/abs/1412.6980 
+
+41. Kingma, D.P., Dhariwal, P.: Glow: Generative flow with invertible 1x1 convolu-tions. In: Bengio, S., Wallach, H.M., Larochelle, H., Grauman, K., Cesa-Bianchi, N., Garnett, R. (eds.) Advances in Neural Information Processing Systems 31: Annual Conference on Neural Information Processing Systems 2018, NeurIPS 2018, Decem-ber 3-8, 2018, Montréal, Canada. pp. 10236–10245 (2018), https://proceedings. neurips.cc/paper/2018/hash/d139db6a236200b21cc7f752979132d0-Abstract. html 
+
+42. Kirichenko, P., Izmailov, P., Wilson, A.G.: Why normalizing flows fail to detect out-of-distribution data. In: Larochelle, H., Ranzato, M., Hadsell, R., Balcan, M., Lin, H. (eds.) Advances in Neural Information Processing Systems 33: Annual Con-ference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual (2020), https://proceedings.neurips.cc/paper/2020/hash/ ecb9fe2fbb99c31f567e9823e884dbec-Abstract.html MATCH: Flow Matching for Multi-View Anomaly Detection 19 43. Kruse, M., Rosenhahn, B.: Multi-flow: Multi-view-enriched normalizing flows for industrial anomaly detection. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops, CVPR Workshops 2025, Nashville, TN, USA, June 11-15, 2025. pp. 3933–3944. Computer Vision Foundation / IEEE (2025) 44. Kruse, M., Rudolph, M., Woiwode, D., Rosenhahn, B.: Splatpose & detect: Pose-agnostic 3d anomaly detection. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024 - Workshops, Seattle, WA, USA, June 17-18, 2024. pp. 3950–3960. IEEE (2024). https://doi.org/10.1109/CVPRW63382. 2024.00399 , https://doi.org/10.1109/CVPRW63382.2024.00399 
+
+45. Lee, S., Lee, S., Song, B.C.: CFA: coupled-hypersphere-based feature adaptation for target-oriented anomaly localization. IEEE Access 10 , 78446–78454 (2022). 
+
+https://doi.org/10.1109/ACCESS.2022.3193699 , https://doi.org/10.1109/ ACCESS.2022.3193699 
+
+46. Lei, J., Hu, X., Wang, Y., Liu, D.: Pyramidflow: High-resolution defect contrastive localization using pyramid normalizing flow. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 14143–14152 (2023) 47. Lipman, Y., Chen, R.T.Q., Ben-Hamu, H., Nickel, M., Le, M.: Flow matching for generative modeling. In: The Eleventh International Conference on Learning Rep-resentations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023. OpenReview.net (2023), 
+
+https://openreview.net/forum?id=PqvMRDCJT9t 
+
+48. Lipman, Y., Havasi, M., Holderrieth, P., Shaul, N., Le, M., Karrer, B., Chen, R.T., Lopez-Paz, D., Ben-Hamu, H., Gat, I.: Flow matching guide and code. arXiv preprint arXiv:2412.06264 (2024) 49. Liu, Y., Xu, X., Li, S., Liao, J., Yang, X.: Multi-view industrial anomaly detec-tion with epipolar constrained cross-view fusion. arXiv preprint arXiv:2503.11088 (2025) 50. Liu, Z., Zhou, Y., Xu, Y., Wang, Z.: Simplenet: A simple network for image anomaly detection and localization. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 20402–20411 (2023) 51. Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. In: 7th Inter-national Conference on Learning Representations, ICLR 2019, New Orleans, LA, USA, May 6-9, 2019. OpenReview.net (2019), https://openreview.net/forum? id=Bkg6RiCqY7 
+
+52. McKay, M.D., Beckman, R.J., Conover, W.J.: A comparison of three methods for selecting values of input variables in the analysis of output from a computer code. Technometrics 42 (1), 55–61 (2000) 53. Morokoff, W.J., Caflisch, R.E.: Quasi-monte carlo integration. Journal of compu-tational physics 122 (2), 218–230 (1995) 54. Papamakarios, G., Nalisnick, E., Rezende, D.J., Mohamed, S., Lakshminarayanan, B.: Normalizing flows for probabilistic modeling and inference. The Journal of Machine Learning Research 22 (1), 2617–2680 (2021) 55. Rezende, D., Mohamed, S.: Variational inference with normalizing flows. In: Inter-national conference on machine learning. pp. 1530–1538. PMLR (2015) 56. Roth, K., Pemula, L., Zepeda, J., Schölkopf, B., Brox, T., Gehler, P.: Towards total recall in industrial anomaly detection. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 14318–14328 (2022) 57. Rudolph, M., Wandt, B., Rosenhahn, B.: Same same but differnet: Semi-supervised defect detection with normalizing flows. In: Proceedings of the IEEE/CVF winter conference on applications of computer vision. pp. 1907–1916 (2021) 20 M. Kruse et al. 58. Rudolph, M., Wehrbein, T., Rosenhahn, B., Wandt, B.: Fully convolutional cross-scale-flows for image-based defect detection. In: Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 1088–1097 (2022) 59. Rudolph, M., Wehrbein, T., Rosenhahn, B., Wandt, B.: Asymmetric student-teacher networks for industrial anomaly detection. In: WACV. pp. 2591–2601. IEEE (2023) 60. Siméoni, O., Vo, H.V., Seitzer, M., Baldassarre, F., Oquab, M., Jose, C., Khali-dov, V., Szafraniec, M., Yi, S., Ramamonjisoa, M., et al.: Dinov3. arXiv preprint arXiv:2508.10104 (2025) 61. Tien, T.D., Nguyen, A.T., Tran, N.H., Huy, T.D., Duong, S., Nguyen, C.D.T., Truong, S.Q.: Revisiting reverse distillation for anomaly detection. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 24511–24520 (2023) 62. Tong, A., Fatras, K., Malkin, N., Huguet, G., Zhang, Y., Rector-Brooks, J., Wolf, G., Bengio, Y.: Improving and generalizing flow-based generative mod-els with minibatch optimal transport. Trans. Mach. Learn. Res. 2024 (2024), 
+
+https://openreview.net/forum?id=CD9Snc73AW 
+
+63. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.N., Kaiser, Ł., Polosukhin, I.: Attention is all you need. Advances in neural information pro-cessing systems 30 (2017) 64. Wang, C., Zhu, W., Gao, B., Gan, Z., Zhang, J., Gu, Z., Qian, S., Chen, M., Ma, L.: Real-iad: A real-world multi-view dataset for benchmarking versatile industrial anomaly detection. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024. pp. 22883–22892. IEEE (2024). https://doi.org/10.1109/CVPR52733.2024.02159 , https://doi. org/10.1109/CVPR52733.2024.02159 
+
+65. Wang, G., Han, S., Ding, E., Huang, D.: Student-teacher feature pyramid matching for anomaly detection. In: British Machine Vision Conference (2021) 66. Yang, K., Cao, J., Bai, Z., Su, Z., Tagliasacchi, A.: Piad: Pose and illumination agnostic anomaly detection. In: Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR). pp. 4734–4743 (June 2025) 67. You, Z., Cui, L., Shen, Y., Yang, K., Lu, X., Zheng, Y., Le, X.: A unified model for multi-class anomaly detection. Advances in Neural Information Processing Systems 
+
+35 , 4571–4584 (2022) 68. Yu, J., Zheng, Y., Wang, X., Li, W., Wu, Y., Zhao, R., Wu, L.: Fastflow: Unsuper-vised anomaly detection and localization via 2d normalizing flows. arXiv preprint arXiv:2111.07677 (2021) 69. Zagoruyko, S., Komodakis, N.: Wide residual networks. In: Wilson, R.C., Hancock, E.R., Smith, W.A.P. (eds.) Proceedings of the British Machine Vision Conference 2016, BMVC 2016, York, UK, September 19-22, 2016. BMVA Press (2016), https: //bmva-archive.org.uk/bmvc/2016/papers/paper087/index.html 
+
+70. Zavrtanik, V., Kristan, M., Skočaj, D.: Draem-a discriminatively trained re-construction embedding for surface anomaly detection. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 8330–8339 (2021) 71. Zavrtanik, V., Kristan, M., Skočaj, D.: Dsr–a dual subspace re-projection network for surface anomaly detection. In: European conference on computer vision. pp. 539–554. Springer (2022) 72. Zeiler, M.D., Krishnan, D., Taylor, G.W., Fergus, R.: Deconvolutional networks. In: The Twenty-Third IEEE Conference on Computer Vision and Pattern Recog-nition, CVPR 2010, San Francisco, CA, USA, 13-18 June 2010. pp. 2528–2535. MATCH: Flow Matching for Multi-View Anomaly Detection 21 IEEE Computer Society (2010). https://doi.org/10.1109/CVPR.2010.5539957 ,
+
+https://doi.org/10.1109/CVPR.2010.5539957 
+
+73. Zhang, J., Chen, X., Wang, Y., Wang, C., Liu, Y., Li, X., Yang, M.H., Tao, D.: Exploring plain vit reconstruction for multi-class unsupervised anomaly detection. arXiv preprint arXiv:2312.07495 (2023) 74. Zhang, J., He, H., Gan, Z., He, Q., Cai, Y., Xue, Z., Wang, Y., Wang, C., Xie, L., Liu, Y.: A comprehensive library for benchmarking multi-class visual anomaly de-tection. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 3524–3533 (2025) 75. Zhang, J., Wang, G., Jin, Y., Huang, D.: Towards training-free anomaly detec-tion with vision and language foundation models. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2025, Nashville, TN, USA, June 11-15, 2025. pp. 15204–15213. Computer Vision Foundation / IEEE (2025). https: //doi.org/10.1109/CVPR52734.2025.01416 , https://openaccess.thecvf.com/ content/CVPR2025/html/Zhang_Towards_Training- free_Anomaly_Detection_ with_Vision_and_Language_Foundation_Models_CVPR_2025_paper.html 
+
+76. Zhang, X., Xu, M., Zhou, X.: Realnet: A feature selection network with realistic synthetic anomaly for anomaly detection. In: IEEE/CVF Conference on Com-puter Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024. pp. 16699–16708. IEEE (2024). https://doi.org/10.1109/CVPR52733. 2024.01580 , https://doi.org/10.1109/CVPR52733.2024.01580 
+
+77. Zhang, X., Li, S., Li, X., Huang, P., Shan, J., Chen, T.: Destseg: Segmentation guided denoising student-teacher for anomaly detection. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 3914– 3923 (2023) 78. Zhou, C., Paffenroth, R.C.: Anomaly detection with robust deep autoencoders. In: Proceedings of the 23rd ACM SIGKDD international conference on knowledge discovery and data mining. pp. 665–674 (2017) 79. Zhou, K., Cao, Y., Kim, T., Zhao, H., Dong, H., Ting, K.M., Zhu, Y.: Rad: A dataset and benchmark for real-life anomaly detection with robotic observations. arXiv preprint arXiv:2410.00713 (2024) 80. Zhou, Q., Li, W., Jiang, L., Wang, G., Zhou, G., Zhang, S., Zhao, H.: PAD: A dataset and benchmark for pose-agnostic anomaly detection. In: Oh, A., Naumann, T., Globerson, A., Saenko, K., Hardt, M., Levine, S. (eds.) Ad-vances in Neural Information Processing Systems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023 (2023), http://papers.nips.cc/paper_files/ paper / 2023 / hash / 8bc5aef775aacc1650a9790f1428bcea - Abstract - Datasets _ and_Benchmarks.html 
+
+81. Zhou, Q., Pang, G., Tian, Y., He, S., Chen, J.: Anomalyclip: Object-agnostic prompt learning for zero-shot anomaly detection. In: The Twelfth International Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024. OpenReview.net (2024), https://openreview.net/forum?id=buC4E91xZE 
+
+82. Zhu, W., Wang, L., Zhou, Z., Wang, C., Pan, Y., Zhang, R., Chen, Z., Cheng, L., Gao, B., Zhang, J., Gan, Z., Wang, Y., Chen, Y., Qian, S., Chi, M., Peng, B., Ma, L.: Real-iad D3: A real-world 2d/pseudo-3d/3d dataset for industrial anomaly de-tection. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2025, Nashville, TN, USA, June 11-15, 2025. pp. 15214–15223. Computer Vision Foundation / IEEE (2025). https://doi.org/10.1109/CVPR52734.2025. 01417 , https://openaccess.thecvf.com/content/CVPR2025/html/Zhu_Real-22 M. Kruse et al. 
+
+IAD _ D3 _ A _ Real - World _ 2DPseudo - 3D3D _ Dataset _ for _ Industrial _ Anomaly _ Detection_CVPR_2025_paper.html 
+
+83. Zou, Y., Jeong, J., Pemula, L., Zhang, D., Dabeer, O.: Spot-the-difference self-supervised pre-training for anomaly detection and segmentation. In: European Conference on Computer Vision. pp. 392–408. Springer (2022) Supplementary: MATCH: Flow Matching for Multi-View Anomaly Detection 
+
+## A Architecture Details 
+
+We describe the architecture in greater detail, noting down all layers and their configurations. The respective input dimension, output dimension, and stride (e.g . s1 for a stride of 1) are shown below the convolutional blocks. "Conv" describes regular, while "ConvT" are transposed convolutions. The Group Nor-malization ("GN") blocks also show the number of groups (always 32), as well as the feature dimension. Occasionally, tensor dimensions are displayed below the data nodes. 
+
+Embeddings. The short MLPs for embedding time and view information are shown in Fig. 1.     
+
+> Fig. 1: Embedding Network, with posi-tional encoding (PosEnc) and embedding layers (Emb).
+
+Bottleneck. The full bottleneck, in-cluding feature alignment and bot-tleneck blocks, is shown in Fig. 2. Three feature vectors xi are aligned by convolutional layers and then con-catenated. After adding the already concatenated embedding of view and time information ("emb"), they are passed to three bottleneck blocks, with input dimensions 3072 , 2048 , and 2048 
+
+respectively. This results in the first block needing to use downsampling for its residual connection, while the others use identity residual connections. 
+
+Decoder. A decoder block is shown in Fig. 3. Again, whenever input and output dimension do not match (which is the case for every first block), the residual connection is done with a convolutional upsampling. Each first block (with the downsampling residual connection), also uses ConvT2x2 instead of Conv3x3. The output of one block serves as input for the next. Each decoder block is determined by a (input , hidden , output )-tuple of dimen-sions. Additionally, the embedding is also added onto the resulting feature. The mentioned blocks Di of Fig. 3 consist of three, four, and six blocks respectively. Thus D1 has a (2048 , 3072 , 1024) block, followed by two (1024 , 3072 , 1024) blocks. 
+
+D2 contains a (1024 , 1536 , 512) block and then three (512 , 1536 , 512) blocks. Lastly, D3 consists of a (512 , 768 , 256) block and five (256 , 768 , 256) blocks. Changing the width_per_group parameter, currently set to 768 and ablated in Fig. 5 in the main paper, controls the width of these layers. Each decoder Di
+
+produces an output ˆxi of the same shape as the respective input feature xi, with which the Flow Matching loss is calculated. 2  
+
+> Fig. 2: Alignment and Bottleneck Network
+> Fig. 3: ResNet-style Decoder Block, depending on choice of input (in), hidden (hid) and output (out) dimension.
+
+## B Additional Multi-Class Anomaly Detection 
+
+Additional evaluation is done with the popular multi-class AD setting, despite 
+
+MATCH not being explicitly designed for this task. Here, all training splits of the classes of Real-IAD are combined. After training for 100 epochs, all classes are evaluated independently. The average performance across all classes is shown in Tab. 1. Baseline num-bers are taken from multi-class AD method Dinomaly [29], which takes some numbers from the ADer benchmark paper [74]. We outperform all regular single-class methods by large margins, while being competitive with the multi-class baselines. Concretely, we achieve an I-AUROC of 87 .5, only lacking two points behind Dinomaly. Supplementary: MATCH: Flow Matching for Multi-View AD 3                                        
+
+> Table 1: Performance under multi-class AD setting for Real-IAD. Numbers are taken from the Dinomaly paper [29]. Methods designed for the multi-class setting are marked in grey. The best performing method is marked in bold with the runner-up underlined. Metrics ( ↑)Method I-AUROC P-AUROC P-AUPRO RD4AD [17] 82.4 97.3 89.6 SimpleNet [50] 57.2 75.7 39.0 DeSTSeg [77] 82.3 94.6 40.6 UniAD [67] 83.0 97.3 86.7 ReContrast [28] 86.4 97.8 91.8 DiAD [32] 75.6 88.0 58.1 ViTAD [73] 82.7 97.2 84.8 MambaAD [31] 86.3 98.5 90.5 MVAD [33] 86.6 97.9 91.2 Dinomaly [29] 89.3 98.8 93.9
+> MATCH (ours) 87.5 98.0 92.2
+
+## C Additional Results on MVTec AD 
+
+We report results on the popular MVTec AD data set [6] in Tab. 2. Since we did not optimize our method specifically for this data set, we do not reach peak state-of-the-art performance, but are still comfortably competitive, with an I-AUROC of 97 .46 and a P-AUPRO of 93 .88 . Some qualitative examples are found in Fig. 4. 
+
+## D Additional Results for DINOv3 Backbone             
+
+> Fig. 4: Qualitative results for the MVTec AD data set [6] on the classes
+> bottle ,cable ,and hazel-nut .MATCH consistently segments the anomalous regions.
+
+We also test the new DINOv3 [60] model as a back-bone for MATCH as well as baselines RD4AD [17] and PaDiM [16]. We chose these baselines, since they most naturally support swapping to a differ-ent custom backbone. Since we still restrict our-selves to consumer-level hardware, we use the DI-NOv3 ViT-S/16 model, which is pretrained on the enormous LVD-1689M data set. The results are pre-sented in Tab. 3. As MATCH still performs strongest, we confirm its robustness to different and newer back-bones. However, we still prefer to use our WideResNet, since it achieves similar or stronger scores, while being less computationally expensive. Expanding to differ-ent backbones or even learning on raw pixel scores could therefore be interesting avenues for future re-search. Further, introducing huge pretraining data 4
+
+Table 2: Detection and segmentation metrics on MVTec AD [6]. Metrics ( ↑)Category I-AUROC P-AUROC P-AUPRO carpet 98.84 98.96 96.31 grid 99.00 99.15 97.02 leather 99.97 99.23 98.03 tile 99.78 93.41 93.76 wood 99.39 94.09 89.61 bottle 99.84 98.14 95.64 cable 92.95 96.23 89.65 capsule 97.21 99.05 94.69 hazelnut 99.93 98.43 93.38 metal nut 99.90 97.22 94.00 pill 95.36 96.96 96.73 screw 97.91 99.6 97.71 toothbrush 90.28 98.82 95.41 transistor 97.04 90.37 81.11 zipper 94.54 98.53 95.21 MVTec AD 97.46 97.21 93.88 
+
+Table 3: Anomaly Detection on Real-IAD with DINOv3 . We extract features from the layers [1, 6, 11]. Backbone Model S-AUROC I-AUROC P-AP P-AUPRO P-AUROC 
+
+DINOv3 
+
+PaDiM 93.64 79.92 07.20 75.88 94.83 RD4AD 92.93 86.58 21.73 83.49 97.15 
+
+MATCH 95.58 88.63 26.08 87.83 98.38 
+
+W.ResNet MATCH 95.63 91.17 32.68 94.76 99.24 
+
+sets may not necessarily lead to an increase in per-formance. 
+
+## E Two Moons Toy Experiment 
+
+We describe the setting for the toy experiment with the "Two Moons" data set shown in Fig. 2 (main paper). While the data itself is two-dimensional, we linearly embed it in d-dimensional space by sampling a random matrix in Rd×d,orthogonalizing it with QR decomposition and using the first n = 2 dimensions for embedding our data. We use our flow models to map the moons, lifted to 
+
+d dimensions, onto a d-dimensional multivariate standard Gaussian, from which we will later sample new instances. For visualization, we use the inverse of our embedding to go back to two dimensions. For our experiments, we use the values 
+
+d ∈ { 2, 8, 32 , 128 , 256 , 512 }. Both models use the Adam [40] optimizer with a Supplementary: MATCH: Flow Matching for Multi-View AD 5
+
+learning rate of 0.001 and β1,2 = (0 .9, 0.999) . We train for 50 k epochs with a batch size of 512 .For Flow Matching , we use the same loss as in Sec. 3. The model is a series of six simple four-layer MLPs, with a hidden dimension of 32 and SELU activation, which has them ranging between 20k and 39k parameters, depending on d.The RealNVP [21] model consists of 8 coupling blocks trained with a max-imum likelihood loss. These blocks have a fixed random permutation, which simulates random masking needed to have all features interact with each other. Each coupling block has a network for scaling s and translation t. These are implemented as four-layer MLPs with LeakyReLU activation, layer normaliza-tion and the same hidden dimension of 32 . Clamping the scale factors s to the interval [−3, 3] , as suggested by Ardizzone et al. [2], further increases training stability. Since RealNVP needs to preserve the dimension of the input after every coupling block, the models lie in the range of 38k to roughly 170k parameters, which is much larger than their respective Flow Matching counterparts. 
+
+E.1 Quantitative Experiment 
+
+We quantitatively measure the quality of our density estimation using bits per dimension (BPD) [41], which is the normalized average negative log likelihood. For the Two Moons experiment, the FM model achieves consistently sensible BPD values (in the range of 1.3 to 2.0) for all dimensions. RealNVP, on the other hand, produces degenerate (negative) BPD values in all dimensions > 2.Additionally, we want to evaluate the quality of the density estimation on the actual feature space used by MATCH . For this, we construct a RealNVP-based normalizing flow baseline, which is based on the strong teacher network of [59]. We use one teacher network for each of the feature-map scales, with four coupling blocks and a hidden dimension of 256 each. We follow all settings of Rudolph et al . [59], aggregating features across scales using the maximum oper-ator. Likelihoods for MATCH are calculated using Hutchinson’s trace estimator (with M = 1 sample). Tab. 4 shows the result for both AD and density estimation. The NF baseline achieves non-trivial I-AUROC (even surpassing some other baselines), while its BPD of 160 .5 is vastly higher than MATCH, which lies at 1.83 . Additionally, Multi-Flow, which is trained on a different feature-space, also reaches a higher BPD of 2.10 . This confirms the FM formulation as better suited for not only the AD task, but also more capable for density estimation in these feature spaces. 
+
+## F Additional Qualitative Results 
+
+We provide a larger qualitative overview of well-segmented anomalies in Fig. 6. 
+
+Failure Cases. We present a variety of common failure cases of MATCH in Fig. 5, discuss them here and point towards possible solutions for future models. 6          
+
+> Table 4: Comparing RealNVP and Flow Matching on Real-IAD for AD & density estimation. Only Multi-Flow operates in a different feature space. Objective Method I-AUROC ( ↑) BPD ( ↓)RealNVP Multi-Flow 90.27 2.10 Baseline (NF) 80.91 160.5 FM MATCH 91.17 1.83
+
+Both Figs. 5a and 5b show very large ground truth anomalies, which are not fully segmented. The "Shriveling" anomaly is caused by the raw paddy rice being less wet and underdeveloped. However, the overall structure remains intact, while only a very slight deviance in colour needs to be detected. Due to the very large and diverse training set, detecting this anomaly is magnitudes harder than most of the industrial anomalies, which have less ambiguity in colour. As for the crack in the soybean in Fig. 5b, the crack itself is properly seg-mented. However, with large chunks missing, the entire soybean is now consid-ered an anomaly, even when locally it may appear intact. Figure 5c presents a false positive, which consists of a black spot (where the soybean was once connected to the plant). This black spot is also visible in some of the training images and is naturally not considered an anomaly. However, since this spot is rather small, most of the training data does not show it, making it rarer and therefore naturally more prone to be close to the decision boundary and a false positive. Here, data augmentation or focussing more on sub-optimally covered areas in the training set may help in eliminating this error. Figure 5d shows a capsule with two blue caps, whereas one cap should be white. Again, the entire object is considered an anomaly. Each of the blue caps could, by themselves, be considered locally plausible. Only in their global com-bination do they appear as an anomaly. However, the segmentation is currently more focused towards local defects, while detection is reasoning more globally. Informing the segmentation with the more global anomaly score could improve the model here. Figures 5e and 5f both present false positives caused by the ambiguity of the data. The last view of Fig. 5e has a small foreign object in the corner, that is not part of the anomaly mask. This failure may be alleviated by segmenting the objects before processing them. In Fig. 5f, the object is rotated in a way such that it reflects the light from source into the camera. This lighting is never found in the training data and thereby it is treated as an anomaly by the model, even when the 3D structure is plausible. Additional 3D scans/depth estimation could help circumventing the issue of lighting irregularities. Supplementary: MATCH: Flow Matching for Multi-View AD 7          
+
+> (a) Paddy - Shriveling (b) Soybean - Crack (c) Soybean - Good
+> (d) Capsule - Double Cap (e) Pistachios - Sprouting (f ) Type C - Protrusion
+
+Fig. 5: Anomaly maps of the most common failure cases in MANTA-Tiny. 
+
+Table 5: Influence of the divergence calculation method on every metric, including memory and FPS. The divergence has roughly no influence on detection and segmen-tation metrics. Method M S-AUROC I-AUROC P-AP P-AUPRO P-AUROC FPS ( ↑) Mem. ( ↓)Hutch. 1 95.614 91.170 32.657 94.749 99.243 5.40 10.28 GB RQMC 95.614 91.170 32.658 94.749 99.243 Hutch. 2 95.615 91.169 32.658 94.749 99.243 3.16 10.70 GB RQMC 95.615 91.170 32.658 94.749 99.243 Hutch. 4 95.615 91.170 32.657 94.749 99.243 1.56 11.45 GB RQMC 95.617 91.170 32.658 94.749 99.243 
+
+MATCH - 95.632 91.172 32.678 94.763 99.241 18.77 8.88 GB 
+
+## G Comprehensive Experimental Results 
+
+Comprehensive Ablations. The impact of removing the divergence on every met-ric (as described in Sec. 4.4 in the main paper) is shown in Tab. 5. We executed this experiment with a batch size of 2, and record the average GPU memory usage across the entire test set. All metrics for the ablation of the ODE solvers from Sec. 4.4 are shown in Tab. 6. 
+
+Comprehensive experiments on Real-IAD and MANTA-Tiny. The results for the test splits of MANTA versus MANTA-Tiny are shown in Tab. 7. We also provide the comprehensive results of every model tested on ev-ery object category/class for the metrics I-AUROC, S-AUROC, P-AUPRO, P-AUROC, and P-AP on Real-IAD and MANTA-Tiny. Metrics for Real-IAD are reported in Tabs. 8 to 12, while Tabs. 13 to 17 show results on MANTA-Tiny. 8
+
+Fig. 6: Qualitative anomaly maps for every category of MANTA-Tiny, with class and anomaly type designated. Despite the vast variety of products, MATCH regularly segments the anomalies, while avoiding excessive false positives. Supplementary: MATCH: Flow Matching for Multi-View AD 9
+
+Table 6: All metrics for different ODE solvers with varying step size parameter on Real-IAD. Solver Step size I-AUROC P-AP P-AUPRO P-AUROC FPS Euler 0.05 91.088 32.428 94.698 99.234 3.26 Euler 0.10 91.117 32.506 94.721 99.237 6.54 Euler 0.20 91.172 32.678 94.763 99.241 18.77 
+
+Midpoint 0.05 91.059 32.355 94.680 99.231 1.63 Midpoint 0.10 91.059 32.338 94.679 99.231 3.27 Midpoint 0.20 91.076 32.328 94.690 99.230 6.55 RK4 0.05 91.063 32.360 94.683 99.232 0.62 RK4 0.10 91.065 32.365 94.685 99.232 1.24 RK4 0.20 91.066 32.367 94.687 99.231 2.48 Adaptive-Heun - 91.063 32.360 94.681 99.231 0.35 Bosh3 - 91.063 32.360 94.681 99.231 0.46 Dopri5 - 91.063 32.359 94.681 99.231 0.48 Fehlberg2 - 91.062 32.359 94.681 99.231 1.60 
+
+Table 7: Testing MATCH (trained on MANTA-Tiny) on the test splits of both MANTA and MANTA-Tiny. There are no clear tendencies towards a worse perfor-mance on the whole MANTA split. Thereby, MANTA-Tiny is a suitable alternative to the entire MANTA split. Test Split I-AUROC S-AUROC P-AP P-AUPRO P-AUROC MANTA-Tiny 90.66 89.41 40.48 89.66 95.65 MANTA 90.74 89.47 42.95 89.23 95.61 10 
+
+Table 8: Comprehensive results for anomaly detection, measured as I-AUROC (↑)on Real-IAD. The best performing method is marked in bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+Audiojack 79.25 60.92 79.81 69.94 90.69 68.57 84.14 77.47 79.17 87.61 ± 0.13 
+
+Bottle Cap 86.96 53.80 80.01 86.26 94.62 82.51 95.43 91.46 63.53 96.41 ± 0.03 
+
+Button Battery 77.90 77.60 83.24 85.01 89.37 85.53 91.22 91.06 74.59 91.92 ± 0.07 
+
+End Cap 71.78 53.25 81.47 69.88 84.77 75.93 85.95 53.14 60.25 87.31 ± 0.11 
+
+Eraser 78.29 47.99 77.04 79.84 92.08 84.13 92.28 91.06 86.66 94.19 ± 0.08 
+
+Fire Hood 73.86 57.24 69.48 75.63 93.35 72.75 82.88 81.56 77.23 87.22 ± 0.09 
+
+Mint 53.07 55.68 70.95 66.02 79.38 59.61 72.73 78.31 65.25 79.21 ± 0.06 
+
+Mounts 81.56 56.13 76.38 81.34 84.26 82.77 88.25 88.02 74.54 87.12 ± 0.04 
+
+PCB 72.34 53.67 81.28 76.73 91.79 77.33 93.47 89.41 75.53 92.48 ± 1.24 
+
+Phone Battery 70.26 53.47 80.37 77.68 90.77 77.67 91.03 87.94 78.45 90.84 ± 1.06 
+
+Plastic Nut 71.23 50.47 80.01 74.57 88.04 74.75 90.03 75.81 66.45 92.65 ± 0.10 
+
+Plastic Plug 67.62 48.18 65.81 77.50 88.45 71.44 90.66 73.24 81.37 91.77 ± 1.86 
+
+Porcelain Doll 71.15 48.81 72.27 73.02 86.62 71.57 85.80 84.84 51.89 88.65 ± 0.20 
+
+Regulator 46.33 46.87 69.02 73.03 87.69 74.45 84.93 83.49 59.85 91.00 ± 4.75 
+
+Rolled Strip Base 96.28 65.58 82.56 97.62 98.15 96.62 99.45 99.50 91.76 98.73 ± 1.66 
+
+SIM Card Set 60.94 65.42 84.75 88.69 90.65 85.52 95.89 95.28 83.46 95.85 ± 0.08 
+
+Switch 78.78 61.37 67.06 77.95 96.03 82.14 95.55 94.65 57.99 96.35 ± 0.87 
+
+Tape 91.53 57.36 84.82 91.52 94.32 93.83 97.54 96.60 66.85 97.49 ± 0.80 
+
+Terminal Block 75.67 53.51 70.76 83.69 96.41 84.33 92.81 94.70 59.08 93.39 ± 6.23 
+
+Toothbrush 60.69 71.31 76.57 81.25 85.21 75.62 86.26 85.79 82.17 83.28 ± 2.22 
+
+Toy 55.37 51.90 66.80 76.11 88.31 80.58 83.43 84.96 68.63 87.07 ± 0.56 
+
+Toy Brick 59.94 51.36 62.86 68.94 87.35 72.34 76.76 79.28 72.40 88.51 ± 5.26 
+
+Transistor1 83.92 67.61 96.70 90.52 94.86 87.11 97.97 97.58 65.69 97.02 ± 2.08 
+
+U Block 72.94 63.14 83.86 79.07 90.45 77.36 91.76 89.64 66.61 93.19 ± 0.06 
+
+USB 63.00 64.07 78.94 72.51 93.37 68.56 93.64 91.67 65.17 91.68 ± 3.54 
+
+USB Adaptor 61.75 63.98 67.07 74.11 88.07 77.81 76.13 81.79 72.47 86.76 ± 3.06 
+
+Vcpill 57.49 66.05 73.93 76.44 89.50 68.04 91.68 90.34 62.77 91.79 ± 0.91 
+
+Wooden Beads 74.98 54.85 78.43 82.06 87.28 80.12 86.42 84.83 82.38 89.27 ± 2.24 
+
+Woodstick 64.63 60.36 77.08 75.06 88.04 76.21 84.17 79.00 74.10 87.87 ± 5.98 
+
+Zipper 83.76 83.74 98.41 95.77 98.23 90.21 99.41 98.76 86.04 98.51 ± 0.03 
+
+Real-IAD 71.44 58.86 77.26 79.26 90.27 89.27 89.26 86.37 71.74 91.17 ± 0.08 Supplementary: MATCH: Flow Matching for Multi-View AD 11 
+
+Table 9: Comprehensive results for anomaly detection, measured as S-AUROC (↑)on Real-IAD. The best performing method is marked in bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+Audiojack 74.81 80.11 89.91 93.14 96.56 92.96 94.77 91.20 43.73 90.66 ±0.20 
+
+Bottle Cap 97.07 61.69 99.45 97.08 98.00 97.50 98.23 99.40 61.45 98.50 ±0.06 
+
+Button Battery 92.91 66.70 90.58 96.40 96.57 89.35 95.39 95.80 69.83 96.04 ±0.23 
+
+End Cap 77.26 39.08 88.65 85.60 90.89 74.01 93.24 94.20 52.17 94.47 ±0.13 
+
+Eraser 72.52 30.07 92.69 92.31 92.81 97.22 93.30 94.70 49.60 96.44 ±0.08 
+
+Fire Hood 90.75 50.97 81.93 97.53 95.45 96.60 88.32 95.60 80.68 93.80 ±0.21 
+
+Mint 47.53 58.46 83.12 70.18 87.84 60.24 80.78 86.80 55.91 84.58 ±0.26 
+
+Mounts 92.41 58.80 91.49 96.86 99.46 97.55 97.26 99.40 94.30 99.85 ±0.02 
+
+PCB 74.90 68.32 76.62 82.01 93.91 90.01 93.42 90.70 74.80 94.19 ±0.25 
+
+Phone Battery 83.25 38.75 96.16 95.22 98.68 94.65 96.08 94.70 84.91 95.19 ±1.36 
+
+Plastic Nut 75.99 61.09 88.72 88.64 98.96 94.17 96.42 95.70 74.82 97.29 ±0.74 
+
+Plastic Plug 79.22 54.67 84.68 91.06 93.85 84.65 96.07 94.40 86.52 96.11 ±0.32 
+
+Porcelain Doll 86.19 23.48 96.31 96.66 94.37 95.15 97.13 96.20 87.35 96.02 ±1.30 
+
+Regulator 57.68 16.61 74.33 99.45 94.22 99.40 96.15 92.00 51.66 94.64 ±2.79 
+
+Rolled Strip Base 98.21 41.29 96.33 97.22 99.57 98.34 99.73 99.60 95.25 99.02 ±1.28 
+
+SIM Card Set 65.83 79.74 95.91 95.66 98.79 91.86 97.68 99.20 95.78 97.03 ±0.73 
+
+Switch 88.64 50.14 75.76 85.91 99.27 90.17 98.33 98.80 75.47 98.65 ±0.63 
+
+Tape 94.75 69.09 80.71 98.88 97.12 99.09 99.86 100.00 95.69 99.53 ±0.50 
+
+Terminal Block 85.36 79.83 79.96 94.60 99.09 93.22 86.49 97.70 46.35 97.55 ±2.30 
+
+Toothbrush 72.09 53.67 75.47 97.96 96.88 95.89 94.23 95.30 89.12 94.13 ±0.34 
+
+Toy 27.19 46.33 79.96 91.28 96.46 92.59 83.21 92.90 75.49 93.57 ±2.44 
+
+Toy Brick 80.37 53.56 87.41 82.62 91.73 83.44 82.21 85.70 73.32 91.35 ±4.65 
+
+Transistor1 74.02 61.22 99.66 95.21 98.55 93.94 99.73 99.70 81.47 99.36 ±0.58 
+
+U Block 86.21 66.94 95.85 99.89 96.57 98.14 98.53 98.50 74.91 97.84 ±1.26 
+
+USB 67.75 59.10 86.05 87.33 96.83 78.27 96.88 93.90 85.47 95.24 ±0.65 
+
+USB Adaptor 60.33 47.00 64.94 90.95 93.39 89.93 91.94 93.00 70.57 94.35 ±0.68 
+
+Vcpill 63.93 41.42 94.77 89.14 95.90 93.54 95.97 97.50 71.23 94.81 ±1.42 
+
+Wooden Beads 85.23 44.69 86.37 90.78 94.72 90.84 79.25 92.90 73.69 93.11 ±1.04 
+
+Woodstick 86.17 57.21 73.56 93.11 89.15 88.34 83.48 81.50 80.87 95.99 ±2.09 
+
+Zipper 87.38 24.75 99.85 96.35 99.92 98.93 99.71 99.70 97.41 99.67 ±0.01 
+
+Real-IAD 77.53 52.83 86.91 92.30 95.85 91.33 93.46 94.89 74.99 95.63 ±0.09 12 
+
+Table 10: Comprehensive results for anomaly segmentation, measured as AUPRO 
+
+(↑) on Real-IAD. The best performing method is marked in bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+Audiojack 85.29 75.12 84.52 66.94 88.03 78.94 96.98 70.28 80.66 90.98 ± 0.05 
+
+Bottle Cap 94.93 43.91 67.88 85.22 95.73 87.91 91.92 89.61 86.98 98.49 ± 0.01 
+
+Button Battery 58.99 37.21 44.08 30.33 90.75 51.40 93.72 73.28 69.84 93.72 ± 0.03 
+
+End Cap 82.08 62.09 85.01 63.19 82.85 84.75 94.71 00.03 66.47 94.22 ± 0.02 
+
+Eraser 84.94 50.28 76.82 78.58 92.64 83.61 89.38 86.58 95.34 97.24 ± 0.04 
+
+Fire Hood 79.66 35.96 64.72 61.79 91.61 68.06 78.38 79.45 84.79 91.52 ± 0.06 
+
+Mint 44.78 53.77 70.81 51.43 81.67 49.26 91.24 63.13 64.82 90.83 ± 0.10 
+
+Mounts 95.40 64.22 60.21 82.20 87.99 89.10 94.59 87.41 94.01 95.09 ± 0.09 
+
+PCB 82.23 65.96 77.54 36.67 89.20 60.99 95.50 86.15 89.60 95.92 ± 0.09 
+
+Phone Battery 71.60 59.33 78.96 56.92 86.68 67.78 96.80 76.56 89.09 96.31 ± 1.05 
+
+Plastic Nut 88.10 65.67 90.48 77.40 93.09 85.13 93.12 46.48 57.58 98.00 ± 0.41 
+
+Plastic Plug 74.58 53.62 56.99 66.35 89.62 74.74 89.55 68.59 77.31 97.19 ± 0.35 
+
+Porcelain Doll 87.08 41.43 43.36 64.32 92.41 72.03 95.21 83.69 60.81 96.78 ± 0.50 
+
+Regulator 76.44 54.60 85.85 50.09 87.34 66.80 98.28 86.19 47.54 97.98 ± 0.72 
+
+Rolled Strip Base 97.39 57.06 54.74 83.90 94.77 94.86 88.22 95.23 97.89 97.92 ± 3.04 
+
+SIM Card Set 73.52 56.95 77.64 64.63 90.22 72.55 96.29 79.50 78.06 93.13 ± 1.72 
+
+Switch 91.31 55.14 66.74 73.93 89.09 89.10 97.85 93.66 37.53 96.61 ± 0.89 
+
+Tape 96.89 66.66 87.35 92.27 90.40 94.84 97.30 94.41 69.18 98.35 ± 0.29 
+
+Terminal Block 91.12 40.26 69.23 87.22 96.29 92.90 89.26 95.03 83.80 96.85 ± 4.56 
+
+Toothbrush 66.12 68.75 71.61 64.66 73.55 64.94 91.32 77.76 87.08 88.94 ± 0.64 
+
+Toy 60.97 39.05 60.66 41.34 78.77 52.54 85.05 75.84 76.61 90.57 ± 0.95 
+
+Toy Brick 60.29 55.46 51.18 58.24 80.90 74.78 97.44 71.26 67.05 93.50 ± 2.69 
+
+Transistor1 94.17 83.32 96.67 78.01 76.99 85.30 95.87 95.18 81.06 97.97 ± 0.82 
+
+U Block 93.30 74.14 70.55 79.70 88.60 85.71 97.47 89.53 50.60 96.66 ± 0.31 
+
+USB 84.96 68.14 63.31 60.98 92.20 72.34 84.93 93.03 81.86 96.27 ± 1.90 
+
+USB Adaptor 63.52 45.00 84.45 65.17 93.06 76.09 89.38 73.87 84.28 92.44 ± 0.99 
+
+Vcpill 64.91 41.79 70.03 67.00 87.46 69.05 85.83 87.15 23.60 90.55 ± 0.24 
+
+Wooden Beads 71.82 34.47 72.08 66.64 83.88 63.74 89.36 80.98 86.45 89.95 ± 0.54 
+
+Woodstick 66.07 49.29 69.18 70.82 77.49 76.28 98.05 73.68 74.98 90.86 ± 4.05 
+
+Zipper 89.01 82.00 86.51 83.82 93.98 74.35 98.05 92.63 89.30 98.09 ± 0.01 
+
+Real-IAD 79.05 56.02 71.31 66.99 87.91 75.33 92.70 78.87 74.47 94.76 ± 0.03 Supplementary: MATCH: Flow Matching for Multi-View AD 13 
+
+Table 11: Comprehensive results for anomaly segmentation, measured as P-AUROC 
+
+(↑) on Real-IAD. The best performing method is marked in bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+Audiojack 97.62 90.31 96.36 90.56 97.68 95.17 98.62 89.78 95.89 99.13 ± 0.01 
+
+Bottle Cap 99.28 82.34 90.94 97.04 99.08 97.97 99.65 98.32 97.68 99.84 ± 0.00 
+
+Button Battery 94.82 66.29 83.24 80.79 98.57 91.45 99.02 97.69 91.46 99.20 ± 0.01 
+
+End Cap 93.23 76.40 92.37 80.36 95.45 94.92 98.20 28.60 88.67 98.46 ± 0.01 
+
+Eraser 97.04 67.23 90.88 95.76 98.83 97.13 99.38 97.91 99.27 99.67 ± 0.00 
+
+Fire Hood 97.25 48.70 92.79 92.43 98.35 95.19 99.00 97.01 97.90 99.48 ± 0.00 
+
+Mint 89.53 86.02 95.32 87.34 95.25 88.23 97.22 94.19 91.27 99.28 ± 0.01 
+
+Mounts 98.98 78.31 73.40 94.88 95.82 98.50 99.09 97.57 98.47 99.48 ± 0.01 
+
+PCB 97.07 79.51 94.62 75.51 98.70 90.48 99.36 98.11 98.54 99.61 ± 0.05 
+
+Phone Battery 94.53 79.36 92.33 88.41 86.21 91.91 99.40 97.10 96.07 99.57 ± 0.10 
+
+Plastic Nut 97.73 87.09 97.64 94.11 98.69 96.68 99.47 82.04 86.74 99.72 ± 0.05 
+
+Plastic Plug 94.45 77.85 85.95 90.82 97.91 94.96 98.90 93.42 94.62 99.54 ± 0.19 
+
+Porcelain Doll 97.19 66.49 69.05 89.40 98.34 92.91 97.87 96.48 88.97 99.32 ± 0.29 
+
+Regulator 95.09 81.81 97.15 80.26 98.01 92.12 99.25 97.59 77.29 99.83 ± 0.03 
+
+Rolled Strip Base 99.27 64.05 65.58 93.73 98.35 98.23 99.61 98.77 99.32 99.70 ± 0.19 
+
+SIM Card Set 95.65 83.52 96.82 93.07 98.66 94.64 98.50 97.37 95.89 99.19 ± 0.35 
+
+Switch 98.35 85.44 91.94 95.52 90.28 98.34 99.26 99.33 69.43 98.81 ± 0.55 
+
+Tape 99.52 69.71 96.46 98.44 97.18 99.10 99.68 99.08 88.73 99.79 ± 0.01 
+
+Terminal Block 98.32 51.77 88.86 97.35 99.29 98.73 99.54 99.23 94.94 99.21 ± 1.36 
+
+Toothbrush 89.72 90.40 87.03 87.77 95.22 88.97 97.37 94.42 95.91 97.08 ± 0.66 
+
+Toy 91.26 65.29 87.70 74.29 87.28 84.29 97.57 92.04 90.61 98.44 ± 0.30 
+
+Toy Brick 90.98 73.99 87.20 87.94 94.63 94.83 97.76 93.18 88.53 99.11 ± 0.29 
+
+Transistor1 98.77 93.49 99.31 94.09 93.12 96.76 99.50 99.08 94.01 99.65 ± 0.04 
+
+U Block 98.43 89.62 86.02 95.39 98.83 97.01 99.52 98.29 80.35 99.70 ± 0.05 
+
+USB 97.40 85.13 84.07 89.84 97.48 93.75 99.52 98.93 95.19 99.46 ± 0.31 
+
+USB Adaptor 91.52 81.48 97.25 90.94 98.72 95.23 97.34 94.79 96.19 98.92 ± 0.06 
+
+Vcpill 93.66 49.38 91.65 92.17 97.72 92.81 98.76 98.54 61.10 98.99 ± 0.07 
+
+Wooden Beads 94.24 51.62 93.03 90.59 97.43 91.85 98.09 96.42 97.57 98.84 ± 0.03 
+
+Woodstick 89.50 76.75 90.87 92.02 95.47 93.64 98.50 93.21 95.44 98.90 ± 0.23 
+
+Zipper 96.86 84.85 93.32 94.62 97.54 90.90 99.33 98.59 96.35 99.31 ± 0.01 
+
+Real-IAD 95.58 75.47 89.64 90.18 96.47 94.22 98.81 93.90 91.41 99.24 ± 0.01 14 
+
+Table 12: Comprehensive results for anomaly segmentation, measured as P-AP (↑)on Real-IAD. The best performing method is marked in bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+Audiojack 14.76 28.08 11.17 01.73 14.35 01.51 31.55 11.51 30.03 36.02 ± 0.22 
+
+Bottle Cap 20.13 06.31 06.07 17.69 06.04 12.91 31.75 14.57 07.24 32.50 ± 0.07 
+
+Button Battery 10.30 12.92 25.32 02.41 23.18 05.84 51.10 21.94 20.37 49.14 ± 0.16 
+
+End Cap 07.79 07.27 15.61 01.83 04.17 03.52 13.12 00.04 03.66 13.60 ± 0.10 
+
+Eraser 18.70 20.64 10.62 06.02 08.74 05.87 30.40 15.88 29.32 30.25 ± 0.14 
+
+Fire Hood 12.61 11.90 06.44 02.99 09.03 02.90 31.56 09.28 20.14 27.94 ± 0.20 
+
+Mint 01.27 26.51 14.00 04.79 04.93 00.78 13.09 09.74 03.78 18.30 ± 0.12 
+
+Mounts 17.95 22.35 23.03 13.79 07.61 18.45 31.25 13.08 21.12 27.12 ± 0.13 
+
+PCB 05.59 25.15 04.21 00.47 17.27 01.22 43.49 28.60 31.71 45.73 ± 0.11 
+
+Phone Battery 26.84 06.75 11.33 16.78 13.38 03.71 42.35 41.00 16.44 33.02 ± 0.44 
+
+Plastic Nut 12.54 21.42 25.94 02.97 09.10 04.25 29.04 13.03 17.96 30.87 ± 0.11 
+
+Plastic Plug 06.84 12.02 03.40 01.87 04.92 02.05 27.91 07.77 19.82 28.97 ± 0.19 
+
+Porcelain Doll 09.62 16.28 01.82 00.53 05.85 00.83 20.18 10.83 03.38 21.05 ± 0.17 
+
+Regulator 01.30 09.10 03.61 00.45 05.66 01.43 30.23 09.66 00.54 28.16 ± 0.15 
+
+Rolled Strip Base 17.46 14.86 03.94 05.83 06.57 14.10 26.49 10.61 23.57 30.21 ± 0.26 
+
+SIM Card Set 05.07 36.85 16.10 03.06 16.96 6.60 42.69 13.45 38.24 48.09 ± 0.11 
+
+Switch 42.82 21.40 07.85 09.65 40.60 18.55 50.94 53.85 02.62 39.31 ± 0.27 
+
+Tape 30.37 19.09 19.62 12.62 10.48 20.62 35.04 17.39 06.37 34.84 ± 0.16 
+
+Terminal Block 18.52 13.67 10.33 04.51 09.10 14.79 28.77 16.54 01.20 29.45 ± 0.51 
+
+Toothbrush 06.90 02.13 18.12 03.92 17.05 03.20 26.34 18.63 24.34 21.16 ± 0.13 
+
+Toy 02.43 17.43 12.19 00.37 03.79 00.50 15.95 08.43 10.66 17.91 ± 0.07 
+
+Toy Brick 02.32 22.60 02.22 01.55 08.43 04.90 28.36 11.89 09.76 33.71 ± 0.19 
+
+Transistor1 25.62 29.90 38.96 03.92 11.60 06.12 38.96 28.29 13.01 40.44 ± 0.19 
+
+U Block 12.57 21.69 07.97 01.79 11.55 02.33 33.25 15.13 11.58 32.49 ± 0.28 
+
+USB 06.06 01.95 10.92 01.07 15.67 01.30 37.95 19.68 06.92 37.06 ± 0.17 
+
+USB Adaptor 02.10 16.89 02.57 02.53 05.00 04.31 07.97 09.04 14.43 17.66 ± 0.12 
+
+Vcpill 10.89 11.27 24.04 13.26 24.90 04.38 51.20 38.17 05.61 46.79 ± 0.11 
+
+Wooden Beads 10.42 14.52 10.55 04.84 09.05 01.81 33.31 14.88 23.38 27.20 ± 0.20 
+
+Woodstick 20.40 26.61 23.80 20.60 20.30 27.45 38.98 29.54 24.45 46.31 ± 0.11 
+
+Zipper 28.77 13.32 23.53 21.09 27.45 05.78 56.35 38.29 33.12 55.05 ± 0.44 
+
+Real-IAD 13.63 17.03 13.18 06.16 12.42 6.73 32.65 18.36 15.83 32.68 ± 0.03 Supplementary: MATCH: Flow Matching for Multi-View AD 15 
+
+Table 13: Comprehensive results for anomaly detection, measured as I-AUROC (↑)on MANTA-Tiny, sorted by category. The best performing method is marked in bold 
+
+with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+> Agriculture
+
+Maize 59.98 43.06 62.92 66.19 66.97 50.90 72.65 88.31 64.19 64.62 ±0.18 
+
+Paddy 51.00 75.15 91.91 72.56 80.98 52.09 78.50 74.02 70.34 80.48 ±0.27 
+
+Soybean 74.96 68.49 91.77 85.04 83.97 59.01 88.72 94.44 82.69 85.06 ±0.16 
+
+Wheat 50.11 76.16 83.94 66.68 81.32 53.24 84.56 93.49 66.77 86.92 ±0.16 
+
+> Electronics
+
+Block Inductor 76.29 64.42 96.86 84.04 87.16 62.48 90.89 91.45 84.76 92.18 ±0.16 
+
+Copper Standoff 68.23 90.38 96.72 85.61 92.20 58.45 97.08 95.39 68.73 97.27 ±0.13 
+
+Flat Nut 74.34 68.53 87.45 76.63 84.84 60.88 92.21 90.25 76.70 92.06 ±0.20 
+
+Led 84.36 88.18 99.61 93.06 94.87 69.69 98.53 98.82 60.06 98.61 ±0.02 
+
+Led Pad 77.75 86.04 97.50 76.71 89.49 61.88 97.21 98.62 78.82 97.69 ±0.12 
+
+Long Button 51.19 55.08 98.68 84.63 92.86 67.00 97.06 97.77 88.57 96.64 ±0.08 
+
+Power Inductor 62.10 74.48 77.53 71.18 82.24 57.92 75.44 91.66 55.27 82.07 ±0.20 
+
+Short Button 64.25 65.40 96.62 82.41 91.04 63.48 93.02 95.22 75.76 95.13 ±0.10 
+
+Thin Resistor 89.44 69.34 98.17 90.86 94.36 64.75 97.49 97.21 85.28 97.39 ±0.07 
+
+Type C 54.01 86.26 97.90 79.88 91.63 63.01 97.42 97.26 75.21 97.37 ±0.08 
+
+Wafer Resistor 90.56 88.24 99.14 87.59 89.16 64.18 95.10 95.28 57.61 94.96 ±0.19 
+
+> Groceries
+
+Coffee Beans 78.11 65.36 77.55 76.77 65.92 52.97 49.18 92.72 64.00 65.38 ±0.23 
+
+Goji Berries 51.36 80.36 86.39 59.93 83.65 54.28 80.37 84.78 67.59 84.29 ±0.18 
+
+Pistachios 57.93 66.55 74.27 62.70 69.80 55.54 69.39 81.89 53.43 76.78 ±0.31 
+
+> Mechanics
+
+Button 71.95 83.12 88.95 89.57 90.19 56.51 94.21 92.55 74.40 91.97 ±0.09 
+
+Gear 61.81 85.39 96.94 78.14 84.23 66.30 87.62 95.60 58.01 94.62 ±0.11 
+
+Nut 79.14 82.55 90.83 84.17 84.43 58.19 94.32 88.24 78.49 92.10 ±0.18 
+
+Nut Cap 74.00 63.66 92.18 78.93 85.73 57.34 86.09 86.58 63.85 86.83 ±0.31 
+
+Red Washer 85.88 90.42 98.09 95.59 94.64 59.09 97.80 97.61 84.85 97.55 ±0.02 
+
+Round Button Cap 82.30 85.77 98.40 91.80 91.20 58.93 98.27 97.86 82.10 97.64 ±0.07 
+
+Screw 53.36 62.71 93.33 65.82 83.06 57.90 82.19 92.97 65.84 86.55 ±0.14 
+
+Square Button Cap 74.87 81.14 96.02 90.14 91.51 60.54 96.89 97.87 93.98 96.33 ±0.03 
+
+Terminal 63.59 73.61 92.12 67.35 85.86 57.54 92.70 89.15 54.79 92.99 ±0.16 
+
+Wire Cap 69.00 70.89 91.48 79.07 89.59 62.71 93.38 94.17 73.06 92.59 ±0.08 
+
+Yellow Green Washer 81.33 83.85 92.88 91.30 90.15 58.77 92.51 92.97 88.33 91.30 ±0.21 
+
+> Medicine
+
+Capsule 76.69 23.52 99.41 91.35 95.85 56.36 98.51 95.20 82.96 97.32 ±0.04 
+
+Coated Tablet 89.22 94.05 98.43 96.57 97.52 67.81 98.69 99.45 89.66 98.32 ±0.02 
+
+Embossed Tablet 86.25 83.79 93.02 88.38 90.03 62.43 96.78 94.30 82.07 95.31 ±0.06 
+
+Lettered Tablet 65.60 75.55 84.96 82.65 87.66 60.81 93.05 93.63 65.13 93.14 ±0.10 
+
+Oblong Tablet 67.02 75.20 72.51 78.08 83.28 66.94 49.66 90.70 65.04 88.05 ±0.04 
+
+Pink Tablet 90.37 88.70 96.31 94.55 94.67 74.08 97.33 96.94 87.68 96.52 ±0.04 
+
+Red Tablet 77.67 46.37 90.91 86.73 72.62 66.85 76.75 90.55 70.47 77.03 ±0.10 
+
+White Tablet 81.03 65.40 94.23 93.80 93.90 61.32 96.61 97.12 63.33 96.39 ±0.05 
+
+Yellow Tablet 86.55 80.42 97.27 95.48 95.13 68.45 98.29 98.97 89.18 97.48 ±0.02 
+
+MANTA-Tiny 71.94 73.88 91.40 82.16 86.94 60.81 88.85 93.19 73.39 90.66 ±0.02 16 
+
+Table 14: Comprehensive results for anomaly detection, measured as S-AUROC (↑)on MANTA-Tiny, sorted by category. The best performing method is marked in bold 
+
+with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+> Agriculture
+
+Maize 52.96 33.91 67.81 62.82 70.53 63.37 75.53 90.38 62.22 60.64 ±0.38 
+
+Paddy 57.73 65.50 88.75 68.78 88.86 80.89 79.02 95.55 77.39 83.12 ±0.53 
+
+Soybean 75.52 65.80 90.23 85.54 87.19 85.74 85.46 93.71 83.71 80.56 ±0.35 
+
+Wheat 52.33 81.52 84.91 68.52 85.18 80.63 86.93 94.75 62.28 83.80 ±0.58 
+
+> Electronics
+
+Block Inductor 71.45 54.44 91.12 78.10 86.67 76.78 90.50 91.26 74.55 88.33 ±0.25 
+
+Copper Standoff 74.35 86.92 93.63 72.37 95.35 90.90 97.84 95.8 92.14 98.25 ±0.13 
+
+Flat Nut 79.11 76.63 88.40 69.74 85.96 77.83 90.45 89.58 80.85 90.69 ±0.07 
+
+Led 84.69 95.24 97.75 91.84 93.06 90.72 97.82 99.01 51.23 97.93 ±0.09 
+
+Led Pad 69.27 40.75 97.27 75.19 87.02 82.17 97.07 98.56 76.47 94.94 ±0.32 
+
+Long Button 50.70 0.00 96.82 87.02 95.09 86.92 96.30 97.55 90.59 94.45 ±0.09 
+
+Power Inductor 57.68 76.09 77.80 65.98 78.24 67.58 77.28 88.63 68.89 80.57 ±0.40 
+
+Short Button 64.41 18.53 97.77 78.41 95.03 84.93 92.96 96.55 73.86 93.78 ±0.07 
+
+Thin Resistor 89.95 54.35 99.27 87.22 95.32 91.15 98.03 99.2 92.36 95.92 ±0.17 
+
+Type C 51.48 88.10 98.93 61.62 94.29 83.77 98.15 97.64 81.65 96.86 ±0.05 
+
+Wafer Resistor 86.24 3.26 97.74 87.15 92.18 85.98 94.58 96.46 72.90 92.95 ±0.18 
+
+> Groceries
+
+Coffee Beans 78.91 62.91 79.53 79.72 73.23 76.45 53.25 95.88 61.08 68.57 ±0.48 
+
+Goji Berries 47.06 84.94 85.04 60.19 86.44 80.51 82.20 91.49 72.72 87.09 ±0.34 
+
+Pistachios 54.14 66.32 70.32 64.18 76.07 60.41 71.15 84.84 55.57 73.56 ±0.64 
+
+> Mechanics
+
+Button 61.50 76.27 80.70 82.60 87.27 78.46 89.95 93.03 79.93 85.97 ±0.28 
+
+Gear 66.27 90.59 97.12 67.12 89.64 75.49 95.04 97.54 70.53 94.73 ±0.22 
+
+Nut 83.84 4.35 89.70 84.40 78.73 82.89 94.14 88.47 79.68 90.18 ±0.49 
+
+Nut Cap 90.50 42.01 92.38 91.76 87.88 93.99 93.92 96.24 30.97 92.22 ±0.37 
+
+Red Washer 83.68 79.99 88.38 92.37 94.47 88.77 97.77 99.06 83.11 97.33 ±0.12 
+
+Round Button 77.16 75.46 97.71 83.88 92.43 92.03 97.81 97.5 84.99 95.50 ±0.18 
+
+Screw 49.80 42.62 87.96 64.25 89.86 73.41 85.07 96.66 70.15 85.68 ±0.56 
+
+Square Button 71.54 89.16 97.16 89.15 96.31 89.54 96.82 98.86 91.67 94.80 ±0.16 
+
+Terminal 66.82 78.55 95.94 60.04 89.32 69.90 94.66 92.18 65.10 90.23 ±0.29 
+
+Wire Cap 69.98 52.71 94.45 74.40 92.21 76.98 92.55 93.88 66.98 90.56 ±0.20 
+
+Yellow Green Washer 86.86 55.04 90.92 89.79 93.23 88.14 93.58 94.86 83.67 88.54 ±0.48 
+
+> Medicine
+
+Capsule 77.19 32.89 99.49 93.62 97.61 90.57 98.81 95.31 86.10 96.06 ±0.09 
+
+Coated Tablet 88.31 84.07 99.19 94.57 96.53 95.74 98.19 99.41 86.27 97.01 ±0.09 
+
+Embossed Tablet 86.90 31.00 90.58 90.55 90.15 89.95 97.07 93.76 82.46 93.49 ±0.19 
+
+Lettered Tablet 67.16 63.74 91.88 90.12 89.49 79.76 93.92 95.93 63.14 92.66 ±0.07 
+
+Oblong Tablet 65.04 78.04 69.47 68.10 83.44 79.17 89.10 92.09 65.81 83.17 ±0.38 
+
+Pink Tablet 92.46 85.90 89.80 93.06 96.81 92.99 98.55 99.55 92.28 96.50 ±0.11 
+
+Red Tablet 82.04 46.32 91.95 88.88 80.77 78.03 76.30 91.19 72.80 76.10 ±0.22 
+
+White Tablet 95.59 60.52 95.65 95.26 95.35 93.94 96.34 96.35 67.22 96.61 ±0.09 
+
+Yellow Tablet 82.34 88.30 98.76 96.04 97.77 96.09 99.00 99.75 85.89 98.06 ±0.10 
+
+MANTA-Tiny 72.18 60.86 90.59 79.85 89.08 82.96 90.61 94.96 74.72 89.41 ±0.05 Supplementary: MATCH: Flow Matching for Multi-View AD 17 
+
+Table 15: Comprehensive results for anomaly segmentation, measured as AUPRO 
+
+(↑) on MANTA-Tiny, sorted by category. The best performing method is marked in 
+
+bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+> Agriculture
+
+Maize 38.99 48.53 44.13 40.49 62.33 55.29 65.69 61.67 40.15 68.32 ± 0.12 
+
+Paddy 41.22 48.42 63.83 52.66 64.57 59.19 65.27 39.12 55.55 71.41 ± 0.09 
+
+Soybean 50.61 37.76 53.31 52.07 73.44 66.83 74.25 67.62 51.43 78.04 ± 0.04 
+
+Wheat 41.47 65.56 58.40 48.11 77.31 72.95 73.76 71.28 45.74 84.33 ± 0.05 
+
+> Electronics
+
+Block Inductor 60.58 60.30 86.94 68.38 81.40 82.78 89.86 80.35 68.37 92.60 ± 0.07 
+
+Copper Standoff 37.17 43.98 92.26 71.47 85.01 83.77 92.09 80.74 31.15 93.72 ± 0.04 
+
+Flat Nut 77.45 52.25 89.19 76.09 92.55 87.06 96.19 70.74 76.86 96.37 ± 0.10 
+
+Led 81.28 69.93 96.26 89.67 90.70 93.68 97.84 93.72 72.26 98.42 ± 0.01 
+
+Led Pad 75.12 59.24 88.21 64.01 83.09 84.85 94.52 86.53 46.92 95.75 ± 0.04 
+
+Long Button 41.62 56.84 87.00 73.02 81.13 78.04 92.26 84.36 80.15 93.52 ± 0.07 
+
+Power Inductor 20.09 60.56 76.56 49.12 73.91 64.09 80.39 81.50 22.47 81.11 ± 0.16 
+
+Short Button 29.91 51.29 91.83 78.78 86.92 89.01 95.77 89.41 82.65 97.04 ± 0.03 
+
+Thin Resistor 80.46 44.28 93.19 79.06 88.85 87.67 93.10 90.73 84.75 94.99 ± 0.04 
+
+Type C 60.27 64.13 89.08 66.84 82.00 84.68 94.57 83.37 45.54 94.52 ± 0.08 
+
+Wafer Resistor 91.86 66.54 91.79 77.57 82.32 88.48 94.09 90.35 14.89 95.14 ± 0.05 
+
+> Groceries
+
+Coffee Beans 46.44 40.46 78.18 38.07 54.20 42.59 48.53 66.98 47.11 60.12 ± 0.15 
+
+Goji Berries 48.36 59.63 69.14 56.69 73.41 68.59 68.64 66.71 45.47 81.53 ± 0.10 
+
+Pistachios 23.25 39.19 52.85 36.68 62.22 54.48 52.38 51.65 10.85 68.44 ± 0.13 
+
+> Mechanics
+
+Button 84.83 85.18 87.27 87.75 91.21 91.09 96.85 87.17 92.55 97.67 ± 0.03 
+
+Gear 65.82 62.07 86.62 62.67 81.93 81.15 93.61 86.07 34.15 97.47 ± 0.03 
+
+Nut 88.64 69.74 94.60 84.43 89.83 88.89 96.88 79.09 91.00 97.95 ± 0.04 
+
+Nut Cap 58.65 72.47 84.41 77.59 86.92 88.95 92.00 77.43 82.19 94.88 ± 0.09 
+
+Red Washer 93.29 68.35 95.94 92.27 95.45 91.97 97.3 93.91 91.59 98.08 ± 0.01 
+
+Round Button Cap 88.89 71.30 94.16 85.78 89.75 90.92 98.02 92.55 88.85 98.61 ± 0.02 
+
+Screw 28.66 50.73 73.07 55.46 81.95 71.97 85.46 83.51 72.58 90.88 ± 0.04 
+
+Square Button Cap 77.09 64.24 88.69 80.12 88.69 88.55 95.87 88.67 94.86 97.05 ± 0.02 
+
+Terminal 45.06 55.05 87.15 58.05 83.50 87.41 94.76 80.96 61.46 96.57 ± 0.03 
+
+Wire Cap 71.79 63.32 87.67 78.58 84.93 89.48 94.97 87.77 87.09 97.07 ± 0.06 
+
+Yellow Green Washer 82.08 56.34 85.34 84.09 87.13 86.41 92.84 83.01 88.89 93.63 ± 0.07 
+
+> Medicine
+
+Capsule 59.16 29.36 83.78 54.94 79.96 65.81 78.14 53.50 63.93 81.16 ± 0.07 
+
+Coated Tablet 95.26 89.43 93.79 93.99 95.21 92.67 97.36 95.65 90.42 98.07 ± 0.08 
+
+Embossed Tablet 74.42 60.69 82.32 79.85 82.00 86.96 95.73 87.80 68.67 96.47 ± 0.02 
+
+Lettered Tablet 53.43 46.37 62.92 70.86 84.42 81.35 93.22 86.01 68.20 94.29 ± 0.14 
+
+Oblong Tablet 55.35 64.00 70.05 68.11 83.84 81.67 42.24 81.12 56.15 91.00 ± 0.16 
+
+Pink Tablet 86.01 78.69 86.79 89.24 87.45 91.10 96.06 86.79 80.33 96.71 ± 0.03 
+
+Red Tablet 20.98 24.77 52.27 49.42 53.73 40.72 50.88 49.37 42.49 50.96 ± 0.19 
+
+White Tablet 80.79 55.61 80.96 84.41 88.81 86.47 95.04 88.50 67.29 96.23 ± 0.02 
+
+Yellow Tablet 85.98 77.24 91.42 90.12 94.97 90.64 96.07 92.27 94.30 97.02 ± 0.02 
+
+MANTA-Tiny 61.64 58.26 80.83 69.65 81.76 79.43 85.59 79.42 64.19 89.66 ± 0.02 18 
+
+Table 16: Comprehensive results for anomaly segmentation, measured as P-AUROC 
+
+(↑) on MANTA-Tiny, sorted by category. The best performing method is marked in 
+
+bold with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+> Agriculture
+
+Maize 70.14 63.32 78.86 70.81 83.04 81.03 89.17 87.18 72.81 87.64 ±0.07 
+
+Paddy 66.22 50.62 89.68 63.29 77.00 71.85 75.57 80.13 73.24 76.71 ±0.04 
+
+Soybean 69.06 56.09 85.05 72.60 88.25 87.53 90.99 88.93 80.46 90.20 ±0.03 
+
+Wheat 77.97 84.90 84.42 79.96 91.39 93.01 93.14 92.53 79.88 95.44 ±0.01 
+
+> Electronics
+
+Block Inductor 91.54 78.54 96.16 90.79 95.17 94.83 97.81 96.90 90.71 98.06 ±0.01 
+
+Copper Standoff 78.05 74.82 98.82 92.54 95.04 95.98 98.29 95.68 71.77 98.74 ±0.01 
+
+Flat Nut 94.58 81.49 92.29 93.68 98.19 96.62 99.08 91.62 92.78 99.08 ±0.02 
+
+Led 95.51 78.07 99.15 97.32 96.80 98.18 99.52 98.63 91.36 99.56 ±0.00 
+
+Led Pad 92.71 81.97 92.00 87.39 94.76 95.79 98.58 96.13 82.39 98.57 ±0.01 
+
+Long Button 77.48 70.36 97.00 90.93 96.25 93.68 98.12 97.62 91.12 98.22 ±0.02 
+
+Power Inductor 68.97 78.44 87.81 85.17 89.07 90.44 95.54 95.67 66.37 95.48 ±0.02 
+
+Short Button 71.44 51.04 98.07 91.48 97.53 96.25 98.64 96.98 92.80 98.83 ±0.02 
+
+Thin Resistor 94.57 72.56 95.13 92.55 96.69 96.48 97.72 97.47 95.00 98.58 ±0.01 
+
+Type C 89.48 87.25 96.59 89.04 94.52 96.26 98.89 96.27 82.13 98.90 ±0.01 
+
+Wafer Resistor 98.28 81.98 98.95 94.35 93.99 97.33 98.85 98.42 58.58 99.15 ±0.01 
+
+> Groceries
+
+Coffee Beans 83.64 64.64 81.29 70.13 82.02 62.10 79.18 89.15 81.52 81.86 ± 0.12 
+
+Goji Berries 80.99 69.20 93.84 81.93 92.00 90.03 90.96 91.20 77.24 94.77 ±0.01 
+
+Pistachios 55.81 61.12 85.21 61.09 82.73 73.61 79.66 79.93 43.33 81.12 ±0.06 
+
+> Mechanics
+
+Button 98.30 95.93 96.43 98.00 98.18 97.64 99.59 98.51 98.19 99.64 ±0.01 
+
+Gear 93.52 61.09 97.02 88.47 97.60 96.21 98.50 98.00 80.51 99.16 ±0.01 
+
+Nut 96.24 80.95 93.96 93.77 97.52 96.59 99.14 92.70 96.49 99.31 ±0.02 
+
+Nut Cap 73.23 57.60 91.35 88.50 96.58 95.22 97.97 94.09 89.22 98.12 ±0.02 
+
+Red Washer 98.02 82.12 98.08 97.88 98.60 97.76 99.31 98.21 97.26 99.38 ±0.00 
+
+Round Button 96.92 81.19 98.36 95.45 98.09 97.32 99.53 98.70 96.27 99.58 ±0.01 
+
+Screw 56.02 53.73 88.20 80.59 94.00 89.28 95.62 94.50 89.21 96.27 ±0.02 
+
+Square Button 95.18 77.19 96.10 95.79 97.22 96.88 99.34 98.37 99.03 99.49 ±0.00 
+
+Terminal 69.91 62.75 93.53 81.07 96.74 96.44 98.65 95.03 87.70 99.01 ±0.01 
+
+Wire Cap 91.17 61.60 92.68 92.71 97.67 96.77 98.65 97.63 93.03 99.19 ±0.01 
+
+Yellow Green Washer 89.54 59.40 96.37 95.25 94.80 94.78 94.78 94.79 92.82 94.89 ±0.02 
+
+> Medicine
+
+Capsule 74.84 42.64 96.55 75.85 90.36 83.45 88.19 73.37 81.14 90.79 ±0.07 
+
+Coated Tablet 99.62 89.69 99.00 99.21 99.57 98.06 99.71 99.70 98.19 99.68 ±0.00 
+
+Embossed Tablet 87.91 70.97 91.74 89.82 88.24 95.67 98.77 96.04 87.13 98.78 ±0.01 
+
+Lettered Tablet 77.06 52.40 80.47 87.86 91.34 94.10 98.34 95.49 91.42 98.53 ±0.01 
+
+Oblong Tablet 78.35 76.89 81.27 86.32 94.01 93.04 73.00 94.24 86.78 96.74 ±0.07 
+
+Pink Tablet 92.45 85.19 94.37 96.94 93.20 97.31 99.25 97.79 95.55 99.13 ±0.01 
+
+Red Tablet 49.55 43.20 75.50 77.55 76.15 69.91 78.79 74.03 78.65 78.62 ±0.12 
+
+White Tablet 93.08 63.48 95.22 96.36 94.38 96.04 98.77 97.59 88.59 98.61 ±0.01 
+
+Yellow Tablet 92.78 83.35 97.46 96.68 98.05 97.01 99.09 98.60 98.40 98.86 ±0.00 
+
+MANTA-Tiny 83.16 70.20 92.21 87.35 93.07 91.85 94.60 93.63 85.50 95.65 ±0.01 Supplementary: MATCH: Flow Matching for Multi-View AD 19 
+
+Table 17: Comprehensive results for anomaly segmentation, measured as P-AP (↑)on MANTA-Tiny, sorted by category. The best performing method is marked in bold 
+
+with the runner-up underlined. Our method is run n = 5 times. Category CFA DSR EfficientAD FastFlow Multi-Flow PaDiM RD4AD SimpleNet STFPM MATCH 
+
+[45] [71] [4] [68] [43] [16] [17] [50] [65] (ours) 
+
+> Agriculture
+
+Maize 08.88 09.44 28.05 11.84 16.20 21.04 29.67 33.72 12.10 19.68 ±0.12 
+
+Paddy 06.26 08.22 32.96 08.62 12.46 16.79 14.89 20.11 10.22 12.94 ±0.02 
+
+Soybean 18.36 13.83 35.45 21.16 36.80 45.92 47.16 45.16 28.46 38.86 ±0.06 
+
+Wheat 04.83 21.96 15.63 08.80 27.65 36.09 30.82 43.89 07.91 36.63 ±0.13 
+
+> Electronics
+
+Block Inductor 11.69 16.11 40.24 11.51 43.03 41.81 56.03 44.51 33.36 53.44 ±0.06 
+
+Copper Standoff 03.47 11.69 56.63 17.58 38.95 44.98 62.85 41.28 03.11 60.47 ±0.18 
+
+Flat Nut 13.28 09.79 04.13 13.81 27.59 40.91 54.51 20.94 08.88 45.96 ±0.22 
+
+Led 20.59 18.91 37.68 14.14 38.06 54.33 56.48 38.72 06.96 51.79 ±0.29 
+
+Led Pad 15.58 11.18 26.54 05.69 31.81 38.76 53.69 33.93 07.20 41.74 ±0.15 
+
+Long Button 01.98 06.58 13.00 06.39 23.75 47.36 40.81 29.03 15.20 34.43 ±0.35 
+
+Power Inductor 02.03 14.96 27.17 13.35 20.59 32.11 30.93 39.77 01.90 33.32 ±0.35 
+
+Short Button 01.84 04.36 39.78 18.50 50.01 45.81 60.42 57.29 21.28 54.58 ±0.09 
+
+Thin Resistor 27.16 04.67 27.99 14.01 27.74 44.87 50.36 31.16 25.55 46.27 ±0.11 
+
+Type C 03.48 12.46 21.51 08.21 25.97 42.38 31.16 17.96 04.94 31.36 ±0.10 
+
+Wafer Resistor 56.62 39.28 49.49 18.24 44.44 45.48 59.22 54.58 01.09 56.68 ±0.18 
+
+> Groceries
+
+Coffee Beans 38.15 15.48 49.63 18.39 26.85 18.32 21.15 60.68 26.59 24.77 ±0.09 
+
+Goji Berries 06.91 17.23 45.72 10.55 46.23 33.91 46.35 53.35 17.12 55.87 ±0.24 
+
+Pistachios 04.25 07.46 21.67 05.66 13.61 14.16 12.06 24.46 03.07 14.09 ±0.08 
+
+> Mechanics
+
+Button 19.71 26.46 15.04 11.84 23.25 50.51 41.95 19.71 25.08 34.87 ±0.29 
+
+Gear 16.66 08.25 21.39 08.13 33.66 37.54 31.29 40.48 02.25 39.06 ±0.29 
+
+Nut 21.26 14.75 21.37 14.90 21.23 46.54 49.29 16.98 27.14 40.79 ±0.32 
+
+Nut Cap 03.08 08.22 14.16 07.01 16.85 34.16 31.52 18.49 06.25 24.04 ±0.19 
+
+Red Washer 33.55 27.19 36.58 17.81 26.20 51.58 48.01 25.67 36.61 41.57 ±0.09 
+
+Round Button 31.09 16.47 26.11 19.20 31.12 47.29 52.68 32.78 24.73 43.09 ±0.15 
+
+Screw 01.21 05.07 19.10 04.93 22.54 20.98 26.55 35.28 09.18 25.09 ±0.10 
+
+Square Button 11.17 16.06 33.21 18.38 46.16 54.32 67.55 47.69 60.32 65.75 ±0.11 
+
+Terminal 03.12 11.42 30.47 06.36 28.36 40.41 53.05 31.69 03.43 47.47 ±0.16 
+
+Wire Cap 05.85 14.14 14.48 08.92 22.60 37.51 30.69 20.94 09.94 25.29 ±0.05 
+
+Yellow Green Washer 19.23 08.32 22.27 19.16 27.69 47.89 33.75 27.43 30.52 25.36 ±0.10 
+
+> Medicine
+
+Capsule 40.18 16.23 76.19 31.90 64.88 52.20 62.75 44.19 44.62 63.55 ±0.12 
+
+Coated Tablet 82.94 56.81 77.30 64.28 68.24 62.31 78.24 86.35 51.01 71.95 ±0.17 
+
+Embossed Tablet 14.40 10.51 17.48 13.48 27.51 46.52 44.17 36.15 07.59 37.27 ±0.14 
+
+Lettered Tablet 08.39 06.74 07.34 07.94 22.16 32.93 36.45 28.99 05.70 30.89 ±0.16 
+
+Oblong Tablet 06.31 14.70 09.09 07.42 19.13 33.01 01.54 24.71 07.36 26.24 ±0.21 
+
+Pink Tablet 51.99 46.67 44.82 19.28 45.97 52.82 58.06 59.13 49.72 53.06 ±0.42 
+
+Red Tablet 15.38 17.16 35.33 35.88 38.84 31.10 35.41 34.62 32.75 32.91 ±0.14 
+
+White Tablet 27.02 14.62 25.76 26.32 34.35 55.51 55.60 43.97 17.13 47.86 ±0.17 
+
+Yellow Tablet 36.92 39.91 42.21 26.45 40.21 50.99 58.79 56.10 51.39 49.15 ±0.06 
+
+MANTA-Tiny 18.28 16.40 30.60 15.69 31.91 40.82 43.58 37.42 19.41 40.48 ±0.02

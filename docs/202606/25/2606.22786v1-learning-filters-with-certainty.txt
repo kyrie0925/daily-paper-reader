@@ -1,0 +1,504 @@
+Title: Learning Filters with Certainty
+
+URL Source: https://arxiv.org/pdf/2606.22786v1
+
+Published Time: Tue, 23 Jun 2026 02:34:35 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Learning Filters with Certainty 
+
+# Yuval Banoun 
+
+Technion Israel 
+
+# Daniel Sadoc Menasché 
+
+UFRJ Brazil 
+
+# Ori Rottenstreich 
+
+Technion Israel 
+
+## Abstract 
+
+Hash-based data structures such as Bloom filters are widely used in network systems for tasks including caching, anom-aly detection, and machine learning pipelines. They typically provide binary indications of whether an element belongs to a set of interest, e.g., the contents of a cache. When un-certainty arises due to hash collisions, a positive indication is returned to avoid false negatives. We argue that the cer-tainty associated with such indications can itself be useful information. This work focuses on Counting Bloom Filters (CBFs), a Bloom-filter variant that maintains counters rather than bits. Besides supporting insertions and deletions, these counters provide additional information that can be used to estimate the certainty of positive membership indications. We show how this certainty signal can be exploited in archi-tectures that combine Bloom Filters with machine learning (ML) models. 
+
+## 1 Introduction 
+
+Sketches often represent data structures and algorithms used for summarizing massive data sets while enabling answering queries on the data [ 1, 3 ]. Typically the sketch allocated memory is much smaller than the memory of the original data (e.g., logarithmic in its size). Accordingly, an error is permitted in the query answers and a tradeoff exists between the accuracy and memory efficiency. The Bloom filter (BF) [ 1] is a popular data structure used in many networking device algorithms, in fields as diverse as packet classification, routing, filtering, caching, and blockchain networks [ 2, 7 , 14 ], as well as beyond networking, e.g., in spell checking [ 11 ], verification [ 5] and ML pipelines [ 4, 8–10 , 13 ]. The BF is used for set representation, supporting ele-ment insertion, and answering membership queries. There are two kinds of errors in membership queries: a false pos-itive (when an element 𝑥 ∉ 𝑆 is reported as a member of a set 𝑆 ) and a false negative (when 𝑥 ∈ 𝑆 is reported as a non-member of 𝑆 ). The BF encounters false positives and has no false negatives. The BF is built as an array of bits, where hash functions are used to map elements to locations in the array. With initial values of zero bits, the elements of 𝑆 are inserted to the filter, setting all bits pointed by the hash functions. Upon a query, the bits mapped by the queried element are examined and a positive answer is returned when the bits are all set. Seminal papers by Kraska et al. [ 8 ] and by Mitzenmacher [ 10 ]presented how BFs can interact well in multiple forms with machine learning (ML) models such as: (i) Using a learning model as a pre-filter before the Bloom filter. If the score 𝑓 (𝑥 )
+
+for an element 𝑥 is at least a threshold 𝜏 , indicate member-ship. The Bloom filter is queried only when the score 𝑓 (𝑥 )
+
+reported by the model is low to avoid potential false nega-tives of the model. (ii) Using a Bloom filter before the learning model to remove most queries for non-member elements and reduce the amount of false positives. To avoid false negatives, Bloom filters do not support deletion of elements from the represented set. Deletions are necessary whenever the set is dynamic. Counting Bloom Filters (CBFs) [ 6 ] use counters in the Bloom filter structure, thus also allowing for deletions within counter limits. This re-quires overhead in memory as often a counter is represented as multiple bits (typically there are four bits per counter). Simply, a membership query is answered as positive if the corresponding counters are not zero. In [ 12 ] the authors uncovered an additional capability of CBFs: Estimating the correctness probability of a positive mem-bership indication . This allows using a CBF as an engineering tool that provides a continuous confidence score rather than a binary yes/no answer to a membership query. Motivated by the growing use of Bloom filters in machine learning (ML) systems, our work explores new applications of such ability to estimate the correctness probability of query answers. We view the memory overhead introduced by the counters in CBFs not only as a mechanism for sup-porting deletions, but also as an information-rich signal that can quantify the certainty of membership queries. In partic-ular, the counter values allow an ML model to reason about uncertainty in a way that a standard Bloom filter cannot. Our main contributions are as follows. First, building on the observation of [ 12 ] that Counting Bloom Filters (CBFs) can estimate posterior membership probabilities from their counters, we view CBFs as certainty-aware data structures whose outputs can serve as confidence signals. Second, we propose four architectures that combine learned membership models with Bloom filters and CBFs. For each architecture, we describe the algorithm and analyze its false-positive rate, discussing the tradeoffs among these architectures in terms of false positives, inference cost, memory footprint, and the benefits of certainty-aware decisions. 
+
+> arXiv:2606.22786v1 [cs.AI] 22 Jun 2026 Yuval Banoun, Daniel Sadoc Menasché, and Ori Rottenstreich
+
+The remainder of this paper is organized as follows. In Section 2, we review Counting Bloom Filters and in Section 3, we summarize the traditional learned Bloom filter and sand-wiched learned Bloom filter architectures. In Section 4, we introduce four certainty-aware architectures that leverage CBF counter values, and we analyze their false-positive rates and design tradeoffs. Finally, Section 5 concludes the paper with a discussion of practical deployment considerations and future research directions. 
+
+## 2 Background and Related Work 
+
+A Counting Bloom Filter (CBF) replaces the array of bits in a Bloom filter with an array of counters [ 6 ]. Each element is mapped by 𝑘 hash functions to counters. Insertions and deletions are supported by incrementing or decrementing the counters, respectively. Upon a membership query, a positive indication is returned when all 𝑘 counters are positive. Consider a set 𝑆 ⊆ 𝑈 represented by a CBF. Let 𝑉 (𝑥 ) =
+
+(𝑐 1, . . . , 𝑐 𝑘 ) be the values of the 𝑘 counters to which an ele-ment 𝑥 maps. Let 𝑃 (𝑥 ∈ 𝑆 ) be the prior membership prob-ability of the element 𝑥 in the set 𝑆 before accessing the filter. This probability might be uniform over all elements in the universe (and thus equal |𝑆 | / |𝑈 | if the universe 𝑈 is finite) or might vary across elements, so that some elements have higher prior membership probability than others. The membership probability based on the counters equals [12] 
+
+𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 )) 
+
+=
+
+𝑚 𝑘 ·
+
+Î𝑘 𝑗 =1 𝑐 𝑗 
+
+
+
+· 𝑃 (𝑥 ∈ 𝑆 )
+
+𝑚 𝑘 ·
+
+Î𝑘 𝑗 =1 𝑐 𝑗 
+
+
+
+· 𝑃 (𝑥 ∈ 𝑆 ) + ( 𝑛 · 𝑘 )𝑘 · ( 1 − 𝑃 (𝑥 ∈ 𝑆 )) 
+
+,
+
+(1) where 𝑘 is the number of hash functions, 𝑛 is the set size, and 𝑚 is the number of counters in the CBF. In [ 12 ], the authors suggested the following policy for a decision when the costs of both false negative and false positive are finite such that the cost of a false negative equals 
+
+𝛼 times that of a false positive. 
+
+Property 1. An optimal decision policy for the CBF is to declare membership if 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 )) ≥ 1/( 𝛼 + 1).
+
+We illustrate the probability through the following simple experiment. Consider a set with 𝑛 = 1000 elements drawn from among a universe of size 10000. The set is represented in a CBF with 𝑚 =5000 counters using 𝑘 = 3 hash functions. When set elements are selected uniformly from the universe, the prior membership probability of each element 𝑥 equals 
+
+𝑃 (𝑥 ∈ 𝑆 ) = 1000/10000 = 0.1. We repeated that experiment 500 times and in each we examined the values of the CBF counters for the 1000 elements in the set and for the 10000-1000=9000 elements outside of the set.                    
+
+> 12345678910 11 12 13 14 15 16 17 18 19 20
+> 0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+
+product of counters Π
+
+> probability  Members Non-members
+
+(a) Distribution of product of counters Π for elements with a positive indication                    
+
+> 12345678910 11 12 13 14 15 16 17 18 19 20
+> 0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1
+
+product of counters Π
+
+> membership probability
+> Theory
+> Simulation
+
+(b) Membership probability (with prior membership prob-ability 𝑃 (𝑥 ∈ 𝑆 ) = 0.1)                   
+
+> 12345678910 11 12 13 14 15 16 17 18 19 20
+> 0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1
+
+product of counters Π                  
+
+> membership probability
+> Theory 𝑃 (𝑥 ∈𝑆 )=0.3
+> Theory 𝑃 (𝑥 ∈𝑆 )=0.1
+> Theory 𝑃 (𝑥 ∈𝑆 )=0.03
+
+(c) Membership probability for different prior membership probabilities Figure 1: Probability of membership based on the prod-uct of counter values in the CBF. 
+
+Fig. 1(a) shows the distribution of the product of counters for all those with a positive indication. Accordingly, the product is 1 or above. The two curves refer to members and non-members. For non-members, the value of 1 is the most common and is observed for 0.3883 of the elements. For members, it appears with probability 0.1649, and the most common value is 2. Values of 4 and above appear with 
+
+> 2Learning Filters with Certainty
+
+probability 0.1915 for non-members and with probability 0.4475 for members. Fig. 1(b) shows the probability of membership based on the counter values, comparing the simulation results with the above formula of 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 )) . It demonstrates the variability in certainty, namely the probability for the cor-rectness of a positive indication. While it equals 0.3397 when the product equals 1 (namely all counters have value of 1), the probability is 49.2% higher with a value of 0.5071 for a product of 2, upon a change in a single counter value to 2. For a product of 8, the probability exceeds 0.8 and reaches 0.8605 when the product is 12. We see very high similarity of the theory and simulation probabilities for small values of the product. As higher product values are rare, we see a small difference between the two values. 1
+
+Fig. 1(c) shows the impact of the prior membership proba-bility on 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 )) based on its formula from above. For simplicity, we use the same parameter values 𝑘, 𝑛 and 𝑚 
+
+but consider 𝑃 (𝑥 ∈ 𝑆 ) ∈ { 0.03 , 0.1, 0.3}. 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 )) is highly influenced by the prior probability and for any value of the product increases monotonically by that value. With product of 1, the probability equals 𝑃 (𝑥 ∈ 𝑆 ) 0.1337, 0.3396, 0.6067 for the prior probability values of 0.03, 0.1 and 0.3. When the product is 4, the probabilities are 0.3817, 0.6729 and 0.8606. When the product is 8, the probabilities are as high as 0.5525, 0.8045 and 0.9251. This demonstrates the high impact of the counter values, especially in the case of low prior probability. For 𝑃 (𝑥 ∈ 𝑆 ) = 0.03 , the 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 )) 
+
+is 2.85x and 4.13x higher when the product is 4 and 8 than when it equals 1. If 𝑃 (𝑥 ∈ 𝑆 ) = 0.3, the increase is smaller: 
+
+𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 )) is 1.42x and 1.52x higher for products 4 and 8, respectively, than for product 1. 
+
+## 3 Traditional Architectures of Bloom filters with ML models 
+
+We now describe the main existing architectures that com-bine Bloom filters with ML models to enhance membership classification [ 8, 10 ] (see also [ 4 ]). The two are illustrated in Fig. 2. 
+
+Learned Bloom filter (Kraska et al. [ 8 ]). A model 𝑓 aims to predict the membership of an element 𝑥 , providing a mem-bership probability 𝑓 (𝑥 ). With a threshold 𝜏 , the architecture indicates positive if 𝑓 (𝑥 ) ≥ 𝜏 . To avoid false negatives, the Bloom filter represents the set of elements whose model score is below 𝜏 , namely {𝑥 ∈ 𝑆 | 𝑓 (𝑥 ) < 𝜏 }. Then if 𝑓 (𝑥 ) < 𝜏 
+
+the Bloom filter is queried and provides the final decision on membership.     
+
+> 1Note that product values which are above 10 and are of prime values require having a single counter with such high value. As it happens with very small probability, all such cases have not been observed even once in the simulation so the corresponding curve contains fewer points.
+> Model
+> Bloom Filter
+> Input: element 𝑥
+> negative
+> 𝑓 (𝑥 ) ≥ 𝜏 :
+> positive
+> positive
+> negative
+
+(1) Learned Bloom Filter     
+
+> Bloom Filter 1
+> Model
+> Bloom Filter 2
+> Input: element 𝑥
+> negative
+> positive
+> negative
+> 𝑓 (𝑥 ) ≥ 𝜏 :
+> positive
+> positive
+> negative
+
+(2) Sandwiched Learned Bloom filter Figure 2: Existing architectures of Bloom filters with ML models for membership classification [ 8 , 10 ]. In each of them, the model computes a membership prob-ability 𝑓 (𝑥 ) for the element. Sandwiched Learned Bloom filter (Mitzenmacher [ 10 ]). Two Bloom filters are used, before and after the model. The model is queried only for those elements with a positive indication of the first filter. Then, a positive decision is re-turned if either the model or the second Bloom filter outputs positive. In this architecture, the first filter removes most queries for non-member elements and reduces the amount of false positives of the model. These architectures provide useful mechanisms for com-bining learned models with Bloom filters. In the following section, we introduce certainty-aware variants that exploit the counter information available in Counting Bloom Filters. 
+
+## 4 Enhancing Learned Models with Certainty 
+
+In this section, we present four architectures that combine a learned model with Bloom filters or CBFs, while explicitly exploiting the certainty information carried by CBF counters. Table 1 summarizes the main considerations when choosing among the architectures. 
+
+## 4.1 Notation 
+
+Let 𝑓 (𝑥 ) ∈ [ 0, 1] denote the score produced by the learned oracle for an element 𝑥 , interpreted as an estimate of the membership probability of 𝑥 in the set 𝑆 . Let 𝜏 ∈ [ 0, 1] de-note the oracle decision threshold: if 𝑓 (𝑥 ) ≥ 𝜏 , the oracle 
+
+> 3Yuval Banoun, Daniel Sadoc Menasché, and Ori Rottenstreich
+
+Table 1: Guidelines for choosing among the architec-tures. 
+
+Model Best suited for Main tradeoff 
+
+Model 1 Simple deployment as a drop-in replace-ment for a learned BF. Requires no front prefilter, but may have higher false-positive rate. Model 2 Settings where re-ducing false posi-tives is more impor-tant than minimiz-ing memory. Uses a front BF and a back CBF, improving filtering but requir-ing two structures. Model 3 Latency-sensitive settings with many confident model predictions. Allows early positive decisions, reducing CBF queries, but in-herits the memory cost of Model 2. Model 4 Memory-constrained settings where tight inte-gration between learning and filter-ing is acceptable. Reuses one CBF for screening and posterior decisions, but creates statistical dependence between stages. 
+
+Table 2: Notation. 
+
+Symbol Description 
+
+𝑓 (𝑥 ) score produced by the learned oracle 
+
+𝑉 (𝑥 ) vector of counters associated with 𝑥 in the CBF 
+
+Π(𝑥 ) counter product Î𝑘 𝑗 =1 𝑐 𝑗 
+
+𝑝 prior membership probability 
+
+𝑝 0 baseline prior 𝑃 (𝑥 ∈ 𝑆 )
+
+𝑝 1 learned prior 𝑓 (𝑥 )
+
+𝑝 2 MAP-style prior 𝑓 (𝑥, 𝑉 (𝑥 )) 
+
+ℎ𝑝 (𝑥 ) CBF posterior decision rule using prior 𝑝 𝜀 𝑓 false-positive rate of the learned oracle 
+
+𝜀 𝐵 false-positive rate of the front BF 
+
+𝜀 CBF false-positive rate of the CBF when used as prefilter 
+
+predicts a positive membership decision; otherwise, it pre-dicts negative. 2 Table 2 summarizes the main notation used throughout the paper. Let 𝑉 (𝑥 ) = (𝑐 1, . . . , 𝑐 𝑘 ) be the vector of counters associ-ated with 𝑥 in the Counting Bloom Filter (CBF), where 𝑘 is the number of hash functions. We define the counter product 
+
+Π(𝑥 ) = Î𝑘 𝑗 =1 𝑐 𝑗 .    
+
+> 2In this work we treat 𝜏 as fixed. In future work, it may be interesting to adapt 𝜏 depending on the downstream stages of the architecture, e.g., making the oracle more conservative when additional filtering stages are available.
+
+Following [ 12 ], when all counters are nonzero the CBF induces a posterior membership probability of the form 
+
+𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 ) = 𝑚 𝑘 · Π(𝑥 ) · 𝑝 𝑚 𝑘 · Π(𝑥 ) · 𝑝 + ( 𝑛 · 𝑘 )𝑘 · ( 1 − 𝑝 ) , (2) where 𝑝 denotes the prior membership probability used in the posterior computation. A subtle point is that the prior used in the CBF poste-rior rule depends on the reference population. If the CBF is meant to be oracle-agnostic and reusable across different learned oracles, then 𝑝 can be estimated over the full query universe. If the CBF is specialized to a particular oracle and architecture, then 𝑝 should instead be estimated over the conditional universe of queries that reach the CBF stage, such as those satisfying 𝑓 (𝑥 ) < 𝜏 . The latter choice may improve calibration, but couples the CBF posterior rule to a specific oracle. We consider three possible priors: 
+
+𝑝 0 = 𝑃 (𝑥 ∈ 𝑆 ), 𝑝 1 = 𝑓 (𝑥 ), 𝑝 2 = 𝑓 (𝑥, 𝑉 (𝑥 )) ,
+
+where 𝑝 0 is a population prior, 𝑝 1 is the oracle prior, and 𝑝 2 is a MAP-style prior that depends on both 𝑥 and the counters. For the false-positive-rate analysis, let 𝜀 𝑓 denote the false-positive rate of the learned oracle. Let 𝜀 𝐵 and 𝜀 CBF denote the false-positive rates of the front BF and CBF prefilters, respec-tively. Finally, let ℎ𝑝 (𝑥 ) denote the CBF posterior decision rule that outputs 1 when all counters associated with 𝑥 are nonzero and 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 ) ≥ 𝜂 , where 𝜂 ∈ [ 0, 1] is the posterior decision threshold, e.g., 𝜂 = 1/( 𝛼 + 1) under the Bayes-optimal rule from Property 1. 
+
+ℎ𝑝 (𝑥 ) = 1 ⇐⇒ 𝑐 𝑗 > 0 ∀𝑗 and 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 ) ≥ 𝜂. 
+
+(3) Unlike a standard Bloom-filter membership test, the posterior rule ℎ𝑝 (𝑥 ) may produce false negatives when the posterior threshold 𝜂 rejects a true member. Thus, the architectures below trade false positives against false negatives. The four architectures described in the following sections are illustrated in Fig. 3 and differ in how they combine three sources of information: the learned score 𝑓 (𝑥 ), the CBF counter vector 𝑉 (𝑥 ), and an optional front-end prefilter. Model 1 uses no prefilter, Models 2 and 3 include a front filter, and Model 4 reuses the same CBF both as a prefilter and as a certainty-aware decision module. 
+
+## 4.2 Model 1: Learned Counting Bloom Filter 
+
+Model 1 is the direct certainty-aware counterpart of the learned Bloom filter. The learned model is queried first. If the model is sufficiently confident that 𝑥 belongs to the set, namely if 𝑓 (𝑥 ) ≥ 𝜏 , the system outputs a positive decision immediately. Otherwise, the query is forwarded to a CBF.                  
+
+> 4Learning Filters with Certainty
+> Learned Oracle
+> CBF 𝐶 1
+> using 𝑝 0as prior
+> Input: element 𝑥
+> 𝑓 (𝑥 ) ≥ 𝜏
+> positive
+> 𝑓 (𝑥 )<𝜏 𝑝 0=𝑃 (𝑥 ∈𝑆 )
+> positive negative
+
+(1) Model 1           
+
+> BF 𝐵 1
+> with all 𝑆
+> Learned Oracle
+> CBF 𝐶 1
+> using 𝑝 1as prior
+> Input: element 𝑥
+> negative
+> 𝑝 1=𝑓 (𝑥 )
+> positive negative
+
+(2) Model 2                  
+
+> BF 𝐵 1
+> with all 𝑆
+> Learned Oracle
+> CBF 𝐶 1
+> using 𝑝 1as prior
+> Input: element 𝑥
+> negative
+> 𝑓 (𝑥 ) ≥ 𝜏
+> positive
+> 𝑓 (𝑥 )<𝜏 𝑝 1=𝑓 (𝑥 )
+> positive negative
+
+(3) Model 3                                 
+
+> CBF 𝐶 1
+> with all 𝑆
+> Learned MAP Oracle
+> Same CBF 𝐶 1
+> using 𝑝 2as prior
+> Input: element 𝑥
+> ∃𝑗 :𝑐 𝑗 =0
+> negative
+> 𝑥, 𝑉 (𝑥 )𝑐 𝑗 >0∀𝑗
+> 𝑓 (𝑥, 𝑉 (𝑥 ) ) ≥𝜏
+> positive
+> 𝑓 (𝑥, 𝑉 (𝑥 ) ) <𝜏 𝑝 2=𝑓 (𝑥, 𝑉 (𝑥 ) )
+> positive negative
+
+(4) Model 4 Figure 3: Architectures combining learned membership models with Bloom filters and Counting Bloom Filters. In vertical arrows, labels on the right indicate the routing condition, while labels on the left indicate the information passed to the next stage, such as the prior used by the CBF posterior test. Model 1 uses the population prior 
+
+𝑝 0 = 𝑃 (𝑥 ∈ 𝑆 ). Models 2 and 3 use the learned prior 𝑝 1 = 𝑓 (𝑥 ), while Model 4 uses the MAP-style prior 𝑝 2 = 𝑓 (𝑥, 𝑉 (𝑥 )) .
+
+The CBF is then used not merely as a binary backup struc-ture, but as a posterior estimator. If at least one of the 𝑘 coun-ters is zero, the output is negative. Otherwise, the decision is based on the posterior probability 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 ) com-puted using (2) , where the prior is taken to be 𝑝 0 = 𝑃 (𝑥 ∈ 𝑆 ),e.g., a population-level estimate. Hence, the decision rule is 
+
+ˆ𝑦 1 (𝑥 ) =
+
+
+
+1, 𝑓 (𝑥 ) ≥ 𝜏, 
+
+1, 𝑓 (𝑥 ) < 𝜏, 𝑐 𝑗 > 0 ∀𝑗, 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 0) ≥ 𝜂, 
+
+0, otherwise ,
+
+where 𝜂 is a posterior threshold. Model 1 preserves the role of the learned model as a front-end classifier, but replaces the standard Bloom filter fallback by a certainty-aware structure. This allows the second stage to distinguish weak positive indications from strong ones, which a binary Bloom filter cannot do. 
+
+False-positive rate. For a non-member key, a false positive occurs either because the learned oracle already outputs positive, or because the oracle outputs negative and the CBF posterior test accepts the key. Thus, 
+
+FPR 1 = 𝜀 𝑓 
+
+|{z} 
+
+> oracle FP
+
++( 1 − 𝜀 𝑓 ) · Pr  ℎ𝑝 0 (𝑥 ) = 1 𝑥 ∉ 𝑆, 𝑓 (𝑥 ) < 𝜏 | {z }
+
+> CBF accepts a non-member
+
+.
+
+(4) This is the only model without a front prefilter. 
+
+Discussion. Model 1 is the most direct certainty-aware extension of a learned Bloom-filter pipeline. First, there is 
+
+no pre-filter , which tends to produce a relatively high false-positive rate. Second, for low prior values, using the CBF membership probability is exactly where the CBF is most useful, because the product of the counters carries propor-tionally more weight in the posterior decision. 
+
+## 4.3 Model 2: Asymmetric Sandwich 
+
+Model 2 adds a standard Bloom filter 𝐵 1 before the learned model. The first-stage Bloom filter filters out a large fraction of non-members before they reach the learned model. Only if 𝐵 1 (𝑥 ) = 1 is the query passed to the learned model. In this architecture, the learned model does not directly produce the final binary output. Instead, its score 𝑓 (𝑥 ) is used as the prior in the posterior computation performed by the CBF stage. Thus, conditioned on 𝐵 1 (𝑥 ) = 1 and on all CBF counters being positive, the posterior probability is obtained from (2) by setting the prior to be 𝑝 1 = 𝑓 (𝑥 ). The resulting decision rule is 
+
+ˆ𝑦 2 (𝑥 ) =
+
+
+
+0, 𝐵 1 (𝑥 ) = 0,
+
+1, 𝐵 1 (𝑥 ) = 1, 𝑐 𝑗 > 0 ∀𝑗, 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 1) ≥ 𝜂, 
+
+0, otherwise .
+
+Model 2 is asymmetric because the first filter is a standard Bloom filter and the second is a CBF. The key idea is that the learned model contributes soft prior information, while the CBF contributes structural evidence from the counters. Their combination yields a posterior that is typically more informative than either source alone. 
+
+False-positive rate. The prefilter reduces the false-positive rate by the front-filter term. Writing that explicitly, 
+
+FPR 2 = 𝜀 𝐵 · Pr  ℎ𝑝 1 (𝑥 ) = 1 𝑥 ∉ 𝑆, 𝐵 1 (𝑥 ) = 1 . (5) Here the oracle output 𝑓 (𝑥 ) serves as the prior 𝑝 in the posterior computation 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 ) performed by the CBF stage. 
+
+Discussion. This model is asymmetric because the front stage is a standard Bloom filter while the back stage is a CBF. We have two benefits: the prefilter reduces the false-positive rate, and the oracle is used as a prior input to the CBF, which 
+
+> 5Yuval Banoun, Daniel Sadoc Menasché, and Ori Rottenstreich
+
+makes the final decision more informative than a binary Bloom-filter test alone. 
+
+## 4.4 Model 3: Asymmetric Sandwich with Early Decision 
+
+Model 3 is similar to Model 2, but allows the learned model to make an early positive decision. As before, a first Bloom filter 𝐵 1 is queried. If 𝐵 1 (𝑥 ) = 0, the final decision is negative. If 𝐵 1 (𝑥 ) = 1, the query reaches the learned model. This architecture has an additional advantage: the CBF stage is invoked primarily for elements whose score 𝑓 (𝑥 ) is below the threshold 𝜏 . In this regime the prior membership probability is relatively small, and the counter product Π(𝑥 )
+
+has a stronger influence on the posterior probability (see Fig. 1(c)). Thus, the CBF posterior test can be particularly informative for such low-score elements. If the model score is above threshold, i.e., 𝑓 (𝑥 ) ≥ 𝜏 , the system outputs a positive decision immediately. If instead 
+
+𝑓 (𝑥 ) < 𝜏 , the query is passed to a CBF, where the posterior probability 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 1) uses prior 𝑝 1 = 𝑓 (𝑥 ). Thus, 
+
+ˆ𝑦 3 (𝑥 ) =
+
+
+
+0, 𝐵 1 (𝑥 ) = 0,
+
+1, 𝐵 1 (𝑥 ) = 1, 𝑓 (𝑥 ) ≥ 𝜏, 
+
+1, 𝐵 1 (𝑥 ) = 1, 𝑓 (𝑥 ) < 𝜏, 𝑐 𝑗 > 0 ∀𝑗, 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 1) ≥ 𝜂, 
+
+0, otherwise .
+
+Compared to Model 2, this architecture can reduce latency and computational cost by skipping the CBF stage when the learned model is already highly confident. At the same time, low-confidence cases still benefit from the certainty-aware reasoning offered by the CBF. 
+
+False-positive rate. A false positive in Model 3 occurs when a non-member key passes the front Bloom filter, and either the oracle produces a false positive or, after a negative oracle output, the CBF posterior test accepts the key. This yields 
+
+FPR 3 = 𝜀 𝐵 · 𝜀 𝑓 |𝐵 + ( 1 − 𝜀 𝑓 |𝐵 ) · Pr 
+
+
+
+ℎ𝑝 1 (𝑥 ) = 1 𝑥 ∉𝑆, 𝑓 (𝑥 )<𝜏, 𝐵 1 (𝑥 )=1
+
+ !
+
+,
+
+(6) where 𝜀 𝑓 |𝐵 = Pr (𝑓 (𝑥 ) ≥ 𝜏 | 𝑥 ∉ 𝑆, 𝐵 1 (𝑥 ) = 1).
+
+Discussion. Model 3 extends Model 2 by allowing an early positive decision when the learned oracle is sufficiently confi-dent, while still using the oracle score as prior in the fallback CBF stage. The prefilter reduces the false-positive rate, and the same low-prior CBF advantage from Model 1 is retained in the fallback stage. Relative to Model 2, Model 3 also has an early decision path, which can reduce computation when the oracle is sufficiently confident. 
+
+## 4.5 Model 4: Symmetric MAP Sandwich 
+
+Model 4 provides the tightest integration between learning and the counting filter. A single CBF is used both as an ini-tial screening device and as a final posterior-based decision device. First, the input 𝑥 is checked against the CBF in the classical sense: if at least one associated counter is zero, the output is immediately negative. Otherwise, the counter vec-tor 𝑉 (𝑥 ) = (𝑐 1, . . . , 𝑐 𝑘 ) is extracted and passed, together with 
+
+𝑥 , to a learned model. Algorithm 1 summarizes Model 4. 
+
+Algorithm 1: Model 4: Symmetric MAP Sandwich 
+
+Input: Element 𝑥 , CBF, MAP oracle 𝑓 (𝑥, 𝑉 (𝑥 )) ,threshold 𝜏 
+
+Output: Positive / Negative  
+
+> 1
+
+Read counters 𝑉 (𝑥 ) = {𝑐 𝑖 }𝑘 𝑖 =1 of 𝑥 from the CBF  
+
+> 2
+
+if there exists 𝑖 such that 𝑐 𝑖 = 0 then  
+
+> 3
+
+return Negative // BF-like prefilter  
+
+> 4
+
+if 𝑓 (𝑥, 𝑉 (𝑥 )) ≥ 𝜏 then  
+
+> 5
+
+return Positive  
+
+> 6
+
+Use 𝑝 2 = 𝑓 (𝑥, 𝑉 (𝑥 )) as an effective MAP-style prior in the CBF posterior test  
+
+> 7
+
+if 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 2) ≥ 𝜂 then  
+
+> 8
+
+return Positive  
+
+> 9
+
+else  
+
+> 10
+
+return Negative 
+
+Unlike the previous models, the learned model in Model 4 may explicitly use both the feature representation of 𝑥 and the counter information. Denote its output by 𝑓 (𝑥, 𝑉 (𝑥 )) . If 
+
+𝑓 (𝑥, 𝑉 (𝑥 )) ≥ 𝜏 , the architecture outputs a positive decision. Otherwise, the same score is used as an effective MAP-style prior in the final posterior computation. In particular, 𝑃 (𝑥 ∈
+
+𝑆 | 𝑉 (𝑥 ); 𝑝 2) is obtained from (2) by setting 𝑝 2 = 𝑓 (𝑥, 𝑉 (𝑥 )) .The decision rule is 
+
+ˆ𝑦 4 (𝑥 ) =
+
+
+
+0, ∃𝑗 such that 𝑐 𝑗 = 0,
+
+1, 𝑐 𝑗 > 0 ∀𝑗, 𝑓 (𝑥, 𝑉 (𝑥 )) ≥ 𝜏, 
+
+1, 𝑐 𝑗 > 0 ∀𝑗, 𝑓 (𝑥, 𝑉 (𝑥 )) < 𝜏, 𝑃 (𝑥 ∈ 𝑆 | 𝑉 (𝑥 ); 𝑝 2) ≥ 𝜂, 
+
+0, otherwise .
+
+Model 4 is symmetric because the same CBF appears on both sides of the learned component. It is also the most flexible architecture, since the learned model can exploit the full counter vector rather than just a binary Bloom-filter output. This allows the model to learn richer decision rules that combine content-based features of 𝑥 with the certainty signal carried by the filter. 
+
+False-positive rate. Let 𝐶 1 (𝑥 ) = 1 denote the event that the CBF screening stage returns a positive indication, i.e., 
+
+> 6Learning Filters with Certainty
+
+all counters associated with 𝑥 are nonzero. A false positive in Model 4 occurs when a non-member key passes the CBF screening stage and the MAP oracle produces an early pos-itive decision, or when the CBF posterior test accepts the key after the oracle output is below threshold. Thus, by the definition of ℎ𝑝 in (3), ℎ𝑝 2 (𝑥 ) = 1 ⇒ 𝐶 1 (𝑥 ) = 1, and 
+
+FPR 4 = Pr (𝐶 1 (𝑥 ) = 1, 𝑓 (𝑥, 𝑉 (𝑥 )) ≥ 𝜏 | 𝑥 ∉ 𝑆 )+ Pr  ℎ𝑝 2 (𝑥 ) = 1, 𝑓 (𝑥, 𝑉 (𝑥 )) < 𝜏 | 𝑥 ∉ 𝑆  . (7) Equivalently, writing 𝜀 CBF = Pr (𝐶 1 (𝑥 ) = 1 | 𝑥 ∉ 𝑆 ) and 𝜀 𝑓 |𝐶𝐵𝐹 =
+
+Pr (𝑓 (𝑥, 𝑉 (𝑥 )) ≥ 𝜏 | 𝑥 ∉ 𝑆, 𝐶 1 (𝑥 ) = 1), we obtain 
+
+FPR 4 = 𝜀 CBF · 𝜀 𝑓 |𝐶𝐵𝐹 + Pr  ℎ𝑝 2 (𝑥 ) = 1, 𝑓 (𝑥, 𝑉 (𝑥 )) < 𝜏 | 𝑥 ∉ 𝑆  .
+
+Discussion. Model 4 forms a symmetric architecture in which the same CBF structure appears both before and after the learned oracle. This design provides several advantages. First, the prefilter stage reduces the number of queries reach-ing the learned model, which can reduce the overall false-positive rate. Second, reusing the same CBF for both stages reduces memory requirements compared to architectures that maintain separate filters. Third, the MAP oracle uses both the element features and the CBF counters to produce an informed prior 𝑝 2. Finally, the posterior CBF decision con-tinues to exploit the strong certainty signal provided by the counters, which is particularly beneficial for a small baseline membership prior. 
+
+## 4.6 Discussion 
+
+The four architectures differ in how they combine three sources of information: a binary filter output, a learned score, and the CBF-derived certainty signal. Model 1 is the sim-plest certainty-aware extension of the learned Bloom filter. Model 2 uses the learned score as a prior inside the CBF posterior. Model 3 adds an early-exit mechanism based on confident model predictions. Model 4 allows the strongest interaction between learning and filtering by feeding counter information directly into the learned model itself. These architectures also induce different operating points in terms of false positives, false negatives, memory footprint, and inference cost. With respect to false negatives, although the underlying BF/CBF structures have no false negatives, the complete architectures may have false negatives because the learned oracle and/or the posterior CBF decision rule can reject true members. Hence the proposed schemes should be viewed as operating points in a false-positive/false-negative tradeoff, rather than as strict BF replacements with one-sided error. In particular, the architectures differ in how many filter structures are required and whether a CBF must be main-tained in addition to a standard BF. Model 1 is likely to be easiest to deploy as a drop-in replacement for a learned Bloom filter, while Model 4 offers greater flexibility at the price of tighter coupling between the model and the data structure. 
+
+## 5 Conclusion 
+
+Counting Bloom Filters (CBFs) are versatile data structures for compact set representation, especially when deletions or updates are required. Beyond supporting deletions, their counters expose information that can be used to estimate posterior membership probabilities and quantify the cer-tainty of positive indications. We showed how this certainty signal can be combined with learned models through four architectures integrating Bloom filters, CBFs, and learned predictors. These architectures differ in how they combine prefilter-ing, learned priors, early decisions, and certainty-aware pos-terior tests, which may lead to different operating points in terms of false-positive rate, inference cost, and memory usage. A practical challenge arises when the represented set changes over time: while the CBF can adapt through in-sertions and deletions, the learned model typically remains fixed until retraining. In practice, this suggests a hybrid up-date strategy in which the CBF is updated online, while the learned oracle is retrained periodically or when performance degradation is detected. Several directions remain for future work. First, it would be interesting to study how to optimally allocate memory across different components of the architecture, such as front filters, counting filters, and learned models. Second, the de-cision threshold 𝜏 used by the learned oracle could poten-tially be adapted depending on the downstream stages of the architecture, allowing earlier decisions to become more conservative when additional filtering stages are available. Third, it may be worthwhile to explore other probabilistic data structures that, like CBFs, expose internal signals that can be interpreted as measures of certainty rather than only binary membership decisions. 
+
+## References                
+
+> [1] Burton H. Bloom. 1970. Space/time trade-offs in hash coding with allowable errors. Commun. ACM 13, 7 (1970), 422–426. [2] Andrei Z. Broder and Michael Mitzenmacher. 2003. Network Appli-cations of Bloom Filters: A Survey. Internet Mathematics 1, 4 (2003), 485–509. [3] Graham Cormode. 2017. Data sketching. Commun. ACM 60, 9 (2017), 48–55. [4] Zhenwei Dai and Anshumali Shrivastava. 2020. Adaptive Learned Bloom Filter (Ada-BF): Efficient Utilization of the Classifier with Ap-plication to Real-Time Information Filtering on the Web. In NeurIPS .[5] Peter C. Dillinger and Panagiotis Manolios. 2004. Bloom Filters in Probabilistic Verification. In Formal Methods in Computer-Aided Design (FMCAD) .[6] Li Fan, Pei Cao, Jussara M. Almeida, and Andrei Z. Broder. 2000. Summary cache: A scalable wide-area web cache sharing protocol.
+> IEEE/ACM Transactions on Networking 8, 3 (2000), 281–293. 7
+
+Yuval Banoun, Daniel Sadoc Menasché, and Ori Rottenstreich 
+
+[7] Arad Kotzer, Daniel Gandelman, and Ori Rottenstreich. 2024. SoK: Applications of Sketches and Rollups in Blockchain Networks. IEEE Trans. Netw. Serv. Manag. 21, 3 (2024), 3194–3208. [8] Tim Kraska, Alex Beutel, Ed H Chi, Jeffrey Dean, and Neoklis Poly-zotis. 2018. The case for learned index structures. In Intl. Conf. on Management of Data .[9] Ming Lin and Lin Chen. 2025. Ensemble Learned Bloom Filters: Two Oracles are Better than One. In Intl. Conf. on Machine Learning .[10] Michael Mitzenmacher. 2018. A Model for Learned Bloom Filters and Optimizing by Sandwiching. In NeurIPS .[11] James K Mullin and Daniel J Margoliash. 1990. A tale of three spelling checkers. Software: Practice and Experience 20, 6 (1990), 625–630. [12] Ori Rottenstreich and Isaac Keslassy. 2015. The Bloom Paradox: When Not to Use a Bloom Filter. IEEE/ACM Trans. Netw. 23, 3 (2015), 703–716. [13] Leandro Santiago, Leticia Verona, Fabio Rangel, Fabricio Firmino, Daniel S Menasché, Wouter Caarls, Mauricio Breternitz Jr, Sandip Kundu, Priscila MV Lima, and Felipe MG França. 2020. Weightless neural networks as memory segmented Bloom filters. Neurocomputing 
+
+416 (2020), 292–304. [14] Tomer Voronov, Danny Raz, and Ori Rottenstreich. 2024. A Frame-work for Anomaly Detection in Blockchain Networks With Sketches. 
+
+IEEE/ACM Trans. Netw. 32, 1 (2024), 686–698. 8
