@@ -1,0 +1,640 @@
+Title: TabClean: Reusable LLM-Synthesized Programs for Tabular Data Cleaning
+
+URL Source: https://arxiv.org/pdf/2606.25388v1
+
+Published Time: Thu, 25 Jun 2026 00:37:57 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# TAB CLEAN : Reusable LLM-Synthesized Programs for Tabular Data Cleaning 
+
+Yibo Wang 
+
+Purdue University 
+
+West Lafayette, USA wang7342@purdue.edu 
+
+Riteng Zhang 
+
+Purdue University 
+
+West Lafayette, USA zhang5982@purdue.edu 
+
+Yinghao He 
+
+Purdue University 
+
+West Lafayette, USA he923@purdue.edu 
+
+Yongye Su 
+
+Purdue University 
+
+West Lafayette, USA su311@purdue.edu 
+
+Bharat Bhargava 
+
+Purdue University 
+
+West Lafayette, USA bbshail@purdue.edu 
+
+Chunwei Liu 
+
+Purdue University 
+
+West Lafayette, USA chunwei@purdue.edu 
+
+Abstract —Reliable analytics and machine-learning pipelines depend on clean tabular data, yet production tables often con-tain missing values, typographical errors, inconsistent formats, violated dependencies, unit mismatches, and ambiguous categor-ical values. Existing cleaning systems make different trade-offs. Constraint-based systems need experts to specify rules. Learning-based systems need labels or retraining. Recent LLM-based cleaners reduce setup effort, but many call an LLM on rows, cells, or repeated workflow steps, so their cost grows with table size and with every recurring batch. We present TAB CLEAN , a model-training-free system that compiles LLM reasoning into reusable guarded cleaning pro-grams. Given a dirty table and a small annotated development set, TAB CLEAN profiles table evidence, diagnoses repair mechanisms, synthesizes executable Python transformations, validates candi-dates with cell-level feedback, and commits the best program for reuse on schema-compatible batches. The key abstraction is an evidence-backed guarded repair clause. A deterministic transformation may fire only when its dirty pattern, target-negative condition, evidence support, and scope constraints are satisfied. Across six benchmarks, T AB CLEAN achieves high preci-sion, improves F1 over representative rule-based, learning-based, and LLM-based baselines on five datasets, and substantially reduces recurring runtime and API cost by replacing repeated LLM inference with deterministic program execution. 
+
+Index Terms —Data cleaning, large language models, program synthesis, multi-agent systems, tabular data. 
+
+I. I NTRODUCTION 
+
+Tabular datasets underpin decision-making in science, busi-ness, and the public sector, and they remain a dominant sub-strate for training and evaluating machine learning models [1], [2]. In practice, however, tables are frequently contaminated by missing values, typos, inconsistent formats, unit mismatches, out-of-range measurements, and schema-dependent violations caused by sensor glitches and human workflows [3], [4]. It is widely estimated that data scientists spend the majority of their time cleaning and pre-processing raw data before being able to analyze it [5]–[8]. For example, scientists at Massachusetts General Hospital (MGH), one of the largest hospitals in the US, spend 80% of their time building and refining data pipelines that involve extensive data preparation and model tuning [9]. Left unaddressed, such errors can propagate into downstream analytics, bias model training, and erode trust in automated pipelines [10], [11]. The database community has studied this problem for decades. Rule- and constraint-based systems use denial con-straints, conditional functional dependencies, matching depen-dencies, or domain rules to detect and repair inconsistent records [12]–[15]. Learning-based systems reduce some of the rule-authoring burden by using user labels, weak supervision, transfer learning, or active selection [11], [16]–[18]. Despite their successes, these approaches often require substantial do-main expertise and iterative engineering. Rules must be written and maintained per dataset, constraints may be unknown or brittle under distribution shift, and specialized models often fail to transfer across schemas without retraining. Large language models (LLMs) expand the design space for tabular data cleaning because they can interpret heterogeneous table contexts, natural-language hints, and domain-specific cues without task-specific training. Recent systems have ap-plied LLMs to data wrangling, preprocessing, retrieval-assisted repair, standardization, workflow generation, and end-to-end cleaning [19]–[25]. Existing LLM-based cleaners largely fol-low two paradigms [26]. The first is prompt-based cleaning, where an LLM is repeatedly invoked to detect, verify, or repair dirty values [19]–[23], [27]. The second is task-adaptive fine-tuning, where smaller language models are trained on dataset-specific error distributions [25], [28]. These approaches lower the barrier to expressing cleaning intent, but they shift the main bottleneck from rule authoring to scalability and reliability. Prompt-based systems incur inference cost at row, cell, or chunk granularity and therefore become expensive on large tables or recurring batches. Fine-tuning-based systems reduce per-call cost but introduce a cold-start requirement for high-quality training data and often generalize poorly to new schemas. Both paradigms can also produce unsupported repairs when the model must reason over long, noisy, or weakly grounded contexts. 
+
+Motivating example. Consider a recurring flight-status table 
+
+> arXiv:2606.25388v1 [cs.DB] 24 Jun 2026
+
+collected from heterogeneous web sources [29]. In a small annotated sample, a time attribute may contain values such as 
+
+730 , 7:30 , and 07:30 AM , while the clean table expects a canonical 07:30 representation. A prompt-based cleaner must repeatedly ask an LLM to inspect many cells or chunks whenever a new batch arrives. A learning-based system may not have enough data for training and may not know which should be the target format. Yet for a human programmer, the desired solution is simple. Write a guarded parser that recognizes supported time formats, normalizes them, and leaves already-canonical or ambiguous values unchanged. This example highlights our key observation. Many tabular errors are not isolated value-editing problems, but recur-ring schema-level repair mechanisms. A natural alternative is therefore to use LLMs to synthesize executable cleaning logic rather than to repair every value directly. Some recent systems move in this direction through code or workflow generation [24], [30]. However, their scope remains limited. LLMClean focuses on Ontological Functional Dependencies (OFDs), while Cocoon mainly generates regular expressions and SQL CASE WHEN clauses, which are often too narrow to capture heterogeneous error mechanisms and rarely transfer across future tables sharing the same schema. Yet narrow scope is not the main challenge. Even with broader coverage, a single prompt may produce plausible cleaning code, but plausible code is insufficient for reliable data repair. The system must distinguish strong table evidence from weak correlations, avoid over-correction, recover from executable failures, preserve high-precision transformations, and stop refinement when ad-ditional edits begin to hurt precision. Moreover, the generated program must be explainable, extensible, and transferable. It should express general repair logic rather than hard-coded replacements from the development set. To address these challenges, we present T AB CLEAN 1, a scalable and model-training-free data cleaning system that formulates LLM-assisted cleaning as evidence-grounded syn-thesis of reusable guarded programs. T AB CLEAN uses a finite-state multi-agent pipeline to profile a table, diagnose repair mechanisms, plan guarded repair clauses, synthesize Python code, execute the code on a small human-annotated develop-ment set, and refine it using cell-level feedback. Rather than hard-coding dataset-specific replacements, agents draw on a shared, schema-agnostic skills library and apply repairs only when they are grounded in observable data evidence. The final program is cached and reused for future tables with the same schema, amortizing LLM cost across batches and reducing large-scale cleaning to ordinary program execution. Across six standard benchmarks, T AB CLEAN improves cleaning quality over representative rule-based, learning-based, and LLM-based baselines on five of them, and remains practical on large tables such as the 200K-row tax benchmark while substantially lowering runtime and API cost. We make the following contributions.  
+
+> 1Code and data are available at https://github.com/Wangyibo321/TabClean.
+> •
+
+We formulate tabular data cleaning as evidence-grounded synthesis of schema-reusable guarded repair programs, enabling cleaning logic to be cached, audited, and reap-plied across future tables with the same schema (Sec-tion II).  
+
+> •
+
+We design an execution-guided synthesis loop that sep-arates LLM-proposed repair mechanisms from determin-istic execution, validation, safety checking, and stopping (Sections III and IV-A).  
+
+> •
+
+We instantiate this abstraction with repair-skill contracts, evidence levels, adaptive development-set construction, role-aware memory, guarded transformations, and best-program tracking (Sections IV-B–IV-G).  
+
+> •
+
+We evaluate T AB CLEAN on six standard data-cleaning benchmarks against four representative baselines, mea-suring cleaning quality, runtime, LLM cost, annotation sensitivity, ablations, and model sensitivity (Section V). II. P ROBLEM SETTING 
+
+A. Data Model and Objective 
+
+Let D be a dirty table with schema S = ⟨A1, . . . , A m⟩
+
+and n rows. Let C be the corresponding clean table with the same schema and row alignment. A cell (i, j ) is dirty when Dij ̸ = Cij under a canonical comparison function that normalizes harmless representation differences such as surrounding whitespace when appropriate. A repair system returns bC and is evaluated by cell-level true positives, false positives, and false negatives. Precision measures the fraction of changed cells that are correct repairs, recall measures the fraction of dirty cells repaired, and F1 is their harmonic mean. TAB CLEAN receives the dirty table and a small annotated development set A. The development set can be produced by human annotation, by a sampled historical dirty-clean pair, or by any workflow that supplies trusted clean values for a small subset of rows. T AB CLEAN uses A only for synthesis and validation. Final quality is measured on held-out rows. This setting mirrors operational cleaning. The data owner can inspect a sample, but cannot label a full production table. The goal is to synthesize a program P that preserves schema and row order while repairing supported errors. 
+
+max  
+
+> P
+
+F1(P(Dtest ), Ctest ). (1) LLM calls occur during synthesis and refinement. Applying a validated program to the full table, or to later batches with the same schema, should require no LLM inference. 
+
+B. Reusable Cleaning Programs 
+
+Many table errors are mechanistic. A time column may contain two parseable formats. A state column may violate a city-state dependency in rare rows. A numeric attribute may mix units. A bibliographic source may use several aliases for the same venue. Once the mechanism is known, a program can apply it across all rows with guards that prevent changes outside the supported pattern. Fig. 1. TAB CLEAN System Overview 
+
+This observation motivates the central abstraction in T AB -CLEAN . A repair program is a sequence of guarded repair clauses 
+
+P = ⟨(s1, g1), . . . , (sk, gk)⟩, (2) where si is a repair skill, such as date normalization or dependency-based majority repair, and gi is a predicate that determines when the skill may fire. A clause is valid only when the table profile and development-set feedback provide evidence for both the repair and the guard. The same dirty value may therefore be repaired in one schema and left un-changed in another schema if the supporting evidence differs. 
+
+C. Error Taxonomy 
+
+TAB CLEAN structures diagnosis with an explicit taxon-omy. The current catalog includes typographical errors (T), missing values (MV), format inconsistencies (FI), violated attribute dependencies (VAD), out-of-distribution values (OD), semantic equivalence or canonicalization issues (SE), unit and scale inconsistencies (UT), truncation or extraction artifacts (TE), schema and type inconsistencies (SI), and composite or misaligned fields (CM). The taxonomy is not meant to be complete. Its role is to force each proposed repair to state the evidence it requires. For example, an MV repair needs a deterministic source for the missing value, while an SE repair needs evidence that several spellings denote the same entity. III. S YSTEM OVERVIEW 
+
+Figure 1 shows the end-to-end architecture of T AB CLEAN .TAB CLEAN follows a generate-validate-deploy design. LLM agents synthesize reusable cleaning logic from a small anno-tated development set, while execution, validation, stopping, and deployment are handled by deterministic components. This separation allows T AB CLEAN to use LLMs for discover-ing candidate repair mechanisms, without relying on them to directly clean the full table. 
+
+Evidence construction. Stages (1)–(2) construct the evidence used by the synthesis loop. Given a raw table, T AB CLEAN 
+
+first creates a compact annotated development set. The Dev-Set Sizer determines the annotation budget using table size, observed error coverage, and column-level diversity, after which human annotation produces trusted dirty-clean exam-ples. The Dataset Profiler then summarizes the annotated table into compact evidence, including column statistics, missing-ness, frequent and rare values, type signatures, parseability under dates, times, and numbers, and candidate structural dependencies. Rather than passing the full table to the LLM agents, T AB CLEAN exposes this structured profile together with representative examples. 
+
+Program synthesis loop. Stages (3)–(7) form an iterative synthesis and refinement loop. The Diagnose Agent identifies likely error types, affected columns, column dependencies, representative examples, and candidate repair opportunities. The Strategize Agent turns this diagnosis into an ordered cleaning strategy that specifies target columns, cleaning skills, guard predicates, and repair order. The Coding Agent compiles the strategy into a Python program that preserves the input schema, row order, and table shape, with each update protected by explicit guards. Candidate programs are executed in isola-tion. Syntax and runtime failures are repaired by a bounded debugging loop. For each executable candidate, the Rule-Based Decider evaluates cell-level metrics (e.g., precision, F1) on the development set. If the candidate is incomplete or unsafe, the Review Agent converts validation failures into targeted feedback for the next iteration. 
+
+Deployment. In stage (8), TAB CLEAN commits the best validated cleaning program and applies it to the full raw table. This deployment path does not invoke any LLM. The committed program is inspectable, versionable, cacheable, and reusable on future schema-compatible batches. Thus, T AB -CLEAN pays the LLM cost during synthesis, while repeated cleaning reduces to deterministic program execution. The dashed box in Figure 1 contains modules shared across datasets and iterations. Agent Memory is not shown as a separate numbered stage because it supports the entire synthe-sis loop, maintaining the current profile, diagnosis, strategy, generated program, validation feedback, and best validated program, and exposing role-specific context to each agent. IV. M ETHODOLOGY 
+
+A. FSM-based Cleaning Program Synthesis 
+
+Directly asking an LLM to clean a table conflates several responsibilities, namely diagnosing data errors, writing exe-cutable code, debugging failures, and deciding whether a can-didate repair is safe to deploy. T AB CLEAN instead formulates program synthesis as a feedback-grounded finite-state machine (FSM). LLM agents propose intermediate artifacts, while execution, validation, and stopping decisions are grounded in deterministic tools and development-set feedback. Let Φ be the profile extracted from the annotated develop-ment set A, K be the cleaning-skills library, B be the role-aware memory buffer, and X be the isolated code execution environment. The FSM is defined as 
+
+MTAB CLEAN = ( S, U, O, δ, S 1, Acc ), (3) where S = {S1, . . . , S 6} is the set of workflow states, U is the set of agents and deterministic tools, O is the set of transition actions, δ : S × O → S is the transition function, S1 is the initial state, and Acc = {S6} is the accepting state. The FSM operates in the environment 
+
+ETAB CLEAN = ( D, A, Φ, K, B, X ), (4) which exposes table evidence, execution logs, and validation metrics to the agents. At state Si, the responsible agent emits an action OSi 
+
+> k
+
+, and the FSM transitions according to 
+
+δ(Si, O Si 
+
+> k
+
+) → Sj . (5) The default forward transition of each state is denoted by 
+
+OSi 
+
+> 0
+
+. Non-default actions encode debugging, rejection, and feedback-driven replanning.               
+
+> S1
+> Diagnose
+> S2
+> Strategize
+> S3
+> Code
+> S4
+> Decide
+> S6
+> Commit
+> S5
+> Review
+> OS10OS20OS30OS40
+> OS31
+> OS32OS41
+> OS50
+> Fig. 2. FSM workflow of T AB CLEAN . Edge label OSi
+> kdenotes the k-th action of state Si.OSi
+> 0is the default forward action. S3has a bounded debugging self-loop. The double ring marks S6as the accepting state.
+
+Figure 2 shows the FSM workflow, and Table I summarizes the conditions for each non-default FSM transition. The impor-tant distinction is that syntax and runtime failures are handled   
+
+> TABLE I KEY NON -DEFAULT TRANSITION CONDITIONS IN THE TAB CLEAN FSM.
+
+Action Condition 
+
+OS3 
+
+> 1
+
+The candidate program fails syntax or runtime checks and the debugging budget is not exhausted. 
+
+OS3 
+
+> 2
+
+The candidate program still fails after the debugging budget is exhausted. 
+
+OS4 
+
+> 1
+
+The candidate is unsafe, introduces regressions, or does not satisfy the stopping condition. 
+
+OS4 
+
+> 0
+
+The best validated program satisfies the target score, or the iteration/patience budget is exhausted. 
+
+locally in S3, while semantic failures are routed through S5
+
+so that the next strategy can change the repair clauses or their guards. When the FSM reaches S6, the controller commits the best validated program P∗ and applies it to the raw table. 
+
+bC = P∗(D). (6) Because P∗ is expressed as schema-level guarded repair logic, later schema-compatible tables can reuse it without additional LLM inference. Algorithm 1 summarizes the operational loop. T AB CLEAN 
+
+does not trust an LLM-generated program directly. Each candidate must pass isolated execution, cell-level validation, and safety checks. The controller maintains P∗ throughout synthesis. This best-program tracking is necessary because iterative LLM synthesis is not monotonic. A later candidate can improve recall on one column while introducing false positives or regressions on another. “‘latex 
+
+B. Repair Program Representation and Semantics 
+
+The central artifact in T AB CLEAN is an executable repair program, not a list of predicted repaired cells. A program is an ordered sequence of guarded clauses. 
+
+P = ⟨c1, . . . , c k⟩, cℓ = ( Aℓ, s ℓ, gℓ, f ℓ, e ℓ, π ℓ). (7) Here Aℓ is the target column, sℓ is a repair skill selected from the library K, gℓ is a predicate that determines whether the clause may fire, fℓ is a deterministic transformation, eℓ
+
+records the supporting evidence, and πℓ specifies the clause priority or application order. The Strategize Agent produces this clause-level plan, and the Coding Agent compiles it into an executable Python script. For a row xi and target column Aℓ, a clause has the semantics 
+
+cℓ(xi)Aℓ =
+
+(
+
+fℓ(xi, A ℓ), if gℓ(xi, A ℓ, Φ, e ℓ) = 1 ,xiA ℓ , otherwise. (8) All non-target columns are left unchanged by the clause. A guard may depend on the cell value, other columns in the same row, column-level profile statistics, and evidence extracted from the development set. It must not depend on row identifiers, held-out labels, or manually enumerated test repairs. The program applies clauses in strategy order and preserves the input schema, row order, and table shape. 
+
+schema( P(D)) = schema( D), |P (D)| = |D| . (9) Algorithm 1: TAB CLEAN Program Synthesis 
+
+Input: Dirty table D, development set A, skill library 
+
+K, iteration budget T , debugging budget B
+
+Output: Reusable cleaning program P∗ and cleaned table bC 
+
+> 1
+
+Φ ← Profile( A); 
+
+> 2
+
+d ← Diagnose( A, Φ, K); 
+
+> 3
+
+r ← Strategize( d, K); 
+
+> 4
+
+P∗ ← ⊥ ; s∗ ← 0; 
+
+> 5
+
+for t ← 1 to T do  
+
+> 6
+
+Pt ← Code( r, P∗); 
+
+> 7
+
+ok ← false ; 
+
+> 8
+
+for b ← 1 to B do  
+
+> 9
+
+(ok, log, out ) ← Execute( Pt, A); 
+
+> 10
+
+if ok then  
+
+> 11
+
+break ; 
+
+> 12
+
+Pt ← Debug( Pt, log ); 
+
+> 13
+
+if ¬ok then  
+
+> 14
+
+q ← ReviewFailure( Pt, log ); 
+
+> 15
+
+r ← Strategize( d, q, K); 
+
+> 16
+
+continue ; 
+
+> 17
+
+(st, F t) ← Evaluate( out, A); 
+
+> 18
+
+if st > s ∗ and Safe( Ft) then  
+
+> 19
+
+P∗ ← P t; 
+
+> 20
+
+s∗ ← st; 
+
+> 21
+
+if Stop( s∗, t, F t) then  
+
+> 22
+
+break ; 
+
+> 23
+
+q ← Review( Pt, F t, P∗); 
+
+> 24
+
+r ← Strategize( d, q, K); 
+
+> 25
+
+bC ← P ∗(D); 
+
+> 26
+
+return P∗, bC;This representation differs from direct value editing in two ways. First, the unit of synthesis is a general repair mechanism, such as time normalization or dependency-based majority repair, rather than an individual repaired cell. Second, every transformation is paired with an explicit guard. The guard is the main mechanism for precision: it requires the program to establish that a value matches a supported dirty pattern before changing it. A case study is provided in Section V-H. 
+
+C. Evidence Construction 
+
+TAB CLEAN constructs evidence before invoking the main synthesis loop. This evidence serves two purposes. It reduces the prompt context that agents must inspect, and it constrains repair proposals to mechanisms supported by the table. 
+
+1) Adaptive Development-Set Sizer: The development set should expose recurring errors without becoming a second full-labeling task. T AB CLEAN uses an adaptive sizer that sam-ples rows until several coverage conditions are met, namely a minimum number of rows, a minimum number of dirty cells, coverage of error-bearing columns, and sufficient examples for high-frequency error types. A hard cap prevents the develop-ment set from becoming a large fraction of the full table. The sizer also records undercovered columns. A column is undercovered when the current development set contains too few labeled dirty cells to support reliable diagnosis and validation for that column. Downstream agents treat such columns conservatively. They may still propose guards for deterministic format errors, but they avoid broad dependency or semantic repairs unless additional evidence is available. This design makes insufficient annotation primarily reduce recall rather than precision. 
+
+2) Dataset Profiler: The profiler computes compact statis-tics over the development set. For each column, it records car-dinality, missingness, frequent and rare values, type signatures, string-length distributions, numeric ranges, and parseability as dates, times, numbers, or units. It also searches for repeated identifiers, nearly functional dependencies, group-level con-stants, common composite-field structures, and column pairs that may support evidence-based repair. The profile is not a dump of the table. It contains summaries and representative examples selected to support diagnosis. For example, if a city column almost determines a state column, and the development labels show that minority state values are dirty, the profile records a candidate dependency repair. If several values are parseable as times and the clean examples share a target format, the profile records a format-normalization opportunity. 
+
+3) Evidence Levels: The Diagnose Agent classifies repair opportunities by evidence level.  
+
+> •
+
+Deterministic evidence . The dirty pattern and clean target are mechanically inferable, such as date, time, numeric, unit, or whitespace normalization with an un-ambiguous target format.  
+
+> •
+
+Table-backed evidence . The repair follows from cross-row or cross-column regularities, such as majority values within an entity group or near-functional dependencies.  
+
+> •
+
+Weak or external evidence . The correct value cannot be inferred from the development set and table profile alone, such as sparse address repairs or ambiguous entity names. Only the first two evidence levels are eligible for automatic program synthesis. Weak or external repairs are skipped or marked for future human or retrieval-backed validation. This classification prevents the LLM from turning plausible world knowledge into unsupported table edits. 
+
+D. Skill-Guided Guard Synthesis 
+
+The cleaning-skills library K encodes reusable cleaning knowledge as repair contracts. A skill is not executed directly. Instead, it constrains the diagnosis, strategy, coding, and review stages by specifying what evidence is required, what guard must be constructed, and what transformation is allowed. Table II shows representative skills. A guarded repair usually combines several guard families. 
+
+G = gdirty ∧ gtarget ∧ gevidence ∧ gscope . (10) TABLE II REPRESENTATIVE CLEANING -SKILL CONTRACTS USED BY TAB CLEAN . A SKILL CONSTRAINS REPAIR SYNTHESIS BY REQUIRING EVIDENCE AND GUARDS BEFORE CODE CAN BE GENERATED .                    
+
+> Skill Error type Required evidence Guard Transformation
+> FORMAT NORMALIZE FI Dirty and clean examples reveal a target representation, such as date, time, or nu-meric format. Value is parseable under supported for-mats and does not already match the target format. Parse and emit canonical string. UNIT SCALE REPAIR UT Numeric values show a consistent scale or unit mismatch with clean examples. Value falls in the suspicious range or has an explicit unit marker. Convert to target unit or scale. MAJORITY FDR EPAIR VAD A key or column group nearly determines the target column in the development pro-file. Group majority exists, support exceeds threshold, and current value disagrees. Replace by supported group majority. ALIAS CANONICALIZE SE Aliases are supported by repeated exam-ples or profile-level canonicalization evi-dence. Value belongs to a validated alias set and target canonical form is unique. Map alias to canonical value. MISSING FILL MV A deterministic source exists in another column, group, or profile-backed depen-dency. Target value is missing and source value is available and unambiguous. Fill missing value from source. COMPOSITE SPLIT MERGE CM Examples show repeated composite-field structure or extraction artifact. Value matches the composite pattern and target fields are empty or inconsistent. Extract, split, merge, or realign fields.
+
+TABLE III GUARD FAMILIES USED TO PREVENT OVER -CORRECTION .
+
+Guard family Purpose 
+
+Dirty-pattern guard Requires the value to match an observed or profile-supported dirty pattern. Target-negative guard Skips values that already satisfy the target canonical representation. Evidence guard Requires sufficient development-set or pro-file support before applying a repair. Scope guard Restricts the repair to the intended column, key group, type range, or parseable domain. Anti-regression guard Added after validation feedback to block transformations that produced false posi-tives. 
+
+The dirty-pattern guard gdirty checks whether the value matches a supported error pattern. The target-negative guard 
+
+gtarget prevents already-clean cells from being modified. The evidence guard gevidence requires sufficient support from de-velopment labels or profile statistics. The scope guard gscope 
+
+restricts the repair to the intended column, group, or value range. Table III summarizes these guard families. The first strategy is intentionally conservative. It prioritizes deterministic repairs because they can be validated with few examples and typically admit precise guards. Later strategies expand coverage only when validation feedback identifies per-sistent false negatives and the review memo explains them as missed supported mechanisms. Conversely, when a candidate introduces false positives, the next strategy narrows or removes the offending clause, often by adding anti-regression guards. 
+
+E. Constrained Code Synthesis 
+
+The Coding Agent compiles a strategy into a complete Python program. Unlike free-form code generation, TAB -CLEAN imposes a program contract.  
+
+> •
+
+The program must read the input table as strings and avoid unintended type coercion.  
+
+> •
+
+The output must preserve the original schema, row order, and table shape.  
+
+> •
+
+Each cell update must be protected by an explicit guard.  
+
+> •
+
+Transformations must be expressed through column val-ues, patterns, or structural relationships.  
+
+> •
+
+The program must not hard-code row identifiers, held-out values, or development-set lookup tables.  
+
+> •
+
+Unsupported or ambiguous values must be left un-changed. When a best program P∗ already exists, the Coding Agent edits incrementally rather than generating from scratch. The review memo marks clauses as K EEP , A DD , M ODIFY , R E-
+
+MOVE , or A CCEPT . Logic marked K EEP should be copied without modification because it has already passed validation. Logic marked M ODIFY should be narrowed or corrected ac-cording to FP/FN feedback. This incremental editing protocol reduces oscillation and makes each iteration attributable. If performance changes, the controller can relate the change to a small number of modified clauses. Syntax and runtime failures are handled separately from semantic cleaning errors. The Debugger receives the current script and execution log, then returns a patched script. It may fix imports, parsing edge cases, missing columns, type errors, and file I/O issues. It is not allowed to invent a new cleaning strategy unless the failure shows that the current strategy cannot be implemented under the program contract. This separation prevents the debugging loop from silently changing semantic repair intent. 
+
+F. Execution-Guided Validation and Control 
+
+Candidate programs are executed before they are judged. The Executor materializes the candidate as a temporary script, binds INPUT_PATH and OUTPUT_PATH , runs it with a time-out, and checks that the produced table has the same columns, row order, and shape as the input. Failed executions are routed to the Debugger. Successful executions are compared against the labeled development set at cell level. For iteration t, the evaluator returns 
+
+Ft = ( T P t, F P t, F N t, ∆t, M t), (11) where T P t, F P t, and F N t are cell-level repair counts of true positives, false positives, and false negatives. ∆t summarizes regressions relative to the best program, and Mt stores per-column failure messages. Development-set precision, recall, and F1 are computed as Pt = T P t/(T P t + F P t), Qt =
+
+T P t/(T P t + F N t), and F 1t = 2 PtQt/(Pt + Qt).Among executable programs, the controller tracks the best development-set score. 
+
+P∗ = arg max  
+
+> Pt:Safe( Ft)=1
+
+F 1t. (12) The stopping rule fires when the best score reaches the target threshold, the iteration budget is exhausted, or no improvement has been observed for a patience window. Otherwise, the candidate, feedback, and best-program summary are passed to the Review Agent. The review memo is structured rather than conversational. For false negatives, it distinguishes missed mechanisms from implementation bugs and cases with insufficient evidence. For false positives, it identifies over-broad transformations and missing guards. For regressions, it points to the clause that should be restored from P∗. The memo ends with a column-level action table using labels such as K EEP , M ODIFY ,REMOVE , or A CCEPT . This makes the next strategy update grounded in executed behavior rather than in the LLM’s self-assessed confidence. 
+
+G. Role-Specialized Agents and Memory 
+
+TAB CLEAN uses multiple role-specialized agents because different stages require different context and have different failure modes. This design follows the broader pattern of tool-grounded LLM systems, where LLMs propose plans or programs while deterministic tools perform execution and validation [22], [24], [31]–[34]. In T AB CLEAN , agents do not share an unfiltered transcript. Instead, the FSM maintains a role-aware memory buffer B containing the current profile, di-agnosis, strategy, candidate program, best program, execution feedback, and review history. 
+
+Diagnose Agent. The Diagnose Agent receives the profile, development-set errors, error taxonomy, and skills library. It outputs a structured diagnosis containing column-level error types, representative examples, candidate dependencies, evi-dence levels, and repair opportunities. It also marks unsup-ported columns or mechanisms whose correct repairs would require external knowledge. 
+
+Strategize Agent. The Strategize Agent turns the diagnosis into an executable repair plan. The plan specifies target columns, selected skills, guards, application order, and skip de-cisions. In later iterations, the agent receives the review memo and best prior strategy, then performs an incremental update rather than replanning from scratch. This preserves validated repairs and limits the number of simultaneous changes. 
+
+Coding Agent and Debugger. The Coding Agent translates the plan into Python under the program contract in Sec-tion IV-E. The Debugger is invoked only after syntax or runtime failure. It patches the current script using execution logs while preserving the high-level strategy. 
+
+Rule-Based Decider. The Decider is deterministic. It com-putes development-set metrics, applies safety checks, updates 
+
+P∗ when appropriate, and determines whether to stop or continue. This component prevents a fluent but unsafe LLM-generated program from being committed. 
+
+Review Agent. The Review Agent closes the semantic feed-back loop. It receives the executed program, cell-level FP/FN summaries, regression information, and the current best pro-gram. Its output explains why the candidate failed or improved, then converts that explanation into actionable edits for the next strategy. 
+
+Agent Memory Passing the full interaction trace to every agent is noisy and expensive [31], [35], [36]. Outdated code, verbose logs, and stale reasoning distract agents as prompts grow across iterations. T AB CLEAN instead retains only high-value context. The FSM state serves as a role-aware working memory that stores the current profile, diagnosis, strategy, generated program, execution feedback, evaluation history, and the best validated program so far. Each agent receives only the context needed for its role. The Diagnose Agent observes the profile, sampled errors, structural signals, and cleaning skills. The Strategize Agent receives the diagnosis, recent feedback, evaluation summary, and best prior strategy. The Coding Agent receives the current strategy, relevant skills, profile, best code, and recent implementation feedback. The Review Agent receives the executed code, cell-level FP/FN feedback, diff summary, and iteration dashboard. This role-scoped memory reduces prompt cost while letting later iterations preserve successful repairs and avoid repeating failed ones. V. E XPERIMENTAL EVALUATION 
+
+Our evaluation answers six research questions. RQ1 com-pares T AB CLEAN with rule-based, learning-based, and LLM-based baselines in precision, recall, and F1. RQ2 measures whether compiling repairs into code reduces end-to-end run-time on small and large tables. RQ3 analyzes token usage and API cost relative to LLM-based baselines. RQ4 ab-lates the finite-state multi-agent workflow, role-aware memory, and best-program tracking. RQ5 studies the sensitivity to development-set size. RQ6 evaluates the effect of model choice on quality and convergence. 
+
+A. Experimental Setup 
+
+Datasets. Table IV summarizes the six benchmarks, spanning healthcare, aviation, beverages, tax records, literature screen-ing, and movie metadata. They cover both small and large tables and include heterogeneous error patterns, ranging from typos and format inconsistencies to functional-dependency violations and missing values. The number of development-set rows is set by our adaptive sizer. 
+
+Baselines. We compare against four representative systems. HoloClean is a probabilistic data repairing system that com-bines constraints and statistical signals [15]. Baran is a semi-supervised correction engine that learns repair transformations from data and labeled examples [18]. Cocoon uses an LLM to generate executable cleaning logic and validate it in a feedback loop [24]. IterClean is an iterative LLM-based pipeline that alternates between error detection, verification, and repair [27]. TABLE IV DATASETS USED IN THE EXPERIMENTS .                                 
+
+> Dataset Rows Cols. Err. cells Dev rows
+> hospital [13], [37] 1,000 19 509 150 flight [29] 2,376 79,504 110 beers [38] 2,410 10 4,765 240 tax [12], [39] 200,000 15 121,219 150 rayyan [40] 1,000 11 960 150 movies [41] 7,390 17 7,675 369
+> “Err. cells” is the number of erroneous cells in the full table. Cleaning quality is evaluated on held-out rows, so the T P +F N reported in later tables is slightly smaller. The difference corresponds to errors that fall in the development set.
+
+These baselines cover rule-based/probabilistic, learning-based, and LLM-based paradigms. We used the code repositories released with the baseline papers and followed their provided execution instructions. 
+
+Human input. Table V summarizes the human input required by each system per dataset. T AB CLEAN uses more up-front labels than seed-based LLM cleaners, but those labels are used to synthesize a reusable program rather than to clean only one table pass.             
+
+> TABLE V REQUIRED HUMAN INPUT PER DATASET .
+> System Required Human Input Avg. Time
+> HoloClean Denial constraints / FDs ( ∼5–10 rules) 1–2 h Baran Cell labels on 20 tuples (active learning) 5–10 min Cocoon None 0IterClean Cell labels on 5 seed tuples 2–5 min TAB CLEAN Cell labels on adaptive dev set 1–2 h
+
+Metrics. Cleaning quality is measured by cell-level precision, recall, and F1 on held-out rows. A dirty cell repaired to an incorrect value remains a false negative, while only changes to originally clean cells count as false positives. Runtime mea-sures end-to-end wall-clock time, including profiling, LLM calls, code generation, execution, debugging, and evaluation. For LLM-based methods, we report input tokens, output tokens, and API cost when available. 
+
+Implementation. We implement TAB CLEAN as a Python prototype for CSV-based tabular cleaning. The pipeline uses 
+
+pandas for table I/O, profiling, and evaluation, and a Lang-Graph controller to execute the FSM-based workflow. Input values are read as strings to avoid unintended type conversion, and generated programs are required to preserve the original schema, row order, and table shape. 
+
+Model Selection. We employ gpt-5-mini for both Cocoon and IterClean, as well as for the diagnose and review agents in TAB CLEAN . We use gpt-5.3-codex for the coding agent and gpt-5.2 for the strategize agent. 
+
+B. RQ1: Cleaning Effectiveness 
+
+Table VI shows that T AB CLEAN attains the best F1 on five of six benchmarks and remains competitive on hospital .It keeps precision at 1.00 on every dataset except movies ,where precision is 0.99, while improving recall on large and heterogeneous tables. The contrast is most visible on tax :Cocoon rounds to 0.00 F1, IterClean reaches 0.02 F1 under the sample-scaled tax evaluation, while T AB CLEAN reaches 0.99 F1 on the full table. On rayyan and movies , IterClean reaches 0.00 and 0.08 F1, whereas T AB CLEAN reaches 0.92 and 0.91. Values printed as 0.00 may be exact zeros or small nonzero scores rounded to two decimals. HoloClean performs well on hospital but has zero or near-zero recall elsewhere, even with dataset-specific denial constraints. The main limitation is candidate reachability. HoloClean can select from generated candidate domains, but many benchmarks require normalized strings that are absent from those domains. In our runs, the correct value appeared in the candidate domain for 98.8% of hospital error cells but only 0.0% of flight , 19.6% of beers , 1.6% of tax , 2.0% of 
+
+rayyan , and 11.4% of movies . Cocoon’s regular-expression and SQL CASE WHEN rules cover only a small fraction of heterogeneous errors, while IterClean’s per-cell prompting is expensive at scale and over-edits or mislabels free-form bibliographic and metadata fields. The largest gains appear on rayyan , flight , and tax . movies 
+
+also improves over Baran and substantially outperforms Iter-Clean. flight contains systematic time and dependency errors, and tax has regular formatting and canonicalization errors, both of which are well suited to synthesized programs. rayyan 
+
+and movies are harder because they include free-form fields, but T AB CLEAN recovers high recall through guarded structural repairs and cautious normalization. On hospital , T AB CLEAN is below the strongest baselines, suggesting that sparse identifier and address-like fields require stronger external evidence than TAB CLEAN currently uses. 
+
+C. RQ2: Runtime Efficiency 
+
+Figure 3 shows that T AB CLEAN remains practical despite using multiple agents. The reason is that LLM calls occur only during diagnosis, planning, code generation, debugging, and review. Once a candidate program exists, applying it to thousands or hundreds of thousands of rows is ordinary Python execution. Compared with Baran, T AB CLEAN reduces 
+
+tax runtime from 89.8 hours to 4.42 minutes while improving F1 from 0.84 to 0.99. Against IterClean on the 200,000-row 
+
+tax table, T AB CLEAN is about 1,913 × faster. Compared with IterClean, T AB CLEAN also reduces beers runtime from 58.3 hours to 9.32 minutes while improving F1 from 0.75 to 0.94. The updated IterClean runs on rayyan and movies further support this trend. T AB CLEAN finishes rayyan in 32.4 minutes compared with 71.0 minutes for IterClean, a 2.19 × speedup, while also raising F1 from 0.00 to 0.92. On movies , T AB -CLEAN finishes in 16.0 minutes compared with 5.92 hours for IterClean, a 22.2 × speedup, and is also faster than Baran and Cocoon while achieving higher F1. HoloClean is faster on several small datasets but has much lower recall, so its runtime is not directly comparable at similar quality. Cocoon is competitive on small tables, but its repairs often fail to generalize beyond narrow patterns. The runtime profile of TAB CLEAN depends primarily on iteration count and code-TABLE VI DATA CLEANING PERFORMANCE (P = PRECISION , R = RECALL , F = F1, HIGHER IS BETTER ). BOLD MARKS THE BEST F1 PER DATASET (TIES INCLUDED ). A LL SCORES ARE ROUNDED TO TWO DECIMALS , SO SOME SMALL NONZERO VALUES ARE DISPLAYED AS 0.00 .
+
+System hospital flight beers tax rayyan movies 
+
+P R F P R F P R F P R F P R F P R FHoloClean 1.00 0.91 0.95 0.00 0.00 0.00 1.00 0.04 0.07 0.82 0.01 0.01 0.00 0.00 0.00 0.01 0.00 0.00 Baran 1.00 0.54 0.70 1.00 0.19 0.32 1.00 0.78 0.88 1.00 0.73 0.84 1.00 0.22 0.36 1.00 0.67 0.80 Cocoon 1.00 0.42 0.59 0.00 0.00 0.00 1.00 0.03 0.07 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 IterClean 1.00 0.91 0.95 0.00 0.00 0.00 1.00 0.60 0.75 0.03 0.01 0.02 0.01 0.00 0.00 0.21 0.05 0.08 
+
+TAB CLEAN 1.00 0.77 0.87 1.00 0.68 0.81 1.00 0.89 0.94 1.00 0.98 0.99 1.00 0.85 0.92 0.99 0.83 0.91 hospital flight beers tax rayyan movies 
+
+10 1
+
+10 3
+
+10 5
+
+> Runtime (s, log)
+> 1 min
+> 1 h
+> 1 day
+
+HoloClean Baran Cocoon IterClean TabClean 
+
+Fig. 3. End-to-end wall-clock runtime (seconds, log scale, lower is better). Dashed lines mark the 1 min, 1 h, and 1 day reference levels. hospital 
+
+flight 
+
+beers 
+
+tax 
+
+rayyan 
+
+movies 
+
+10 −2 
+
+10 −1 
+
+10 0
+
+10 1
+
+10 2
+
+> API cost ($, log)
+> $1
+> $10
+
+Cocoon IterClean TabClean 
+
+Fig. 4. API cost for the LLM-based systems (log scale, lower is better). TAB CLEAN stays below two dollars on every dataset, while IterClean’s per-table cost grows into the tens of dollars on beers and tax .
+
+generation cost rather than table size. This is visible on 
+
+tax , where the error mechanism is regular and the system terminates quickly even though the table is large. 
+
+D. RQ3: Token Usage and API Cost 
+
+Figure 4 shows the cost-quality advantage of compiling LLM reasoning into code, and Table VII reports the underlying token usage. T AB CLEAN stays below two dollars on every dataset and costs eight cents on tax , where IterClean spends $93.49 to process the table once and Cocoon’s $0.15 run yields an F1 that rounds to 0.00. On tax , T AB CLEAN therefore uses 0.086% of IterClean’s API cost. It is also cheaper on hospital ,
+
+flight , beers , and movies (24.5%, 23.0%, 1.75%, and 11.8% of IterClean’s cost). The exception is rayyan , where T AB CLEAN TABLE VII LLM TOKEN USAGE (THOUSANDS OF TOKENS ) FOR THE LLM-BASED SYSTEMS . P ER -DATASET API COST IS SHOWN IN FIGURE 4. 
+
+Cocoon IterClean TAB CLEAN 
+
+Dataset In Out In Out In Out hospital 14 78 3,727 3,571 520 143 flight 5 14 1,303 1,553 337 53 beers 8 32 7,560 13,096 196 37 tax 20 72 87,251 36,643 25 8rayyan 12 50 1,008 303 599 138 movies 21 65 13,807 1,633 298 66 
+
+costs $1.66 against IterClean’s $0.85, but this buys an F1 improvement from 0.00 to 0.92. The gap should widen on larger tables and recurring batches: direct LLM cleaners pay per table pass, whereas T AB CLEAN pays once to synthesize a reusable program and then runs it without further LLM calls. Cost also decomposes by agent role. Diagnosis and review are relatively inexpensive because they operate on compact summaries. Strategy and code generation are more expensive per call but occur only a few times. In the ablation study, we further measure whether lower-cost models can replace high-capability models without hurting quality. 
+
+Amortized cost per repair. Figure 4 reports the one-time synthesis cost, not how it amortizes after deployment. We therefore report the API cost per 100 true-positive repairs, 
+
+Cost 100 = 100 Csynth /T P , where Csynth is the total LLM cost before program commit and T P is the number of correctly repaired cells. This metric charges T AB CLEAN for all synthesis-time LLM calls but credits only correct repairs. On tax , Csynth = $0 .08 and the committed program yields T P = 118 ,150 correct repairs, so Cost 100 ≈ $6 .8 × 10 −5,about 100 correct repairs per 10 −4 dollars of LLM cost. Even granting IterClean a perfect T P = 118 ,150 , its $93.49 tax run gives Cost 100 ≈ $0 .079 , over a thousand times higher, and IterClean pays this on every table pass rather than once. Our estimate is in fact conservative, since it amortizes synthesis over a single table while the same program reruns on schema-compatible batches at no further LLM cost. 
+
+E. RQ4: Ablation Study 
+
+To isolate the effect of each component, we evaluate variants of T AB CLEAN that remove or simplify one design choice at a time. One collapses the finite-state multi-agent workflow into a single full-context code-generation prompt (w/o FSM), one replaces role-aware memory with unfiltered conversation history, and one uses the latest program rather than the best validated program. Table VIII shows that collapsing T AB CLEAN into a single full-context code-generation prompt (w/o FSM) is not suf-ficient to match the full workflow. Its average F1 is 0.77, compared with 0.91 for T AB CLEAN . This variant remains strong on regular transformations such as tax , beers , and 
+
+movies , but drops sharply on hospital and flight , where re-pair requires coordinating heterogeneous evidence, guarded transformations, and validation feedback. This indicates that the benefit of T AB CLEAN is not merely from exposing the model to the table profile and development examples, but from decomposing the task into specialized roles and refining their output through validated synthesis stages. Removing role-aware memory also causes a large degra-dation. Average F1 drops from 0.91 to 0.73, with especially large losses on hospital , flight , tax , and rayyan . These datasets require the agents to preserve earlier evidence about column dependencies, repair constraints, and prior failed attempts. Passing unfiltered history makes later strategy and code-generation steps more susceptible to stale or irrelevant context, so the system misses many repair opportunities while still keeping high precision. Best-program tracking is the second most important stabi-lizer. Without it, average F1 falls to 0.85, mainly because late iterations can overwrite earlier high-recall programs on flight ,      
+
+> TABLE VIII RQ4 ABLATION RESULTS . V ALUES ARE HELD -OUT F1. T HE W /OFSM
+> VARIANT REPLACES THE FINITE -STATE MULTI -AGENT WORKFLOW WITH A SINGLE FULL -CONTEXT CODE -GENERATION PROMPT ,W/O MEM .REMOVES ROLE -AWARE MEMORY MANAGEMENT ,AND W /O BEST DISABLES BEST -PROGRAM TRACKING .
+
+Dataset T AB CLEAN w/o FSM w/o memory w/o best tracking 
+
+hospital 0.87 0.34 0.24 0.90 flight 0.81 0.66 0.68 0.68 beers 0.94 0.92 0.94 0.94 tax 0.99 0.99 0.84 0.84 rayyan 0.92 0.84 0.77 0.88 movies 0.91 0.89 0.90 0.87 
+
+Avg. 0.91 0.77 0.73 0.85 
+
+tax , rayyan , and movies . This confirms that iterative LLM syn-thesis is not monotonic. Later programs may look plausible but regress on held-out repairs. Keeping the best development-set program separates exploration from deployment and prevents these regressions from becoming the final output. 
+
+F. RQ5: Development-Set Sensitivity 
+
+TAB CLEAN uses a small annotated development set, so we evaluate how quality changes with annotation budget. Table IX compares the adaptive sizer with three alternatives: half of the adaptive rows, twice the adaptive rows, and a random 1% sample. The adaptive sizer achieves a strong balance between an-notation cost and cleaning quality. It reaches 0.91 average F1, while doubling the development set yields only a marginal gain. The extra labels slightly help flight , rayyan , and movies ,but the average improvement is small because the adaptive sample already exposes the main recurring error mechanisms. This supports the design goal of collecting enough labels for reliable synthesis without turning development-set construc-tion into full-table annotation. The random 1% setting is much less stable. Its average F1 falls to 0.77, driven mainly by hospital , where only ten labeled rows expose too few of the sparse error-bearing columns. In contrast, tax remains near perfect under 1% sampling because 1% of that table still contains 2,000 rows and many examples of its regular formatting errors. Across settings, precision remains high. Most quality differences come from recall. Thus, insufficient development coverage primarily prevents TAB CLEAN from discovering supported repairs, rather than causing broad over-correction. Halving the adaptive set reduces average F1 to 0.87 and especially hurts hospital , but several datasets remain robust. This indicates that some domains need only a few examples of regular transformations, while heterogeneous schemas benefit from the adaptive coverage checks. Overall, the adaptive policy provides a practical default. It approaches the quality of a doubled sample while using fewer annotations and avoiding the brittleness of fixed-percentage sampling. 
+
+G. RQ6: Model Sensitivity 
+
+We evaluate how different LLMs affect cleaning quality and cost when the same model is used for all agents. We compare GPT 5.5, Opus 4.8, Sonnet 4.6, and Haiku 4.5 on the same   
+
+> TABLE IX RQ5 DEVELOPMENT -SET SENSITIVITY . V ALUES ARE HELD -OUT F1,
+> HIGHER IS BETTER .
+
+Dataset 0.5× adaptive Adaptive 2× adaptive Random 1% 
+
+hospital 0.61 0.87 0.85 0.13 flight 0.82 0.81 0.83 0.81 beers 0.92 0.94 0.94 0.90 tax 0.99 0.99 0.99 1.00 rayyan 0.94 0.92 0.95 0.86 movies 0.91 0.91 0.92 0.91 
+
+Avg. 0.87 0.91 0.91 0.77 0 2 4 6 8 10 12 
+
+Average cost per dataset ($) 
+
+> 0.75
+> 0.80
+> 0.85
+> 0.90
+> 0.95
+> Average held-out F1
+
+GPT 5.5 
+
+Opus 4.8 
+
+Sonnet 4.6 
+
+Haiku 4.5 
+
+Default (mixed) 
+
+better Fig. 5. RQ6 model sensitivity. Average cost per dataset vs. average held-out F1 when a single model drives all agents. Up and to the left is better. The star marks the default mixed-model configuration. 
+
+six datasets. Figure 5 plots each model’s average held-out F1 against its average monetary cost per dataset. Figure 5 shows that model choice changes both average quality and dataset-specific behavior. Sonnet 4.6 gives the best overall result, reaching 0.93 average F1 and matching or improving the default configuration on six datasets. GPT 5.5 is also strong, with 0.91 average F1 and the best hospital 
+
+result, but it is weaker on flight than Sonnet 4.6 and Opus 4.8. These results suggest that a capable single-model config-uration can simplify deployment, but the default mixed-model configuration remains competitive. Opus 4.8 does not dominate despite its higher cost. It performs well on flight , beers , tax , rayyan , and movies , but drops to 0.62 F1 on hospital . Its average cost is also much higher, about $11.63 per dataset compared with $1.39 for Sonnet 4.6, $1.71 for GPT 5.5, and $0.96 for the default mixed-model setting. The expensive model therefore provides neither the best mean quality nor the best cost-quality tradeoff in this workflow. Haiku 4.5 is the cheapest single-model option but is less reliable. It remains competitive on highly regular transforma-tions such as beers , tax , and movies , yet fails to recover most repairs on rayyan , where F1 falls to 0.17. The failure is mostly recall-driven. The generated programs make few false positives but miss many supported fixes. This reinforces a broader pattern from RQ4 and RQ5. The workflow benefits from high-precision validation, but recall depends on the model’s ability to infer across refinement rounds. 
+
+H. Generated Program Case Study 
+
+Figure 6 shows a shortened excerpt from the actual best program synthesized for the tax benchmark. The diagnosis and strategy artifacts identified two high-confidence format errors from the annotated development rows. Integer-valued tax rates were represented as floating strings, such as 7.0 or 10.00 ,and some ZIP codes were represented with leading zeros, such as 00627 . The clean target was not a learned label lookup. It was a schema-level transformation that removes the zero-valued fractional suffix for rate and strips leading zeros for digit-only zip values.                                                                              
+
+> rate_dirty_re =re.compile(r’ˆ[0-9]+\.0+$’) #matches dirty whole-number floats rate_clean_re =re.compile(r’ˆ[0-9]+$’) #recognizes already-clean integers zip_digits_re =re.compile(r’ˆ[0-9]+$’) #limits zip repair to digit-only cells
+> for idx, val in df["rate"].items(): s=val.strip() #dirty pattern: "7.0", "10.00" #guard: exact whole-number float, not clean int
+> if sand rate_dirty_re.fullmatch(s) \
+> and not rate_clean_re.fullmatch(s): df.at[idx, "rate"] =s.split(".", 1)[0]
+> for idx, val in df["zip"].items(): s=val.strip() #dirty pattern: leading-zero digit string #guard: pure digits, starts with 0, nonempty result
+> if sand zip_digits_re.fullmatch(s) \
+> and s.startswith("0"): stripped =s.lstrip("0")
+> if stripped: df.at[idx, "zip"] =stripped
+> Fig. 6. Shortened excerpt of a real synthesized tax cleaning program. Red comments mark dirty patterns, blue comments mark guard predicates, and green lines mark the clean transformations.
+
+The guards are what make the artifact reusable rather than merely generative. For rate , the program fires only when the trimmed value exactly matches the dirty pat-tern ˆ[0-9]+ \.0+$ . Already-clean integers such as 7 fail the dirty-pattern guard, and meaningful decimals such as 
+
+1.9519792 fail the exact whole-number-float guard. For 
+
+zip , the program fires only on pure digit strings that start with 0, and it refuses to overwrite a cell if stripping zeros would produce the empty string. Thus a cell is updated only when it is both pattern-positive and target-negative. Already-clean cells bypass the rule through ordinary control flow, not through another LLM judgment. This synthesized program also illustrates held-out reuse. It was selected using 150 development rows, then applied unchanged to the held-out portion of the 200,000-row tax 
+
+table, where it achieved 1.00 precision, 0.976 recall, and 0.988 F1 with 118,150 true-positive repairs and zero false positives. Because the code depends only on column names, regular-expression guards, and deterministic string transformations, the same artifact can be inspected by a data owner, committed under a schema version, cached after validation, and run on future tax batches without additional LLM calls. If a later batch introduces a new error mechanism, the cached program may lose recall, but its existing guarded clauses remain auditable and do not expand their repair scope beyond the validated patterns. VI. R ELATED WORK 
+
+Data cleaning. Classical data-cleaning systems rely on in-tegrity constraints, statistical inference, or learned repair mod-els to detect and correct dirty values [3], [5], [42]. Constraint-based methods use functional dependencies, conditional func-tional dependencies, denial constraints, and related rules to identify violations and infer repairs [12]–[15]. Learning-based systems reduce manual rule engineering by using labels, weak supervision, transfer learning, or active feedback [11], [16]–[18], [43]. These approaches provide strong foundations for evidence-driven repair, but they typically require dataset-specific constraints, features, labels, or retraining. While T AB -CLEAN is complementary, it uses profiles and a small devel-opment set to synthesize executable repair logic, rather than requiring the user to fully specify constraints or train a dataset-specific model. 
+
+LLM-based data preparation and cleaning. Recent work applies LLMs to data wrangling, preprocessing, retrieval-assisted repair, standardization, workflow generation, and it-erative cleaning [19]–[23], [25], [27], [28]. Most systems use LLMs as direct operators over cells, rows, chunks, or repeated workflow steps, which makes model inference part of the re-curring cleaning path. Other systems adapt or fine-tune models for particular cleaning tasks, improving task specialization but introducing training-data and transfer learning costs [25], [28]. TAB CLEAN instead uses LLMs only during synthesis and refinement. After validation, the generated program becomes the reusable cleaning artifact, so applying it to large or future schema-compatible tables does not introduce additional costs. 
+
+Executable cleaning logic and agentic validation. The clos-est line of work uses LLMs to generate cleaning logic rather than directly editing every value. LLMClean generates Onto-logical Functional Dependencies for context-aware repair [30], while Cocoon synthesizes executable transformations such as regular expressions and SQL CASE WHEN clauses [24]. Beyond repair, Castle compiles LLM reasoning into causally consistent SQL UPDATE statements that propagate an intended change across dependent columns while keeping table content hidden from the model [44]. TAB CLEAN shares the goal of compiling LLM reasoning into executable artifacts, but differs in scope and control. It synthesizes guarded Python repair programs, validates them with cell-level development-set feedback, and refines them through a finite-state multi-agent workflow. This design follows the broader trend of tool-grounded LLM agents for data management and software en-gineering, where LLM proposals are checked by deterministic execution and feedback loops [31]–[34], [45]. In T AB CLEAN ,the controller commits only the best validated program, sepa-rating stochastic agent reasoning from deterministic execution, scoring, and stopping. VII. D ISCUSSION AND FUTURE WORK 
+
+TAB CLEAN is intentionally conservative. It changes cells only when a repair can be expressed as guarded program logic and validated on the development set. This design helps preserve precision, which is critical for data-cleaning workloads where an incorrect repair may be more harmful than leaving a value unchanged. However, this conservatism also limits recall. T AB CLEAN may miss repairs whose evidence is sparse, external to the table, or semantically ambiguous. The 
+
+hospital results illustrate this limitation, where identifier-like and address-like fields require domain knowledge or external evidence beyond a small annotated sample, so a program synthesized only from table-local examples may be unable to distinguish a valid but rare value from an erroneous one. Another limitation is that T AB CLEAN currently treats reuse as a guarded application of a previously validated program. This is effective when future batches follow the same schema and error distribution, but real data pipelines may evolve as column meanings drift, formatting conventions change, and new error types appear. Although our guarded programs reduce the risk of applying an over-broad repair, stronger reuse-time checks and lightweight program adaptation are needed before deploying cached cleaning programs in long-running pipelines. Future work can extend T AB CLEAN in three directions. First, retrieval-backed evidence and domain knowledge bases could support repairs that cannot be inferred from the table alone. For example, external dictionaries, address databases, ontology constraints, or historical clean tables could help validate uncertain repairs and expand the coverage of program synthesis. Second, interactive validation and uncertainty es-timates could help users approve high-impact repairs while keeping the automatic program conservative. Rather than asking users to inspect every changed cell, the system could surface only representative or high-uncertainty cases, allow-ing limited human feedback to guide safer repair programs. Third, stronger reuse checks could detect schema drift and distribution shift before a cached program is applied to future batches. More importantly, such checks could enable low-cost incremental adaptation rather than requiring the system to synthesize a new program from scratch. VIII. C ONCLUSION 
+
+We presented TAB CLEAN , a model-training-free tabular data-cleaning system that uses LLMs to synthesize reusable cleaning programs rather than directly repairing individual cells. T AB CLEAN turns a small development set into structured evidence, uses role-specialized agents to diagnose errors and plan guarded repairs, and validates each generated program through deterministic execution and cell-level feedback. The final artifact is an inspectable and cacheable Python program that can be applied to large tables and reused on future schema-compatible batches without additional LLM inference. Across six standard benchmarks, T AB CLEAN achieves high precision and improves F1 over the state-of-the-art baselines on five datasets. T AB CLEAN suggests that reusable program synthesis is a promising abstraction for making LLM-assisted data cleaning more scalable, auditable, and practical in real data pipelines. REFERENCES [1] R. Shwartz-Ziv and A. Armon, “Tabular data: Deep learning is not all you need,” Information fusion , vol. 81, pp. 84–90, 2022. [2] L. Grinsztajn, E. Oyallon, and G. Varoquaux, “Why do tree-based models still outperform deep learning on typical tabular data?” in       
+
+> Proceedings of the 36th International Conference on Neural Information Processing Systems , ser. NIPS ’22. Red Hook, NY, USA: Curran Associates Inc., 2022. [3] X. Chu, I. F. Ilyas, S. Krishnan, and J. Wang, “Data cleaning: Overview and emerging challenges,” in Proceedings of the 2016 international conference on management of data , 2016, pp. 2201–2206. [4] I. F. Ilyas and X. Chu, Data Cleaning , ser. ACM Books. Morgan & Claypool Publishers, 2019.
+
+[5] Z. Abedjan, X. Chu, D. Deng, R. C. Fernandez, I. F. Ilyas, M. Ouz-zani, P. Papotti, M. Stonebraker, and N. Tang, “Detecting data errors: Where are we and what needs to be done?” Proceedings of the VLDB Endowment , vol. 9, no. 12, pp. 993–1004, 2016. [6] Tamr, “How to clean noisy and erroneous big data using machine learn-ing,” Tamr Blog, 2017. [Online]. Available: https://www.tamr.com/blog/ how-to-clean-noisy-and-erroneous-big-data-using-machine-learning/ [7] I. F. Ilyas and X. Chu, “Data cleaning is a machine learning problem that needs data systems help!” ACM SIGMOD Blog, 2019. [Online]. Available: http://wp.sigmod.org/?p=2288 [8] C. Liu, E. Noriega-Atala, A. Pyarelal, C. T. Morrison, and M. Cafarella, “Variable extraction for model recovery in scientific literature,” in Pro-ceedings of the 1st Workshop on AI and Scientific Discovery: Directions and Opportunities , 2025, pp. 1–12. [9] E. K. Rezig, M. Ouzzani, A. K. Elmagarmid, W. G. Aref, and M. Stone-braker, “Data civilizer 2.0: a holistic framework for data preparation and analytics,” Proceedings of the VLDB Endowment , vol. 12, no. 12, pp. 1954–1957, 2019. [10] Z. Huang, P. K. Damalapati, and E. Wu, “Data ambiguity strikes back: How documentation improves gpt’s text-to-sql,” arXiv preprint arXiv:2310.18742 , 2023. [11] S. Krishnan, J. Wang, E. Wu, M. J. Franklin, and K. Goldberg, “Activeclean: Interactive data cleaning for statistical modeling.” Proc. VLDB Endow. , vol. 9, no. 12, pp. 948–959, 2016. [12] W. Fan, F. Geerts, X. Jia, and A. Kementsietsidis, “Conditional functional dependencies for capturing data inconsistencies,” ACM Trans. Database Syst. , vol. 33, no. 2, Jun. 2008. [Online]. Available: https://doi.org/10.1145/1366102.1366103 [13] X. Chu, I. F. Ilyas, and P. Papotti, “Holistic data cleaning: Putting violations into context,” in 2013 IEEE 29th International Conference on Data Engineering (ICDE) . IEEE, 2013, pp. 458–469. [14] M. Yakout, L. Berti-’Equille, and A. K. Elmagarmid, “Don’t be scared: use scalable automatic repairing with maximal likelihood and bounded changes,” in Proceedings of the 2013 ACM SIGMOD International Conference on Management of Data , 2013, pp. 553–564. [15] T. Rekatsinas, X. Chu, I. F. Ilyas, and C. R’e, “Holoclean: Holistic data repairs with probabilistic inference,” arXiv preprint arXiv:1702.00820 ,2017. [16] M. Mahdavi, Z. Abedjan, R. Castro Fernandez, S. Madden, M. Ouzzani, M. Stonebraker, and N. Tang, “Raha: A configuration-free error detec-tion system,” in Proceedings of the 2019 International Conference on Management of Data , 2019, pp. 865–882. [17] A. Heidari, J. McGrath, I. F. Ilyas, and T. Rekatsinas, “Holodetect: Few-shot learning for error detection,” in Proceedings of the 2019 international conference on management of data , 2019, pp. 829–846. [18] M. Mahdavi and Z. Abedjan, “Baran: Effective error correction via a unified context representation and transfer learning,” Proceedings of the VLDB Endowment , vol. 13, no. 12, pp. 1948–1961, 2020. [19] A. Narayan, I. Chami, L. Orr, S. Arora, and C. R’e, “Can foundation models wrangle your data?” arXiv preprint arXiv:2205.09911 , 2022. [20] H. Zhang, Y. Dong, C. Xiao, and M. Oyamada, “Large language models as data preprocessors,” arXiv preprint arXiv:2308.16361 , 2023. [21] Z. A. Naeem, M. S. Ahmad, M. Y. Eltabakh, M. Ouzzani, and N. Tang, “Retclean: Retrieval-based data cleaning using foundation models and data lakes,” Proceedings of the VLDB Endowment , vol. 17, pp. 4421– 4424, 2024. [22] D. Qi, Z. Miao, and J. Wang, “Cleanagent: Automating data standard-ization with llm-based agents,” arXiv preprint arXiv:2403.08291 , 2024. [23] L. Li, L. Fang, and V. I. Torvik, “Autodcworkflow: Llm-based data cleaning workflow auto-generation and benchmark,” arXiv preprint arXiv:2412.06724 , 2024. [24] S. Zhang, Z. Huang, and E. Wu, “Data cleaning using large language models,” in 2025 IEEE 41st International Conference on Data Engi-neering Workshops (ICDEW) . IEEE, 2025, pp. 28–32. [25] M. Yan, Y. Wang, Y. Wang, X. Miao, and J. Li, “Gidcl: A graph-enhanced interpretable data cleaning framework with large language models,” Proceedings of the ACM on Management of Data , vol. 2, no. 6, pp. 1–29, 2024. [26] W. Zhou, J. Zhou, H. Wang, Z. Li, Q. He, S. Han, G. Li, X. Zhou, Y. He, C. Liu et al. , “Can llms clean up your mess? a survey of application-ready data preparation with llms,” arXiv preprint arXiv:2601.17058 ,2026. [27] W. Ni, K. Zhang, X. Miao, X. Zhao, Y. Wu, and J. Yin, “Iterclean: An iterative data cleaning framework with large language models,” in 
+
+Proceedings of the ACM Turing Award Celebration Conference-China 2024 , 2024, pp. 100–105. [28] P. Mehra et al. , “Leveraging structured and unstructured data for tabular data cleaning,” in 2024 IEEE International Conference on Big Data (BigData) . IEEE, 2024, pp. 5765–5768. [29] X. Li, X. L. Dong, K. Lyons, W. Meng, and D. Srivastava, “Truth finding on the deep web: is the problem solved?” Proc. VLDB Endow. , vol. 6, no. 2, p. 97–108, Dec. 2012. [Online]. Available: https://doi.org/10.14778/2535568.2448943 [30] F. Biester, M. Abdelaal, and D. Del Gaudio, “Llmclean: Context-aware tabular data cleaning via llm-generated ofds,” in European Conference on Advances in Databases and Information Systems . Springer, 2024, pp. 68–78. [31] Y. Song, H. Yan, J. Lao, Y. Wang, Y. Li, Y. Zhou, J. Wang, and M. Tang, “Quite: A query rewrite system beyond rules with llm agents,” 2026. [Online]. Available: https://arxiv.org/abs/2506.07675 [32] J. Yang, C. E. Jimenez, A. Wettig, K. Lieret, S. Yao, K. Narasimhan, and O. Press, “Swe-agent: Agent-computer interfaces enable automated software engineering,” in Advances in Neural Information Processing Systems , 2024. [33] X. Chen, M. Lin, N. Sch¨ arli, and D. Zhou, “Teaching large language models to self-debug,” 2023. [34] N. Shinn, F. Cassano, E. Berman, A. Gopinath, K. Narasimhan, and S. Yao, “Reflexion: Language agents with verbal reinforcement learn-ing,” in Advances in Neural Information Processing Systems , 2023. [35] F. Shi, X. Chen, K. Misra, N. Scales, D. Dohan, E. H. Chi, N. Sch”arli, and D. Zhou, “Large language models can be easily distracted by irrelevant context,” in International Conference on Machine Learning .PMLR, 2023, pp. 31 210–31 227. [36] Y. Kuratov, A. Bulatov, P. Anokhin, I. Rodkin, D. Sorokin, A. Sorokin, and M. Burtsev, “Babilong: Testing the limits of llms with long context reasoning-in-a-haystack,” Advances in Neural Information Processing Systems , vol. 37, pp. 106 519–106 554, 2024. [37] Centers for Medicare & Medicaid Services, “Hospital compare,” Provider Data Catalog, 2012, accessed: 2026-06-09. [Online]. Available: https://data.cms.gov/provider-data/topics/hospitals [38] J. N. Hould, “Craft beers dataset,” Kaggle dataset, n.d., accessed: 2026-04-22. [Online]. Available: https://www.kaggle.com/datasets/nickhould/ craft-cans [39] P. C. Arocena, B. Glavic, G. Mecca, R. J. Miller, P. Papotti, and D. Santoro, “Messing up with bart: error generation for evaluating data-cleaning algorithms,” Proceedings of the VLDB Endowment , vol. 9, no. 2, pp. 36–47, 2015. [40] M. Ouzzani, H. Hammady, Z. Fedorowicz, and A. Elmagarmid, “Rayyan—a web and mobile app for systematic reviews,” Systematic reviews , vol. 5, no. 1, p. 210, 2016. [41] S. Das, A. Doan, P. S. G. C., C. Gokhale, P. Konda, Y. Govind, and D. Paulsen, “The magellan data repository,” https://sites.google.com/site/ anhaidgroup/useful-stuff/the-magellan-data-repository. [42] I. F. Ilyas and X. Chu, “Trends in cleaning relational data: Consistency and deduplication,” Foundations and Trends in Databases , vol. 5, no. 4, pp. 281–393, 2015. [43] C. Mayfield, J. Neville, and S. Prabhakar, “Eracer: a database approach for statistical inference and data cleaning,” in Proceedings of the 2010 ACM SIGMOD International Conference on Management of data , 2010, pp. 75–86. [44] Y. Su, Y. Zhang, Z. Shi, B. Ribeiro, and E. Bertino, “Castle: Causal cascade updates in relational databases with large language models,” in Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , C. Christodoulopoulos, T. Chakraborty, C. Rose, and V. Peng, Eds. Suzhou, China: Association for Computational Linguistics, Nov. 2025, pp. 33 513–33 525. [Online]. Available: https://aclanthology.org/2025.emnlp-main.1700/ [45] G. Li, X. Zhou, and X. Zhao, “Llm for data management,” Proc. VLDB Endow. , vol. 17, no. 12, p. 4213–4216, Aug. 2024. [Online]. Available: https://doi.org/10.14778/3685800.3685838

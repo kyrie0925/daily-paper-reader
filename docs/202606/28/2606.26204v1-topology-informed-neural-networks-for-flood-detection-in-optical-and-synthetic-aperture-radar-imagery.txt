@@ -1,0 +1,296 @@
+Title: Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery
+
+URL Source: https://arxiv.org/pdf/2606.26204v1
+
+Published Time: Fri, 26 Jun 2026 00:03:11 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery 
+
+# Sophia Li a, Max Zhao b, Raghu G. Raj a, and Tianyu Chen aaUS Naval Research Laboratory, Washington, DC, USA 
+
+> b
+
+# Stanford University, Stanford, CA, USA 
+
+ABSTRACT 
+
+Floods frequently impact regions around the world. Rapid and accurate flood detection is crucial for emergency response and timely mitigation of human and economic loss. The expanding availability of satellite data and advances in artificial intelligence have enhanced monitoring of environmental hazards, but many flood events remain challenging to detect because cloud cover obscures optical satellite imagery. Rambour et al. introduced the SEN12-FLOOD dataset and extracted per-image features using a ResNet-50 convolutional neural network backbone, then fed these features into a gated recurrent unit network to show that temporal information can substantially improve accuracy compared to single-image baselines. More recently, Chamatidis et al. showed that a vision transformer can achieve strong performance with popular convolutional architectures. However, these models typically function as opaque black boxes, making it difficult to interpret their decision boundaries, learned features, and internal reasoning, especially in safety-critical domains like remote sensing. In contrast, topological data analysis (TDA) provides a mathematically grounded framework for capturing global structural features of data. TDA has emerged as a powerful tool for analyzing complex imagery, especially imagery with geometrically interpretable structures, of which floods are a prime candidate. In this work, we systematically evaluate topological descriptors for flood detection using the open-source SEN12-FLOOD dataset. By extracting topological features from each image and incorporating them into neural networks, we demonstrate that topo-logical descriptors carry meaningful flood signals independently and complement existing networks to yield more robust and interpretable flood detection systems. 
+
+Keywords: Flood detection, topological data analysis, persistent homology, synthetic aperture radar, optical satellite imagery, SEN12-FLOOD, gated recurrent units, remote sensing 
+
+1. INTRODUCTION 
+
+Recently, the expanding availability of satellite data and rapid advancements in artificial intelligence have sig-nificantly enhanced our capability for monitoring environmental hazards. 1 Nevertheless, the detection of many flood events remains challenging due to persistent cloud cover obscuring optical satellite imagery. 2 Synthetic Aperture Radar (SAR) systems, such as the Sentinel-1 satellite, can penetrate clouds, but inherently contain speckle. 3 As such, models that leverage both optical and SAR data can overcome individual sensor limitations. A major issue in flood detection with SAR data is that many studies are tested on author-made datasets, which lack baselines and limit reproducibility. 2 To address this issue, Rambour et al. 4 developed the publicly available SEN12-FLOOD dataset, offering coregistered time series data from both Sentinel-1 (S1) SAR and Sentinel-2 (S2) multispectral imagery covering locations near 2018 and 2019 floods in Africa, Iran, and Australia. Both rural and urban areas are captured, as rural communities often lack resilient infrastructure and relief resources, while urban centers have concentrated populations and high-value assets. Each image in the sequence has a binary label specifying if a flood event has happened in the location of the sequence. This dataset leverages the two mentioned modalities of remote sensing data, and serves to assess the important role of raising flood alarms prompting human review and usage of more expensive flood segmentation algorithms, a crucial first step in the disaster relief process. As a baseline, Rambour et al. extracted per-image features using a ResNet-50 
+
+Further author information: (Send correspondence to Max Zhao) Max Zhao: E-mail: max.zhao@stanford.edu 
+
+> arXiv:2606.26204v1 [cs.LG] 24 Jun 2026
+
+Convolutional Neural Network (CNN) 5 backbone, then fed features into a Gated Recurrent Unit (GRU) 6 for flood classification. They demonstrated that temporal information substantially improves accuracy compared to single-image binary classifier baselines, with improvements up to 10%. Various experiments comparing different computer vision architectures have been conducted on this dataset. Mittal et al. 7 surveyed the performance of various CNN architectures for binary classification, and Chamatidis et al. 8 showed that a Vision Transformers (ViT) can also achieve good performance. Nevertheless, Rambour’s original findings highlight that time-series change detection is particularly well suited for flood detection tasks. For example, a river that appears narrow in one image but widens significantly in subsequent images may indicate flooding—information that cannot be reliably captured by static binary classifiers, especially given the existence of non-water frames in the dataset. Consequently, methods relying solely on binary classification of single images are unsuitable for practical deployment. Recently, Topological Data Analysis (TDA) has shown great promise as a tool in a variety of fields. The fact that TDA uses algebraic topology, means it can capture properties of complex data that traditional ma-chine learning methods cannot capture. 9 Features capture global structural characteristics of a dataset that are unchanged under deformation, are provably stable under perturbation. As such, TDA shows promise for noisy and incomplete datasets. Another advantage of such a mathematically grounded framework is that it is contains human-understandable features, as opposed to most deep neural networks, whose features usually function as opaque black boxes. Such understanding is beneficial for safety-critical fields (e.g. disasters) where lives are at risk. Previous studies have demonstrated the success of combining convolutional and topological features for image classification across various domains, including medical images, 10 handwriting, 11 and land data captured by optical remote sensing satellites. 12 Such success implies that convolutional (local textures) and topological (global structures) of complex datasets complement each other. In this work, we first improve on temporal-classification GRU baselines for SEN12-FLOOD by introducing transfer learning. Then, we propose a lightweight variant of a Gaussian topological embedding that achieves stable training convergence and improved performance when topological features are fed into a GRU, compared to the results in [4]. Finally, we demonstrate improvement when convolutional and topological features are both used, achieving a 98.9% accuracy compared to a baseline of 95.7%. 
+
+2. BACKGROUND 2.1 Dataset 
+
+The SEN12-FLOOD dataset comprises a total of 335 sequences, each corresponding to a unique geographic location in Africa, Iran, or Australia. Each sequence contains multiple frames from S1 SAR and S2 multispectral optical sensors. On average, there are days or weeks between the capture of each frame and the full sequences can span months. The S1 frames were provided as two polarization channels Vertical transmit-Vertical receive (VV) and Vertical transmit-Horizontal receive (VH) in linear backscatter intensity, while the S2 frames included twelve spectral bands (B01, B02, B03, B04, B05, B06, B07, B08, B8A, B09, B11, B12 with pixel sizes 60m, 10m, 10m, 10m, 20m, 20m, 20m, 10m, 20m, 60m, 20m, 20m respectively). The S1 SAR dataset includes image frames acquired by both Sentinel-1A (S1A) and Sentinel-1B (S1B) satellites. As the two satellites follow distinct orbital paths, they observe the same regions from slightly different incidence angles, which may result in geometric variations within the imagery. 3 The S2 data was inherited from the MediaEval 2019 dataset. 13 Each acquisition is annotated with a binary flood status label where 0 denotes non-flooded and 1 denotes flooded conditions. The dataset follows the hypothesis that flooded features persist in all post-flood observations of an area. 
+
+2.2 Topological Data Analysis 
+
+We first describe the necessary topological constructions for a two-dimensional grayscale image and then introduce persistent homology, the main tool of TDA, which tracks the birth and death of features such as connected components and holes. These operations were implemented using the CubicalRipser Python libary. 14 Grid, hypercubes, and cubical complexes. 
+
+Intuition. While TDA, especially on point clouds, conventionally uses simplices (triangles, tetrahedra, and higher dimensional analogs), it is more convenient for us to consider squares and cubes as our building blocks. Consider a D-dimensional integer grid. A cube is built by choosing, in each coordinate, either a unit interval (extending) or a single grid point (fixed). Faces result from turning an extended coordinate into a fixed one. 
+
+Definition. Fix D ∈ N and grid sizes N1, . . . , N D ∈ N. A (unit) hypercube in RD is specified by a pair ( v, σ )with v ∈ ZD and σ ∈ { e, f }D , represented by the product 
+
+Q(v, σ ) = 
+
+> D
+
+Y
+
+> i=1
+
+([vi, v i + 1] , σi = e, 
+
+{vi}, σi = f. (1) Its dimension is dim Q = # {i : σi = e}. For any index k with σk = e, Q has two codimension-1 faces in the kth direction: lower face: Q v, σ with σk ← f , upper face: Q v + ek, σ with σk ← f  (2) A cubical complex, C, is a finite set of such hypercubes closed under faces, meaning that whenever a cube, Q,belongs to C, all of its faces (as in (2)) must also belong to C.
+
+2D grayscale maps as cubical complexes (V-construction). 
+
+Intuition. Each pixel is treated as a vertex, with edges and squares included as needed. Collectively, these vertices, edges, and squares form the cubical complex. 
+
+Definition. For D = 2, let the vertex index set be {0, . . . , N 1 − 1} × { 0, . . . , N 2 − 1}. A grayscale image is a function on vertices 
+
+v : {0-cubes } → R≥0, v(i, j ) = intensity at vertex ( i, j ) (3) The cubical complex consists of all unit edges and unit squares whose vertices lie in this index set; that is, each unit k-cube is included precisely when all of its vertices are contained in the index set. 
+
+Remark. The alternative T-construction assigns intensities to top cells and extends them to faces via the min operation. The V- and T-constructions are related by duality. In our case, the particular choice of construction does not substantially affect the results. 
+
+Lower-star extension and filtration (vertex-based). 
+
+Intuition. Turn on all cells whose vertices are at most threshold t; as t increases, the complex grows. 
+
+Definition. Extend v from vertices to all cubes by 
+
+f (c) = max  v(p) : p is a vertex of c (4) Then f is monotone under inclusion: if c ⊆ c′ then f (c) ≤ f (c′). For t ∈ R, define the sublevel-set filtration 
+
+Ct =  c ∈ C : f (c) ≤ t (5) This yields a nested sequence t ≤ s ⇒ Ct ⊆ Cs that grows from a low-intensity structure to the full complex. 
+
+Persistent homology. 
+
+Let k be a field (e.g. Z2). Given the sublevel-set filtration {Ct}t∈R from the previous section, the homology groups Hk(Ct; k) summarize k-dimensional topological features present at threshold t: connected components (k=0), loops ( k=1), and higher-dimensional voids for k ≥ 2. In our two-dimensional case, we only track k=0 and k=1. As t increases, a feature is born when it first appears in Hk(Ct) and dies when it merges into an older feature (for k=0) or becomes filled (for k=1). Persistent homology records these events as birth–death pairs (bi, d i). 
+
+Remark. For k = 0, it matters which component is considered older, because by convention, the younger component (with the larger birth time) is always the one that dies. This convention ensures that each connected component has a unique birth and death time, making the pairing well-defined. Persistence diagrams (PDs). For each k ≥ 0, the k-dimensional persistence diagram is the multiset Dgm k = (bi, d i) ∈ R2 ∪ {∞} (6) with one point per k-feature. All points must exist above the diagonal b=d, as features cannot die before they are born. Points far from the diagonal correspond to persistent features with long lifetimes, di − bi, reflecting stable, meaningful topological structures. Points near the diagonal have short lifetimes and are typically sensitive to small perturbations, representing noise rather than significant structures. Points with death threshold infinity, or features that persisted through the filtration, are nonnegligible. Persistence diagrams are stable: small perturbations in the input function result in only small changes in the diagrams under the bottleneck distance. 15 
+
+3. METHODS 3.1 Preprocessing 
+
+For Sentinel-1 , VV and VH polarization channels were initially supplied in linear units after radiometric cal-ibration and range Doppler terrain correction. Valid (positive, finite) pixels were converted into deciBel (dB) scale using a logarithmic transformation, 
+
+σ0dB = 10 · log 10 
+
+ max( σ0, ϵ ) (7) with ϵ = 10 −6 to avoid numerical underflow. Then, a log-scaled grayscale map was generated per acquisition by aggregating both channels as 
+
+Igray = 10 · log 10 (V V + V H ) (8) Acquisitions with missing bands, insufficient valid pixels ( < 75%), or negligible intensity standard deviation (< 0.001) were discarded. For Sentinel-2 , images had level 2A atmospheric correction. We first radiometrically scaled stacks by di-viding all values by 10 ,000 yielding normalized surface reflectance values in the range [0 , 1]. To ensure geometric consistency, each band was resampled by bilinear interpolation to match the spatial resolution of the reference band (B03 or Green, 10m size). Then, a grayscale map on the Normalized Difference Water Index (NDWI) 16 
+
+was generated using the Green (B03) and Near-Infrared (B08) bands 
+
+N DW I = B03 − B08 
+
+B03 + B08 + ϵ (9) clipped [ −1, 1] and negated for watered regions to have lower intensity values (as consistent with the S1 grayscale maps). Acquisitions with missing bands, insufficient valid pixels ( < 75%), or negligible intensity standard devi-ation ( < 0.001) were discarded. Stacked bands were saved and resized to 120x120 for transfer CNN learning, and grayscale maps were used for topological operations. Following the pretrained models’ convention, we dropped the 60m resolution bands, B01 and B09 for S2 acquisitions, saving a 10-channel stack. After preprocessing, there were 3418 S1 images, 1325 of which were flooded, and 1983 S2 images, 446 of which were flooded. 192 out of the 335 sequences contained a flood event. We used the given split of 267 train and 68 test sequences. It is important to note that, due to preprocessing, when training S1-only models, some sequences had zero valid S1 acquisitions yielding 250 train and 62 test sequences. On average, there were 10.20 S1 acquisitions per sequence and 5.92 S2 acquisitions per sequence. Preprocessing was done using the RasterIO 17 Python library. 
+
+3.2 Gaussian Embedding of Persistence Diagrams 
+
+As part of the intended raw nature of the dataset, optical images sometime contain cloud cover and have variations in atmospheric conditions across days, while SAR images contain speckle and geometric distortions due to incidence angle variety. Thus, when using raw persistence diagrams, equivalent representations (Betti curves, persistence barcodes), or scalar summaries (amplitude, entropy, Wasserstein distances), our topological features were not able to converge when training and did not carry meaning across different days. We introduce a lightweight Gaussian embedding of persistence diagrams that allows convergence and fast training. Vectorizations of persistence diagrams 
+
+Persistence diagrams are finite multisets in the birth–death plane and do not naturally inhabit a Hilbert space. Many learning algorithms, however, require fixed-length, differentiable, and stable features. Several vectorization schemes have been proposed to bridge this gap. Persistence landscapes map PDs to functional representations that can be discretized on a grid. 18 Persistence images smooth PDs with Gaussian kernels and integrate the resulting surface over pixels to obtain a finite-dimensional vector. 19 Kernel methods operate directly on dia-grams, including the persistence scale-space kernel, 20 the persistence-weighted Gaussian kernel, 21 and the sliced Wasserstein kernel. 22 All of these approaches build on the fundamental stability of persistence diagrams under perturbations, 15 and Gaussian or heat-kernel-based embeddings, in particular, inherit Lipschitz-type stability with respect to bottleneck and Wasserstein distances. 
+
+The embedding Given a PD D = {(bi, d i)} with lifetimes ℓi = max( di − bi, 0), for each homology dimension, 
+
+k, and modality, m, we define a grid of G × G centers C(m) 
+
+> k
+
+= {cj }G2 
+
+> j=1
+
+by empirical birth and death quantiles computed on the training split. With a bandwidth σ(m) 
+
+> k
+
+> 0 estimated from pooled birth and death scales, we define 
+
+ϕ(m,k ) 
+
+> j
+
+(D) = X
+
+> (bi,d i)∈Dk
+
+ℓi exp 
+
+
+
+− 12( σ(m)  
+
+> k)2
+
+∥(bi, d i) − cj ∥22
+
+
+
+, Φ(m,k )(D) = ( ϕ(m,k ) 
+
+> j
+
+)G2
+
+> j=1
+
+.
+
+We concatenate Φ for k = 0 and k = 1 to form a vector of size 2 G2. We trim and only keep the top points by lifetime per k to reduce cost and only retain the most important features. This construction is equivalent to persistence images 19 but uses quantile-adaptive grids to help mitigate scale shifts. As with Gaussian heat-based summaries, 20 the map is differentiable and inherits Lipschitz-type stability from PD stability. 15 We avoid kernels such as 20–22 because they are contingent on a pairwise similarity as-sumption across the whole dataset: as mentioned before, frames showing water aren’t necessarily flooded, so an explicit vectorization is better for the change detection task. 
+
+Practical procedure For each homology dimension k ∈ { 0, 1} and modality m, we collect births and deaths from the training split, T , and form a G × G grid of centers C(m) 
+
+> k
+
+= {c(m,k ) 
+
+> j
+
+}G2 
+
+> j=1
+
+using empirical quantiles along birth and death. A bandwidth, σ(m) 
+
+> k
+
+, is set from pooled birth and death scales on T . Given a diagram, D, with lifetimes ℓi = max( di − bi, 0), we compute for each grid center 
+
+ϕ(m,k ) 
+
+> j
+
+(D) = X
+
+> (bi,d i)∈Dk
+
+ℓi exp 
+
+
+
+− ∥(bi,d i)−c(m,k )  
+
+> j∥22
+> 2( σ(m)
+> k)2
+
+
+
+,
+
+assemble Φ (m,k )(D) = ( ϕ(m,k ) 
+
+> j
+
+)G2
+
+> j=1
+
+, and concatenate k = 0 , 1 to obtain a 2 G2-dimensional vector. In practice, we keep the top points by lifetime per k to reduce cost. Centers and bandwidths are fitted once on T and reused for validation and test. 
+
+3.3 Feature Extraction and Training 
+
+We propose and evaluate three sequence models that map variable-length sequences to per-frame flood proba-bilities: (i) Topological (Topo)-GRU, (ii) ResNet50-GRU, and (iii) Joint (Fusion-GRU) Model, as in Figure 1. All pipelines are implemented in Python with PyTorch, 23 and are trained three times: on S1 data only, S2 data only, and the dual dataset that merges S1 and S2 as input. 
+
+Topological Features Only (Topo-GRU) Feature extraction (sublevel-set cubical filtration → PDs → Gaussian embedding, single modality). 
+
+Given grayscale frames from modality S1 or S2, we construct PDs as in Section 2.2 and retain the top K=200 points per homology dimension by lifetime. Each diagram is mapped to a fixed-length vector via the Gaussian grid embedding defined as: Φ( D) = concat  Φ(0) (D), Φ(1) (D), (10) Figure 1. Diagram of ResNet50-GRU model, Topological (Topo)-GRU model and Joint (Fusion-GRU) model. 
+
+with ϕ(k) 
+
+> j
+
+computed from the centers and bandwidths fitted once on T and reused unchanged for validation and test. We use G = 10 and λ = 0 .1 yielding output dimension 2 G2 = 200. PDs are computed with CubicalRipser, 14 
+
+and parameters are maintained separately for S1 and S2. 
+
+Model. A GRU with hidden size H=256 consumes Φ( D) at each time step. Unlike previous work that used a binary classification head, our last layer (size one) produces a per-step probability. Specifically, the scalar logit, 
+
+zt, is an affine transformation of the hidden state, and a sigmoid activation, σ(zt), returns the frame-level flood probability. 
+
+Convolutional Features Only (ResNet50-GRU) Feature extraction. As per suggestion from the dataset authors, 4 we initialize from ResNet-50 encoders pretrained on BigEarthNet 24, 25 S1 and S2 land classification datasets and discard any task-specific heads from pretraining. The first convolution was already modified to accept 2 or 10 channels. Given a 2 × 120 × 120 or 10 × 120 × 120 frame, the encoder applies global average pooling to the final feature maps producing a 2048-dimensional descriptor, ψt.Model. The GRU head structure is the same as above for Topo-GRU. For the dual dataset, a 16-dimensional, learned embedding representing the modality is appended to ψt before the GRU, resulting in vector size 2064. The encoder is unfrozen during training. 
+
+Fusion of Features (Fusion-GRU) Feature extraction (late concatenation). For each frame, obtain the topological descriptor, ϕ(D), and the ResNet-50 descriptor, ψt, by passing through the trained GRU encoder for the frame’s modality yielding a 2248-dimensional descriptor. The encoder is frozen during this process, and only the GRU is trained. 
+
+Model. The GRU head structure is the same as for Topo-GRU. For the dual dataset, a 16-dimensional, learned embedding representing the modality is appended to Φ before the GRU resulting in vector size 2264. 
+
+Common training protocol Training. We use class-weighted logistic loss 
+
+L = − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+h
+
+w+ yi log σ(zi) + (1 − yi) log  1 − σ(zi)i
+
+, w+ = 1 − ππ (11) where π is the positive rate over valid training frames, yi is the true label, and σ(zi) is the output probability. The classifier bias is initialized to log π 
+
+> 1−π
+
+. All models are trained with the Adam optimizer, learning rate 0 .001, batch size 8, and a maximum of 200 epochs. To handle varying sequence length when batching, sequences are padded to the longest length in the batch; masks exclude padding from both the loss and all evaluation metrics. 
+
+Evaluation Metrics. During training, model performance is assessed using standard classification metrics derived from the confusion matrix using probability threshold τ = 0 .5: true positives (TP), true negatives (TN), false positives (FP), and false negatives (FN). Standard evaluation metrics are listed: 
+
+• Accuracy : Acc = T P + T N T P + T N + F P + F N 
+
+• Precision : P = T P T P + F P 
+
+• Recall : R = T P T P + F N 
+
+• F1-score : F1 = 2P R P + R
+
+• Fβ -score : Fβ = (1 + β2)P R β2P + R
+
+Model selection and early stopping. Accuracy by itself is not an adequate metric for assessing deployability, particularly when using imbalanced datasets where non-flooded frames outnumber flooded ones. Given class imbalance, we do not select best training models on accuracy, as done in Rambour. 4 Instead, we monitor a recall-tilted Fβ with β = √2, which upweights recall twofold relative to precision. In other words, we consider missing a flood twice as bad as raising a false alarm. Early stopping halts training after 20 epochs without validation Fβ improvement. 
+
+Model deployment threshold. Post-training, we sweep the positive decision threshold τ ∈ [0 , 1] for proba-bilities and choose τ ⋆ for maximal recall subject to precision ≥ 0.90. If no τ satisfies this constraint, we fall back to the threshold with maximum F1.Table 1. Comparison of GRU model performance on S1, S2, and dual-modality tasks. We report Fβ , F1-score, accuracy, previously reported baseline accuracy by, 4 and best recall achieved at 90% precision. 
+
+Model Fβ F1 Acc Prev Acc R@90%P 
+
+ResNet50-GRU S1 0.944 0.941 0.958 0.875 0.954 Topo-GRU S1 0.903 0.886 0.914 – 0.713 ResNet50-GRU S2 0.976 0.971 0.988 0.930 0.988 Topo-GRU S2 0.892 0.897 0.958 – 0.881 ResNet50-GRU Dual 0.947 0.954 0.974 0.957 0.953 Topo-GRU Dual 0.916 0.904 0.941 – 0.903 
+
+Fusion-GRU Dual 0.980 0.982 0.989 – 0.986 
+
+> Table 2. Comparison of GRU models on S1, S2, and dual-modality tasks with TP, FP, TN and FN.
+
+Model TP FP TN FN 
+
+ResNet50-GRU S1 185 13 336 10 Topo-GRU S1 183 35 314 12 ResNet50-GRU S2 83 4 313 1Topo-GRU S2 74 7 310 10 ResNet50-GRU Dual 260 6 660 19 Topo-GRU Dual 263 40 626 16 
+
+Fusion-GRU Dual 272 3 663 7
+
+4. RESULTS AND DISCUSSION 4.1 Results 4.2 Discussion 
+
+The ResNet-50 GRUs transfer-learned from BigEarthNet encoders achieve benchmark performance gains of 8.3%, 5.8%, and 1.7% for the S1, S2, and Dual tasks, respectively. The largest improvement from exposure to the larger dataset for pretraining occurs with S1 SAR data, as unlike optical data, SAR is not conventionally used as input for CNNs. Compared to ResNet50-GRU models, which achieve 95.8% accuracy on S1 and 98.8% on S2, our Topo-GRUs perform slightly worse as expected, but still attain solid results of 91.4% and 95.8%, respectively, while using only about one-tenth of the feature size. Our Fusion-GRU Dual model achieves the best results, corroborating the statement that topological and convolutional features complement each other. These results mark the first application of TDA directly to images for flood detection, and the first use of persistent homology on SAR imagery showing promise for further exploration. Future directions include investigating more advanced feature-combination strategies such as attention mechanisms, integrating persistence diagrams or persistence images into CNNs, 10 and allowing the topological feature embeddings to remain unfrozen and learnable. For example, Perslay 26 enables optimization of centers and standard deviations, and alternative radial basis functions for embeddings could also be explored. 27 
+
+ACKNOWLEDGMENTS 
+
+This work was funded by the Office of Naval Research under the Naval Research Laboratory (NRL) 6.1 Base Pro-gram and the NRL Science and Engineering Apprenticeship Program (SEAP). DISTRIBUTION STATEMENT A: Approved for public release. Distribution is unlimited. REFERENCES 
+
+[1] Zhu, X. X., Tuia, D., Mou, L., Xia, G.-S., Zhang, L., Xu, F., and Fraundorfer, F., “Deep learning in remote sensing: A comprehensive review and list of resources,” IEEE Geoscience and Remote Sensing Magazine 5(4), 8–36 (2017). [2] Amitrano, D., Di Martino, G., Di Simone, A., and Imperatore, P., “Flood detection with SAR: A review of techniques and datasets,” Remote Sensing 16 (4), 656 (2024). [3] Moreira, A., Prats-Iraola, P., Younis, M., Krieger, G., Hajnsek, I., and Papathanassiou, K. P., “A tutorial on synthetic aperture radar,” IEEE Geoscience and Remote Sensing Magazine 1(1), 6–43 (2013). [4] Rambour, C., Audebert, N., Koeniguer, E., Le Saux, B., Crucianu, M., and Datcu, M., “Flood detection in time series of optical and SAR images,” in [ The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences ], XLIII-B2-2020 , 1343–1346 (2020). [5] He, K., Zhang, X., Ren, S., and Sun, J., “Deep residual learning for image recognition,” 
+
+CoRR abs/1512.03385 (2015). [6] Cho, K., van Merrienboer, B., Gulcehre, C., Bahdanau, D., Bougares, F., Schwenk, H., and Bengio, Y., “Learning phrase representations using RNN encoder–decoder for statistical machine translation,” (2014). [7] Mittal, B., Vanzara, J., and Sajidha, S. A., “Navigating spatial insights: Comparative exploration of deep learning algorithms for flood detection using remote sensing data,” in [ 2024 IEEE International Confer-ence on Interdisciplinary Approaches in Technology and Management for Social Innovation (IATMSI) ], 1–6 (2024). [8] Chamatidis, I., Istrati, D., and Lagaros, N. D., “Vision transformer for flood detection using satellite images from Sentinel-1 and Sentinel-2,” Water 16 (12), 1670 (2024). [9] Coskunuzer, B. and Akcora, C. G., “Topological methods in machine learning: A tutorial for practitioners,” (2024). [10] Peng, Y., Wang, H., Sonka, M., and Chen, D. Z., “PHG-Net: Persistent homology guided medical image classification,” in [ Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV) ], 7583–7592 (2024). [11] Lima, M. D. P., Giraldi, G. A., and Miranda Junior, G. F., “Image classification using combination of topological features and neural networks,” (2023). [12] Sharma, A., “Improving remote sensing classification using topological data analysis and convolutional neural networks,” (2025). [13] Bischke, B., Helber, P., Brugman, S., Basar, E., Zhao, Z., Larson, M., and Pogorelov, K., “The multimedia satellite task at MediaEval 2019,” in [ MediaEval Benchmarking Initiative for Multimedia Evaluation ], (2019). [14] Kaji, S., Sudo, T., and Ahara, K., “Cubical ripser: Software for computing persistent homology of image and volume data,” CoRR abs/2005.12692 (2020). [15] Cohen-Steiner, D., Edelsbrunner, H., and Harer, J., “Stability of persistence diagrams,” Discrete & Com-putational Geometry 37 (1), 103–120 (2007). [16] Gao, B.-C., “NDWI—a normalized difference water index for remote sensing of vegetation liquid water from space,” Remote Sensing of Environment 58 (3), 257–266 (1996). [17] Gillies, S. et al., “Rasterio: Geospatial raster I/O for Python programmers,” (2013–). [18] Bubenik, P., “Statistical topological data analysis using persistence landscapes,” Journal of Machine Learn-ing Research 16 (3), 77–102 (2015). [19] Adams, H., Emerson, T., Kirby, M., Neville, R., Peterson, C., Shipman, P., Chepushtanova, S., Hanson, E., Motta, F., and Ziegelmeier, L., “Persistence images: A stable vector representation of persistent homology,” 
+
+Journal of Machine Learning Research 18 (8), 1–35 (2017). [20] Reininghaus, J., Huber, S., Bauer, U., and Kwitt, R., “A stable multi-scale kernel for topological machine learning,” in [ Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) ], 4741–4748 (2015). [21] Kusano, G., Fukumizu, K., and Hiraoka, Y., “Persistence weighted gaussian kernel for topological data anal-ysis,” in [ Proceedings of the 33rd International Conference on Machine Learning ], Proceedings of Machine Learning Research 48 , 2004–2013, PMLR (2016). [22] Carri` ere, M., Cuturi, M., and Oudot, S., “Sliced wasserstein kernel for persistence diagrams,” in [ Proceedings of the 34th International Conference on Machine Learning ], Proceedings of Machine Learning Research , 664– 673, PMLR (2017). [23] Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., Killeen, T., Lin, Z., Gimelshein, N., Antiga, L., Desmaison, A., K”opf, A., Yang, E., DeVito, Z., Raison, M., Tejani, A., Chilamkurthy, S., Steiner, B., Fang, L., Bai, J., and Chintala, S., “PyTorch: An imperative style, high-performance deep learning library,” in [ Advances in Neural Information Processing Systems 32 ], 8024–8035 (2019). [24] Hackel, L., Clasen, K. N., and Demir, B., “ConfigILM: A general purpose configurable library for combining image and language models for visual question answering,” SoftwareX 26 , 101731 (2024). [25] Clasen, K. N., Hackel, L., Burgert, T., Sumbul, G., Demir, B., and Markl, V., “reBEN: Refined BigEarthNet dataset for remote sensing image analysis,” (2024). [26] Carri` ere, M., Chazal, F., Ike, Y., Lacombe, T., Royer, M., and Umeda, Y., “PersLay: A neural network layer for persistence diagrams and new graph topological signatures,” in [ Proceedings of the Twenty Third International Conference on Artificial Intelligence and Statistics ], Proceedings of Machine Learning Research 
+
+108 , 2786–2796, PMLR (2020). [27] Hofer, C. D., Kwitt, R., and Niethammer, M., “Learning representations of persistence barcodes,” Journal of Machine Learning Research 20 (126), 1–45 (2019).

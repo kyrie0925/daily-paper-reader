@@ -1,0 +1,2377 @@
+Title: OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching
+
+URL Source: https://arxiv.org/pdf/2606.22572v1
+
+Published Time: Tue, 23 Jun 2026 02:47:10 GMT
+
+Number of Pages: 31
+
+Markdown Content:
+# OASIS: O BSERVATION -A WARE SIMULATION -B ASED INFERENCE VIA DISTRIBUTIONAL MATCHING 
+
+Arya Farahi 
+
+Department of Statistics and Data Sciences, University of Texas at Austin, Austin, Texas 78712, USA The NSF-Simons AI Institute for Cosmic Origins, USA 
+
+arya.farahi@austin.utexas.edu 
+
+Conghao Zhou 
+
+Department of Physics, University of California, Santa Cruz, CA 95064, USA 
+
+zhou.conghao@ucsc.edu 
+
+Ritwik Vashistha 
+
+Department of Statistics and Data Sciences, University of Texas at Austin, Austin, Texas 78712, USA The NSF-Simons AI Institute for Cosmic Origins, USA 
+
+ritwik.v@utexas.edu 
+
+# ABSTRACT 
+
+We introduce OASIS , a simulation-based inference framework for scientific settings where observa-tions are distorted by measurement error, selection effects, and other survey-specific transformations. In many real applications, simulators generate latent, noiseless quantities, while the data are observed only after passing through a complex observational pipeline. Standard simulation-based inference methods often ignore this distinction, comparing observations to idealized simulator outputs or relying on low-dimensional summaries that can miss important structure. OASIS addresses this mismatch by explicitly embedding the observation model into the simulator and performing inference directly at the level of observed-data distributions. The method constructs a pseudo-posterior by reweighting prior samples according to a maximum mean discrepancy (MMD) loss between the empirical distributions of the observed data and forward-simulated observations, thereby avoiding both handcrafted summaries and learned neural surrogates. We provide theoretical guarantees for Monte Carlo consistency, convergence of the empirical pseudo-posterior to its population counterpart, and posterior concentration on the MMD-identified parameter set, with consistency for the true parameter under correct specification and identifiability. In controlled errors-in-variables regression experiments, OASIS delivers robust parameter recovery and well-calibrated uncertainty under het-erogeneous and non-Gaussian measurement noise. We then demonstrate the method on a realistic cosmological application involving galaxy cluster observations across multiple wavelengths, in which latent physical properties are linked to observables through nonlinear scaling relations, heteroscedastic errors, selection functions, and incomplete coverage. 
+
+# 1 Introduction 
+
+Modern scientific inference is increasingly driven by complex simulators that generate high-dimensional data under richly structured physical models [ 1]. In many domains, such as cosmology, particle physics, climate science, and systems biology, the data-generating process is only partially observable. Meaning latent quantities of interest are transformed by measurement noise, selection effects, censoring, and survey-specific distortions before they are recorded [2 , 3 ]. As a result, inference must proceed by comparing observed data not to idealized simulator outputs, but to their 
+
+observationally transformed counterparts. This distinction is central in practice, yet remains under-addressed in much 
+
+> arXiv:2606.22572v1 [stat.ME] 21 Jun 2026
+
+OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching of the simulation-based inference (SBI) literature [ 4], where comparisons are often performed either on latent quantities or on low-dimensional summary statistics that do not faithfully reflect the full observational pipeline. Approximate Bayesian computation (ABC) and related likelihood-free methods provide a flexible framework for SBI when the likelihood is intractable, but forward simulation is available [ 5, 6 ]. However, classical ABC relies on carefully chosen summary statistics and distance functions, which can lead to information loss and bias, particularly in high-dimensional settings or when observational distortions are complex. Recent approaches have sought to mitigate these issues using learned summaries [ 7] or distributional distances such as the maximum mean discrepancy (MMD) [ 8, 9 ], which operate directly on empirical distributions. While these advances improve expressivity, they typically assume that simulated and observed data are directly comparable, implicitly neglecting the structured observation processes that intervene between latent states and recorded measurements. Neural simulation-based inference methods (e.g., neural posterior, likelihood, and ratio estimation) approximate p(θ|y),
+
+p(y|θ), or density ratios using learned models trained on simulated data [ 10 – 13 ]. These approaches scale to high-dimensional observations and enable amortized inference [ 14 ], but require demanding computational resources, careful tuning, and large simulation budgets, and can be sensitive to architectural and optimization choices. More fundamentally, they assume that training simulations match the observed-data distribution. In many scientific settings, simulators produce latent quantities that must be transformed through complex and imperfectly characterized observational pipelines. If this mismatch is not explicitly modeled, the learned representations may be misaligned with the observed data, leading to biased or miscalibrated inference [ 15 ]. This motivates inference procedures that operate directly on observed-data distributions while explicitly incorporating observational mechanisms, instead of relying on surrogates trained on idealized simulations. We introduce OASIS 1, an SBI framework that incorporates observational mechanisms and operates directly on observed-data distributions. The method constructs a pseudo-posterior by comparing empirical observed data with simulated data after passing through an observation simulator with MMD [ 16 , 8, 17 ]. This yields a likelihood-free approach that is distributionally expressive, avoids handcrafted summaries, and aligns inference with the data acquisition process. 
+
+OASIS has a Gibbs-type pseudo-posterior interpretation defined through a distributional loss [ 18 – 20 ], with two key differences: the loss is stochastic due to Monte Carlo simulation, inducing dependence on the simulation budget and a temperature parameter [ 21 ], and the observational model is embedded in the forward simulation, so inference targets the observed-data law. We establish Monte Carlo consistency, convergence of the empirical pseudo-posterior, and posterior concentration on minimizers of the MMD discrepancy, yielding consistency under correct specification and identifiability despite measurement error and selection effects. We benchmark against error-in-variables methods in linear regression and evaluate on an astrophysical inference problem involving galaxy clusters [ 22 ], where nonlinear relations, heteroscedastic noise, selection effects, and partial coverage challenge standard approaches. By forward simulating the full observational pipeline and comparing distributions, OASIS achieves robust parameter recovery and well-calibrated uncertainty. 
+
+Contributions. We advance SBI by incorporating observational mechanisms into the inference loop and providing a theoretically grounded, distribution-level alternative to summary-based methods, combining kernel techniques, simulation-based modeling, and generalized Bayesian inference. 
+
+# 2 OASIS Method 
+
+Context. OASIS targets settings where inference must account for measurement error and observational distortions. In many applications, the simulator generates a latent, noiseless population, whereas the observed dataset is obtained only after noise, heteroscedastic scatter, missingness, censoring, truncation, thresholding, or survey selection have acted on that population. Consequently, the relevant comparison is not between observed data and latent simulator output, but between observed data and simulator output after the same observational mechanism has been applied. 
+
+Notation. We observe Dobs = {yobs  
+
+> i
+
+}ni=1 , with yobs  
+
+> i
+
+∈ Rd, drawn from an observed-data distribution Pobs . Each 
+
+yobs  
+
+> i
+
+represents the output of the observational pipeline. The goal is to compare the empirical distribution of Dobs with that induced by a simulator under parameter θ ∈ Θ ⊆ Rp, with prior p(θ). For each θ, the simulator generates latent variables utrue ∼ P true  
+
+> θ
+
+, followed by an observation step ysim ,obs ∼ P Err  
+
+> θ
+
+(· | utrue ), where P Err  
+
+> θ
+
+encodes measurement error, noise, and selection effects. We assume samples from P Err  
+
+> θ
+
+can be simulated. While strong, it holds in many practical settings [e.g., 23–28]. The induced observed-data law is 
+
+P obs  
+
+> θ
+
+(Y sim ) = 
+
+Z
+
+P Err  
+
+> θ
+
+(Y sim | u, ϕ ) P true  
+
+> θ
+
+(du ), Y sim ⊆ Rd. (1) 
+
+> 1OASIS:Observation-Aware Simulation Inference Scheme
+
+2OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching Inference targets values of θ for which P obs  
+
+> θ
+
+is close to Pobs . In our method, a closed-form solution for P Err is not a requirement; we only need to be able to sample from it. 
+
+Inference Method ( OASIS ). The method proceeds by comparing the empirical observed-data distribution with forward simulations that explicitly incorporate both the latent data-generating process and the observational mechanism. See Algorithm 1 in Supplementary Materials. We draw θ1, . . . , θ nθ ∼ p(θ). For each parameter value θ, we generate a Monte Carlo approximation of the observed-data law P obs  
+
+> θ
+
+through a two-stage procedure. Then, we draw latent samples 
+
+utrue  
+
+> θ,m
+
+∼ P true  
+
+> θ
+
+, m = 1 , . . . , M. (2) Second, each latent realization is mapped through the observation model by sampling 
+
+ysim ,obs  
+
+> θ,m
+
+∼ P Err  
+
+> θ
+
+(· | utrue  
+
+> θ,m
+
+). (3) This yields a simulated observed dataset {ysim ,obs  
+
+> θ,m
+
+}Mm=1 , with associated empirical measure bP sim ,obs  
+
+> θ,M
+
+=
+
+> 1
+> M
+
+PMm=1 δysim ,obs 
+
+> θ,m
+
+, which represents the distribution of observations induced by θ after passing through the full observational pipeline. We assess agreement between the observed and simulated data at the distributional level using MMD [ 16 , 29 ]. For a bounded positive-definite kernel k with RKHS Hk,
+
+MMD 2
+
+> k
+
+(Pobs , P sim ,obs  
+
+> θ,M
+
+) = ∥μk(Pobs ) − μk(P sim ,obs  
+
+> θ,M
+
+)∥2 
+
+> Hk
+
+, (4) where μk(P ) = R k(y, ·) P (dy ). If k is characteristic, MMD k = 0 implies Pobs = P sim ,obs  
+
+> θ,M
+
+. [ 17 ] provide identifiability conditions for the observation model under which equality of observed-data laws implies Ptrue = P true  
+
+> θ
+
+. The empirical loss, defined as 
+
+∆n,M (θ) := MMD 2
+
+> k
+
+  bPobs , bP sim ,obs 
+
+> θ,M
+
+, (5) is small when the forward-simulated observed distribution matches the empirical distribution of data. Inference is performed by constructing a likelihood-free pseudo-posterior through weighted prior sampling. We assign weights 
+
+ewj = exp 
+
+
+
+− ∆n,M (θj )2τ 2
+
+
+
+, wj = ewj
+
+Pnθ 
+
+> k=1
+
+ewk
+
+, (6) yielding the weighted empirical measure ΠMMD  
+
+> nθ
+
+= Pnθ 
+
+> j=1
+
+wj δθj . Parameters has high weight when their simulated observed-data distributions are close to the empirical distribution of the observations. At the population level, the method targets the pseudo-posterior 
+
+πτ (dθ ) ∝ p(θ) exp {− ∆( θ)/(2 τ 2)}dθ, ∆( θ) = MMD 2
+
+> k
+
+(Pobs , P obs  
+
+> θ
+
+). (7) As τ ↓ 0, πτ concentrates on Θ† = arg min θ∈Θ ∆( θ), the set of parameters whose induced observed-data laws match 
+
+Pobs . Under correct specification and identifiability, this set reduces to the true parameter θ⋆. The weighted sample 
+
+{(θj , w j )} serves as a posterior surrogate. For any test function h, R h(θ) dΠMMD ≈ P 
+
+> j
+
+wj h(θj ), with posterior predictive quantities obtained via forward simulation. 
+
+Relation to Literature. The proposed framework is related to several strands of likelihood-free and generalized Bayesian inference [ 19 , 20 , 4], but differs from existing formulations in the object being matched and in the role of the observational mechanism. From the perspective of generalized Bayes, our update has the form of a Gibbs posterior 
+
+π(d θ | yobs ) ∝ p(θ) exp {− λℓ (yobs , θ )}dθ, with the loss defined by a discrepancy between the empirical observed-data distribution and the simulated observed-data distribution. Unlike the standard setup in generalized Bayes, however, the loss is not deterministic conditional on the data. It is itself induced by Monte Carlo draws from the simulator, which is composed of the observation model. This yields an (M, τ )-indexed pseudo-posterior in which M controls Monte Carlo variability and τ controls the sharpness of the update. In the large-M regime, the construction approaches a deterministic Gibbs posterior based on the population discrepancy ∆( θ), linking the method to generalized Bayes, Gibbs posteriors, and minimum-distance or risk-based inference with well-characterized asymptotics [ 30 ]. This also distinguishes the present construction from robust generalized Bayesian procedures such as coarsened or calibrated posteriors, where robustness is introduced through alternative update rules or temperature calibration rather than through an explicit forward model for the data-acquisition process [31–33]. 3OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching The method is also closely connected to approximate Bayesian computation [ 5, 34 , 6]. Classical ABC accepts or reweights parameter draws according to the proximity of simulated and observed data, typically through low-dimensional summaries, while semi-automatic ABC and related variants learn or construct summaries designed to improve efficiency. Synthetic-likelihood methods replace the intractable likelihood by a parametric model, often Gaussian, for summary statistics, thereby reducing dimensionality at the cost of an additional approximation [ 35 , 36 ]. Indirect inference and auxiliary-model ABC make a similar tradeoff by comparing observed and simulated data through auxiliary estimators, scores, or estimating equations [ 37 , 38 ]. In contrast, our approach operates directly on empirical measures and does not require either handcrafted summaries or an auxiliary parametric likelihood. The price is that the comparison takes place in a richer function space, shifting the burden from summary design to the choice of kernel and the simulation budget. Among distributional ABC methods, the closest antecedents are kernel ABC [ 8 ] and K2-ABC [ 9], which use kernel mean embeddings and MMD to compare empirical distributions. At the algorithmic level, our weighting rule is indistinguishable from K2-ABC. The key conceptual difference is that our method is derived from generalized Bayes principles, similar to MMD-Bayes [ 39 ]. The primary technical difference is that we make the observation operator explicit and define the target of inference through the induced observed-data law P obs  
+
+> θ
+
+, rather than treating simulator output and observations as directly comparable objects. This distinction is required in scientific settings with measurement error, heteroscedastic noise, censoring, truncation, missingness, or selection effects, where the latent simulator law and the observed-data law are fundamentally different. In that sense, the proposed method is not merely a kernelized ABC procedure, but a distributional pseudo-posterior defined on the image of the simulator under a known or quantifiable observational map. More broadly, the method belongs to a class of likelihood-free procedures based on discrepancies between probability measures, including Wasserstein ABC [ 40 ], sliced-Wasserstein ABC [ 41 ], and classifier- or two-sample-test-based simulation-based inference [ 42 ]. These methods share the principle of replacing likelihood evaluation by distributional comparison, but differ in geometry, statistical regularity, and computational scaling. Relative to Wasserstein-based approaches, MMD yields a reproducing-kernel representation with well-developed empirical process tools and a direct connection to kernel two-sample testing [ 29 ]. Relative to neural SBI methods such as neural posterior, likelihood, and ratio estimation, our approach forgoes an amortized neural surrogate in favor of direct particle reweighting [ 7, 4 , 13 ]. This avoids approximation error from training a high-capacity density estimator, but it also sacrifices the amortization and sample-efficiency gains that neural methods can provide in repeated-inference settings. The contribution of the present work is therefore the integration of three ingredients that are usually treated separately: an explicit observation model, distribution-level comparison through a characteristic-kernel MMD loss, and a pseudo-posterior formulation with asymptotic guarantees tailored to the observationally realistic setting. 
+
+# 3 Theoretical Guarantees 
+
+This section develops the theoretical properties of the MMD-based pseudo-posterior introduced in Section 2. The central object is the population discrepancy 
+
+∆( θ) = MMD 2
+
+> k
+
+ Pobs , P obs 
+
+> θ
+
+, (8) together with its empirical counterpart 
+
+∆n,M (θ) = MMD 2
+
+> k
+
+  bPobs , bP sim ,obs 
+
+> θ,M
+
+, (9) where bPobs is the empirical distribution of the observed sample and bP sim ,obs  
+
+> θ,M
+
+is the empirical distribution of a simulated observed batch generated under θ. With θ1, . . . , θ nθ
+
+> iid
+
+∼ p(θ), recall that the weighted empirical measure is 
+
+ΠMMD  
+
+> nθ
+
+(dθ ) = 
+
+> nθ
+
+X
+
+> j=1
+
+wj δθj (dθ ), wj = exp {− ∆n,M (θj )/(2 τ 2)}
+
+Pnθ 
+
+> k=1
+
+exp {− ∆n,M (θk)/(2 τ 2)} . (10) This analysis establishes three distinct guarantees. (i) Monte Carlo consistency : finite weighted particles approximate the empirical pseudo-posterior. (ii) Statistical convergence : the empirical pseudo-posterior approaches its population analogue as n, M → ∞ . (iii) Posterior consistency : when τn,M ↓ 0 at a rate slow enough relative to the empirical approximation error, the pseudo-posterior concentrates on the MMD-identified set, and under injectivity of the observed-data forward map, on the true parameter itself. Hence, the method enjoys a posterior-consistency property relative to the distributional target induced by MMD. See Appendix A for the list of assumptions. The theoretical results presented here are largely built from standard ingredients, but their combination in the present setting yields a nontrivial synthesis. The Monte Carlo consistency result (Theorem 3.1) is a direct consequence of classical laws of large numbers for self-normalized importance sampling. The fixed-temperature convergence 4OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching result (Theorem 3.2) follows from uniform convergence of the empirical loss together with standard continuous mapping arguments, and is closely related to existing results in empirical process theory and M-estimation [ 43 ]. The identification statements based on characteristic kernels are also standard consequences of MMD [ 29 , 17 ]. The main result is the posterior concentration result (Theorem 3.3), which combines uniform stochastic control of the MMD loss with a vanishing-temperature Gibbs posterior argument to establish concentration on the MMD-identified set. While concentration arguments have been studied in the generalized Bayesian and Gibbs posterior literature [ 44 , 45 ], the present result adapts these ideas to a simulation-based setting with two sources of randomness (observational and simulation samples) and a distributional loss defined via kernel embeddings. Thus, although each component builds on established results, their integration in SBI setting is not immediate and requires a careful combination of empirical process arguments, kernel-based distributional theory, and Gibbs posterior asymptotics. Particularly, the resulting framework provides a unified treatment of MMD-based SBI with an explicit observational forward model, presence of measurement error, and dual sampling variability, a setting that is not directly covered by existing results in the kernel ABC or generalized Bayesian literature. 
+
+3.1 Convergence and Consistency of Pseudo-posterior 
+
+For fixed τ > 0, define the population pseudo-posterior 
+
+πτ (dθ ) = p(θ) exp {− ∆( θ)/(2 τ 2)} dθ 
+
+R 
+
+> Θ
+
+p(ϑ) exp {− ∆( ϑ)/(2 τ 2)} dϑ . (11) Likewise, define the empirical target 
+
+πn,M,τ (dθ ) = p(θ) exp {− ∆n,M (θ)/(2 τ 2)} dθ 
+
+R 
+
+> Θ
+
+p(ϑ) exp {− ∆n,M (ϑ)/(2 τ 2)} dϑ . (12) The weighted sample ΠMMD  
+
+> nθ
+
+is a self-normalized importance-sampling approximation to πn,M,τ .For a measurable h : Θ → R integrable with respect to πn,M,τ , define 
+
+Φn,M,τ (h) := 
+
+Z
+
+> Θ
+
+h(θ) πn,M,τ (dθ ). (13) Under Assumptions A.2 and A.3, the map θ 7 → ∆( θ) is continuous. Weak continuity of P obs  
+
+> θ
+
+and bounded continuity of k imply continuity of all three expectation terms in the expansion Equation (61) . Since Θ is compact, ∆ attains its minimum and Θ† is compact. 
+
+Theorem 3.1 (Monte Carlo consistency) . Fix n, M , and τ > 0. Let θ1, . . . , θ nθ
+
+> iid
+
+∼ p(θ), and suppose 
+
+∆n,M : Θ → [0 , ∞) is measurable. Let h : Θ → R be measurable and suppose R 
+
+> Θ
+
+|h(θ)| πn,M,τ (dθ ) < ∞.Then Pnθ 
+
+> j=1
+
+wj h(θj ) a.s.
+
+−−−−→  
+
+> nθ→∞
+
+Φn,M,τ (h).
+
+Theorem 3.1 shows that for fixed data, simulation batch size, and temperature, the weighted particle approximation is asymptotically exact as the number of parameter draws increases. We next show that if the empirical discrepancy converges uniformly to the population discrepancy, then the empirical pseudo-posterior approaches the population pseudo-posterior for fixed τ .
+
+Theorem 3.2. Suppose Assumptions A.1–A.4 hold, and let τ > 0 be fixed. Then for every bounded continuous 
+
+h : Θ → R, R 
+
+> Θ
+
+h(θ) πn,M,τ (dθ ) P
+
+−−−−−−→ 
+
+> n,M →∞
+
+R 
+
+> Θ
+
+h(θ) πτ (dθ ).
+
+The preceding result is the fixed-temperature analogs of posterior consistency [ 46 ]. The empirical pseudo-posterior inherits the limiting distribution that would have been obtained had the exact population discrepancy ∆( θ) been known. 
+
+3.2 Identifiability and Posterior Concentration 
+
+We now turn to the asymptotic regime in which n → ∞ , M → ∞ , and the temperature τn,M ↓ 0. The relevant target is the identified set 
+
+Θ† = arg min  
+
+> θ∈Θ
+
+∆( θ). (14) Since the exponential weights favor smaller values of ∆( θ), one expects πn,M,τ n,M to concentrate around Θ† provided the empirical loss approximates ∆ finely enough relative to the shrinking temperature. The next theorem formalizes this. 5OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Theorem 3.3 (Posterior Consistency) . Suppose Assumptions A.1–A.6 hold. Let τn,M ↓ 0. Then for every open neighborhood U ⊃ Θ†,
+
+πn,M,τ n,M (U ) P
+
+−−−−−−→  
+
+> n,M →∞
+
+1. (15) 
+
+Equivalently, for every closed set F ⊂ Θ satisfying F ∩ Θ† = ∅,
+
+πn,M,τ n,M (F ) P
+
+−−−−−−→  
+
+> n,M →∞
+
+0. (16) Theorem 3.3 is the main posterior-consistency result. It states that the empirical pseudo-posterior places asymptotically all of its mass on arbitrary neighborhoods of the minimizers of the population MMD loss. In particular, when the simulator is correctly specified and the kernel is characteristic, the pseudo-posterior concentrates on the set of parameter values whose induced observed-data distributions coincide with the true observed law. This theorem relies on Assumption A.6. In Appendix B, we provide justification for this assumption. The previous theorem is stated relative to the minimizer set Θ†. We now study the consequences under correct specification. Implications under misspecification are outside the scope of this work. 
+
+Proposition 3.4. Under Assumptions A.2 and A.7, inf θ∈Θ ∆( θ) = 0 and θ⋆ ∈ Θ†.
+
+The next result characterizes point identification. The set Θ† may nonetheless be non-singleton, reflecting observational non-identifiability after measurement and selection. 
+
+Proposition 3.5 (Identifiability) . Assume Assumptions A.2 and A.7. If the map θ 7 −→ P obs  
+
+> θ
+
+is injective on Θ,then Θ† = {θ⋆}. Consequently, under the assumptions of Theorem 3.3, for every open neighborhood U of θ⋆,
+
+πn,M,τ n,M (U ) P
+
+−→ 1.
+
+Proposition 3.5 clarifies the sense in which the MMD loss can deliver stronger identification than summary-based methods [e.g., 21 ]. If the induced observed-data law uniquely determines the parameter, then the pseudo-posterior is asymptotically point-concentrated. If not, the method still enjoys set consistency and concentrates on the observationally indistinguishable region. 
+
+3.3 Joint Asymptotics with the Monte Carlo Approximation 
+
+The final result combines the two sources of approximation: finite parameter sampling and finite data or simulation sample sizes. 
+
+Corollary 3.6. Let h : Θ → R be bounded and continuous, and let nθ → ∞ . First, fix τ > 0. Under the assumptions of Theorems 3.1 and 3.2, nθX
+
+> j=1
+
+wj h(θj ) −
+
+Z
+
+> Θ
+
+h(θ) πn,M,τ (dθ ) a.s.
+
+−−−−→  
+
+> nθ→∞
+
+0 (17) 
+
+for each fixed (n, M, τ ), and nθX
+
+> j=1
+
+wj h(θj ) −
+
+Z
+
+> Θ
+
+h(θ) πτ (dθ ) P
+
+−−−−−−→  
+
+> n,M →∞
+
+0. (18) 
+
+Second, let τn,M ↓ 0. Under the assumptions of Theorems 3.1 and 3.3, for every open neighborhood U ⊃ Θ†,
+
+ΠMMD  
+
+> nθ
+
+(U ) P
+
+−−−−−−→  
+
+> n,M →∞
+
+1. (19) The asymptotic behavior follows a two-stage structure. For fixed temperature τ > 0, the weighted sample ΠMMD 
+
+> nθ
+
+provides a consistent Monte Carlo approximation to the empirical pseudo-posterior πn,M,τ as nθ → ∞ , and as n, M →∞, this empirical pseudo-posterior converges to the population target πτ , which has the form of a Gibbs posterior with loss ∆( θ) [ 20 ]. In the vanishing-temperature regime τn,M ↓ 0 and correctly specified setting, the empirical pseudo-posterior concentrates on the true θ⋆, and the same concentration holds for its Monte Carlo approximation, implying that ΠMMD  
+
+> nθ
+
+assigns asymptotically all mass to any neighborhood of θ⋆.
+
+τ plays a key role in controlling the concentration and calibration of the resulting pseudo-posterior, and its choice directly impacts empirical performance. In all experiments, we adopt a data-driven heuristic for selecting τ without tuning (see Appendix D). This choice adapts to the scale of the discrepancy and the sample size, and was found to yield 6OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching stable and well-calibrated posterior approximations across a range of settings. While this simple rule performs well in practice (see Appendix D), the sensitivity of the pseudo-posterior to τ suggests that more principled or adaptive calibration strategies could further improve performance. Developing a scalable method, for example, based on uncertainty quantification or target coverage properties, remains an open problem for future work. 
+
+# 4 Benchmarking 
+
+Linear Regression. We evaluate the proposed method under a controlled simulation setting with heteroscedastic measurement error in both covariates and responses, where latent covariates are drawn from a Gaussian mixture distribution, intrinsic scatter is Gaussian, and measurement error with heteroscedastic Gaussian, Laplace, and Iniform noises. A detailed description of the data-generating process, observation model, and inference procedures is provided in Appendix G. We compare against a range of standard errors-in-variables baselines, including LinMix [ 47 ], Deming regression [ 48 ], BCES [ 49 ], ODR [ 50 ], SIMEX [ 51 ], and ordinary least squares ( OLS ), covering both hierarchical Bayesian, likelihood-based, and classical correction methods. 
+
+Figure 1: Performance comparison under Gaussian intrinsic noise. Top row: distribution of estimation error (posterior or estimator mean minus ground truth) for α, β, and σ2 across 500 independent realizations. Bottom row: empirical coverage of nominal 90% uncertainty intervals. The proposed method ( OASIS ) achieves low bias and near-nominal coverage across parameters, while classical errors-in-variables methods exhibit increased bias and miscalibration under heteroscedastic measurement noise. Full experimental details are provided in Appendix G. Figures 1 and 6 summarize performance over repeated realizations in terms of bias and 90% interval coverage for Gaussian, Laplace, and Uniform measurement errors. The proposed method achieves consistently low bias for both α
+
+and β, while maintaining well-calibrated uncertainty estimates with coverage close to the nominal level. In contrast, classical estimators exhibit varying degrees of bias and miscalibration, particularly under heteroscedastic noise and non-Gaussian covariate structure. Notably, BCES and OLS are highly biased and have poor coverage, while SIMEX and Deming provide partial correction but remain sensitive to noise magnitude and distributional assumptions. LinMix performs competitively when its Gaussian assumptions are satisfied, but shows increased bias in the intrinsic scatter parameter. Overall, these results highlight the robustness of the proposed approach to observational distortions and measurement error distributional assumptions, as it operates directly on observed-data distributions rather than relying on explicit likelihood assumptions. We note that τ is not tuned in any experiment; we use the heuristic discussed earlier, though with tuning, we expect to see even better results. 
+
+Cluster-cosmology Application. We evaluate OASIS on a synthetic multi-wavelength cluster-cosmology benchmark designed to capture the main statistical difficulties of cluster abundance analyses while keeping the inference problem controlled. The simulated cluster survey contains approximately 1,700 clusters over 200 deg 2 and z ∈ [0 .1, 1.0] ,with cosmological parameters restricted to θ = (Ω mh2, σ 8). Halo abundances are generated from the M IRA TITAN 
+
+emulator [ 52 , 53 ], and the true cluster population is modeled through multivariate log-linear scaling relations for optical richness, SZe signal-to-noise, weak-lensing mass, and X-ray count rate, including intrinsic scatter and cross-observable 7OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Figure 2: Posterior comparison for a representative realization. Contours show the 68% and 90% credible regions for 
+
+OASIS , NPE, and NLE; the black star marks the true input cosmology. correlations [ 54 , 55 ]. The observation model includes richness-dependent projection scatter [ 56 ], SZe selection [ 57 ], mass-dependent weak-lensing bias and scatter [ 58 ], and log-normal X-ray count-rate noise. Selection is modeled through threshold cuts for optical, SZe, and weak-lensing observables, and through a redshift-dependent logistic selection function for X-ray detections. Partial survey overlap is allowed, so missing observables arise from footprint coverage, while non-detections within a footprint are treated as censored data. Full details of the data-generating process are given in Appendix H. For inference, OASIS draws 2,000 parameter proposals from flat priors Ωmh2 ∈ [0 .12 , 0.155] and σ8 ∈ [0 .70 , 0.90] .Each proposal is scored by the squared MMD between observed and simulated five-dimensional observable distributions 
+
+(z, ln λ, ξ, ln M, ln CR) using an isotropic RBF kernel with median-heuristic bandwidth. We set τ = 10ˆ τ , where ˆτ is defined in Section 2. We compare against Neural Posterior Estimation ( NPE ) and Neural Likelihood Estimation ( NLE )from the sbi library [ 59 ], each trained on 5000 simulations using a 50-dimensional hand-designed summary statistic. Performance is evaluated over 50 independent realizations with true cosmologies drawn from the prior. Figure 2 shows that all methods primarily constrain σ8, while Ωmh2 remains weakly identified, as expected for cluster abundance in this mass and redshift range. OASIS contains the true parameter values within its 68% credible contour and agrees broadly with the neural methods along the constrained σ8 direction, while maintaining a more conservative contour in Ωmh2. Across 50 realizations, Figure 3 shows that OASIS has negligible mean bias, with 
+
+∆Ω mh2 = −0.004 and ∆σ8 = 0 .001 , and achieves empirical 90% coverage of 82% for Ωmh2 and 98% for σ8.NPE and NLE have similarly small bias but lower coverage, indicating overconfident posterior uncertainty rather than systematic displacement. These results suggest that direct distributional comparison with MMD can potentially provide better-calibrated uncertainty quantification in this benchmark without requiring summary-statistic engineering or amortized neural training. We emphasize that this comparison is not intended to optimize every source of cosmological information available in the simulated survey. NPE and NLE can benefit from hand-crafted summary statistics that explicitly encode both the shape and amplitude of the halo mass function, including cluster-count features [ 60 ]. By contrast, the present OASIS 
+
+implementation compares normalized observable distributions and therefore uses primarily shape information in the induced cluster population, rather than the full abundance normalization. Some information loss is therefore expected, particularly for Ωmh2, whose posterior intervals may be inflated relative to methods that directly use abundance information (see Appendix I for full argument). The purpose of this experiment is instead to show that OASIS can 8OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Figure 3: Top row: distribution of posterior-mean estimation error across 50 independent realizations for Ωmh2 and σ8.
+
+Bottom row: empirical 90% credible interval coverage with Wilson-score confidence intervals; the dashed line marks nominal 90% coverage. handle the full complexity of a realistic multi-wavelength cluster-cosmology analysis, including observational noise, correlated observables, and survey selection effects, while still delivering competitive and well-calibrated constraints even under a deliberately suboptimal information representation. 
+
+# 5 Conclusion 
+
+OASIS provides an observation-aware framework for simulation-based inference in scientific problems where the relevant comparison is between observed data and forward-simulated observations, rather than between data and idealized latent simulator outputs. By embedding measurement error, selection effects, and survey-specific transformations directly into the simulation loop, and by replacing handcrafted summaries with an MMD-based distributional discrepancy, OASIS 
+
+offers a flexible pseudo-posterior construction with theoretical consistency guarantees and empirically well-calibrated uncertainty. The experiments show that this approach is robust in controlled errors-in-variables settings and remains competitive in a realistic multi-wavelength cluster-cosmology benchmark involving correlated observables, incomplete coverage, and selection effects. More broadly, the results suggest that distributional matching with explicit observational modeling can serve as a practical alternative to summary-based or neural SBI methods when likelihoods are unavailable, observational pipelines are complex, and calibrated uncertainty is more important than aggressive compression or amortized inference. Future work should focus on principled temperature calibration, scalable kernel approximations, and extensions that incorporate count or abundance information directly into the discrepancy, thereby improving efficiency while preserving the observation-aware structure of the method. 
+
+Limitations. The proposed framework relies on the availability of a known or accurately quantifiable observation model, which may be restrictive in settings where measurement processes are poorly understood or only partially specified. While the method avoids explicit likelihood evaluation, it incurs nontrivial computational cost due to repeated forward simulations and pairwise kernel evaluations, which can scale quadratically with sample size and simulation budget. The theoretical guarantees rely on correct specification and identifiability of the observed-data mapping; under model misspecification or observational non-identifiability, the method may concentrate on a set of observationally 9OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching equivalent parameters rather than a unique ground truth. Performance is also sensitive to the choice of kernel and its hyperparameters, which govern the geometry of distributional comparison and may affect identifiability in practice. Although MMD provides a powerful distributional metric, it may have reduced sensitivity to certain high-frequency discrepancies or structured differences in high-dimensional settings without careful kernel design. The generalization to multinomial data requires careful consideration and is an interesting avenue for further investigation [61]. 
+
+# Acknowledgment 
+
+This work was supported by the NSF under Cooperative Agreement 2421782, and the Simons Foundation grant MPS-AI-00010515 awarded to the NSF-Simons AI Institute for Cosmic Origins (CosmicAI, https://www.cosmicai.org/ ). 
+
+# References 
+
+[1] George Em Karniadakis, Ioannis G Kevrekidis, Lu Lu, Paris Perdikaris, Sifan Wang, and Liu Yang. Physics-informed machine learning. Nature Reviews Physics , 3(6):422–440, 2021. [2] Raymond J Carroll, David Ruppert, Leonard A Stefanski, and Ciprian M Crainiceanu. Measurement error in nonlinear models: a modern perspective . Chapman and Hall/CRC, 2006. [3] Wayne A Fuller. Measurement error models . John Wiley & Sons, 2009. [4] Kyle Cranmer, Johann Brehmer, and Gilles Louppe. The frontier of simulation-based inference. Proceedings of the National Academy of Sciences , 117(48):30055–30062, 2020. [5] Mark A Beaumont, Wenyang Zhang, and David J Balding. Approximate bayesian computation in population genetics. Genetics , 162(4):2025–2035, 2002. [6] Scott A Sisson, Yanan Fan, and Mark Beaumont. Handbook of approximate Bayesian computation . CRC press, 2018. [7] George Papamakarios, David Sterratt, and Iain Murray. Sequential neural likelihood: Fast likelihood-free inference with autoregressive flows. In The 22nd international conference on artificial intelligence and statistics , pages 837–848. PMLR, 2019. [8] Kenji Fukumizu, Le Song, and Arthur Gretton. Kernel bayes’ rule. Advances in neural information processing systems , 24, 2011. [9] Mijung Park, Wittawat Jitkrittum, and Dino Sejdinovic. K2-abc: Approximate bayesian computation with kernel embeddings. In Artificial intelligence and statistics , pages 398–407. PMLR, 2016. [10] Kyle Cranmer, Juan Pavez, and Gilles Louppe. Approximating likelihood ratios with calibrated discriminative classifiers. arXiv preprint arXiv:1506.02169 , 2015. [11] George Papamakarios and Iain Murray. Fast ε-free inference of simulation models with bayesian conditional density estimation. Advances in neural information processing systems , 29, 2016. [12] Jan-Matthis Lueckmann, Giacomo Bassetto, Theofanis Karaletsos, and Jakob H Macke. Likelihood-free inference with emulator networks. In Symposium on advances in approximate Bayesian inference , pages 32–53. PMLR, 2019. [13] Joeri Hermans, Volodimir Begy, and Gilles Louppe. Likelihood-free mcmc with amortized approximate ratio estimators. In International conference on machine learning , pages 4239–4248. PMLR, 2020. [14] Andrew Zammit-Mangion, Matthew Sainsbury-Dale, and Raphaël Huser. Neural methods for amortized inference. 
+
+Annual Review of Statistics and Its Application , 12(1):311–335, 2025. [15] Joeri Hermans, Arnaud Delaunoy, François Rozet, Antoine Wehenkel, Volodimir Begy, and Gilles Louppe. A crisis in simulation-based inference? beware, your posterior approximations can be unfaithful. Transactions on Machine Learning Research , 2022. [16] Arthur Gretton, Karsten Borgwardt, Malte Rasch, Bernhard Schölkopf, and Alex Smola. A kernel method for the two-sample-problem. Advances in neural information processing systems , 19, 2006. [17] Ritwik Vashistha, Jeff M Phillips, Abhra Sarkar, and Arya Farahi. Convolutional maximum mean discrepancy for inference in noisy data. arXiv preprint arXiv:2604.12022 , 2026. [18] Stuart Geman and Donald Geman. Stochastic relaxation, gibbs distributions, and the bayesian restoration of images. IEEE Transactions on pattern analysis and machine intelligence , (6):721–741, 1984. 10 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching [19] Wenxin Jiang and Martin A Tanner. Gibbs posterior for variable selection in high-dimensional classification and data mining. The Annals of Statistics , pages 2207–2231, 2008. [20] Pier Giovanni Bissiri, Chris C Holmes, and Stephen G Walker. A general framework for updating belief distributions. Journal of the Royal Statistical Society Series B: Statistical Methodology , 78(5):1103–1130, 2016. [21] Arya Farahi, Jonah Rose, and Paul Torrey. Simulation-based inference via regression projection and batched discrepancies. arXiv preprint arXiv:2602.03613 , 2026. [22] Steven W Allen, August E Evrard, and Adam B Mantz. Cosmological parameters from observations of galaxy clusters. Annual Review of Astronomy and Astrophysics , 49(1):409–470, 2011. [23] Gejza Wimmer, Viktor Witkovsk `y, and Tomas Duby. Proper rounding of the measurement results under normality assumptions. Measurement Science and Technology , 11:1659, 2000. [24] OL Creevey, F Thévenin, S Basu, WJ Chaplin, L Bigot, Y Elsworth, D Huber, MJPFG Monteiro, and A Serenelli. A large sample of calibration stars for Gaia: log g from Kepler and CoRoT fields. Monthly Notices of the Royal Astronomical Society , 431:2419–2432, 2013. [25] Yang Chen, Xiao-Li Meng, Xufei Wang, David A van Dyk, Herman L Marshall, and Vinay L Kashyap. Calibration concordance for astronomical instruments via multiplicative shrinkage. Journal of the American Statistical Association , 114(527):1018–1037, 2019. [26] Henry W Leung and Jo Bovy. Simultaneous calibration of spectro-photometric distances and the gaia dr2 parallax zero-point offset with deep learning. Monthly Notices of the Royal Astronomical Society , 489:2079–2096, 2019. [27] Michael A Kuhn, Lynne A Hillenbrand, Alison Sills, Eric D Feigelson, and Konstantin V Getman. Kinematics in young star clusters and associations with gaia dr2. The Astrophysical Journal , 870:32, 2019. [28] Amanda K Glazer, Layla Parast, and Mevin B Hooten. Beyond the yard line: Accommodating rounded sports data in statistical models. The American Statistician , pages 1–10, 2026. [29] Arthur Gretton, Karsten M Borgwardt, Malte J Rasch, Bernhard Schölkopf, and Alexander Smola. A kernel two-sample test. The journal of machine learning research , 13(1):723–773, 2012. [30] Jeffrey W Miller. Asymptotic normality, concentration, and coverage of generalized posteriors. Journal of Machine Learning Research , 22(168):1–53, 2021. [31] Jeffrey W Miller and David B Dunson. Robust bayesian inference via coarsening. Journal of the American Statistical Association , 2019. [32] Chris C Holmes and Stephen G Walker. Assigning a value to a power likelihood in a general bayesian model. 
+
+Biometrika , 104(2):497–503, 2017. [33] Ryan Martin and Nicholas Syring. Direct gibbs posterior inference on risk minimizers: Construction, concentration, and calibration. In Handbook of Statistics , volume 47, pages 1–41. Elsevier, 2022. [34] David T Frazier, Gael M Martin, Christian P Robert, and Judith Rousseau. Asymptotic properties of approximate bayesian computation. Biometrika , 105(3):593–607, 2018. [35] Simon N Wood. Statistical inference for noisy nonlinear ecological dynamic systems. Nature , 466(7310):1102– 1104, 2010. [36] Leah F Price, Christopher C Drovandi, Anthony Lee, and David J Nott. Bayesian synthetic likelihood. Journal of Computational and Graphical Statistics , 27(1):1–11, 2018. [37] Christopher C Drovandi, Anthony N Pettitt, and Anthony Lee. Bayesian indirect inference using a parametric auxiliary model. Statistical Science , 30(1):72–95, 2015. [38] Christopher C Drovandi. Abc and indirect inference. In Handbook of Approximate Bayesian Computation , pages 179–209. Chapman and Hall/CRC, 2018. [39] Badr-Eddine Chérief-Abdellatif and Pierre Alquier. Mmd-bayes: Robust bayesian estimation via maximum mean discrepancy. In Symposium on Advances in Approximate Bayesian Inference , pages 1–21. PMLR, 2020. [40] Espen Bernton, Pierre E Jacob, Mathieu Gerber, and Christian P Robert. Approximate bayesian computation with the wasserstein distance. Journal of the Royal Statistical Society Series B: Statistical Methodology , 81(2):235–269, 2019. [41] Kimia Nadjahi, Valentin De Bortoli, Alain Durmus, Roland Badeau, and Umut ¸ Sim¸ sekli. Approximate bayesian computation with the sliced-wasserstein distance. In ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 5470–5474. IEEE, 2020. 11 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching [42] Anirban Chatterjee, Ziang Niu, and Bhaswar B Bhattacharya. A kernel-based conditional two-sample test using nearest neighbors (with applications to calibration, regression curves, and simulation-based inference). arXiv preprint arXiv:2407.16550 , 2024. [43] Aad W Van der Vaart. Asymptotic statistics , volume 3. Cambridge university press, 2000. [44] Kevin McGoff, Sayan Mukherjee, and Andrew B Nobel. Gibbs posterior convergence and the thermodynamic formalism. The Annals of Applied Probability , 32(1):461–496, 2022. [45] Artur O Lopes, Silvia RC Lopes, and Paulo Varandas. Bayes posterior convergence for loss functions via almost additive thermodynamic formalism. Journal of Statistical Physics , 186(3):35, 2022. [46] Stephen G Walker. Modern bayesian asymptotics. Statistical Science , pages 111–117, 2004. [47] Brandon C Kelly. Some aspects of measurement error in linear regression of astronomical data. The Astrophysical Journal , 665(2):1489–1506, 2007. [48] William Edwards Deming. Statistical adjustment of data. 1943. [49] Michael G Akritas and Matthew A Bershady. Linear regression for astronomical data with measurement errors and intrinsic scatter. Astrophysical Journal , 470:706, 1996. [50] Paul T Boggs and Janet E Rogers. Orthogonal distance regression. Contemporary Mathematics , 112:183–194, 1990. [51] John R Cook and Leonard A Stefanski. Simulation-extrapolation estimation in parametric measurement error models. Journal of the American Statistical Association , 89:1314–1328, 1994. [52] Thomas McClintock, Eduardo Rozo, Matthew R Becker, Joseph DeRose, Yao-Yuan Mao, Sean McLaughlin, Jeremy L Tinker, Risa H Wechsler, and Zhongxu Zhai. The aemulus project. ii. emulating the halo mass function. 
+
+The Astrophysical Journal , 872(1):53, 2019. [53] Sebastian Bocquet, Katrin Heitmann, Salman Habib, Earl Lawrence, Thomas Uram, Nicholas Frontiere, Adrian Pope, and Hal Finkel. The mira-titan universe. iii. emulation of the halo mass function. The Astrophysical Journal ,901(1):5, 2020. [54] Sarah L Mulroy, Arya Farahi, August E Evrard, Graham P Smith, Alexis Finoguenov, Christine O’Donnell, Daniel P Marrone, Zubair Abdulla, Hervé Bourdin, John E Carlstrom, et al. Locuss: scaling relations between galaxy cluster mass, gas, and stellar content. Monthly Notices of the Royal Astronomical Society , 484(1):60–80, 2019. [55] Arya Farahi, Sarah L Mulroy, August E Evrard, Graham P Smith, Alexis Finoguenov, Hervé Bourdin, John E Carlstrom, Chris P Haines, Daniel P Marrone, Rossella Martino, et al. Detection of anti-correlation of hot and cold baryons in galaxy clusters. Nature Communications , 10(1):2504, 2019. [56] Hao-Yi Wu, Matteo Costanzi, Chun-Hao To, Andrés N Salcedo, David H Weinberg, James Annis, Sebastian Bocquet, Maria Elidaiana da Silva Pereira, Joseph DeRose, Johnny Esteves, et al. Optical selection bias and projection effects in stacked galaxy cluster weak lensing. Monthly Notices of the Royal Astronomical Society ,515(3):4471–4486, 2022. [57] S Bocquet, S Grandis, LE Bleem, M Klein, JJ Mohr, M Aguena, A Alarcon, S Allam, SW Allen, O Alves, et al. Spt clusters with des and hst weak lensing. i. cluster lensing and bayesian population modeling of multiwavelength cluster datasets. Physical Review D , 110(8):083509, 2024. [58] Sebastian Grandis, Sebastian Bocquet, Joseph J Mohr, Matthias Klein, and Klaus Dolag. Calibration of bias and scatter involved in cluster mass measurements using optical weak gravitational lensing. Monthly Notices of the Royal Astronomical Society , 507(4):5671–5689, 2021. [59] Alvaro Tejero-Cantero, Jan Boelts, Michael Deistler, Jan-Matthis Lueckmann, Conor Durkan, Pedro J Gonçalves, David S Greenberg, and Jakob H Macke. sbi: A toolkit for simulation-based inference. The Journal of Open Source Software , 5(52), 2020. [60] Matthew Ho, Deaglan J Bartlett, Nicolas Chartier, Carolina Cuesta-Lazaro, Simon Ding, Axel Lapel, Pablo Lemos, Christopher C Lovell, T Lucas Makinen, Chirag Modi, et al. Ltu-ili: An all-in-one framework for implicit inference in astrophysics and cosmology. The Open Journal of Astrophysics , 7, 2024. [61] Matthew D Koslovsky, Andee Kaplan, Victoria A Terranova, and Mevin B Hooten. A unified bayesian framework for modeling measurement error in multinomial data. Bayesian Analysis , 21(1):453–483, 2026. [62] AW vd Vaart. Asymptotic statistics. Cambridge series in statistical and probabilistic mathematics , 1998. 12 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching [63] Ryoma Murata, Takahiro Nishimichi, Masahiro Takada, Hironao Miyatake, Masato Shirasaki, Surhud More, Ryuichi Takahashi, and Ken Osato. Constraints on the Mass-Richness Relation from the Abundance and Weak Lensing of SDSS Clusters. The Astrophysical Journal , 854:120, February 2018. [64] J. Myles, D. Gruen, A. B. Mantz, S. W. Allen, R. G. Morris, E. Rykoff, M. Costanzi, C. To, J. DeRose, R. H. Wechsler, E. Rozo, T. Jeltema, E. R. Carrasco, A. Kremin, and R. Kron. Spectroscopic Quantification of Projection Effects in the SDSS redMaPPer Galaxy Cluster Catalogue. Monthly Notices of the Royal Astronomical Society ,505(1):33–44, May 2021. [65] J. Myles, D. Gruen, T. Jeltema, A. Mantz, S. Allen, S. Fu, A. Kremin, J. Aguilar, S. Ahlen, D. Bianchi, D. Brooks, F. J. Castander, T. Claybaugh, A. de la Macorra, Arjun Dey, P. Doel, S. Ferraro, J. E. Forero-Romero, E. Gaztañaga, S. Gontcho A Gontcho, G. Gutierrez, K. Honscheid, M. Ishak, R. Kehoe, D. Kirkby, T. Kisner, O. Lahav, M. Landriau, L. Le Guillou, M. Manera, A. Meisner, R. Miquel, J. Moustakas, S. Nadathur, J. A. Newman, N. Palanque-Delabrouille, F. Prada, I. Pérez-Ràfols, G. Rossi, E. Sanchez, D. Schlegel, M. Schubnell, J. Silber, D. Sprayberry, G. Tarlé, B. A. Weaver, and R. Zhou. Spectroscopic Characterization of redMaPPer Galaxy Clusters with DESI. Monthly Notices of the Royal Astronomical Society , 544:2080–2097, December 2025. [66] Y. Zhang, T. Jeltema, D. L. Hollowood, S. Everett, E. Rozo, A. Farahi, A. Bermeo, S. Bhargava, P. Giles, A. K. Romer, R. Wilkinson, E. S. Rykoff, A. Mantz, H. T. Diehl, A. E. Evrard, C. Stern, D. Gruen, A. von der Linden, M. Splettstoesser, X. Chen, M. Costanzi, S. Allen, C. Collins, M. Hilton, M. Klein, R. G. Mann, M. Manolopoulou, G. Morris, J. Mayers, M. Sahlen, J. Stott, C. Vergara Cervantes, P. T. P. Viana, R. H. Wechsler, S. Allam, S. Avila, K. Bechtol, E. Bertin, D. Brooks, D. L. Burke, A. Carnero Rosell, M. Carrasco Kind, J. Carretero, F. J. Castander, L. N. da Costa, J. De Vicente, S. Desai, J. P. Dietrich, P. Doel, B. Flaugher, P. Fosalba, J. Frieman, J. García-Bellido, E. Gaztanaga, R. A. Gruendl, J. Gschwend, G. Gutierrez, W. G. Hartley, K. Honscheid, B. Hoyle, E. Krause, K. Kuehn, N. Kuropatkin, M. Lima, M. A. G. Maia, J. L. Marshall, P. Melchior, F. Menanteau, C. J. Miller, R. Miquel, R. L. C. Ogando, A. A. Plazas, E. Sanchez, V. Scarpine, R. Schindler, S. Serrano, I. Sevilla-Noarbe, M. Smith, M. Soares-Santos, E. Suchyta, M. E. C. Swanson, G. Tarle, D. Thomas, D. L. Tucker, V. Vikram, W. Wester, and DES Collaboration. Dark Energy Surveyed Year 1 results: Calibration of cluster mis-centring in the redMaPPer catalogues. Monthly Notices of the Royal Astronomical Society , 487:2578–2593, August 2019. [67] P. Kelly, J. Jobel, O. Eiger, A. Abd, T. E. Jeltema, P. Giles, D. L. Hollowood, R. D. Wilkinson, D. J. Turner, S. Bhargava, S. Everett, A. Farahi, A. K. Romer, E. S. Rykoff, F. Wang, S. Bocquet, D. Cross, R. Faridjoo, J. Franco, G. Gardner, M. Kwiecien, D. Laubner, A. McDaniel, J. H. O’Donnell, L. Sanchez, E. Schmidt, S. Sripada, A. Swart, E. Upsdell, A. Webber, M. Aguena, S. Allam, O. Alves, D. Bacon, D. Brooks, D. L. Burke, A. Carnero Rosell, J. Carretero, C. A. Collins, M. Costanzi, L. N. da Costa, M. E. S. Pereira, T. M. Davis, P. Doel, I. Ferrero, J. Frieman, J. García-Bellido, G. Giannini, D. Gruen, R. A. Gruendl, M. Hilton, S. R. Hinton, K. Honscheid, D. J. James, K. Kuehn, R. G. Mann, J. L. Marshall, J. Mena-Fernández, C. J. Miller, R. Miquel, J. Myles, A. Palmese, A. Pieres, A. A. Plazas Malagón, P. J. Rooney, M. Sahlen, E. Sanchez, D. Sanchez Cid, M. Schubnell, I. Sevilla-Noarbe, M. Smith, J. P. Stott, E. Suchyta, M. E. C. Swanson, G. Tarle, C. To, P. T. P. Viana, N. Weaverdyck, and P. Wiseman. Dark Energy Survey Year 3 Results: Mis-centering calibration and X-ray-richness scaling relations in redMaPPer clusters, October 2023. [68] T. N. Varga, J. DeRose, D. Gruen, T. McClintock, S. Seitz, E. Rozo, M. Costanzi, B. Hoyle, N. MacCrann, A. A. Plazas, E. S. Rykoff, M. Simet, A. von der Linden, R. H. Wechsler, J. Annis, S. Avila, E. Bertin, D. Brooks, E. Buckley-Geer, D. L. Burke, A. Carnero Rosell, M. Carrasco Kind, J. Carretero, C. E. Cunha, C. B. D’Andrea, L. N. da Costa, J. De Vicente, S. Desai, H. T. Diehl, J. P. Dietrich, P. Doel, A. E. Evrard, B. Flaugher, P. Fosalba, J. Frieman, J. García-Bellido, E. Gaztanaga, D. W. Gerdes, R. A. Gruendl, J. Gschwend, G. Gutierrez, W. G. Hartley, D. L. Hollowood, K. Honscheid, D. J. James, T. Jeltema, K. Kuehn, N. Kuropatkin, M. Lima, M. A. G. Maia, M. March, J. L. Marshall, P. Melchior, F. Menanteau, C. J. Miller, R. Miquel, R. L. C. Ogando, A. K. Romer, E. Sanchez, V. Scarpine, M. Schubnell, S. Serrano, I. Sevilla-Noarbe, M. Smith, F. Sobreira, E. Suchyta, M. E. C. Swanson, G. Tarle, D. Thomas, D. L. Tucker, Y. Zhang, and DES Collaboration. Dark Energy Survey Year 1 results: Validation of weak lensing cluster member contamination estimates from P(z) decomposition. Monthly Notices of the Royal Astronomical Society , 489:2511–2524, October 2019. [69] J. S. Sanders, A. C. Fabian, H. R. Russell, and S. A. Walker. Hydrostatic Chandra X-ray analysis of SPT-selected galaxy clusters - I. Evolution of profiles and core properties. Monthly Notices of the Royal Astronomical Society ,474:1065–1098, February 2018. [70] E. Bulbul, A. Liu, M. Kluge, X. Zhang, J. S. Sanders, Y. E. Bahar, V. Ghirardini, E. Artis, R. Seppi, C. Garrel, M. E. Ramos-Ceja, J. Comparat, F. Balzer, K. Böckmann, M. Brüggen, N. Clerc, K. Dennerl, K. Dolag, M. Freyberg, S. Grandis, D. Gruen, F. Kleinebreil, S. Krippendorf, G. Lamer, A. Merloni, K. Migkas, K. Nandra, F. Pacaud, P. Predehl, T. H. Reiprich, T. Schrabback, A. Veronica, J. Weller, and S. Zelmer. The SRG/eROSITA All-Sky Survey. The first catalog of galaxy clusters and groups in the Western Galactic Hemisphere. Astronomy and Astrophysics , 685:A106, May 2024. 13 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching [71] Sebastian Bocquet, Katrin Heitmann, Salman Habib, Earl Lawrence, Thomas Uram, Nicholas Frontiere, Adrian Pope, and Hal Finkel. The Mira-Titan Universe. III. Emulation of the Halo Mass Function. The Astrophysical Journal , 901:5, September 2020. 
+
+# A Assumptions 
+
+Here, we state all the regularity conditions used throughout this work. 
+
+Assumption A.1 (Parameter space and prior) . The parameter space Θ ⊂ Rp is compact. The prior density p(θ) is continuous on Θ and strictly positive on Θ.Assumption A.1 guarantees existence of minimizers of the population discrepancy and rules out trivial failures of posterior concentration caused by a prior that excludes the target region. 
+
+Assumption A.2 (Kernel regularity) . The kernel k : Rd × Rd → R is bounded, continuous, and positive definite. Write 
+
+∥k∥∞ := sup 
+
+> y,y ′∈Rd
+
+|k(y, y ′)| < ∞. (20) Moreover, k is characteristic. Boundedness guarantees that MMD is well-defined for all probability measures on Rd, while characteristicness ensures that the population discrepancy vanishes only when the corresponding distributions coincide. 
+
+Assumption A.3. The map θ 7 → P obs  
+
+> θ
+
+is weakly continuous on Θ. Equivalently, for every bounded continuous function 
+
+f : Rd → R, the map 
+
+θ 7 −→ 
+
+Z
+
+f (y) P obs  
+
+> θ
+
+(dy ) (21) is continuous. This assumption is natural for simulators whose latent generative law and observation operator vary continuously with the physical parameters. It implies continuity of the kernel mean embedding and hence continuity of the MMD loss itself. 
+
+Assumption A.4. As n, M → ∞ ,
+
+sup 
+
+> θ∈Θ
+
+∆n,M (θ) − ∆( θ) P
+
+−→ 0. (22) Assumption A.4 is the key stochastic approximation condition. It can be verified under standard empirical-process conditions for bounded kernels and a sufficiently regular simulator family. In the present exposition we state it explicitly, since it isolates the statistical content needed for the pseudo-posterior arguments from the details of the simulator implementation. 
+
+Assumption A.5. Define the MMD-identified set 
+
+Θ† := arg min  
+
+> θ∈Θ
+
+∆( θ). (23) This set is nonempty, and for every open neighborhood U ⊃ Θ† there exists a separation constant η(U ) > 0 such that 
+
+inf  
+
+> θ / ∈U
+
+∆( θ) ≥ inf  
+
+> ϑ∈Θ
+
+∆( ϑ) + η(U ). (24) Assumption A.5 is a standard gap condition. Since Θ is compact and ∆ is continuous, the identified set is nonempty; the additional statement simply requires strict separation of points outside any neighborhood of the minimizer set. 
+
+Assumption A.6. Let τ = τn,M > 0 satisfy τn,M ↓ 0 and 
+
+sup 
+
+> θ∈Θ
+
+∆n,M (θ) − ∆( θ) = oP (τ 2 
+
+> n,M
+
+). (25) Assumption A.6 strengthens Assumption A.4 in the regime where the temperature vanishes. It implies that the stochastic error in the empirical loss must be asymptotically negligible relative to the scale τ 2 
+
+> n,M
+
+appearing in the exponential weights. The justification for this assumption is provided in Appendix B. 
+
+Assumption A.7 (Correct specification) . There exists θ⋆ ∈ Θ such that 
+
+P obs  
+
+> θ⋆
+
+= Pobs . (26) 14 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+# B Justification of the Rate Assumption for Empirical MMD 
+
+Here, we provide a justification for Assumption A.6, namely that the empirical MMD discrepancy converges uniformly to its population counterpart at a rate sufficient to ensure 
+
+sup 
+
+> θ∈Θ
+
+∆n,M (θ) − ∆( θ) = oP (τ 2 
+
+> n,M
+
+). (27) We show that this condition follows from standard concentration results for bounded kernels together with mild regularity conditions on the simulator family, provided the temperature sequence τn,M is chosen appropriately. 
+
+B.1 Setup and decomposition 
+
+Recall that for each θ ∈ Θ,
+
+∆( θ) = MMD 2
+
+> k
+
+ Pobs , P obs 
+
+> θ
+
+, ∆n,M (θ) = MMD 2
+
+> k
+
+  bPobs , bP obs 
+
+> θ,M
+
+, (28) where bPobs is based on n observed samples and bP obs  
+
+> θ,M
+
+is based on M simulated samples. Using the expansion of squared MMD, we may write 
+
+∆( θ) = E[k(Y, Y ′)] + E[k(Zθ , Z ′ 
+
+> θ
+
+)] − 2E[k(Y, Z θ )] , (29) 
+
+∆n,M (θ) = 1
+
+n(n − 1) 
+
+X
+
+> i̸=i′
+
+k(Yi, Y i′ ) + 1
+
+M (M − 1) 
+
+X
+
+> m̸=m′
+
+k(Zθ,m , Z θ,m ′ ) − 2
+
+nM 
+
+X
+
+> i,m
+
+k(Yi, Z θ,m ). (30) Thus, 
+
+∆n,M (θ) − ∆( θ) = An + BM (θ) + Cn,M (θ), (31) where: 
+
+An = error in the observed-observed term , (32) 
+
+BM (θ) = error in the simulated-simulated term , (33) 
+
+Cn,M (θ) = error in the cross term . (34) We now control each term uniformly in θ.
+
+Assumption B.1 (Uniform Lipschitz regularity) . There exists L > 0 such that for all θ, θ ′ ∈ Θ,
+
+sup 
+
+> y∈Rd
+
+EZ∼P obs  
+
+> θ
+
+k(y, Z ) − EZ∼P obs  
+
+> θ′
+
+k(y, Z ) ≤ L∥θ − θ′∥. (35) This assumption ensures that the class of functions indexed by θ has controlled complexity. We begin with pointwise bounds. 
+
+Lemma B.2. For each fixed θ,
+
+|∆n,M (θ) − ∆( θ)| = OP
+
+
+
+n−1/2 + M −1/2
+
+. (36) 
+
+Proof. Each term in (31) is an average of bounded random variables. For the observed-observed term An, standard U-statistic concentration for bounded kernels yields 
+
+|An| = OP (n−1/2). (37) Similarly, for the simulated term BM (θ),
+
+|BM (θ)| = OP (M −1/2). (38) For the cross term Cn,M (θ), which is an average of nM bounded terms, 
+
+|Cn,M (θ)| = OP (n−1/2 + M −1/2). (39) Combining these bounds yields the result. 15 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching For a similar result, see Theorem 10 in [29]. We now extend the pointwise bound to a uniform bound over Θ.
+
+Lemma B.3. Under Assumptions A.1, A.2, A.3 and B.1, 
+
+sup 
+
+> θ∈Θ
+
+|∆n,M (θ) − ∆( θ)| = OP
+
+
+
+n−1/2 + M −1/2
+
+. (40) 
+
+Proof. Since Θ is compact, for any ε > 0 there exists a finite ε-net {θ1, . . . , θ N } covering Θ, with N ≲ ε−p.By the pointwise bound (Lemma B.2), 
+
+max  
+
+> 1≤j≤N
+
+|∆n,M (θj ) − ∆( θj )| = OP (n−1/2 + M −1/2). (41) Now for any θ, choose θj such that ∥θ − θj ∥ ≤ ε. Using the Lipschitz assumption and boundedness of the kernel expectations, one can show 
+
+|∆n,M (θ) − ∆n,M (θj )| ≤ Cε and |∆( θ) − ∆( θj )| ≤ Cε (42) for some constant C.Therefore, 
+
+|∆n,M (θ) − ∆( θ)| ≤ | ∆n,M (θj ) − ∆( θj )| + 2 Cε. (43) Taking the supremum over θ ∈ Θ and then letting ε → 0 yields 
+
+sup 
+
+> θ∈Θ
+
+|∆n,M (θ) − ∆( θ)| = OP (n−1/2 + M −1/2). (44) We now connect the uniform rate to Assumption A.6. 
+
+Theorem B.4. Suppose Assumptions A.1, A.2, A.3 and B.1 hold. If the temperature sequence τn,M satisfies 
+
+n−1/2 + M −1/2 = o(τ 2 
+
+> n,M
+
+), (45) 
+
+then 
+
+sup 
+
+> θ∈Θ
+
+|∆n,M (θ) − ∆( θ)| = oP (τ 2 
+
+> n,M
+
+). (46) 
+
+Proof. By Lemma B.3, 
+
+sup 
+
+> θ∈Θ
+
+|∆n,M (θ) − ∆( θ)| = OP (n−1/2 + M −1/2). (47) Let an,M = n−1/2 + M −1/2. Then 
+
+sup θ |∆n,M (θ) − ∆( θ)|
+
+τ 2
+
+> n,M
+
+= OP
+
+an,M 
+
+τ 2
+
+> n,M
+
+!
+
+. (48) Under condition (45), an,M /τ 2 
+
+> n,M
+
+→ 0 [see Section 2.2 of 62], hence 
+
+sup θ |∆n,M (θ) − ∆( θ)|
+
+τ 2
+
+> n,M P
+
+−→ 0, (49) which proves the result. Theorem B.4 shows that Assumption A.6 is not a primitive requirement but follows from two components. First, a uniform stochastic rate for empirical MMD, which is a consequence of bounded kernels and regularity of the simulator family, and second, a calibration condition on the temperature sequence τn,M .We note that no deterministic boundedness of ∆n,M is required. The empirical MMD estimator may exhibit large deviations with small probability, but as long as these deviations are controlled at the OP (n−1/2 + M −1/2) scale, they are asymptotically negligible relative to τ 2 
+
+> n,M
+
+under condition (45) . This is sufficient for the posterior concentration results established in Section 3. 16 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Algorithm 1 OASIS : MMD-based Simulation-Based Inference with Observational Modeling 
+
+Require: Observed data Dobs = {yobs  
+
+> i
+
+}ni=1 , prior p(θ), simulator P true  
+
+> θ
+
+, observation model P Err  
+
+> θ
+
+, kernel k, number of particles nθ , simulation budget M , temperature τ
+
+Ensure: Weighted sample {(θj , w j )}nθ 
+
+> j=1
+
+approximating πτ (θ) 
+
+> 1:
+
+Compute empirical measure bPobs = 1
+
+> n
+
+Pni=1 δyobs  
+
+> i
+> 2:
+
+for j = 1 to nθ do  
+
+> 3:
+
+Draw θj ∼ p(θ) 
+
+> 4:
+
+for m = 1 to M do  
+
+> 5:
+
+Draw utrue  
+
+> j,m
+
+∼ P true  
+
+> θj
+> 6:
+
+Draw ysim ,obs  
+
+> j,m
+
+∼ P Err  
+
+> θj
+
+(· | utrue  
+
+> j,m
+
+) 
+
+> 7:
+
+end for  
+
+> 8:
+
+Compute discrepancy 
+
+∆n,M (θj ) = MMD 2
+
+> k
+
+ bPobs , bP sim ,obs  
+
+> θj,M
+
+ 
+
+> 9:
+
+Set unnormalized weight 
+
+ewj = exp 
+
+
+
+− ∆n,M (θj )2τ 2
+
+ 
+
+> 10:
+
+end for  
+
+> 11:
+
+Normalize weights 
+
+wj = ewj
+
+Pnθ 
+
+> k=1
+
+ewk 
+
+> 12:
+
+return {(θj , w j )}nθ
+
+> j=1
+
+# C OASIS Algorithm 
+
+Algorithm 1 implements a likelihood-free inference procedure based on distributional comparison between observed data and forward simulations. The key feature is the explicit two-stage simulation: latent samples are first drawn from the mechanistic simulator and are subsequently propagated through the observation model. This produces synthetic datasets that are directly comparable to the observed data at the level of the observed-data law. The discrepancy between observed and simulated datasets is quantified using MMD, which operates on empirical measures and avoids the need for handcrafted summary statistics. The resulting loss ∆n,M (θ) is stochastic due to the finite simulation budget M , inducing a pseudo-posterior indexed by both M and the temperature parameter τ . Larger values of M reduce Monte Carlo variability in the loss, while τ controls the concentration of the posterior around minimizers of the population discrepancy. The algorithm can be interpreted as a particle-based approximation to a Gibbs-type posterior defined through a distributional loss. It is straightforward to parallelize across particles and simulation draws, and can be combined with adaptive proposals or sequential schemes to improve efficiency. In practice, the computational cost is dominated by simulator evaluations and scales as O(nθ M ).
+
+# D Temperature Selection 
+
+The temperature parameter τ controls the concentration of the pseudo-posterior 
+
+πτ (dθ ) ∝ p(θ) exp {− ∆( θ)/(2 τ 2)}dθ, 
+
+and therefore governs the trade-off between fidelity to the data and robustness to Monte Carlo variability. Small values of τ concentrate mass near minimizers of the discrepancy ∆( θ), while larger values yield a more diffuse posterior that accounts for uncertainty induced by finite sample size and simulation noise. 
+
+Heuristic calibration. In practice, we select τ adaptively based on the empirical scale of the discrepancy across parameter draws. Given a set of particles {θj }nθ 
+
+> j=1
+
+and their associated empirical losses {∆n,M (θj )}, and assuming 
+
+n ≈ M in our experiments, we set 
+
+τ =
+
+q
+
+2 median  {∆n,M (θj )} + ϵ
+
+√n , (50) 17 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching where n is the size of the observed dataset and ϵ > 0 is a small constant for numerical stability. This choice can be interpreted as calibrating τ to the typical scale of the discrepancy under the empirical distribution of parameter draws. The use of the median provides robustness to outliers and heavy-tailed behavior in ∆n,M (θ),which can arise from poorly fitting parameter values. The factor of 2 matches the scaling in the pseudo-likelihood 
+
+exp {− ∆/(2 τ 2)}, yielding weights of order exp( −1) for parameters whose discrepancy is close to the median. The normalization by √n reflects the fact that ∆n,M (θ) is computed from empirical measures based on n observations. Under standard empirical process considerations, discrepancies such as MMD scale as Op(n−1/2) around their population counterparts. Dividing by √n therefore aligns τ with the sampling variability of the empirical discrepancy, preventing under-concentration and over-concentration of the pseudo-posterior as the dataset size increases. From a statistical perspective, τ plays a role analogous to a noise scale or uncertainty parameter in likelihood-based inference. The proposed heuristic calibrates τ to reflect both (i) the intrinsic variability of the observed data through the 
+
+n−1/2 scaling, and (ii) the variability of the discrepancy across parameter values through the empirical distribution of 
+
+∆n,M (θ). As a result, parameters whose induced observed-data distributions are within the typical fluctuation scale of the empirical distribution receive non-negligible weight, while parameters with substantially larger discrepancies are exponentially downweighted. In our experiments, this heuristic produced stable posterior approximations across a range of simulation budgets and data regimes without additional tuning. We found the median-based rule to provide a simple, robust default that adapts automatically to the problem’s scale. Future work can study alternative strategies, such as cross-validation or ESS-based calibration in SMC, to optimize for τ . While our posteriors perform competitively compared to established methods, further performance improvements are expected under a more rigorous tuning strategy. 
+
+Sensitivity to the temperature parameter τ . The temperature parameter τ governs the concentration of the pseudo-posterior by controlling how strongly the discrepancy ∆( θ) influences the weights 
+
+w(θ) ∝ exp 
+
+
+
+− ∆( θ)2τ 2
+
+
+
+. (51) Small values of τ concentrate mass on a small set of low-discrepancy simulations, whereas large values flatten the weighting scheme and yield a more diffuse posterior. In this sense, τ directly controls a bias–variance tradeoff in the resulting inference procedure. This role closely mirrors temperature scaling in generalized Bayesian inference, where τ effectively rescales the loss function and, in turn, the implied likelihood. From this perspective, τ determines how aggressively the method treats the discrepancy as a surrogate likelihood, with smaller values corresponding to a sharper, more data-dominated posterior and larger values yielding a more conservative, prior-influenced distribution. In all experiments, we use the data-driven heuristic 
+
+τheuristic =
+
+p2 median {∆( θj )}√n ,
+
+which adapts to both the scale of the discrepancy and the sample size. This normalization allows the exponent in the pseudo-posterior to remain well-scaled as n grows and as the magnitude of ∆( θ) varies across problems, thereby avoiding degenerate regimes without requiring manual tuning. To study sensitivity to τ , we use the EIV experiment, a linear regression with measurement error in both the covariate and response variables, as discussed in Appendix G. Figure 4 shows the effect of varying τ over several orders of magnitude relative to this heuristic value. The top row reports posterior means for the intercept, slope, and intrinsic variance, while the bottom row shows empirical 90% coverage across repeated realizations. Several consistent patterns emerge. For very small τ (i.e., τ ≪ τheuristic ), the pseudo-posterior becomes overly concentrated. In this regime, the weighting scheme effectively selects a small number of simulations with minimal discrepancy, making the estimator highly sensitive to Monte Carlo variability. This leads to unstable point estimates and severe undercoverage, with empirical coverage near zero across all parameters. The behavior is analogous to a hard minimum-discrepancy estimator and reflects overfitting to simulation noise. As τ increases toward the heuristic scale, both estimation and calibration improve sharply. Around τ ≈ τheuristic , the posterior means stabilize and align closely with the ground truth, while empirical coverage rises rapidly toward the nominal 90% level. This transition is notably steep, indicating that the heuristic choice lies near a critical regime where the pseudo-posterior achieves a balance between concentration and dispersion. 18 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Figure 4: Sensitivity of the OASIS pseudo-posterior to the temperature parameter τ , shown relative to the heuristic choice τheuristic . Top row: posterior means for the intercept, slope, and intrinsic variance, with dashed lines indicating ground truth. Bottom row: empirical 90% coverage across repeated realizations. Small τ leads to overconcentration and severe undercoverage, while large τ yields diffuse posteriors with conservative coverage. The heuristic choice lies near the transition region where estimates stabilize, and coverage approaches the nominal level. For large τ (i.e., τ ≫ τheuristic ), the pseudo-posterior becomes increasingly diffuse. In this regime, the weights vary only weakly across parameter draws, so inference is effectively governed by the prior sampling distribution rather than the discrepancy. Consequently, coverage approaches or exceeds the nominal level (often becoming conservative), while point estimates may exhibit mild bias due to insufficient concentration around the true parameters. This effect is particularly visible for the intrinsic variance, which remains systematically overestimated in the high-temperature regime. Figure 4 demonstrates that τ is a genuine calibration parameter that influences both estimation accuracy and uncertainty quantification. The proposed heuristic performs well in practice by selecting a value near the transition between underconcentrated and overconcentrated regimes, yielding stable estimates and near-nominal coverage across parameters. At the same time, the sharp dependence of coverage on τ suggests that more principled calibration strategies (e.g., choosing τ to target nominal frequentist coverage, minimize predictive risk, or satisfy information theoretic criteria) could further improve performance. Developing such adaptive procedures in a computationally efficient manner remains an important direction for future work. 
+
+# E Problem Setup 
+
+We consider an observed dataset 
+
+Dobs = {yobs  
+
+> i
+
+}ni=1 , yobs  
+
+> i
+
+∈ Rd, (52) drawn from an observed-data distribution Pobs on Rd. Throughout, the vector yobs  
+
+> i
+
+is understood to contain all quantities retained after the observational pipeline has acted on the underlying population. In particular, we do not distinguish between predictors and responses, nor do we impose an auxiliary regression structure. The inferential goal is instead to compare the full empirical distribution of the observed sample with the distribution induced by a mechanistic simulator under latent parameters θ.This formulation is particularly natural in scientific settings where the data arise through a two-stage process. First, a latent or “true” population is generated according to a structural model indexed by θ. Second, observational noise, survey incompleteness, thresholding, censoring, or other selection effects distort that latent population before the final catalog is recorded. In such problems, the scientifically meaningful comparison is not between the observed sample and the latent simulator output directly, but between the observed sample and the simulator output after the same observational effects have been applied. Our construction is designed precisely for this setting. 19 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching To formalize this idea, let θ ∈ Θ ⊆ Rp denote the simulator parameter, endowed with prior distribution p(θ). For each 
+
+θ, the simulator proceeds in two phases. In the first phase, it generates latent population-level variables 
+
+utrue | θ ∼ P true  
+
+> θ
+
+, (53) where utrue denotes the idealized noiseless state. In the second phase, the observational mechanism acts on utrue to produce an observed realization 
+
+ysim ,obs | utrue , θ ∼ Qθ ( · | utrue ). (54) Here Qθ is the observation operator, which may encode measurement noise, heteroscedastic scatter, missingness, truncation, catalog cuts, detection thresholds, or any other survey-selection mechanism. Integrating out the latent population yields the induced observed-data law 
+
+P obs  
+
+> θ
+
+(A) = 
+
+Z
+
+Qθ (A | u) P true  
+
+> θ
+
+(du ), A ⊆ Rd. (55) The statistical task is then to identify those values of θ for which the induced observed law P obs  
+
+> θ
+
+is close to the empirical law underlying Dobs .The empirical measure of the observed sample is 
+
+bPobs = 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+δyobs  
+
+> i
+
+, (56) where δy denotes a Dirac measure at y. For each proposed parameter value θ, we generate a simulated observed batch of size M ,
+
+Dsim ,obs  
+
+> θ,M
+
+= {ysim ,obs  
+
+> θ, 1
+
+, . . . , y sim ,obs  
+
+> θ,M
+
+}, ysim ,obs 
+
+> θ,m
+> iid
+
+∼ P obs  
+
+> θ
+
+, (57) and define its empirical measure by 
+
+bP sim ,obs  
+
+> θ,M
+
+= 1
+
+M
+
+> M
+
+X
+
+> m=1
+
+δysim ,obs 
+
+> θ,m
+
+. (58) This empirical distribution represents what the survey would have observed, had the world been governed by parameter 
+
+θ.Our discrepancy between observed and simulated data is based on the maximum mean discrepancy (MMD). Let 
+
+k : Rd × Rd → R be a bounded positive-definite kernel, and let Hk denote its reproducing kernel Hilbert space. For any probability measure P on Rd, define the kernel mean embedding 
+
+μk(P ) = 
+
+Z
+
+k(y, ·) P (dy ) ∈ H k. (59) The squared maximum mean discrepancy between probability measures P and Q is 
+
+MMD 2
+
+> k
+
+(P, Q ) = ∥μk(P ) − μk(Q)∥2 
+
+> Hk
+
+. (60) Equivalently, 
+
+MMD 2
+
+> k
+
+(P, Q ) = EY,Y ′∼P [k(Y, Y ′)] + EW,W ′∼Q[k(W, W ′)] − 2EY ∼P,W ∼Q[k(Y, W )] . (61) When k is characteristic, MMD k(P, Q ) = 0 if and only if P = Q, so the discrepancy metrizes equality of distributions rather than agreement only in low-order moments. For each simulated batch at parameter value θ, we define the empirical loss 
+
+∆n,M (θ) := MMD 2
+
+> k
+
+  bPobs , bP sim ,obs 
+
+> θ,M
+
+. (62) This loss is small when the simulated observed catalog resembles the actual observed catalog in the geometry induced by the kernel k. Unlike an auxiliary-regression summary, ∆n,M (θ) compares the empirical distributions directly and therefore retains substantially richer information about the joint structure of the observed variables. To obtain a likelihood-free posterior surrogate, we draw 
+
+θ1, . . . , θ nθ
+
+> iid
+
+∼ p(θ), (63) simulate an observed batch of size M for each θj , compute the corresponding discrepancy ∆n,M (θj ), and assign kernel weights 
+
+ewj = exp 
+
+
+
+− ∆n,M (θj )2τ 2
+
+
+
+, wj = ewj
+
+Pnθ 
+
+> k=1
+
+ewk
+
+, (64) 20 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching where τ > 0 is a temperature or bandwidth parameter. The resulting self-normalized empirical measure 
+
+ΠMMD  
+
+> nθ
+
+(dθ ) = 
+
+> nθ
+
+X
+
+> j=1
+
+wj δθj (dθ ) (65) serves as a pseudo-posterior over θ. Parameters receiving high weight are those for which the simulator, after noise and selection, generates catalogs that are close in MMD to the observed sample. Since no tractable likelihood is required, the method lies within the broader class of simulation-based or likelihood-free inference procedures, but the loss is defined directly at the level of empirical distributions rather than through a hand-crafted low-dimensional summary. For population-level arguments, it is useful to introduce the deterministic discrepancy 
+
+∆( θ) := MMD 2
+
+> k
+
+ Pobs , P obs 
+
+> θ
+
+, (66) together with the idealized population weight 
+
+L∞(θ; τ ) = exp 
+
+
+
+− ∆( θ)2τ 2
+
+
+
+. (67) The corresponding population pseudo-posterior is 
+
+πτ (dθ ) ∝ p(θ)L∞(θ; τ ) dθ = p(θ) exp 
+
+
+
+− ∆( θ)2τ 2
+
+
+
+dθ. (68) This expression makes clear that the method favors parameter values whose induced observed-data laws lie close to Pobs 
+
+in maximum mean discrepancy. As τ ↓ 0, the measure πτ increasingly concentrates on minimizers of ∆( θ), namely on those parameters whose forward-simulated observed distributions most closely reproduce the observed catalog. It is convenient to define the MMD-identified set 
+
+Θ† := arg min  
+
+> θ∈Θ
+
+∆( θ) = arg min  
+
+> θ∈Θ
+
+MMD 2
+
+> k
+
+ Pobs , P obs 
+
+> θ
+
+. (69) If the simulator is correctly specified in the sense that there exists θ⋆ ∈ Θ with 
+
+P obs  
+
+> θ⋆
+
+= Pobs , (70) then ∆( θ⋆) = 0 , so θ⋆ ∈ Θ†. If k is characteristic, then zero discrepancy implies equality of observed-data laws. This gives the method a much stronger identification target than approaches based on a single moment condition or an auxiliary regression summary. Nevertheless, Θ† may still be set-valued if multiple parameter values induce the same observed distribution after the observational pipeline has been applied. Thus the framework naturally accommodates both point identification and partial identification. The cluster-cosmology setting provides a useful example. Suppose the latent population consists of galaxy clusters generated under cosmological and astrophysical parameters θ [ 22 ], where θ may include quantities such as Ωm, σ8,parameters controlling the halo mass function, and nuisance parameters governing baryonic or selection effects. At the latent level, the simulator produces a population of clusters with true masses, redshifts, temperatures, richnesses, X-ray luminosities, lensing observables, or Sunyaev–Zel’dovich signals. A real survey, however, does not record this latent population directly. Instead, it measures noisy proxies, applies instrumental response, imposes detection thresholds, and retains only objects satisfying catalog selection criteria. The vector yobs ∈ Rd may therefore contain only the observed catalog-level quantities, for example a stack of measured richness, redshift, X-ray temperature, and signal-to-noise summaries. In this setting, it would be inappropriate to compare the observed catalog directly to the latent simulator output. The scientifically correct comparison is between the real catalog and a simulated catalog obtained by running the latent cluster population through the same survey model. The MMD loss in (62) does exactly this: it quantifies how close the simulated observed cluster catalog is to the actual observed catalog, while retaining sensitivity to the full joint distribution of the recorded quantities. This perspective also clarifies the distinction between the present method and auxiliary-model approaches such as indirect inference or regression-summary matching. In those methods, observed and simulated datasets are each compressed into a low-dimensional statistic, and inference proceeds by comparing those summaries. Here, by contrast, the discrepancy is defined directly on the empirical distributions of the observed vectors. Finally, once the weighted sample {(θj , w j )}nθ 
+
+> j=1
+
+has been computed, it can be reused in exactly the same way as a posterior sample. Any posterior of interest may be approximated by weighted averages, 
+
+Z
+
+h(θ) Π MMD (dθ ) ≈
+
+> nθ
+
+X
+
+> j=1
+
+wj h(θj ), (71) and posterior predictive quantities may be evaluated by forward simulation from the weighted parameter draws. Thus the calibration step need only be performed once, after which the weighted ensemble provides a flexible surrogate posterior for downstream uncertainty quantification and prediction. 21 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+# F Proofs of Theoretical Guarantees 
+
+Proof of Theorem 3.1. Write 
+
+ew(θ) = exp 
+
+
+
+− ∆n,M (θ)2τ 2
+
+
+
+. (72) Then nθX
+
+> j=1
+
+wj h(θj ) = n−1
+
+> θ
+
+Pnθ 
+
+> j=1
+
+h(θj ) ew(θj )
+
+n−1
+
+> θ
+
+Pnθ 
+
+> j=1
+
+ew(θj ) . (73) Since 0 < ew(θ) ≤ 1, both h(θ) ew(θ) and ew(θ) are integrable under the prior whenever h is integrable under πn,M,τ .By the strong law of large numbers, 
+
+1
+
+nθnθX
+
+> j=1
+
+h(θj ) ew(θj ) a.s.
+
+−−→
+
+Z
+
+> Θ
+
+h(θ) ew(θ)p(θ) dθ (74) and 
+
+1
+
+nθnθX
+
+> j=1
+
+ew(θj ) a.s.
+
+−−→
+
+Z
+
+> Θ
+
+ew(θ)p(θ) dθ. (75) The denominator limit is strictly positive because p(θ) > 0 and ew(θ) > 0 on the compact set Θ. Hence the ratio converges almost surely to R 
+
+> Θ
+
+h(θ) ew(θ)p(θ) dθ 
+
+R 
+
+> Θ
+
+ew(θ)p(θ) dθ = Φ n,M,τ (h), (76) which proves the claim. 
+
+Remark F.1 . If ∆n,M is taken to be the unbiased U-statistic estimator of MMD 2, then ∆n,M (θ) may be negative in finite samples. In that case the empirical weight 
+
+Ln,M,τ (θ) = exp 
+
+
+
+− ∆n,M (θ)2τ 2
+
+
+
+(77) is no longer bounded by 1. Consequently, finite-sample Monte Carlo consistency requires explicit integrability assumptions on Ln,M,τ and hL n,M,τ under the prior. The fixed-τ convergence and posterior concentration results remain valid provided the empirical discrepancy converges uniformly to the nonnegative population loss, and in the shrinking-temperature regime one assumes 
+
+sup 
+
+> θ∈Θ
+
+|∆n,M (θ) − ∆( θ)| = OP (τ 2 
+
+> n,M
+
+). (78) Alternatively, one may replace ∆n,M by the nonnegative estimator max {∆n,M , 0} or by the biased V-statistic estimator, which simplifies the weighting arguments. 
+
+Proof of Theorem 3.2. Let 
+
+Ln,M,τ (θ) = exp 
+
+
+
+− ∆n,M (θ)2τ 2
+
+
+
+, Lτ (θ) = exp 
+
+
+
+− ∆( θ)2τ 2
+
+
+
+. (79) Since ∆n,M (θ), ∆( θ) ≥ 0 and the map x 7 → e−x/ (2 τ 2) is Lipschitz on [0 , ∞) with constant (2 τ 2)−1,
+
+sup 
+
+> θ∈Θ
+
+|Ln,M,τ (θ) − Lτ (θ)| ≤ 12τ 2 sup 
+
+> θ∈Θ
+
+|∆n,M (θ) − ∆( θ)| P
+
+−→ 0. (80) Now Z
+
+> Θ
+
+h(θ)p(θ)Ln,M,τ (θ) dθ −
+
+Z
+
+> Θ
+
+h(θ)p(θ)Lτ (θ) dθ (81) 
+
+≤
+
+Z
+
+> Θ
+
+|h(θ)|p(θ) |Ln,M,τ (θ) − Lτ (θ)| dθ ≤ ∥ h∥∞ sup 
+
+> θ∈Θ
+
+|Ln,M,τ (θ) − Lτ (θ)|
+
+Z
+
+> Θ
+
+p(θ) dθ, (82) which converges to 0 in probability. Similarly, 
+
+Z
+
+> Θ
+
+p(θ)Ln,M,τ (θ) dθ −
+
+Z
+
+> Θ
+
+p(θ)Lτ (θ) dθ ≤ sup 
+
+> θ∈Θ
+
+|Ln,M,τ (θ) − Lτ (θ)|
+
+Z
+
+> Θ
+
+p(θ) dθ P
+
+−→ 0. (83) 22 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching Finally, Z
+
+> Θ
+
+p(θ)Lτ (θ) dθ > 0 (84) because p(θ) ≥ 0, p is not identically zero, and Lτ (θ) > 0 for all θ. Therefore Slutsky’s theorem implies 
+
+R 
+
+> Θ
+
+h(θ)p(θ)Ln,M,τ (θ) dθ 
+
+R 
+
+> Θ
+
+p(θ)Ln,M,τ (θ) dθ 
+
+> P
+
+−→
+
+R 
+
+> Θ
+
+h(θ)p(θ)Lτ (θ) dθ 
+
+R 
+
+> Θ
+
+p(θ)Lτ (θ) dθ , (85) which is the desired conclusion. 
+
+Proof of Theorem 3.3. Recall that 
+
+Θ† = arg min  
+
+> θ∈Θ
+
+∆( θ), m⋆ := inf  
+
+> θ∈Θ
+
+∆( θ). (86) Under Assumptions A.1–A.4, the map θ 7 → ∆( θ) is continuous on the compact set Θ, so Θ† is nonempty and compact, and the infimum m⋆ is attained. Fix an open neighborhood U ⊃ Θ†. By Assumption A.5, there exists η = η(U ) > 0 such that 
+
+inf  
+
+> θ / ∈U
+
+∆( θ) ≥ m⋆ + η. (87) Because Θ† ⊂ U and Θ†̸ = ∅, we may choose θU ∈ Θ† ⊂ U . Then 
+
+∆( θU ) = m⋆. (88) Since U is open and ∆ is continuous, there exists a nonempty open neighborhood V ⊂ U of θU such that 
+
+sup 
+
+> θ∈V
+
+∆( θ) ≤ m⋆ + η
+
+2 . (89) Because V is a nonempty open subset of Θ ⊂ Rp, it has positive Lebesgue measure. Since the prior density p is continuous and strictly positive on Θ, it follows that 
+
+cV := 
+
+Z
+
+> V
+
+p(θ) dθ > 0. (90) Now, define the uniform stochastic error 
+
+εn,M := sup 
+
+> θ∈Θ
+
+∆n,M (θ) − ∆( θ) . (91) By Assumption A.6, 
+
+εn,M = oP (τ 2 
+
+> n,M
+
+). (92) Consider the event 
+
+An,M =
+
+n
+
+εn,M ≤ η
+
+8 τ 2
+
+> n,M
+
+o
+
+. (93) Then 
+
+Pr( An,M ) −→ 1. (94) On the event An,M , for every θ ∈ V , combining Equation (89) with the definition of εn,M gives 
+
+∆n,M (θ) ≤ ∆( θ) + εn,M 
+
+≤ m⋆ + η
+
+2 + η
+
+8 τ 2 
+
+> n,M
+
+. (95) Likewise, for every θ / ∈ U , combining Equation (87) with the definition of εn,M gives 
+
+∆n,M (θ) ≥ ∆( θ) − εn,M 
+
+≥ m⋆ + η − η
+
+8 τ 2 
+
+> n,M
+
+. (96) 23 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching Therefore, on An,M ,
+
+sup 
+
+> θ / ∈U
+
+exp 
+
+(
+
+− ∆n,M (θ)2τ 2
+
+> n,M
+
+)
+
+≤ exp 
+
+(
+
+− m⋆ + η − ητ 2 
+
+> n,M
+
+/82τ 2
+
+> n,M
+
+)
+
+, (97) 
+
+inf  
+
+> θ∈V
+
+exp 
+
+(
+
+− ∆n,M (θ)2τ 2
+
+> n,M
+
+)
+
+≥ exp 
+
+(
+
+− m⋆ + η/ 2 + ητ 2 
+
+> n,M
+
+/82τ 2
+
+> n,M
+
+)
+
+. (98) Using these bounds, we obtain on An,M ,
+
+πn,M,τ n,M (Θ \ U ) = 
+
+R 
+
+> Θ\U
+
+p(θ) exp {− ∆n,M (θ)/(2 τ 2 
+
+> n,M
+
+)} dθ 
+
+R 
+
+> Θ
+
+p(θ) exp {− ∆n,M (θ)/(2 τ 2 
+
+> n,M
+
+)} dθ 
+
+≤
+
+R 
+
+> Θ\U
+
+p(θ) exp {− ∆n,M (θ)/(2 τ 2 
+
+> n,M
+
+)} dθ 
+
+R 
+
+> V
+
+p(θ) exp {− ∆n,M (θ)/(2 τ 2 
+
+> n,M
+
+)} dθ 
+
+≤
+
+exp 
+
+n
+
+− m⋆+η−ητ 2  
+
+> n,M /82τ2
+> n,M
+
+o R 
+
+> Θ\U
+
+p(θ) dθ 
+
+exp 
+
+n
+
+− m⋆+η/ 2+ ητ 2  
+
+> n,M /82τ2
+> n,M
+
+o R 
+
+> V
+
+p(θ) dθ .
+
+Since R 
+
+> Θ\U
+
+p(θ) dθ ≤ 1 and R 
+
+> V
+
+p(θ) dθ = cV , this yields 
+
+πn,M,τ n,M (Θ \ U ) ≤ 1
+
+cV
+
+exp 
+
+(
+
+− η/ 2 − (η/ 4) τ 2
+
+> n,M
+
+2τ 2
+
+> n,M
+
+)
+
+= 1
+
+cV
+
+exp 
+
+(
+
+− η
+
+4τ 2
+
+> n,M
+
++ η
+
+8
+
+)
+
+. (99) Because τn,M ↓ 0, the right-hand side converges to 0. Hence 
+
+πn,M,τ n,M (Θ \ U ) P
+
+−→ 0, (100) and therefore 
+
+πn,M,τ n,M (U ) P
+
+−→ 1, (101) which proves the claim in Equation (15). For the equivalent formulation, let F ⊂ Θ be closed with F ∩ Θ† = ∅. Then U := Θ \ F is open and contains Θ†.Applying Equation (15) to this set U gives 
+
+πn,M,τ n,M (F ) = 1 − πn,M,τ n,M (U ) P
+
+−→ 0, (102) which proves the claim in Equation (16). 
+
+Proof of Proposition 3.4. By Assumption A.7, the observed distribution is correctly specified at θ⋆, that is, 
+
+P obs  
+
+> θ⋆
+
+= Pobs .
+
+Therefore, 
+
+∆( θ⋆) = MMD 2
+
+> k
+
+ Pobs , P obs 
+
+> θ⋆
+
+ = MMD 2
+
+> k
+
+(Pobs , P obs ) .
+
+Now, by the defining properties of MMD under noisy data (see Theorem 3.9 in [17]), we have 
+
+∆( θ⋆) = MMD 2
+
+> k
+
+(Pobs , P obs ) = 0 .
+
+On the other hand, by Assumption A.2, MMD 2
+
+> k
+
+(·, ·) is well defined and nonnegative, so 
+
+∆( θ) ≥ 0 for all θ ∈ Θ.
+
+Since ∆( θ⋆) = 0 , it follows that inf θ∈Θ ∆( θ) = 0 .Finally, by definition, Θ† = arg min θ∈Θ ∆( θ). Because θ⋆ ∈ Θ and ∆( θ⋆) = 0 = inf θ∈Θ ∆( θ), we conclude that 
+
+θ⋆ ∈ Θ†.24 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Proof of Proposition 3.5. By Proposition 3.4, we have 
+
+inf  
+
+> θ∈Θ
+
+∆( θ) = 0 and θ⋆ ∈ Θ†.
+
+In particular, 
+
+∆( θ⋆) = 0 .
+
+Now let θ ∈ Θ†. Since Θ† = arg min ϑ∈Θ ∆( ϑ) and the minimum value is 0, it follows that 
+
+∆( θ) = 0 .
+
+By definition of ∆,
+
+∆( θ) = MMD 2
+
+> k
+
+ Pobs , P obs 
+
+> θ
+
+ = 0 .
+
+Because k is characteristic, MMD k(P, Q ) = 0 implies P = Q. Hence, P obs  
+
+> θ
+
+= Pobs . Using Assumption A.7, we also have P obs  
+
+> θ⋆
+
+= Pobs . Therefore, P obs  
+
+> θ
+
+= P obs  
+
+> θ⋆
+
+.Since the map θ 7 → P obs  
+
+> θ
+
+is injective on Θ, this implies θ = θ⋆. Thus, every θ ∈ Θ† equals θ⋆, so Θ† = {θ⋆}.For the concentration statement, let U be any open neighborhood of θ⋆. Since Θ† = {θ⋆}, we have U ⊃ Θ†.Theorem 3.3 therefore yields 
+
+πn,M,τ n,M (U ) P
+
+−−−−−−→  
+
+> n,M →∞
+
+1.
+
+This completes the proof. 
+
+Proof of Corollary 3.6. We prove the fixed-temperature and vanishing-temperature statements separately. For the first claim, fix (n, M, τ ) with τ > 0, and define 
+
+bΦnθ ,n,M,τ (h) := 
+
+> nθ
+
+X
+
+> j=1
+
+wj h(θj ) = 
+
+Z
+
+> Θ
+
+h(θ) Π MMD  
+
+> nθ
+
+(dθ ). (103) Since h is bounded, it is integrable with respect to πn,M,τ . Therefore Theorem 3.1 applies and yields 
+
+bΦnθ ,n,M,τ (h) − Φn,M,τ (h) a.s.
+
+−−−−→  
+
+> nθ→∞
+
+0, (104) where 
+
+Φn,M,τ (h) = 
+
+Z
+
+> Θ
+
+h(θ) πn,M,τ (dθ ). (105) This proves (17). We now prove (18). Write 
+
+bΦnθ ,n,M,τ (h) − Φτ (h) = 
+
+bΦnθ ,n,M,τ (h) − Φn,M,τ (h)
+
+
+
++
+
+
+
+Φn,M,τ (h) − Φτ (h)
+
+
+
+, (106) where 
+
+Φτ (h) := 
+
+Z
+
+> Θ
+
+h(θ) πτ (dθ ). (107) For the second term, Theorem 3.2 gives 
+
+Φn,M,τ (h) − Φτ (h) P
+
+−−−−−−→  
+
+> n,M →∞
+
+0. (108) For the first term, Theorem 3.1 gives almost sure convergence to zero as nθ → ∞ for each fixed (n, M, τ ). Hence, along any sequence with nθ → ∞ , the first term converges to zero in probability. Therefore, by Slutsky’s theorem, 
+
+bΦnθ ,n,M,τ (h) − Φτ (h) P
+
+−−−−−−→  
+
+> n,M →∞
+
+0, (109) which proves (18). We turn to the concentration statement (19) . Let U ⊃ Θ† be open. Since ΠMMD  
+
+> nθ
+
+(U ) = Pnθ 
+
+> j=1
+
+wj 1U (θj ), we may apply Theorem 3.1 with h = 1U . Because 0 ≤ 1U ≤ 1, the integrability condition is immediate. Thus, for each fixed 
+
+(n, M, τ n,M ),
+
+ΠMMD  
+
+> nθ
+
+(U ) − πn,M,τ n,M (U ) a.s.
+
+−−−−→  
+
+> nθ→∞
+
+0. (110) 25 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching On the other hand, by Theorem 3.3, 
+
+πn,M,τ n,M (U ) P
+
+−−−−−−→  
+
+> n,M →∞
+
+1. (111) Therefore, 
+
+ΠMMD  
+
+> nθ
+
+(U ) − 1 = 
+
+
+
+ΠMMD  
+
+> nθ
+
+(U ) − πn,M,τ n,M (U )
+
+
+
++
+
+
+
+πn,M,τ n,M (U ) − 1
+
+
+
+. (112) The first term converges to zero in probability because of (110) , and the second term converges to zero in probability because of (111). Another application of Slutsky’s theorem yields 
+
+ΠMMD  
+
+> nθ
+
+(U ) P
+
+−−−−−−→  
+
+> n,M →∞
+
+1, (113) which proves (19). 
+
+# G Experiment with EIV in Linear Setting 
+
+Experimental Setup and Benchmarking Protocol. We evaluate the proposed MMD-based likelihood-free inference framework in a controlled simulation setting designed to closely mirror the problem formulation introduced in Section 2. In particular, the experiment explicitly incorporates measurement error, heteroscedastic noise, and non-Gaussian latent structure, so that inference must operate on observed data distributions rather than latent quantities. The goal is to assess both the accuracy of parameter recovery and the calibration of uncertainty quantification under realistic observational distortions. 
+
+Data-Generating Process. For each parameter setting θ = (α, β, σ ), we generate a latent population 
+
+{(xtrue  
+
+> i
+
+, y true  
+
+> i
+
+)}ni=1 . The latent covariate xtrue  
+
+> i
+
+is drawn from a two-component Gaussian mixture, 
+
+xtrue  
+
+> i
+
+∼ π N (μ1, s 21) + (1 − π) N (μ2, s 22), (114) with π = 0 .55 , (μ1, μ 2) = ( −1.2, 1.0) , and (s1, s 2) = (0 .95 , 0.95) . This induces a mildly multimodal and overlapping distribution, ensuring that the latent covariate distribution is non-Gaussian and cannot be captured by simple parametric assumptions. Conditional on xtrue  
+
+> i
+
+, the latent response is generated via a linear model, 
+
+ytrue  
+
+> i
+
+= α + βx true  
+
+> i
+
++ ϵi, (115) where ϵi represents intrinsic scatter. We consider two noise regimes: a Gaussian model ϵi ∼ N (0 , σ 2) and a Laplace model ϵi ∼ Laplace(0 , σ/ √2) , so that both cases have variance σ2. Throughout, we fix α = 1 .0, β = 2 .0, and σ = 0 .8
+
+unless otherwise specified. Observed data are obtained by applying a heteroscedastic measurement process, 
+
+xobs  
+
+> i
+
+= xtrue  
+
+> i
+
++ ηx,i , yobs  
+
+> i
+
+= ytrue  
+
+> i
+
++ ηy,i , (116) with ηx,i ∼ N (0 , σ 2
+
+> x,i
+
+) and ηy,i ∼ N (0 , σ 2
+
+> y,i
+
+). The noise levels vary across observations according to 
+
+σx,i = 1 .5 + 0 .85 |xtrue  
+
+> i
+
+− 2|
+
+max j |xtrue  
+
+> j
+
+| + 10 −8 , σy,i = 1 .5 + 1 .20 |ytrue  
+
+> i
+
+|
+
+max j |ytrue  
+
+> j
+
+| + 10 −8 . (117) This construction yields large and strongly heteroscedastic measurement errors in both variables. The resulting observed dataset 
+
+Dobs = {(xobs  
+
+> i
+
+, y obs  
+
+> i
+
+, σ x,i , σ y,i )}ni=1 ,
+
+with n = 180 , corresponds to draws from the observed-data distribution Pobs defined in Section 2. 
+
+Inference Methods. We compare the proposed MMD-based method to a range of classical and Bayesian approaches for regression with measurement error. All methods are applied directly to the observed dataset Dobs .The proposed method constructs a pseudo-posterior over θ by comparing the empirical observed distribution bPobs to simulated observed distributions bP sim ,obs  
+
+> θ,M
+
+. For each sampled parameter value θj , we generate a forward-simulated observed dataset by drawing latent variables from P true  
+
+> θ
+
+and applying the observation model P Err  
+
+> θ
+
+. The discrepancy is measured using the squared maximum mean discrepancy, 
+
+∆n,M (θ) = MMD 2
+
+> k
+
+  bPobs , bP sim ,obs 
+
+> θ,M
+
+, (118) 26 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching and parameters are assigned weights 
+
+wj ∝ exp 
+
+
+
+− ∆n,M (θj )2τ 2
+
+
+
+, (119) yielding a weighted empirical approximation to the pseudo-posterior. The kernel bandwidth is selected using the median heuristic. As a state-of-the-art baseline, we employ LinMix [ 47 ], a hierarchical Bayesian regression model that accounts for measurement error in both variables and models latent covariates using a Gaussian mixture. Posterior inference is performed using a Gibbs sampler, yielding samples of (α, β, σ 2).2
+
+We further include several classical errors-in-variables estimators. Deming regression minimizes orthogonal residuals under a fixed ratio of error variances, which we estimate using the empirical ratio E[σ2
+
+> y,i
+
+]/E[σ2
+
+> x,i
+
+] [ 48 ]. BCES (Bivariate Correlated Errors and intrinsic Scatter, [ 49 ]) provides a regression estimator that accounts for heteroscedastic measurement errors and intrinsic scatter; we use the BCES(Y |X) variant implemented in the Python bces package. 3
+
+Orthogonal Distance Regression (ODR, [ 50 ]), implemented via SciPy, solves a weighted nonlinear least squares problem that accounts for measurement errors in both variables by minimizing orthogonal distances. We also consider SIMEX (simulation extrapolation, [ 51 ]), which corrects for measurement error by adding artificial noise to the observed covariates, fitting a naive model at multiple noise levels, and extrapolating the resulting estimates to the zero-noise limit. Finally, we include ordinary least squares (OLS) as a baseline that ignores measurement error entirely. For methods without an explicit posterior distribution, including Deming, BCES, and SIMEX, uncertainty is estimated via bootstrap resampling. For ODR and OLS, uncertainty is approximated using asymptotic Gaussian approximations. 
+
+Evaluation Metrics. We evaluate each method in terms of both point estimation accuracy and uncertainty quantifica-tion. For each parameter θ ∈ { α, β, σ 2}, we compute the bias 
+
+Bias( θ) = bθmean − θtrue , (120) where bθmean denotes the posterior or bootstrap mean estimate. We construct 90% uncertainty intervals [θ0.05 , θ 0.95 ] and evaluate coverage via the indicator 
+
+I θtrue ∈ [θ0.05 , θ 0.95 ]. (121) Coverage is reported as the average of this indicator across repeated experiments. For the intrinsic scatter parameter, we evaluate σ2 rather than σ, since it is the natural scale parameter of the likelihood. 
+
+Multi-Realization Protocol. To assess robustness and calibration, we repeat the experiment over R = 10 independent realizations. For each realization r = 1 , . . . , R , we generate a dataset D(r)obs , fit all methods, and compute posterior summaries and uncertainty intervals. Results are then aggregated across realizations to estimate mean bias, variability of estimates, and empirical coverage. 
+
+Discussion. This experimental setup isolates several key challenges relevant to likelihood-free inference: non-Gaussian latent structure, heteroscedastic and large measurement error, and potential misspecification of intrinsic noise. Classical methods rely on explicit likelihood assumptions and parametric forms for latent distributions, whereas the proposed MMD-based approach directly compares observed-data distributions. By operating at the level of Pobs 
+
+rather than latent variables, the method naturally incorporates the full observation pipeline and remains robust to misspecification of latent structure and noise distributions. 
+
+# H Real-world Illustration with Galaxy Cluster Observables 
+
+Experimental Setup and Benchmarking Protocol. Data-Generating Process. We consider four observables: weak lensing mass, optical richness, thermal Sunyaev-Zeldovich effect (SZe) signal-to-noise (SNR), and X-ray count rate CR. In general, cluster cosmology starts from a halo mass function, 
+
+N (m, z ) = Ntot P (m, z ) (122) 
+
+> 2https://github.com/jmeyers314/linmix
+> 3https://pypi.org/project/bces/
+
+27 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Figure 5: Realization of 180 data points using the setup described in Appendix G. We compare the estimated linear line fitted against noisy data using benchmark methods. in which Ntot is the total number of halos within the survey volume, and a redshift range, and P (m, z ) is the normalized mass and redshift distribution of dark matter halos. m is the natural logarithm of the mass of the halo, and z is the redshift of the dark matter halo. In general, the halo mass function is a function of the amplitude of density fluctuations 
+
+σ8, total number density Ωm, the dark energy equation of state w0, w a, the sum of neutrino masses Σmν , and the Hubble constant H0. For the current data, clusters can constrain σ8 and Ωm best. In this paper, we will only free σ8 and 
+
+Ωm and keep the rest of the cosmology parameters fixed. The underlying true properties of a population of clusters can be described with 
+
+ln ytrue  
+
+> i
+
+= α + β ln mi + γzi + ϵi, (123) in which yi = {M true  
+
+> i
+
+, λ true  
+
+> i
+
+, ξ true  
+
+> i
+
+, C true  
+
+> i
+
+} are the true properties of cluster i. Mtrue is the true weak lensing mass, 
+
+λtrue  
+
+> i
+
+is the true richness, ξtrue  
+
+> i
+
+is the true tSZ SNR, and Ctrue  
+
+> i
+
+is the true X-ray count rate. The intrinsic scatter and correlation of the true properties are described by 
+
+ϵi ∼ N (0, Σint ) . (124) The observed richness is subject to projection effects that add a heteroscedastic noise that increase the scatter of low-richness clusters [63–65]. We parametrized it in the form 
+
+ln λobs  
+
+> i
+
+| ln λtrue  
+
+> i
+
+∼ N (ln λtrue  
+
+> i
+
+, a (ln λtrue  
+
+> i
+
+)2 + b ln λtrue  
+
+> i
+
+), (125) in which a and b are coefficients that control the amplitude of the mass-dependent additional scatter at the low mass end. To account for the bias introduced by optimizing over three degrees of freedom, the intrinsic SZe SNR is connected to the observed SZe SNR with 
+
+ξobs  
+
+> i
+
+| ξtrue  
+
+> i
+
+∼ N 
+
+q 
+
+(ξtrue )2 
+
+> i
+
++ 3 , 1
+
+
+
+. (126) The connection between intrinsic weak lensing mass and the observed weak lensing mass is subject to residual observational effects such as miscentering [ 66 , 67 ], scale-dependent shear calibration bias, and cluster member contamination[68]. We model it as a bias plus scatter model 
+
+ln Mobs  
+
+> i
+
+| ln Mtrue  
+
+> i
+
+∼ N  ln Mtrue  
+
+> i
+
++ c(ln Mtrue  
+
+> i
+
+)2 + d ln Mtrue  
+
+> i
+
+, σ 2
+
+> M
+
+ , (127) 28 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+Figure 6: Same as Figure 1 but with Laplace (top panels) and Uniform (bottom panels) measurement error. 29 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching in which c and d describe the amplitude of the mass-dependent bias, and σM is the observational noise. The relation between the true count rate Ctrue  
+
+> i
+
+and the observed count rate Cobs  
+
+> i
+
+is complicated and requires full physical modeling to capture [69, 70]. In this work, we use a simple log-normal model 
+
+ln Cobs | ln Ctrue ∼ N  ln Ctrue , σ C
+
+ (128) In this experiment, we assume all clusters above a richness threshold are detected in all wavelengths. In the future, we plan to incorporate missing and censored data into the framework. 
+
+Benchmarking Protocol. We restrict inference to two cosmological parameters, θ = (Ω mh2, σ 8), placing flat priors 
+
+Ωmh2 ∈ [0 .12 , 0.155] and σ8 ∈ [0 .70 , 0.90] and fixing all scaling-relation nuisance parameters at their fiducial values. Each synthetic observation contains ∼1,700 clusters with five observables per object, (z, ln λobs , ξ, ln Mobs , ln Cobs ),drawn from a 200 deg 2 survey over z ∈ [0 .1, 1.0] subject to the richness cut λobs ≥ 20 . The halo mass function is evaluated with the M IRA TITAN emulator [ 71 ]. OASIS draws nθ = 2 ,000 proposals from the prior and evaluates 
+
+b∆( θj ) = \MMD 2
+
+> k
+
+  bPobs , bP sim 
+
+> θj
+
+ using an isotropic RBF kernel k(x, y) = exp( −γ∥x − y∥2) applied jointly to the five-dimensional observable vector, with bandwidth γ = 1 /(2 ˆh2) set by the median heuristic. We set τ = 10 ˆ τ
+
+where ˆτ is the heuristic defined in Section 2. We compare against Neural Posterior Estimation ( NPE ) and Neural Likelihood Estimation ( NLE ) [ 4] from the sbi library [ 59 ], each trained on 5,000 simulations using a 50-dimensional summary statistic comprising a 2D (z, ln λobs ) histogram, marginal histograms of all five observables, pairwise Pearson correlations, and log-cluster-count features. Performance is assessed over 50 independent realizations, each with a distinct true cosmology drawn uniformly from the prior. 
+
+Summary of Results. All three methods identify σ8 as the primary constraint, as the halo mass function is exponen-tially sensitive to the amplitude of matter fluctuations. The posterior in Ωmh2, however, behaves differently across methods. OASIS shows a nearly prior-width posterior in Ωmh2, because the MMD compares two normalized empirical measures — dividing by the catalog size n before computing kernel averages — and therefore operates entirely on the per-cluster observable shape (z, ln λobs , ξ, ln Mobs , ln Cobs ), discarding the total cluster count Ntot . Since Ntot is the primary channel through which Ωmh2 enters the observable, this normalization renders the MMD discrepancy virtually insensitive to Ωmh2. NPE and NLE, by contrast, include explicit log-cluster-count features in their 50-dimensional summary statistic, recovering partial sensitivity to Ωmh2 (See Section I for more details). However, this apparent gain comes at the cost of calibration: NPE reaches only 70% and 72% coverage for Ωmh2 and σ8 respectively, and NLE reaches 74% and 76% , well below the nominal 90% , indicating that the neural posteriors are overconfident rather than genuinely better constrained. OASIS , meanwhile, achieves near-zero mean bias ( ∆Ω mh2 = −0.004 , ∆σ8 = 0 .001 )and conservative-to-nominal coverage ( 82% and 98% ), confirming that its intervals are well-calibrated at the expense of width. The bias of all three methods is comparably small, so the undercoverage of the neural methods reflects posterior overconfidence, not a systematic shift. 
+
+Computational Cost. OASIS requires no training phase: given an observed catalog, the 2,000 forward simulations are embarrassingly parallel and complete in approximately 1.2 minutes per realization on 128 CPU workers. Over the 50-realization benchmark, this amounts to roughly 60 minutes of wall time. The cost scales linearly with the number of proposals and is paid anew for each observation, as the method is not amortized. NPE and NLE, by contrast, incur a one-time training cost of approximately 6 minutes on 5,000 simulations; once trained, posterior inference for any new observation reduces to a single neural-network forward pass taking under a second. 
+
+# I Information Content of Distribution Matching vs. Abundance Likelihoods 
+
+In cluster cosmology, the statistical constraining power arises from two distinct sources of information: the total abundance of detected clusters and the distribution of their observable properties [ 22 ]. The expected number of detected clusters under cosmological parameters θ is 
+
+μ(θ) = 
+
+Z
+
+dz dm S (m, z ) dn (m, z | θ)
+
+dm dV (z | θ)
+
+dz , (129) where dn/dm is the halo mass function, dV /dz is the comoving volume element, and S(m, z ) denotes the effective survey selection function. The corresponding likelihood for a catalog containing Nobs detected clusters with observables 
+
+{xi}Nobs  
+
+> i=1
+
+can be written schematically as 30 OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching 
+
+L(θ) = Pois( Nobs | μ(θ)) 
+
+> Nobs
+
+Y
+
+> i=1
+
+p(xi | θ), (130) where 
+
+p(x | θ) = 1
+
+μ(θ)
+
+dμ (x | θ)
+
+dx (131) is the normalized distribution of cluster observables. Equation (130) makes explicit that cosmological information enters through two channels: 1. the Poisson abundance term, which constrains the overall normalization of the halo population, and 2. the normalized observable distribution, which constrains the shape of the detected population in mass, redshift, and observable space. The NPE and NLE baselines considered in this work use hand-designed summary statistics that explicitly include cluster-count information, marginal histograms, and redshift-richness distributions. Consequently, these methods retain information from both the abundance normalization and the observable distribution. By contrast, the current OASIS 
+
+implementation compares empirical observable distributions using the Maximum Mean Discrepancy (MMD), 
+
+b∆( θ) = \MMD 2
+
+> k
+
+ bPobs , bP sim 
+
+> θ
+
+
+
+, (132) where bPobs and bP sim  
+
+> θ
+
+are normalized empirical distributions. As implemented here, this comparison is primarily sensitive to changes in the shape of the observable population rather than to the absolute number of detected clusters. Information carried exclusively by the abundance normalization is therefore partially discarded. This distinction is particularly relevant for Ωmh2. In the cluster mass and redshift regime probed in this benchmark, the halo mass function depends exponentially on σ8, making the shape of the observed population highly informative for that parameter. In contrast, Ωmh2 enters more weakly through the growth history, power-spectrum shape, and cosmological volume element [ 22 ]. As a result, much of the constraining power on Ωmh2 arises from the overall abundance normalization rather than from subtle changes in the normalized observable distribution alone. Discarding abundance information, therefore, naturally broadens the posterior along this direction. The broader posterior intervals obtained by OASIS for Ωmh2 should therefore not be interpreted as a failure of the method, but rather as a consequence of a deliberately restricted information representation. The goal of our experiment is not to maximize cosmological precision, but instead to demonstrate that OASIS can operate in a realistic cluster-cosmology setting involving correlated multi-wavelength observables, heterogeneous survey overlap, and complex selection effects, while still producing competitive and well-calibrated constraints without requiring hand-crafted summary statistics or amortized neural training. Future extensions could incorporate abundance information directly into the distributional comparison objective, for example, by augmenting the MMD with count-sensitive terms or by jointly comparing both normalized distributions and total catalog counts. Such extensions would allow OASIS to recover a larger fraction of the cosmological information available in cluster abundance surveys while retaining the flexibility of likelihood-free distribution matching. 31

@@ -1,0 +1,279 @@
+Title: Cleaning Logs for Downstream Tasks (Registered Report)
+
+URL Source: https://arxiv.org/pdf/2606.27000v1
+
+Published Time: Fri, 26 Jun 2026 00:58:58 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Cleaning Logs for Downstream Tasks (Registered Report) 
+
+Zahra G. Yazdi ∗, Van-Hoang Le ∗, Nyyti Saarim¨ aki ∗, Donghwan Shin †, Domenico Bianculli ∗ and Lionel Briand ‡∗University of Luxembourg, Luxembourg, Email: first.last@uni.lu 
+
+> †
+
+University of Sheffield, United Kingdom, Email: d.shin@sheffield.ac.uk 
+
+> ‡
+
+University of Ottawa, Canada and the Research Ireland Lero Centre for Software Research, University of Limerick, Email: lbriand@uottawa.ca 
+
+Abstract —Background : Software systems generate logs during execution to record critical events and runtime information for troubleshooting and monitoring. However, in practice, logs often contain significant amounts of redundant and irrelevant information, which can negatively impact the performance of downstream analysis tasks, such as model inference and anomaly detection. Objective : The objective of this study is to clean log data by identifying and removing free-standing messages—messages that are not relevant to the execution behaviors of interest and are interleaved with messages capturing the system’s functional behavior. Method : To address this objective, we propose LogPuri-fier, a task-agnostic log-cleaning approach based on dependency relationships between log message templates. The paper presents a plan for an empirical evaluation using a controlled experimental design to assess the impact of LogPurifier on the effectiveness and efficiency of two downstream tasks: model inference and anomaly detection. 
+
+Index Terms —log analysis, log cleaning, model inference, anomaly detection, preprocessing 
+
+I. I NTRODUCTION 
+
+Software logging is a well-established and widely adopted practice in software engineering that has been extensively studied in the literature [1, 2]. Log files generated during software execution provide valuable runtime information and support a wide range of downstream tasks, including model inference [3], anomaly detection [4], testing [5], and perfor-mance monitoring [6]. However, in practice, the usefulness of the logs is often limited by quality issues. Since logs are produced by developers, their quality varies with developer expertise, organizational logging guidelines, and expectations about future use of the logged information. Consequently, real-world logs are often inconsistent, large, and noisy [4, 7]. Developers commonly rely on tools to analyze log data [4]. However, both noise and large volumes of data create chal-lenges for such tools: large volumes increase computational costs, while noise can confuse analysis models and reduce overall performance. Similar challenges are widely recognized in machine learning and statistical analysis, where data clean-ing is considered an essential preprocessing step [8]. Cleaning log data, however, is not straightforward. Logs may contain several types of noise, such as overly detailed messages, repeated templates, or messages that are not related to the functional behavior of the system. These challenges are particularly problematic in black-box settings where source code is unavailable and distinguishing which log templates are relevant to downstream tasks becomes even more challenging. This paper focuses on a specific form of log noise: free-standing log messages. We define free-standing messages as log messages that do not depend on their predecessors or successors. In contrast, we refer to log messages that convey the system’s functional behavior as regular messages . Such messages are common in practice, as system logs routinely include operational events alongside execution-related logs, often interleaved within the same traces [9, 10]. A common example of a free-standing message is a periodic heartbeat message that tracks system memory usage as it reflects op-erational status rather than the execution workflow. When interleaved with regular messages, they can distort event sequences and degrade downstream task performance [9, 11]. This focus is motivated by both their practical impact and the limited prior work on this type of noise: to the best of our knowledge, only two studies have explicitly examined this problem [9, 11]. We propose LogPurifier 1, a downstream-task-agnostic tech-nique for identifying and removing free-standing log mes-sages. LogPurifier extends the heuristic originally proposed by Jia et al. [9] by accounting for dependencies between log messages. Specifically, LogPurifier computes dependency scores based on message co-occurrences and applies aclustering-based segmentation to automatically separate free-standing messages from regular ones. The underlying intuition is that randomly interleaved free-standing messages are likely to have lower dependency than regular messages. As we have already implemented a prototype of LogPurifier, this registered report focuses on an evaluation plan to assess the impact of log cleaning with LogPurifier on two widely used downstream tasks: model inference (MI) and anomaly detection (AD). These tasks exploit different aspects of log data: MI aims to reconstruct models of expected behavior, whereas AD focuses on identifying deviations from normal execution patterns. The evaluation plan examines both the effectiveness and efficiency of downstream analysis tools when applied to cleaned versus original logs. To summarize, the main contributions of this paper are:   
+
+> 1A previous version of the tool was called LogCleaner and was introduced in an unpublished report https://arxiv.org/abs/2004.07194v2 that followed a different evaluation plan.
+> arXiv:2606.27000v1 [cs.SE] 25 Jun 2026 •
+
+We propose LogPurifier, an approach for identifying and removing free-standing log messages in black-box settings.  
+
+> •
+
+We present a comprehensive empirical evaluation plan to assess the benefits of cleaning the log in the context of AD and MI.  
+
+> •
+
+We plan to publicly release a full replication package including source code and the evaluation data. The remainder of the paper is organized as follows. Sec-tion II introduces background concepts on logs and down-stream log analysis tasks. Section III presents LogPurifier. Section IV describes the evaluation, with the analysis plan detailed in Section V. Threats to validity and related work are discussed in Sections VI and VII, respectively. Section VIII concludes the paper. II. B ACKGROUND 
+
+A. Logs 
+
+A log is a sequence of log entries. A log entry contains a timestamp (recording the time at which the logged event occurred) and a log message (with run-time information). A log message can be further decomposed [12] into a fixed part called the event template, characterizing the event type, and a variable part, which contains tokens filled at run time with the values of the event parameters. For example, the first log entry of the example log leg shown in Figure 1 is composed of the timestamp 20180526:10:00:01 , the template send 
+
+v1 via v2, and the set of parameter values {v1 = MSG1 , v 2 =
+
+CH1 }. More formally, let L be the set of all logs, T be the set of all event templates, and P be the set of all mappings from event parameters to their concrete values. A log l ∈ L is a sequence of log entries ⟨e1, . . . , e n⟩, with ei = ( τi, t i, p i),
+
+τi ∈ N, ti ∈ T , and pi ∈ P , for i = 1 , . . . , n . Using this formalism, log leg in Figure 1 would correspond to leg =
+
+⟨e1, e 2, . . . , e 11 ⟩ where τ1 = 20180526:10:00:01 , t1 =
+
+send v1 via v2, p1 = {v1 = MSG1 , v 2 = CH1 }, and so on. In the rest of the paper, we denote a template using its first word for simplicity; for example, we write the template send 
+
+instead of the template send v1 via v2.                                       
+
+> leg Log entry (timestamp + message)
+> e120180526:10:00:01 send MSG1 via CH1
+> e220180526:10:00:03 check MSG1
+> e320180526:10:00:05 memory OK
+> e420180526:10:00:05 send MSG1 via CH1
+> e520180526:10:00:06 check MSG1
+> e620180526:10:00:07 send MSG1 via CH1
+> e720180526:10:00:08 check MSG1
+> e820180526:10:00:09 send MSG1 via CH1
+> e920180526:10:00:10 memory OK
+> e10 20180526:10:00:10 check MSG1
+
+Fig. 1: Logs of the running example (free-standing log mes-sages highlighted in gray) The example log leg shown in Figure 1 will be used as a running example throughout the paper. It has three templates, i.e., T = {send , check , memory }. Among them, send 
+
+and check are regular event templates that represent the functional behavior of the system, while memory is a free-standing event template that represents the operational state of the system. Free-standing messages are highlighted in gray; as visible from the figure, they are randomly interleaved with regular messages. In practice, a log file is often a sequence of free-form text lines rather than a sequence of structured log entries. However, automatic log parsing has been widely studied to decompose free-form text lines into structured log entries by accurately identifying fixed parts (i.e., log message templates) [13]. For this reason, throughout the paper, we assume that logs are given in a structured form. 
+
+B. Downstream log analysis tasks 
+
+In this paper, we assess the effect of log cleaning on two downstream tasks: anomaly detection and model inference. 
+
+1) Model Inference: Model inference aims to extract behav-ioral models—typically in the form of Finite State Machines (FSMs)—from the execution logs of software systems. These models support a variety of software engineering tasks, includ-ing program comprehension [14], test case generation [15], and model checking [16]. The task is particularly relevant because accurate software models are often missing or become outdated as systems evolve, while execution logs provide an accessible source of observed system behavior. However, inferring accurate models presents several chal-lenges. Execution data may vary greatly in quality and volume, logs may contain noise or incomplete traces, and finding the right balance between generality and precision is non-trivial. These issues make automated model inference both necessary and difficult, especially for large and complex systems. A wide range of techniques have been proposed to address these challenges, ranging from classical algorithms for infer-ring FSMs [17, 18, 19] to richer variants such as guarded FSMs (gFSMs) [20, 21] and probabilistic extensions [22]. More recent approaches include component-based inference techniques [3] and large language models [23]. 
+
+2) Log-based Anomaly Detection: Log-based anomaly de-tection uses execution logs to identify deviations from normal behavior that may signal faults, security breaches, or other system issues [24]. A typical anomaly detection pipeline con-sists of three steps: (1) log parsing to extract structured events from raw log lines, (2) log partitioning to group events into sequences, and (3) anomaly detection to identify anomalous sequences based on their event patterns. Log-based anomaly detection spans approaches from statis-tical methods to deep learning [25, 26, 27]. The appropriate choice is context-dependent: deep learning models tend to perform best with abundant, complex data, while traditional machine learning models can be more suitable under data scarcity or when interpretability is required. III. A PPROACH 
+
+The goal of LogPurifier is to identify free-standing event templates in a set of logs and to remove from the logs the messages corresponding to these templates. For our running example shown in Figure 1, this means that LogPurifier should identify the template memory as free-standing and remove the corresponding messages, highlighted in gray. The intuition behind LogPurifier is that free-standing (event) templates are distinguishable from regular (event) templates by looking at the dependency of the corresponding messages in the logs. For instance, in our running example, the memory 
+
+template is distinguishable from the other templates ( send 
+
+and check ), because send is frequently followed by check 
+
+and check is frequently preceded by send . However, tem-plate memory is neither frequently followed nor preceded by the other templates. Assuming there is a way to measure, in the logs recorded during the execution of the system, the degree of dependency between templates, we expect free-standing templates to have a much lower dependency score on other templates than regular templates. Based on these observations, LogPurifier includes two main steps: dependency score calculation and clustering-based segmentation . The former aims at computing the degree of dependency among templates based on their co-occurrences. The latter automatically partitions free-standing templates and regular templates based on the dependency score of each template on the others. Algorithm 1 shows the pseudo-code of LogPurifier. It takes as input a set of logs L and a set of templates T ; it returns a set of cleaned logs Lcl , in which the free-standing messages (i.e., the messages having free-standing event templates) have been removed.                                           
+
+> Algorithm 1: LogPurifier
+> Input :Set of Logs L
+> Set of Templates T
+> Output: Set of Logs Lcl
+> 1Map from Tto Set of Reals mScore
+> 2foreach x∈Tdo
+> 3mScore [x]←0
+> 4foreach y∈T\ { x}do
+> 5mScore [x]←
+> max( mScore [x],dScoreCalc (x, y, L ))
+> 6end
+> 7end
+> 8Set of Templates Tfs ←clusterBasedSegment (T, mScore )
+> 9Set of Logs Lcl ←removeMessagesOf (Tfs , L )
+> 10 return Lcl
+
+For each template x ∈ T , the algorithm determines the maximum value of the dependency score (the value mScore [x]
+
+for the key x in the associative array mScore ), by computing the individual dependency scores of x on the other templates 
+
+y ∈ T \ { x} in L (lines 2–7). This last step is done by the 
+
+dScoreCalc function, described in detail in subsection III-A. We calculate the maximum value because, when x is not free-standing, it has a high dependency score with at least one of the templates in T − { x}. Using the calculated mScore , the algorithm calls the clusterBasedSegment function (described in detail in subsection III-B) to identify the set of free-standing templates Tfs from T (line 8). The algorithm ends by returning the set of cleaned logs Lcl , obtained (line 9) by removing the free-standing messages from L based on the free-standing templates in Tfs .In the following subsections, we illustrate the two main steps: dependency score calculation and clustering-based seg-mentation. 
+
+A. Dependency Score 
+
+To measure the dependency score of a template x on another template y for a set of logs L, we consider not only the dependency for which x could be a cause of y in L but also the dependency for which x could be a consequence of y in 
+
+L. More precisely, we define the forward dependency score of 
+
+x on y for L, denoted with dScore f (x, y, L ), as a measure of how likely an occurrence of x is followed by an occurrence of y (i.e., x is a cause of y) throughout L. Similarly, the 
+
+backward dependency score of x on y for L, denoted with 
+
+dScore b(x, y, L ), is a measure of how likely an occurrence of 
+
+x is preceded by an occurrence of y (i.e., x is a consequence 
+
+of y) throughout L. Since dScore b(x, y, L ) is equivalent to 
+
+dScore f (x, y, rev (L)) , where rev (L) is the set of reversed logs of L. Below, we present only the algorithm to compute the forward dependency score. First, we introduce the concept of a log entry occurring after another one. More formally, given a log entry ex of a template x in a log l, we say that a log entry ey of a template 
+
+y is the first-following log entry for ex in l if ey is the first log entry of y between ex and the next log entry of x in l.For instance, in our running example log leg , the log entries of the memory template are e3 and e9 while the log entries of the send template are e1, e4, e6, and e8. The log entry e4
+
+(of template send ) is the first following log entry for e3 (of template memory ), because e4 is the first log entry of send 
+
+between e3 and e9. However, there is no first-following log entry for e9 because there is no log entry of send between 
+
+e10 and the end of the log. However, simply checking whether there is a first-following log entry is not enough to compute the dependency score, because it does not consider how close the two log entries are. To take into account the distance between log entries, we define the co-occurrence score between two log entries ex and 
+
+ey in a log l, denoted with cScore (ex, e y , l ), as 
+
+cScore (ex, e y , l ) = 1
+
+distance (ex, e y , l )
+
+where distance (ex, e y , l ) is the difference of the indexes between ex and ey in l. For our running example log leg , we have cScore (e3, e 4, l eg ) = 1 because distance (e3, e 4, l eg ) = 1. When an entry ex has no first-following log entry, as it is the case for e9 in the above example, we have 
+
+cScore (ex, NaE , l ) = 0 where NaE indicates “Not an Entry”. We can then compute the dependency score between two templates x and y for a set of logs L as the average of the 
+
+cScore values of all log entries of x with its first-following log entries of y. More formally, we have 
+
+dScore f (x, y, L ) = 
+
+P
+
+> l∈L
+
+P 
+
+> ex∈Ex,l
+
+cScore (ex, e y , l )
+
+nwhere Ex,l is the set of log entries of x in l, ey is the first-following entry of y for ex in l, and n is the total number of log entries of x in L. In this way, we measure how likely and how closely an occurrence of x is followed by an occurrence of y throughout L. A value of dScore f (x, y, L ) = 1 indicates that x always immediately causes y in the logs in L, while a value dScore f (x, y, L ) = 0 indicates that x cannot cause y in the logs in L. For the running example above, we have: 
+
+dScore f (memory , send , {leg })=
+
+P 
+
+> l∈{ leg }
+
+P 
+
+> ex∈Ex,l
+
+cScore (ex, e y , l )2=
+
+P 
+
+> ex∈{ e3,e 9}
+
+cScore (ex, e y , l eg )2= 12 × [cScore (e3, e 4, l eg ) + cScore (e9, NaE , l eg )] = 12 × [1 + 0] = 0 .5
+
+We recall that we compute both the forward and backward dependency scores. The function dScoreCalc (x, y, L ) in Algo-rithm 1 returns the maximum between dScore f (x, y, L ) and 
+
+dScore b(x, y, L ). As a result, for our running example, we have: 
+
+mScore [memory ] = max( dScore f (memory , send , {leg }),
+
+dScore b(memory , send , {leg }),
+
+dScore f (memory , check , {leg }),
+
+dScore b(memory , check , {leg })) = max(0 .5, 0.75 , 0.75 , 0.75) = 0 .75 
+
+In the example, mScore for the free-standing template 
+
+memory is relatively high (0.75): this happens simply because of the small size of our running example (where the total number of templates is three). For the regular templates 
+
+send and check , we have mScore [send ] = 0.875 and 
+
+mScore [check ] = 0 .875 . The following subsection describes how to automatically distinguish free-standing templates and regular templates based on the mScore values. 
+
+B. Clustering 
+
+As mentioned earlier, the (maximum) dependency score 
+
+mScore value of free-standing templates is likely to be less than that of regular templates. Furthermore, in our preliminary experiments, we observed that the gap among the mScore 
+
+values for free-standing templates is often smaller than the gap between the highest mScore value of a free-standing template and the lowest mScore value of a regular template. This suggests that the set of free-standing templates could form a cluster based on mScore . Therefore, we propose a heuristic to partition free-standing templates and regular templates using clustering. We first generate multiple clusters of templates based on the value mScore . The number of clusters can be more than two because regular templates often lead to multiple clusters. Since the number of clusters is not known in advance, we use the Mean-Shift clustering algorithm [28]. Among the generated clusters, the cluster with the smallest mScore value is assumed to be one of the free-standing templates. For instance, if we apply the clustering-based seg-mentation heuristic to our running example, with T =
+
+{send , check , memory } and using the mScore values com-puted in subsection III-A, the clustering algorithm will gener-ate two clusters c1 = {send , check }, and c2 = {memory }.Since c2 has the smallest mScore = 0.75 , the memory 
+
+template in c2 is identified as free-standing. After identifying free-standing templates with the clustering-based segmentation heuristic, the dependency analysis algorithm ends with the removal of the log entries containing one of the identified free-standing templates. In the case of our running example log leg , this means removing the entries with template memory ; the final, cleaned version of the log is the one without any of the free-standing messages highlighted in grey in Figure 1. IV. E VALUATION DESIGN 
+
+In this section, we present the plan for evaluating the impact, on the effectiveness and efficiency of downstream tools, of cleaning free-standing templates from log data using LogPurifier. We focus on two common but distinct log analysis tasks: MI and AD (see Section II-B). Both tasks rely heavily on the structure and consistency of logs, but are impacted by noise in different ways. The evaluation is guided by the following research ques-tions: RQ1. How does cleaning the log with LogPurifier affect the effectiveness of downstream task tools? 
+
+RQ2. How does cleaning the log with LogPurifier affect the efficiency of downstream task tools? 
+
+These research questions capture two key ways in which free-standing messages can influence downstream analyses. RQ1 focuses on effectiveness, as noise and randomly in-terleaved events can reduce the accuracy of AD and MI techniques, while RQ2 focuses on efficiency, since large log volumes increase computational cost. Balancing these two dimensions is critical in practice, given that real-world logs are typically large and noisy. As downstream tasks exploit log data differently, we do not expect cleaning to have a uniform effect across tasks. 
+
+A. General Evaluation Procedure 
+
+We follow the same evaluation pipeline for both RQs: we prepare Lorg , produce Lcl using LogPurifier, run the downstream tool on both logs, and compare outcomes using the planned descriptive and statistical analysis. All experiments will be conducted on a high-performance computing platform. For baseline comparison, we evaluate against LogSed [9] and LogBoost [29]. Although other log cleaning approaches have been proposed (see Section VII), their implementation is unavailable [30, 31, 32]. We also investigate their false positive rates, i.e., how often relevant messages are removed incorrectly. B. Experimental Setup - Model Inference 
+
+Tool. Our evaluation will use only one tool for MI, as we do not aim to benchmark MI approaches; specifically, we chose MINT [33] as it is state-of-the-art, publicly available, and has been shown to be accurate [3]. 
+
+Datasets and Data Preparation. We plan to assemble a benchmark of logs obtained from the execution of at least 11 publicly available system models (in the form of Finite State Machines - FSM). These systems have been proposed previously and widely used in the MI literature [34, 35, 36]. We will use the methodology proposed by Busany et al. [37] to generate logs from these FSM models, using the publicly available trace generator by Lo et al. [36], configured to provide state coverage of four visits per state and a minimum of 1000 logs. This configuration is expected to provide a sufficiently large dataset of execution logs to support the planned statistical analysis. Logs generated from FSM models are, by construction, purely regular. To study the effect of cleaning noisy logs, we introduce noise by randomly interleaving free-standing messages with regular messages. Specifically, we generate log entries corresponding to n free-standing event templates and inject them into the logs by randomizing their timestamps. The value of n is chosen not to exceed the number of regular templates in the generated logs. To assess the performance of LogPurifier under varying noise conditions, we vary the noise rate (NR)—defined as the proportion of injected free-standing log entries over the total number of log entries—between 0.1 and 0.9. 
+
+Evaluation process. As MI tools infer system behavior from logs, their accuracy depends on how well the learned model matches the reference model. We assess this using the deter-ministic language-cardinality method of Clun et al. [38], which enumerates all traces up to a user-defined maximum length k,chosen by domain knowledge or set sufficiently large to cover relevant behaviors. Additionally, to account for randomness in the generation of 
+
+Lorg and the injection of free-standing messages, we repeat the model assessment 30 times for each system in our benchmark. 
+
+Collected Metrics. We measure effectiveness using cumulative precision and recall of inferred models [38]. The efficiency is measured as the execution time of MINT in seconds. 
+
+C. Experimental Setup - Anomaly Detection 
+
+Tools. We will use invariant mining (IM) [39] and one-class SVM (OC-SVM) [40]. IM is an unsupervised method, whereas OC-SVM is semi-supervised; both models are trained using only normal execution logs. This choice reflects practical settings in which fully labeled logs are scarce. We exclude deep learning-based methods due to their high computational cost and lack of consistent performance gains over simpler machine learning techniques [26]. To reduce implementation bias, we will adopt Loglizer [41], a publicly available and widely used toolkit for log-based AD. 
+
+Datasets and Data Preparation. Following recent stud-ies [42], we will include at least the BGL, Thunderbird, and Spirit log datasets in our evaluation. These datasets are widely used in the AD literature and represent real-world logs col-lected from large-scale systems [10, 43]. Additional datasets may be included if suitable data are identified; nevertheless, these three datasets provide a reasonable and well-established basis to evaluate the impact of LogPurifier. As in recent work [41, 26], we will use Drain [44] to extract templates and fixed time windows to segment logs into sequences for AD. To comprehensively evaluate the impact of LogPurifier, we consider seven time window sizes (60, 100, 120, 300, 600, 1800, and 3600 seconds), as the choice of time window can affect the performance of AD methods [42]. 
+
+Evaluation process. 
+
+We preprocess both AD models identically. We sample 80% of the normal sequences from Lorg for training; the test set contains the remaining 20% of normal sequences plus all 
+
+anomalous sequences. To construct Lcl , we run LogPurifier on the training data to identify free-standing templates, then remove all matching log messages from both the training and test sets. 
+
+Collected metrics. To assess the effectiveness of LogPurifier on AD, we measure precision, recall, and F1-score of the selected AD tools, following common practice [26, 41]. For efficiency , we measure the training time of the tools in seconds. V. A NALYSIS PLAN 
+
+A. Analysis on the Effectiveness (RQ1) 
+
+To assess the effect of log cleaning on the outcome measures of downstream tasks, we analyze AD and MI independently and assess each outcome measure collected on its own. In all analyses, the dependent variable is the downstream task outcome measure, while the independent variable indicates whether the input log is cleaned or not. As each system is evaluated using several configurations (e.g., different tools, noise rates, or window sizes) and each configuration is tested using the original and cleaned logs, the resulting data consist of repeated paired measurements that are grouped by system. Consequently, the primary analysis method will be linear mixed-effects models (LMMs) [45]. We account for system-level variability by including the system as a random effect, model log cleaning as the fixed effect of primary interest, and include factors relevant to each downstream task (e.g., noise rate and time window size) as additional fixed effects. The appropriate analysis technique depends on the observed characteristics of the data; therefore, we will apply transformations when appropriate and rely on generalized models if the assumptions of LMMs are not met. As the study is exploratory and we are primarily interested in the overall effect of cleaning, we summarize the results using marginal effects [46]. They describe how the expected value of an outcome changes when the explanatory variable of interest changes, while the other variables in the model remain constant. For MI, marginal effects aggregate results across different noise rates, while for AD they are aggregated across tools and time window configurations. To complement the marginal effects, we will examine high-level trends associated with individual covariates, without analyzing each of them in depth. 
+
+B. Analysis on the Efficiency (RQ2) 
+
+We analyze execution/training time differences using the same analysis procedure as described for RQ1. In the applied models, all predictors and random effects remain unchanged; only the dependent variable differs. For RQ2, it corresponds to the execution/training time of the downstream analysis tool. The execution time of log-based analysis tools typically depends on the size of the input data. As log cleaning reduces the size of input logs, observed differences in execution or training time may be associated with this reduction. To assess this, we perform an exploratory mediation analysis [47]. This analysis estimates the portion of the observed association that is statistically associated with the reduction in the number of templates in the input data. VI. T HREATS TO VALIDITY 
+
+External Validity. Our evaluation focuses on two down-stream tasks with distinct ways of exploiting log data. Con-sequently, our findings may not generalize to all types of log-based downstream tasks. In particular, some tasks may benefit less from removing free-standing messages or require different cleaning strategies. Nevertheless, MI and AD are common tasks, meaning that our findings remain relevant for practical log-analysis scenarios. 
+
+Internal Validity. A primary threat comes from the datasets used in our evaluation. For MI, we rely on synthetically generated logs, as finding a reliable annotated real-world dataset of sufficient complexity is challenging. To make the data more realistic, we vary the noise rate and repeat the data generation 30 times for each system. For AD, we have identified three widely used public datasets. Although this enables comparison with prior work, the limited number of independent projects may reduce sta-tistical power. As a result, our statistical analysis should be interpreted as exploratory; we focus on descriptive statistics and marginal effects rather than individual model coefficients. Additional threats arise from log pre-processing. In the absence of session identifiers, we partition logs using fixed time windows, which may affect performance; we mitigate this by evaluating multiple window sizes. We also rely on a single standard log parser and keep templates unchanged; different parsers may produce templates with different granu-larity, potentially altering dependency scores and the resulting set of filtered templates. Finally, results may depend on the chosen downstream tools, though we expect overall trends to generalize to comparable approaches. Regarding baselines, LogSed and LogBoost were developed to improve AD rather than MI, so their results when applied to MI may reflect a task mismatch; we include them for consistency but interpret these findings cautiously. LogSed may still be relevant, as its template-removal heuristic could also benefit MI. Because the LogSed code is unavailable, we re-implement it based on the original paper to minimize implementation bias. 
+
+Construct Validity. We do not perform an empirical evalua-tion of LogPurifier itself. Conducting such an evaluation would require a reliable ground truth identifying which log messages are free-standing; however, it is not possible to define such a ground truth unambiguously in a task-agnostic manner. Ultimately, LogPurifier is not intended to perfectly clean logs; its goal is to improve downstream task performance, which is directly assessed in our study. VII. R ELATED WORK 
+
+The closest work to LogPurifier is the automated free-standing message filtering technique by Jia et al. [9] (which we call LogSed). While its high-level intuition is similar to LogPurifier, LogSed models only one-way dependencies and requires user-set parameters, including thresholds that deter-mine the size of the vicinity window used in its dependency analysis, whereas LogPurifier models two-way dependencies and is fully automatic. In process mining, Conforti et al. [30] treat noise as weakly supported transitions , i.e., infrequent directly-follows relations between templates. In contrast, LogPurifier targets weakly sup-ported templates by identifying templates that are structurally independent in the inferred dependency structure. More recent AD-oriented methods include LogBoost [29], which removes templates shared by normal and anomalous sequences, and LogCleaner [31], which prunes non-beneficial events (anti-events or duplicative events). LogAssist [32] instead targets redundancy for summarization by collapsing repeated events and compressing recurring, co-occurring sub-sequences. Overall, LogBoost and LogCleaner define noise relative to anomaly detection, while LogAssist defines it relative to summarization. In contrast, LogPurifier uses a task-agnostic notion of noise that is not tied to a single downstream task and filters independently occurring templates that are unlikely to reflect functional system behavior. VIII. C ONCLUSION 
+
+In this registered report, we have presented LogPurifier, a task-agnostic log-cleaning tool that identifies and removes 
+
+free-standing messages from log files in a black-box setting by computing co-occurrence-based dependency scores for log message templates. The goal of LogPurifier is to enhance downstream task effectiveness and efficiency by reducing the noise in log files. We have presented an empirical evaluation plan of LogPu-rifier on two downstream tasks: model inference and anomaly detection. The plan specifies the downstream task tools, datasets, data pre-processing steps, evaluation metrics, and statistical analysis procedures. ACKNOWLEDGEMENTS 
+
+This research was funded in whole or in part by the Luxembourg National Research Fund (FNR), grant reference C22/IS/17373407/LOGODOR. REFERENCES [1] M. A. Batoun, M. Sayagh, R. Aghili, A. Ouni, and H. Li, “A literature review and existing challenges on software logging practices: From the creation to the analysis of software logs,” Empirical Software Engineering , vol. 29, no. 4, p. 103, 2024. [2] S. Gu, G. Rong, H. Zhang, and H. Shen, “Logging practices in software engineering: A systematic mapping study,” IEEE Transactions on Software Engineering , vol. 49, no. 2, pp. 902–923, 2023. [3] D. Shin, D. Bianculli, and L. Briand, “Prins: scalable model inference for component-based system logs,” Empirical Softw. Eng. , vol. 27, no. 4, Jul. 2022. [4] B. Zhang, H. Zhang, P. Moscato, and A. Zhang, “Anomaly detection via mining numerical workflow relations from logs,” in International Symposium on Reliable Distributed Systems (SRDS) , 2020, pp. 195–204. [5] K. Xue, Q. Han, S. Han, Z. Shi, and Y. Qiao, “A review of software testing process log parsing and mining,” in Proc. IEEE Int. Conf. on Software Services Engineering (SSE) , 2024, pp. 334–343. [6] K. Yao, G. B. de P´ adua, W. Shang, C. Sporea, A. Toma, and S. Sajedi, “Log4perf: suggesting and updating logging locations for web-based systems’ performance monitoring,” Empirical Softw. Eng. , vol. 25, no. 1, pp. 488–531, 2020. [7] Q. Fu, J. Zhu, W. Hu, J.-G. Lou, R. Ding, Q. Lin, D. Zhang, and T. Xie, “Where do developers log? an empirical study on logging practices in industry,” in Companion Proc. of the 36th Int. Conf. on Software Engineering , 2014, pp. 24–33. [8] I. F. Ilyas and X. Chu, Data Cleaning . Association for Computing Machinery, 2019. [9] T. Jia, L. Yang, P. Chen, Y. Li, F. Meng, and J. Xu, “Logsed: Anomaly diagnosis through mining time-weighted control flow graph in logs,” in 2017 IEEE 10th International Conference on Cloud Computing (CLOUD) , 2017, pp. 447–455. [10] A. Oliner and J. Stearley, “What supercomputers say: A study of five system logs,” in Proc. 37th Annual IEEE/IFIP Int. Conf. on Dependable Systems and Networks . IEEE Computer Society, 2007, pp. 575–584. [11] T. Jia, Y. Li, Y. Yang, G. Huang, and Z. Wu, “Augmenting log-based anomaly detection models to reduce false anomalies with human feedback,” in Proc. 28th ACM SIGKDD Conf. Knowl. Discov. Data Min. ,2022, pp. 3081–3089. [12] S. Messaoudi, A. Panichella, D. Bianculli, L. Briand, and R. Sasnauskas, “A search-based approach for accurate identification of log message formats,” in Proc. IEEE/ACM 26th Int. Conf. Program Comprehension (ICPC) , 2018, pp. 167–177. [13] T. Zhang, H. Qiu, G. Castellano, M. Rifai, C. S. Chen, and F. Pianese, “System log parsing: A survey,” IEEE Transactions on Knowledge and Data Engineering , vol. 35, no. 8, pp. 8596–8614, 2023. [14] J. E. Cook and A. L. Wolf, “Discovering models of software processes from event-based data,” ACM Trans. Softw. Eng. Methodol. , vol. 7, no. 3, pp. 215–249, 1998. [15] G. Fraser and N. Walkinshaw, “Behaviourally adequate software testing,” in Proc. IEEE 5th Int. Conf. on Software Testing, Verification and Validation , 2012, pp. 300–309. [16] E. M. Clarke Jr, O. Grumberg, D. Kroening, D. Peled, and H. Veith, 
+
+Model checking . MIT press, 2018. [17] A. W. Biermann and J. A. Feldman, “On the synthesis of finite-state machines from samples of their behavior,” IEEE Transactions on Computers , vol. C-21, no. 6, pp. 592–597, 1972. [18] I. Beschastnikh, Y. Brun, S. Schneider, M. Sloan, and M. D. Ernst, “Leveraging existing instrumentation to automatically infer invariant-constrained models,” in Proc. Joint 19th ACM SIGSOFT Symp. Found. Softw. Eng. and 13th Eur. Conf. Found. Softw. Eng. (ESEC/FSE) , 2011, pp. 267–277. [19] C. Luo, F. He, and C. Ghezzi, “Inferring software behavioral models with mapreduce,” Science of Computer Programming , vol. 145, pp. 13– 36, 2017. [20] N. Walkinshaw, R. Taylor, and J. Derrick, “Inferring extended finite state machine models from software executions,” Empirical Software Engineering , vol. 21, no. 3, pp. 811–853, 2016. [21] L. Mariani, M. Pezz` e, and M. Santoro, “Gk-tail+ an efficient approach to learn software models,” IEEE Transactions on Software Engineering ,vol. 43, no. 8, pp. 715–738, 2017. [22] S. S. Emam and J. Miller, “Inferring extended probabilistic finite-state automaton models from software executions,” ACM Trans. Softw. Eng. Methodol. , vol. 27, no. 1, 2018. [23] H. Wei, L. Chen, Z. Du, Y. Wu, H. Huang, Y. Liu, G. Cheng, F. Xu, L. Wang, and B. Mao, “Unleashing the power of LLM to infer state machine from the protocol implementation,” in Proc. IEEE/ACM 33rd Int. Symp. Quality of Service (IWQoS) , 2025, pp. 1–10. [24] S. He, P. He, Z. Chen, T. Yang, Y. Su, and M. R. Lyu, “A survey on automated log analysis for reliability engineering,” ACM Comput. Surv. ,vol. 54, no. 6, Jul. 2021. [25] M. Landauer, S. Onder, F. Skopik, and M. Wurzenberger, “Deep learning for anomaly detection in log data: A survey,” Machine Learning with Applications , vol. 12, p. 100470, 2023. [26] S. Ali, C. Boufaied, D. Bianculli, P. Branco, and L. Briand, “A com-prehensive study of machine learning techniques for log-based anomaly detection,” Empirical Softw. Engg. , vol. 30, no. 5, 2025. [27] V. Chandola, A. Banerjee, and V. Kumar, “Anomaly detection: A survey,” 
+
+ACM Comput. Surv. , vol. 41, no. 3, 2009. [28] D. Comaniciu and P. Meer, “Mean shift: a robust approach toward feature space analysis,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 24, no. 5, pp. 603–619, 2002. [29] M. Li, X. Li, P. Chen, Y. Lai, and Z. Zheng, “Logboost: Boost log anomaly detection by cherry-picking log sequences,” IEEE Transactions on Services Computing , pp. 1–14, 2026. [30] R. Conforti, M. L. Rosa, and A. H. t. Hofstede, “Filtering out infrequent behavior from business process event logs,” IEEE Transactions on Knowledge and Data Engineering , vol. 29, no. 2, pp. 300–314, 2017. [31] L. Zhang, T. Jia, K. Wang, M. Jia, Y. Yang, and Y. Li, “Reducing events to augment log-based anomaly detection models: An empirical study,” in 
+
+Proc. 18th ACM/IEEE International Symposium on Empirical Software Engineering and Measurement , 2024, pp. 538–548. [32] S. Locke, H. Li, T.-H. P. Chen, W. Shang, and W. Liu, “Logassist: Assisting log analysis through log summarization,” IEEE Transactions on Software Engineering , vol. 48, no. 9, pp. 3227–3241, 2022. [33] N. Walkinshaw, “mintframework,” 2018, [Online]. Available: https://github.com/neilwalkinshaw/mintframework. Accessed: 5/2026. [34] D. Lo and S. Khoo, “Quark: Empirical assessment of automaton-based specification miners,” in Proc. 13th Working Conference on Reverse Engineering , 2006, pp. 51–60. [35] M. Pradel, P. Bichsel, and T. R. Gross, “A framework for the evaluation of specification miners based on finite state machines,” in Proc. IEEE Int. Conf. on Software Maintenance , 2010, pp. 1–10. [36] D. Lo, L. Mariani, and M. Santoro, “Learning extended fsa from software: An empirical assessment,” Journal of Systems and Software ,vol. 85, no. 9, pp. 2063–2076, 2012. [37] N. Busany, S. Maoz, and Y. Yulazari, “Size and accuracy in model infer-ence,” in 2019 34th IEEE/ACM International Conference on Automated Software Engineering (ASE) , 2019, pp. 887–898. [38] D. Clun, D. Shin, A. Filieri, and D. Bianculli, “Rigorous assessment of model inference accuracy using language cardinality,” ACM Trans. Softw. Eng. Methodol. , vol. 33, no. 4, Apr. 2024. [39] J.-G. Lou, Q. Fu, S. Yang, Y. Xu, and J. Li, “Mining invariants from console logs for system problem detection,” in USENIX annual technical conference (USENIX ATC) , 2010. [40] B. Sch¨ olkopf, J. C. Platt, J. Shawe-Taylor, A. J. Smola, and R. C. Williamson, “Estimating the support of a high-dimensional distribution,” 
+
+Neural Computation , vol. 13, no. 7, pp. 1443–1471, 2001. [41] S. He, J. Zhu, P. He, and M. R. Lyu, “Experience report: System log analysis for anomaly detection,” in Proc. IEEE 27th international symposium on software reliability engineering (ISSRE) , 2016, pp. 207– 218. [42] V.-H. Le and H. Zhang, “Log-based anomaly detection without log parsing,” in Proc. 36th IEEE/ACM Int. Conf. on Automated Software Engineering , 2022, pp. 492–504. [43] M. Landauer, F. Skopik, and M. Wurzenberger, “A critical review of common log data sets used for evaluation of sequence-based anomaly detection techniques,” Proc. ACM Softw. Eng. , vol. 1, no. FSE, Jul. 2024. [44] P. He, J. Zhu, Z. Zheng, and M. R. Lyu, “Drain: An online log parsing approach with fixed depth tree,” in 2017 IEEE International Conference on Web Services (ICWS) , 2017, pp. 33–40. [45] B. T. West, K. B. Welch, and A. T. Gałecki, Linear Mixed Models: A Practical Guide Using Statistical Software , 2nd ed. Boca Raton, Florida: Chapman and Hall/CRC, 2014. [46] J. M. Wooldridge, Econometric analysis of cross section and panel data ,2nd ed. MIT Press, 2010. [47] A. F. Hayes, Introduction to mediation, moderation, and conditional process analysis: A regression-based approach . Guilford publications, 2017.

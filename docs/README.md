@@ -6,40 +6,41 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-27
-- 运行时间：2026-06-27 21:38:55 UTC
+- 最新运行日期：2026-06-28
+- 运行时间：2026-06-28 20:24:08 UTC
 - 运行状态：成功
-- 本次总论文数：6
-- 精读区：2
-- 速读区：4
+- 本次总论文数：7
+- 精读区：1
+- 速读区：6
 
 ### 今日简报（AI）
-今日精读两篇高分论文：物理引导算子学习提升水下导航鲁棒性，层级深度学习精准分类海洋物种  
-最值得关注的方向：将物理模型与深度学习结合解决感知难题，以及利用层级结构处理复杂图像分类任务  
-建议读者进一步探索物理引导模型在环境感知中的迁移应用，或尝试用层级分类方法优化其他标注稀疏的图像数据
-- 详情：[/202606/27/README](/202606/27/README)
+今日共阅读7篇前沿论文，精读1篇聚焦轻量级Transformer在资源受限设备上的故障检测基准测试（8.0/10），速读3篇涵盖分布漂移检测、洪灾识别与日志清洗方向。最值得优先精读轻量Transformer部署优化，并关注聚类局部化漂移检测在工业批量模型自适应中的应用。建议读者结合自身场景，先攻克边缘端模型轻量化技术，再探索受控分布漂移下的高效模型更新策略。
+- 详情：[/202606/28/README](/202606/28/README)
 
 ### 精读区论文标签
-1. [DVL-DeepONet: A Physics-Guided Operator Learning for Resilient Underwater Navigation](/202606/27/2606.23502v1-dvl-deeponet-a-physics-guided-operator-learning-for-resilient-underwater-navigation)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：自主水下航行器导航中的DVL缺失波束处理
-2. [Taxonomy-aware deep learning for hierarchical marine species classification in underwater imagery](/202606/27/2606.25989v1-taxonomy-aware-deep-learning-for-hierarchical-marine-species-classification-in-underwater-imagery)  
-   标签：评分：8.0/10、query:ocean-obs
-   evidence：提出一种水下图像海洋物种分类的深度学习框架，直接支持生态观测
+1. [Lightweight Transformer Models for On-Device Fault Detection: A Benchmark Study on Resource-Constrained Deployment](/202606/28/2606.24173v1-lightweight-transformer-models-for-on-device-fault-detection-a-benchmark-study-on-resource-constrained-deployment)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：设备故障检测基准直接涉及异常检测方法
 
 ### 速读区论文标签
-1. [TabClean: Reusable LLM-Synthesized Programs for Tabular Data Cleaning](/202606/27/2606.25388v1-tabclean-reusable-llm-synthesized-programs-for-tabular-data-cleaning)  
-   标签：评分：7.0/10、query:ocean-qc
-   evidence：LLM合成的表格数据清洗程序
-2. [FLFL: Federated Latent Factor Learning for Private Recovery of Spatio-Temporal Signals](/202606/27/2606.23091v1-flfl-federated-latent-factor-learning-for-private-recovery-of-spatio-temporal-signals)  
+1. [Cluster-Specific Localized Drift Detection for Efficient Batch Model Adaptation under Controlled Distribution Shift](/202606/28/2606.22026v1-cluster-specific-localized-drift-detection-for-efficient-batch-model-adaptation-under-controlled-distribution-shift)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：漂移检测框架，适用于时间序列中的数据异常检测
+2. [Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery](/202606/28/2606.26204v1-topology-informed-neural-networks-for-flood-detection-in-optical-and-synthetic-aperture-radar-imagery)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：拓扑感知神经网络用于洪水检测，属于遥感影像异常检测任务
+3. [Cleaning Logs for Downstream Tasks (Registered Report)](/202606/28/2606.27000v1-cleaning-logs-for-downstream-tasks-registered-report)  
+   标签：评分：7.0/10、query:anomaly-id
+   evidence：LogPurifier清理日志以提升下游异常检测性能，是一种通用的异常检测数据清洗方法
+4. [OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching](/202606/28/2606.22572v1-oasis-observation-aware-simulation-based-inference-via-distributional-matching)  
    标签：评分：6.0/10、query:ocean-qc
-   evidence：联邦潜在因子学习用于WSN缺失数据恢复，可应用于海洋传感器质量控制
-3. [Changing Modalities: Adapting Remote Sensing Models to New Satellites and Sensors](/202606/27/2606.23356v1-changing-modalities-adapting-remote-sensing-models-to-new-satellites-and-sensors)  
+   evidence：观测感知的仿真推断处理测量误差
+5. [Low-Cost High-Order Singular Value Decomposition for Tensor-Based Reconstruction from Sparse Sensor Measurements: Urban Flow and Air-Quality Applications](/202606/28/2606.24989v1-low-cost-high-order-singular-value-decomposition-for-tensor-based-reconstruction-from-sparse-sensor-measurements-urban-flow-and-air-quality-applications)  
    标签：评分：6.0/10、query:ocean-obs
-   evidence：使遥感模型适应新卫星和传感器
-4. [False Positives, False Negatives, and the Detection-Only Problem: A Hierarchical Model for Species Occurrence with Observation Error](/202606/27/2606.26323v1-false-positives-false-negatives-and-the-detection-only-problem-a-hierarchical-model-for-species-occurrence-with-observation-error)  
-   标签：评分：6.0/10、query:anomaly-id
-   evidence：用于观测误差和检测的层次模型
+   evidence：基于张量的稀疏传感器重建方法，可应用于海洋观测系统
+6. [TabClean: Reusable LLM-Synthesized Programs for Tabular Data Cleaning](/202606/28/2606.25388v1-tabclean-reusable-llm-synthesized-programs-for-tabular-data-cleaning)  
+   标签：评分：6.0/10、query:ocean-qc
+   evidence：表格数据清洗方法可应用于海洋数据质量控制
 
 
 <div class="dpr-home-promo-card">
