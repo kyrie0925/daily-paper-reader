@@ -6,41 +6,51 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-28
-- 运行时间：2026-06-28 20:24:08 UTC
+- 最新运行日期：2026-06-29
+- 运行时间：2026-06-29 21:48:56 UTC
 - 运行状态：成功
-- 本次总论文数：7
-- 精读区：1
+- 本次总论文数：9
+- 精读区：3
 - 速读区：6
 
 ### 今日简报（AI）
-今日共阅读7篇前沿论文，精读1篇聚焦轻量级Transformer在资源受限设备上的故障检测基准测试（8.0/10），速读3篇涵盖分布漂移检测、洪灾识别与日志清洗方向。最值得优先精读轻量Transformer部署优化，并关注聚类局部化漂移检测在工业批量模型自适应中的应用。建议读者结合自身场景，先攻克边缘端模型轻量化技术，再探索受控分布漂移下的高效模型更新策略。
-- 详情：[/202606/28/README](/202606/28/README)
+今日精选9篇论文，精读声学-射频通信信道实证研究（9.0分）与对抗污染下硬阈值迭代算法（8.0分），速读涵盖动态系统变化检测、时间序列基础模型评估、少样本图欺诈检测。
+
+最值得跟进的是声学-射频通信信道表征方法，以及对抗污染场景中兼具信号自适应性与极大极小最优性的迭代算法。
+
+建议普通读者优先阅读速读中的时间序列基础模型对电子鼻数据嵌入的实证评估，以及扩散引导的少样本图欺诈检测工作。
+- 详情：[/202606/29/README](/202606/29/README)
 
 ### 精读区论文标签
-1. [Lightweight Transformer Models for On-Device Fault Detection: A Benchmark Study on Resource-Constrained Deployment](/202606/28/2606.24173v1-lightweight-transformer-models-for-on-device-fault-detection-a-benchmark-study-on-resource-constrained-deployment)  
+1. [Empirical characterization of the Translational acoustic-RF communication channel](/202606/29/2606.25708v1-empirical-characterization-of-the-translational-acoustic-rf-communication-channel)  
+   标签：评分：9.0/10、query:ocean-obs
+   evidence：水下声学-射频通信信道表征，用于智能浮标
+2. [Adversarial Contamination Meets Hard Thresholding: An Iterative Algorithm with Signal Adaptivity and Minimax Optimality](/202606/29/2606.27685v1-adversarial-contamination-meets-hard-thresholding-an-iterative-algorithm-with-signal-adaptivity-and-minimax-optimality)  
    标签：评分：8.0/10、query:anomaly-id
-   evidence：设备故障检测基准直接涉及异常检测方法
+   evidence：提出处理含异常值污染数据的鲁棒回归算法
+3. [Learning Topology-Aware Representations via Test-Time Adaptation for Anomaly Segmentation](/202606/29/2606.28268v1-learning-topology-aware-representations-via-test-time-adaptation-for-anomaly-segmentation)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：使用拓扑数据分析和测试时适应的异常分割方法
 
 ### 速读区论文标签
-1. [Cluster-Specific Localized Drift Detection for Efficient Batch Model Adaptation under Controlled Distribution Shift](/202606/28/2606.22026v1-cluster-specific-localized-drift-detection-for-efficient-batch-model-adaptation-under-controlled-distribution-shift)  
+1. [Structural Change Detection in Dynamic Systems](/202606/29/2606.27614v1-structural-change-detection-in-dynamic-systems)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：漂移检测框架，适用于时间序列中的数据异常检测
-2. [Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery](/202606/28/2606.26204v1-topology-informed-neural-networks-for-flood-detection-in-optical-and-synthetic-aperture-radar-imagery)  
+   evidence：基于ODE的动态系统结构变化检测
+2. [Are Time-Series Foundation Models Ready for E-Nose Data? An Empirical Assessment of Their Embeddings](/202606/29/2606.27672v1-are-time-series-foundation-models-ready-for-e-nose-data-an-empirical-assessment-of-their-embeddings)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：拓扑感知神经网络用于洪水检测，属于遥感影像异常检测任务
-3. [Cleaning Logs for Downstream Tasks (Registered Report)](/202606/28/2606.27000v1-cleaning-logs-for-downstream-tasks-registered-report)  
+   evidence：评估时间序列基础模型在电子鼻数据上的异常检测能力
+3. [Beyond Sparse Supervision: Diffusion-Guided Learning for Few-Shot Graph Fraud Detection](/202606/29/2606.28134v1-beyond-sparse-supervision-diffusion-guided-learning-for-few-shot-graph-fraud-detection)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：LogPurifier清理日志以提升下游异常检测性能，是一种通用的异常检测数据清洗方法
-4. [OASIS: Observation-Aware Simulation-Based Inference via Distributional Matching](/202606/28/2606.22572v1-oasis-observation-aware-simulation-based-inference-via-distributional-matching)  
+   evidence：基于图的欺诈检测属于异常检测方法
+4. [Robust Expectation-Maximization for Covariance Estimation in SIRV Models with Missing Data: Application to InSAR Time Series](/202606/29/2606.22628v1-robust-expectation-maximization-for-covariance-estimation-in-sirv-models-with-missing-data-application-to-insar-time-series)  
    标签：评分：6.0/10、query:ocean-qc
-   evidence：观测感知的仿真推断处理测量误差
-5. [Low-Cost High-Order Singular Value Decomposition for Tensor-Based Reconstruction from Sparse Sensor Measurements: Urban Flow and Air-Quality Applications](/202606/28/2606.24989v1-low-cost-high-order-singular-value-decomposition-for-tensor-based-reconstruction-from-sparse-sensor-measurements-urban-flow-and-air-quality-applications)  
+   evidence：针对InSAR时间序列的含缺失数据稳健协方差估计
+5. [A Methodology for Characterizing Underwater Radiated Noise from Submerged Electric Vehicles in a Coastal Environment: An AUV Test Case](/202606/29/2606.24813v1-a-methodology-for-characterizing-underwater-radiated-noise-from-submerged-electric-vehicles-in-a-coastal-environment-an-auv-test-case)  
    标签：评分：6.0/10、query:ocean-obs
-   evidence：基于张量的稀疏传感器重建方法，可应用于海洋观测系统
-6. [TabClean: Reusable LLM-Synthesized Programs for Tabular Data Cleaning](/202606/28/2606.25388v1-tabclean-reusable-llm-synthesized-programs-for-tabular-data-cleaning)  
-   标签：评分：6.0/10、query:ocean-qc
-   evidence：表格数据清洗方法可应用于海洋数据质量控制
+   evidence：沿海环境AUV水下辐射噪声特性表征方法
+6. [Sampling sea state using a diffusion model](/202606/29/2606.26389v1-sampling-sea-state-using-a-diffusion-model)  
+   标签：评分：6.0/10、query:ocean-obs
+   evidence：扩散模型用于全球海况估计，与海洋观测直接相关
 
 
 <div class="dpr-home-promo-card">

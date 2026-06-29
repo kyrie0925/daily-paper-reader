@@ -1,0 +1,941 @@
+Title: Structural Change Detection in Dynamic Systems
+
+URL Source: https://arxiv.org/pdf/2606.27614v1
+
+Published Time: Mon, 29 Jun 2026 00:15:00 GMT
+
+Number of Pages: 35
+
+Markdown Content:
+# Structural Change Detection in Dynamic Systems 
+
+# Wei Zhang School of Management, Department of Statistics and Data Science, Fudan University, Shanghai, China and Fang Yao ∗
+
+# School of Mathematical Sciences, Center for Statistical Science, Peking University, Beijing, China June 29, 2026 
+
+Abstract 
+
+Structural changes often arise in real-world dynamic systems due to external interventions or environmental shifts, such as policy changes in epidemiology or climate forcing in environmental science. In this paper, we propose a unified framework for detecting and localizing structural changes in dynamic systems governed by ordinary differential equations. Unlike existing methods that assume mean or linear trend changes, our approach accommodates complex, nonlinear dynamics with both stable and diverging trajectories. We develop a new test statistic that combines residual-based discrepancy and normalized parameter contrast, capturing evidence for structural changes from both model fit and parameter shifts. Candidate structural changes are efficiently screened using a multiscale seeded-narrowest-over-threshold algorithm with a data-driven thresholding strategy. To refine selections and control false discoveries, we introduce a false discovery rate control procedure that leverages order-preserved sample splitting and symmetric contrast calibration. Theoretical guarantees are established, including detection consistency, near-minimax localization accuracy, and valid FDR control under weak dependence. Extensive simulations demonstrate superior performance over existing methods in both accuracy and FDR control. Applications to real-world data sets, including COVID-19 dynamics and global temperature trends, highlight the practical relevance and broad applicability of our method. 
+
+Keywords: change-point detection, ordinary differential equation, false discovery rate 
+
+> ∗
+
+Fang Yao is the corresponding author. fyao@math.pku.edu.cn 
+
+1
+
+> arXiv:2606.27614v1 [stat.ME] 26 Jun 2026
+
+# 1 Introduction 
+
+Dynamic systems play a central role in modeling complex temporal behaviors across a wide range of scientific and practical domains, such as climate modeling, spread of disease and etc (Miao et al. 2009, Ghil & Lucarini 2020). In reality, these systems often experience structural changes over time, significantly altering their behavior and complicating predictive modeling. For example, an epidemiological model may experience structural changes due to the implementation or lifting of public health interventions like lockdowns or vaccination campaigns (Brauner et al. 2021). Similarly, the global temperature model can undergo structural changes influenced by varying factors such as solar activity and atmospheric changes (Benestad & Schmidt 2009). Reliably detecting these structural changes is critical for enhanced modeling accuracy, deeper comprehension of system behavior, and informed decision-making in practical applications. The general form of these dynamic systems is often mathematically expressed as a set of ordinary differential equations (ODEs): 
+
+˙u(t) = du (t)
+
+dt = f (u, t ; θ), u(0) = γ, (1) where the state vector u(t) ∈ Rd represents system outputs evolving continuously over time 
+
+t and θ ∈ Rq contains any parameters defining the system whose values are not known from experimental data, theoretical considerations or other sources of information. The known function f (·) explicitly describes the relationship between the system outputs and their time derivatives. If either there are no observations at t = 0 , or the observations contain measurement errors, then the initial value γ is also unknown. As previously mentioned, dynamic systems in real-world applications are frequently subject to structural changes driven by various external influences. In most cases, these structural changes are reflected in the unknown parameter β = ( θ⊤, γ ⊤)⊤ but do not change the form of f (·). This is because f (·) typically encodes the underlying physical, 2biological, or theoretical principles governing the system, which usually remain invariant over time. The parameters β, on the other hand, capture system-specific conditions such as intensities, rates, sensitivities, or initial states, which are more likely to be affected by external interventions or environmental changes (Keeling & Rohani 2008, Strogatz 2015). For instance, in an epidemiological model, the infection rate may vary due to policy changes or behavioral shifts, altering parameter values, while the basic structure of disease transmission remains unchanged. Therefore, modeling structural changes as parameter shifts preserves the interpretability and scientific validity of the system while accommodating the non-stationary nature of real-world data. Hereafter, we focus on the following observation model: for k = 0 , . . . , K n and i =1, . . . , n ,
+
+y(ti) = u(ti; β∗ 
+
+> k
+
+) + εi, τ ∗ 
+
+> k
+
+< i ≤ τ ∗
+
+> k+1
+
+, (2) where Kn is the total number of structural changes and τ ∗ 
+
+> k
+
+denotes the index of the k-th change location. Given the continuous nature of the underlying process, it indicates that parameters transition from β∗ 
+
+> k−1
+
+to β∗ 
+
+> k
+
+in [tτ ∗ 
+
+> k
+
+, t τ ∗ 
+
+> k+1
+
+], k = 1 , . . . , K n. The noise terms 
+
+εi = ( εi1, . . . , ε id )⊤ are assumed to be i.i.d. and sub-exponentially distributed. For notational convenience, we define τ ∗ 
+
+> 0
+
+= 0 and τ ∗ 
+
+> Kn+1
+
+= n, with the condition β∗
+
+> k−1
+
+̸ = β∗ 
+
+> k
+
+to ensure genuine structural shifts. We remark that when intermediate observations are unavailable, the exact timing of such changes is inherently unidentifiable. Thus, our focus is on detecting the discrete structural change locations τ ∗ 
+
+> k
+
+, k = 1 , . . . , K n rather than pinpointing the exact transition times. This problem is closely related to multiple change-point (MCP) detection that has been studied extensively for mean change-point models with methods including wild binary segmentation and related procedures (Fryzlewicz 2014, Kovács et al. 2022). Existing work beyond the mean model includes changes in linear trends (Bai & Perron 1998, Fearnhead et al. 2019, Tibshirani 2014), generalized piecewise linear or 3polynomial signals (Baranowski et al. 2019), linear regression settings (Fryzlewicz 2024), parametric MCP problems reducible through score-type transformations (Chen et al. 2023), and nonparametric jump regression (Wang 1995, Xia & Qiu 2015). Compared with these frameworks, our setting presents distinct statistical and compu-tational challenges, where the signal is not directly observed but arises as the solution of an ODE with unknown and potentially time-varying parameters. As a result, structural changes need not appear as discontinuities or cusps in the trajectory itself, but may instead be expressed through changes in its higher-order derivative structure, while inference must additionally account for parameter estimation and numerical approximation within the dynamical system. Related formulation for indirect noisy observations in stochastic differen-tial equations (Goldenshluger et al. 2006, Reiß et al. 2026) do not cover this setting as the analysis is restricted to jump discontinuities or finite observation horizons. Locally station-ary processes (Vogt & Dette 2015) provide another framework for modeling time-varying stochastic properties, but our underlying dynamical system is usually nonstationarity rather than slowly varying characteristics. These differences place our problem outside the scope of existing MCP methodologies and motivate the development of new tools for structural change detection under implicit dynamical models. In this paper, we propose a new framework for detecting and localizing structural changes in dynamic systems governed by ODEs. The method is built around a test statistic that combines two sources of evidence: a residual-based discrepancy and a normalized contrast between parameter estimates on adjacent segments, ensuring both robustness and statistical power under complex model structures. Candidate structural changes are efficiently identified via the seeded-narrowest-over-threshold (SNOT) algorithm, which performs a multiscale scan over a deterministic set of seeded intervals and selects structural changes that exceed a data-driven threshold derived from the distribution of these intervals. To refine the 4candidate set, we develop a False Discovery Rate (FDR) control procedure based on order-preserving sample splitting and symmetric contrast calibration. To accommodate systems with diverging trajectories, such as those found in linear trend models, we further introduce a parameter-specific adaptive scaling strategy that restores the asymptotic normality of contrast statistics across varying dynamic regimes. This unified framework delivers consistent detection and valid post-selection inference while remaining broadly applicable to a wide class of complex ODE systems. The main contributions of this work are as follows. First, we develop a unified framework for detecting and inferring structural changes in dynamic systems, capable of handling both stable and diverging trajectories without requiring closed-form solutions of the governing ODEs. Second, we introduce a novel data-driven procedure to determine the threshold for initial screening in the SNOT algorithm, enabling efficient and adaptive candidate selection. Third, we propose a principled FDR control method that ensures valid inference, offering finite-sample guarantees and consistent selection even under weak dependence and asymmetric test statistics. Fourth, we establish comprehensive theoretical results, including detection consistency, near-minimax localization error bounds, and asymptotically valid FDR control. We remark here that the FDR control properties are built for the whole detection procedure, while most existing theoretical analyses of post-detection procedures are based on assumptions of detection results (Chen et al. 2023). Finally, we validate our method through extensive simulation studies, demonstrating superior performance over existing approaches in terms of power, false discovery control, and localization precision. The practical utility of our approach is further illustrated through two real data applications: modeling the spread of COVID-19 and analyzing global temperature dynamics. The rest of the paper is organized as follows. Section 2 introduces the proposed framework for detecting and localizing structural changes in dynamic systems, as well as the 5modifications for diverging trajectories. In Section 3, we derive the detection consistency of the SNOT algorithm, and prove that the proposed FDR control procedure can adequately control the false discoveries without missing true structural changes. Comprehensive simulation studies on bounded and diverging systems are conducted in Section 4, and two real data examples for structural change detection are presented in Section 5. Concluding remarks are provided in Section 6. More discussion on the definition of FDR, theoretical details, along with additional simulation settings and results are provided in the Supplementary Material for space economy. 
+
+# 2 Multiple Structural Change Detection in ODEs 
+
+In this section, we formally describe the whole detection procedure. We first generate a sequence of generic intervals by seeded binary segmentation (Kovács et al. 2022), and for each interval, we determine the existence of changes and select a candidate structural change with our proposed test statistics, followed by utilizing a searching algorithm and FDR control procedure to derive the final estimation of structural changes. The detailed test statistic is introduced in the subsection 2.1. The proposed searching algorithm and FDR control procedure are provided in subsections 2.2 and 2.3. In addition, the modifications for diverging trajectories are provided in subsection 2.4. 
+
+# 2.1 Test statistic 
+
+Suppose we observe a sequence of measurements {y(ti)}ni=1 generated from the dynamic model (2) , which allows for potential changes in the underlying system parameters β. Our objective is to develop a procedure that determines whether a change occurs within a given generic interval (s, e ], where s, e ∈ { 1, . . . , n }, and if so, to estimate the corresponding location. To this end, we construct a test statistic based on two key components: (i) 6a normalized measure of parameter contrast across subintervals which assesses whether a meaningful change has occurred, and (ii) a residual-based discrepancy statistic which identifies the most plausible location of a structural break when such a change is present. We begin by considering a integer-valued candidate split point r ∈ (s, e ) that partitions the interval into two subsegments: (s, r ] and (r, e ]. Distinct from the mean change or linear regression setting, the changes can be directly expressed through the model structure. By contrast, the parameters governing the ODEs are implicit as the solution u are unobserved and contaminated with noise. A typical remedy to recover u is smoothing-based procedures (Ramsay et al. 2007, Tan et al. 2024, Reiß et al. 2026) that incorporate the ODE/SDE through a penalty term or, when available, a mild-solution representation. However, these type of methods can only deal with problems with densely observed data filling within a finite domain. In reality, many dynamic systems evolve along time that extends with more observations. Although one may rescale the increasing domain to a finite interval, this might alter the underlying dynamics and dependence among observations. Therefore, to keep fidelity to the governing ODEs, we take advantage of existing ODE solvers, combining powerful numerical tools with change detection problems. To this end, for each subsegment, we estimate the system parameters by solving the following least squares problems: 
+
+ˆβ(s,r ] = arg min 
+
+> βr∑
+> i=s+1
+
+∥y(ti) − ˆu(ti; β)∥22 , ˆβ(r,e ] = arg min 
+
+> βe∑
+> i=r+1
+
+∥y(ti) − ˆu(ti; β)∥22 ,
+
+where ˆu(t; β) denotes the numerical solution of the ODE system at time t.
+
+Remark 1. Unlike smoothing-based reconstruction from noisy data, the approximation 
+
+ˆu depends only on the ODE and therefore introduces only numerical error, which can be controlled by standard solver tolerances. This is useful for analyzing the properties of structural change detection, where careful control of stochastic fluctuations is important for the tail behavior of the test statistics. By avoiding data-driven smoothing, one preserves the separation of the odd and even subsamples in the subsequent FDR procedure, and can extend 
+
+7this strategy easily to more general nonlinear regression models. 
+
+To quantify the extent of change across the candidate split point, we construct a normalized parameter contrast as 
+
+∆(s,e ](r) = 
+
+> √
+
+(e − r)( r − s)
+
+e − s 
+
+> ∥∥∥
+
+ˆβ(s,r ] − ˆβ(r,e ] 
+
+> ∥∥∥2
+
+.
+
+The normalization factor adjusts for the relative lengths of the subintervals, ensuring comparability across different values of r. We then define the maximum contrast over the interval as ∆(s,e ] = max s+p+1 ≤r≤e−p−1 ∆(s,e ](r), where p = q + d is the dimension of the parameter β, and the exclusion of p + 1 boundary points ensures that both local estimators can be estimated from nearby data. A large value of ∆(s,e ] suggests that the interval (s, e ]
+
+includes a substantial change in the system parameters. Thus, if the parameter contrast 
+
+∆(s,e ] does not exceed a predetermined threshold ζn > 0, we conclude that the interval (s, e ]
+
+does not contain a structural change and refrain from further evaluation. Otherwise, if 
+
+∆(s,e ] > ζ n, we proceed to locate the structural change. To identify the most plausible change location within (s, e ], we employ a residual-based loss function: 
+
+R(s,e ](r) = 
+
+> r∑
+> i=s+1
+> ∥∥∥
+
+y(ti) − ˆu(ti; ˆβ(s,r ])∥∥∥22 +
+
+> e∑
+> i=r+1
+> ∥∥∥
+
+y(ti) − ˆu(ti; ˆβ(r,e ])∥∥∥22 .
+
+This statistic captures the total residual sum of squares when separate models are fit on either side of the candidate split. In contrast to classical CUSUM-type approaches, which measure cumulative deviations, this statistic measures the reduction in residual error due to introducing a structural change at r. The estimated location of structural change within the interval is then selected as ˆr(s,e ] = arg min s+p+1 ≤r≤e−p−1 R(s,e ](r), which is the location that improves the model fit to the most extent. To conclude, we can define the test statistic as 
+
+T(s,e ](r) = R(s,e ](r) · 1 {
+
+∆(s,e ] > ζ n
+
+> }
+
++ ∞ · 1 {
+
+∆(s,e ] ≤ ζn
+
+> }
+
+8The threshold ζn serves to exclude intervals with insufficient evidence of change by setting the test statistics to be infinite. Then a small T(s,e ](r) implies that (s, e ] contains a structural change near r. This design provides statistical rigor by avoiding over-detection in homogeneous regions while retaining accuracy in detecting structural change locations. In the following subsection, we build on this statistic to develop a searching algorithm for multiple structural change detection. 
+
+Remark 2. A related test statistic is the generalized likelihood ratio (GLR) statistic discussed in Baranowski et al. (2019). Conceptually, the GLR constructs a likelihood ratio test at each candidate location, while our proposed statistic is based on a Wald-type test. Under standard regularity conditions, these two approaches are asymptotically equivalent. In particular, when the noise is Gaussian, both statistics tend to identify the same most plausible change locations. However, the GLR statistic requires an additional fit over the full interval (s, e ],which incurs a non-negligible computational cost during the scanning procedure. In contrast, our test statistic is more computationally efficient and also facilitates the theoretical analysis. Empirical comparisons presented in Figure S1 of the Supplementary Material show that the GLR statistic appears slightly more conservative than the proposed one. This may be attributed to the fact that, in the simulation settings, the changes in the trajectory are less pronounced than the underlying parameter shifts. 
+
+# 2.2 Searching with screening 
+
+Based on the candidate structural change ˆr(s,e ] and its corresponding test statistic T(s,e ]( ˆr(s,e ])
+
+computed for each seeded interval (s, e ], we construct a set of candidate change points using a seeded-narrowest-over-threshold (SNOT) search procedure. The method combines a deterministic seeded interval design with the narrowest-over-threshold principle to identify potential structural changes. Specifically, after discarding intervals with no detectable change, the algorithm iteratively selects the shortest interval whose test statistic exceeds 9a threshold. When multiple intervals share the same length, the interval with the largest parameter contrast ∆(s,e ] is selected. Once a change point is accepted, overlapping intervals within a neighborhood of size g are removed to avoid redundant detections. The procedure continues until no intervals remain. The pseudo-code is summarized in Algorithm S1 in the Supplementary Material. Since the seeded interval design ensures deterministic coverage of the search space while maintaining computational efficiency, it is particularly suitable in our setting, where evaluating the test statistic requires solving an optimization problem. While such search strategies are well developed in the change-point literature, their performance in our setting depends critically on the choice of the detection threshold 
+
+ζn. According to Theorem 2, the optimal threshold involves unknown quantities such as derivatives of the latent parameter β, making it difficult to specify directly. To address this issue, we introduce a data-driven screening procedure that identifies a candidate set of structural changes before applying a formal multiple-testing step. The screening procedure aims to remove intervals that are unlikely to contain structural changes, which we refer to as null intervals. A key observation is that the seeded interval construction provides structural information about how many intervals can remain unaffected by true changes. Leveraging this property, we derive a lower bound for the number of null intervals when an upper bound Kmax on the number of structural changes is specified. 
+
+Proposition 1. Assume that the true number of null intervals is N (Kn), and ˆN (Kmax ) is the number of null intervals when Kmax structural changes are equally spaced. If Kmax ≥ 5Kn/4,then N (Kn) > ˆN (Kmax ). When the decay parameter a = 1 /2, the condition can be reduced to Kmax ≥ Kn.
+
+Proposition 1 shows that if the number of structural changes is moderately overestimated, we can obtain a valid lower bound for the number of null intervals. Based on this, we 10 define a screening threshold ˜ζn as the 1 − ˆN (Kmax ) quantile of the maximum contrasts 
+
+> {
+
+∆(s,e ] : ( s, e ] ∈ I }
+
+for screening. Let ˜T = {
+
+˜τ1, . . . , ˜τ ˜Kn
+
+> }
+
+denote the collection of candidate structural changes after screening. We then apply the FDR control procedure in Section 2.3 to obtain the final set of estimated structural changes. The proposed screening procedure is an important component of our methodology. Rather than relying on a carefully calibrated detection threshold within the search algorithm, the screening step provides a principled way to construct a manageable set of candidate change points prior to formal multiple testing. Importantly, unlike approaches that select the top Kmax structural changes along a solution path, our procedure adapts to the empirical distribution of the contrast statistics and therefore determines the candidate set in a data-driven manner. This avoids committing to a fixed number of candidates and improves robustness when the true number of structural changes is unknown. Moreover, the screening principle relies only on the structural properties of seeded intervals and the availability of a contrast statistic; it provides a general and computationally efficient mechanism for candidate generation in change-point detection problems that employ seeded interval designs. 
+
+# 2.3 FDR control procedure 
+
+Before introducing our procedure for controlling the false discovery rate (FDR), we first define what constitutes a false discovery in the context of multiple structural change detection. Specifically, we adopt a definition following Li et al. (2013): a candidate 
+
+˜τj is considered informative if there exists a true structural change within the interval 
+
+[⌈(˜ τj−1 + ˜ τj )/2⌉, ⌈(˜ τj + ˜ τj+1 )/2⌉), where ˜τ0 = 0 and ˜τKmax +1 = n; Otherwise, ˜τj is classified as uninformative. Let J1( ˜T ) and J0( ˜T ) denote the sets of informative and uninformative candidates, respectively. The false discovery proportion (FDP) is then defined as 
+
+FDP( ˜T ) = # {
+
+j : ˜ τj ∈ J 0( ˜T )}
+
+max( | ˜T | , 1) ,
+
+11 and the FDR is its expectation. More details about the FDR definition are deferred to Section S2 of the Supplementary Material. We now introduce our FDR control method, the Symmetric Parameter Comparison (SPC) procedure. Let the data be evenly divided into odd and even-indexed subsamples: 
+
+ZO = {y(t2i−1) : i = 1 , . . . , n/ 2}, ZE = {y(t2i) : i = 1 , . . . , n/ 2} assuming n is even for simplicity. This split preserves the underlying change structure while ensuring minimal discrepancy between the two samples. We apply the SNOT algorithm to ZO to obtain the candidate set ˜T = {˜τ1, . . . , ˜τ ˜Kn }. For each ˜τj , we compute a ranking statistic to assess its credibility as a true structural change: 
+
+Wj = nj nj+1 
+
+nj + nj+1  
+
+> (
+
+˜βOj − ˜βOj+1 
+
+> )⊤
+
+Ωn 
+
+> (
+
+˜βEj − ˜βEj+1 
+
+> )
+
+, (3) where nj = ˜τj − ˜τj−1, and ˜βOj , ˜βEj are the estimators of β in the jth segment using odd and even subsamples, respectively. Here Ωn serves as a rough scale estimator for parameters, and the choice of Ωn is not crucial. Intuitively, large and positive values of Wj suggest strong evidence of change, while large negative values are indicative of no change happening. Asymptotically, for uninformative candidates ˜τj ∈ J 0, the distribution of Wj is symmetric about zero. This motivates the symmetry-based thresholding: 
+
+sup   
+
+> 0≤t<M n
+> ∣∣∣∣∣∑
+> ˜τj∈J 0
+
+I(Wj ≥ t)  
+
+> ∑
+> ˜τj∈J 0
+
+I(Wj ≤ − t) − 1 
+
+> ∣∣∣∣∣
+
+= op(1) , (4) for some large Mn, under mild regularity conditions. Then the data-driven threshold L > 0 is selected by 
+
+L = inf 
+
+> {
+
+t > 0 : 1 + # {j : Wj ≤ − t}
+
+#{j : Wj ≥ t} ≤ α
+
+> }
+
+, (5) where α ∈ (0 , 1) is the target FDR level. Then the final set of selected informative structural changes is M = {˜τj : Wj ≥ L}. If no such Wj exceeds L, we set L = + ∞ and M = ∅. The rationale for this rule is as follows. The numerator in (5) overestimates the number of false 12 positives by symmetry due to (4) , and the denominator counts total selections. As a result, the ratio is a conservative estimator of the FDP, ensuring valid FDR control. In practice, the empirical FDR is typically close to the nominal level α, because most large negative 
+
+Wj values arise from uninformative candidates. Moreover, this approach bypasses the need for asymptotic or simulated null distributions, enabling flexible and accurate thresholding entirely based on data. 
+
+# 2.4 Generalization to growth systems 
+
+The previous test statistics are typically built for finite dynamic systems whose underlying signal is bounded in the time domain. It includes a wide range of systems, such as many periodic models (e.g., the FitzHugh–Nagumo equation), steady-state systems (e.g., energy balance equation), and certainly, most of the systems defined on compact time domains. The growth system, whose time domain is unbounded and the underlying signal grows unboundedly with time, i.e., |u(t; β)| → ∞ as t → ∞ , is also important in the analysis of dynamic systems. In such systems, structural change detection entails regime-wise difficulty . This includes diverging initial-value components, for which estimation may involve parameters increasing with n, and scaling incompatibility, because different parameters may evolve on different natural scales. We elaborate these two issues in detail in the case of the classical linear model u(t; θ, γ ) = γ + θt , see Example 1, and then provide necessary modifications on ∆(s,e ](r) and Wj to ensure the applicability of our proposed procedure. 
+
+Example 1. Let u(t; θ, γ ) = γ + θt be observed at integer times ti = i for i = 1 , . . . , n .Assume a single change at τ1 (with τ1 → ∞ as n → ∞ ): 
+
+u(i) = θ0i · 1 {1 ≤ i ≤ τ1} + (2 θ0τ1 − θ0i) · 1 {τ1 < i ≤ τ2} , θ 0 > 0,
+
+and let yi = u(i) + εi, ε i
+
+> i.i.d.
+
+∼ N (0 , 1) . Separate least-squares fits on [1 , τ 1] and [τ1 + 1 , τ 2]
+
+reveal that the true intercept in the second segment, γ2 = 2 θ0τ1, diverges linearly. While this 
+
+13 specific system admits a closed-form solution, in general growth systems, such diverging initial values may cause instability or inconsistency in parameter estimation. More critically, the variances of the intercept and slope estimators differ in scale, reflecting scaling incompatibility. For example, let (
+
+ˆγ1, ˆθ1
+
+> )⊤
+
+= arg min γ,θ  
+
+> ∑τ1
+> i=1
+
+(yi − γ − θi )2, then Var ( ˆγ1) ∼ τ 21 /τ 31 and 
+
+Var( ˆθ1) ∼ 1/τ 31 .
+
+To accommodate such heterogeneity, we introduce segment-specific diagonal scaling matrices. For an interval (s, e ] we use A(s, e ) = diag {√ 
+
+(e − s)3/(e + s),
+
+> √
+
+(e − s)3
+
+> }
+
+, which normalizes intercept and slope on their natural rates. In the statistics of Sections 2.1–2.3, we simply replace each raw contrast by its scaled version: 
+
+∆(s,e ](r) = ∥∥∥F (s, e, r )( ˆβ(s,r ] − ˆβ(r,e ]
+
+> )∥ ∥∥2
+
+, Wj =
+
+> {
+
+Fj 
+
+> (
+
+˜βOj − ˜βOj+1 
+
+> )) ⊤
+
+Ωn
+
+> (
+
+Fj 
+
+> (
+
+˜βEj − ˜βEj+1 
+
+> )}
+
+,
+
+where F (s, e, r ) = A(r, e ){A2(s, r ) + A2(r, e )}−1/2A(s, r ) and Fj = F ( ˜τj−1, ˜τj+1 , ˜τj ). Al-though shown here for the linear model, exactly the same construction applies whenever the signal can be separated into an initial-value term and a diverging dynamic term to avoid the influence of infinite initial values. Formally, we call a system a separable growth system if its solution can be written as u(t; θ, γ ) = γφ (t) + ψ(t; θ), with φ continuous and uniformly bounded on (0 , ∞), ψ
+
+continuous in (t, θ ) and diverging as t → ∞ , and φ(0) = 1 , ψ (0; θ) = 0 . For such systems, the matrix A(s, e ) can always be chosen to satisfy the mild regularity condition stated in Assumption S1 of the Supplementary Material, thereby guaranteeing that the scaled contrasts remain asymptotically normal. This structural separation resolves the issue of infinite initial values. It ensures that the diverging behavior of the system is attributed solely to the systematic component ψ(t; θ),while the intercept-like parameter γ governs only the bounded term φ(t). Consequently, inference on θ remains unaffected by the divergence of γ, as the variance of ˆθ becomes independent of γ.14 Remark 3. For the intercept in Example 1 the factor 
+
+> √
+
+(e − s)3/(e + s) tends to zero as the segment moves farther from the origin; nevertheless, the scaled intercept contrast can still diverge when two adjacent regimes possess intercepts that themselves grow without bound. Indeed, with a1 = √τ1 and a2 =
+
+> √
+
+(τ2 − τ1)3/(τ2 + τ1),
+
+a1a2
+
+> √
+
+a21 + a22
+
+> (
+
+γ1 − γ2
+
+> )
+
+≍ 
+
+> √√√√
+
+(τ2 − τ1)3τ 31
+
+(τ2 + τ1)2τ1
+
+≳ δ3/2 
+
+> n
+
+,
+
+so the contrast dominates √log n provided δ3/2 
+
+> n
+
+≳ √log n. Hence even a shrinking normalizer yields a test statistic that diverges under the alternative and thus preserves power. 
+
+In summary, the above generalization extends the proposed methodology beyond finite systems to those exhibiting unbounded growth. By introducing a separable representation of the solution and appropriate segment-specific scaling, the estimation and testing procedures remain valid even when the trajectories diverge. The same construction also accommodates heterogeneous regimes in which different components of the system correspond to initial-value effects, long-run dynamic effects, or distinct estimation scales. Consequently, the proposed approach constitutes a unified structural change detection framework applicable to both finite and diverging dynamical systems. 
+
+# 3 Theoretical Analysis 
+
+In this section, we present the non-asymptotic error bounds of the parameter estimators and the detection properties of the SNOT searching algorithm based on the proposed test statistics. We then establish guarantees for our FDR control procedure. For notational simplicity, all theoretical results are stated for the univariate case d = 1 ; the extension to higher dimensions is straightforward. For space economy, the theoretical analysis for separable growth systems is deferred to Section S3 of the Supplementary Material. 15 3.1 Detection Property 
+
+Before presenting the detection properties, we introduce several standard assumptions on the ODE model to ensure the validity of parameter estimation. 
+
+Assumption 1. We assume that the dynamic system u(·; β) and the sampling points 
+
+t1, . . . , t n satisfy the following conditions, (a) (Identifiability) For any β1̸ = β2, ∑ei=s+1 {u(ti; β1) − u(ti; β2)}2 /(e − s) > 0 for any 
+
+e − s > p + 1 .(b) (Continuity) For i = 1 , . . . , n , the first and second derivatives of u(ti; β) with respect to 
+
+β are continuous over a compact parameter space Θ × U .(c) (Stability) Define the Gram matrices as G(β, s, e ) = ∑ei=s+1  
+
+> ∂u (ti;β)
+> ∂β ∂u (ti;β)
+> ∂β ⊤
+
+/(e − s),we assume that the minimum and maximum eigenvalue of G(β, s, e ) satisfies that ϕ0 ≤
+
+ϕmin (G(β, s, e )) ≤ ϕmax (G(β, s, e )) ≤ ϕ1 uniformly for e − s > p + 1 , and β ∈ Θ × U .(d) (Lipschitz) There exists constants L∇ and LH such that for i = 1 , . . . , n ,  
+
+> ∥∥∥∂u (ti;β)
+> ∂β
+> ∥∥∥2
+
+≤ L∇,  
+
+> ∥∥∥∂2u(ti;β)
+> ∂ββ ⊤
+> ∥∥∥op
+
+≤ LH uniformly for β ∈ Θ × U .(e) The numerical solution ˆu(t; β) of the ODE satisfies that there exists a predetermined numerical error tolerance ϵu = o(1) such that ∑ni=1 {u(ti; β) − ˆu(ti; β)}2 < ϵ u uniformly for 
+
+β ∈ Θ × U .
+
+Conditions (a)–(c) are standard assumptions used to establish the consistency and asymptotic normality of the least squares estimator in inverse problems involving ordinary or partial differential equations (Ramsay et al. 2007, Chen et al. 2025), and have also been extensively studied in the context of nonlinear regression (Seber & Wild 2003). Condition (d) imposes Lipschitz continuity on the first and second derivatives with respect to β. Although this requirement is slightly stronger than what is typically needed for parameter estimation, it is essential in the structural change detection setting, where we must control the tail behavior of the estimator ˆβ at the scale of √log n. Condition (e) ensures that the numerical 16 solution is sufficiently accurate. Under the bi-Lipschitz conditions (c)(d), modern ODE solvers satisfy that, with adaptive step-size control, the numerical error can be controlled through prescribed tolerances, ϵu = o(1) , and made negligible relative to the statistical error, even in the case that tn → ∞ . For rigorous proofs, see Section S4 in the Supplementary Material. Under this assumption, we can derive the following concentration bound for the parameter estimators. 
+
+Theorem 1. Suppose that we have n observations y(t1), . . . , y (tn) from the dynamic system 
+
+(1) (i.e., without structural change) and Assumption 1 holds. Denote the true parameter as 
+
+β0 and then, with probability at least 1 − c3 exp( −c4n),
+
+P {√n ∥∥∥ ˆβ − β0 
+
+> ∥∥∥2
+
+≥ ρ + o(1) }
+
+≤ 2 exp 
+
+> {
+
+−c1 min  
+
+> (
+
+ϕ20ρ2
+
+σ2L2
+
+> ∇
+
+,
+
+√nϕ 0ρσL ∇
+
+> )}
+
+,
+
+and 
+
+P {√n 
+
+> ∥∥∥
+
+ˆβ − β0 
+
+> ∥∥∥2
+
+≥ ρ − o(1) }
+
+≥ 2 exp 
+
+> (
+
+−9c1ρ2
+
+σ2
+
+> )
+
+− c2
+
+√n,
+
+where c1, . . . , c 4 > 0 are constants, and we remark here that L∇ ≥ ϕ1 ≥ ϕ0.
+
+This theorem establishes the theoretical foundation for our detection procedure by providing sharp, two-sided non-asymptotic bounds on the estimation error. With a desired numerical precision, the contribution of the numerical approximation becomes asymptotically negligible, ensuring that the numerical solution does not affect either the estimation accuracy or the tail probability of the estimator. The lower and upper bounds together yield precise control over the stochastic fluctuations of ˆβ, guaranteeing both accurate identification of structural changes and valid FDR control in the subsequent detection procedure. We note that such probabilistic bounds possibly cannot be guaranteed for methods relying on nonparametric smoothing or trajectory reconstruction; as a result, these approaches face substantial difficulty in constructing validated searching and FDR control procedures. For the dynamic system (2) which has structural changes, we impose an assumption on 17 the gaps between structural change locations and the magnitudes of changes. 
+
+Assumption 2. Let δj = τ ∗ 
+
+> j
+
+− τ ∗
+
+> j−1
+
+, j = 1, . . . , K n + 1 . The minimum spacing 
+
+δn = min j=1 ,...,K n+1 δj and the minimum magnitudes of jumps βn = min j=1 ,...,K n+1 ∆βj =min j=1 ,...,K n+1 
+
+> ∥∥∥
+
+β∗ 
+
+> j
+
+− β∗
+
+> j−1
+> ∥∥∥2
+
+, satisfy that δ1/2 
+
+> n
+
+βn ≥ C1
+
+> √
+
+log( n) for a certain constant C1 > 0.
+
+Assumption 2 establishes a relationship between the minimum spacing of structural changes and the minimum jump magnitude with the quantity δ1/2 
+
+> n
+
+βn, which determines the number and distributions of the structural changes. Intuitively, the inequality δ1/2 
+
+> n
+
+βn ≥
+
+C1
+
+> √
+
+log( n) implies that a large magnitude of jumps allows for identifying more changes, and we need relatively more samples for detecting small jumps. Under Assumptions 1 and 2, we obtain the following result. 
+
+Theorem 2. Suppose that we have n observations y(t1), . . . , y (tn) from the dynamic system 
+
+(2) and Assumptions 1 and 2 hold. Let ˆKn and ˆτ1, . . . , ˆτ ˆKn denote, respectively, the number and locations of the estimated structural changes. There exists two constants C2 = C1/2a2(1 −
+
+a2), C 3 = 1 /2a2(1 − a2) such that if C2
+
+√log n ≤ ζn < C 3δ1/2 
+
+> n
+
+βn and m ≤ a2δn, as n → ∞ ,
+
+P
+
+> {
+
+ˆKn = Kn, max 
+
+> j=1 ,...,K n
+> ∣∣∣
+
+ˆτj − τ ∗ 
+
+> j
+> ∣∣∣
+
+(∆ βj )2 ≤ C4 log( n)
+
+> }
+
+→ 1,
+
+for certain constants C4 > 0.
+
+Theorem 2 established the detection consistency of the SNOT searching algorithm. In contrast to Theorem 1 in Baranowski et al. (2019), this consistency does not depends on the total number of seeded intervals M , but solely on their minimum length m. Indeed, when 
+
+m ≤ a2δn, every true structural change τ ∗ 
+
+> j
+
+lies in a seeded interval (sj , e j ] whose length 
+
+ℓj = ej − sj satisfies ℓj > 2a2δn and whose midpoint rj obeys |rj − τ ∗ 
+
+> j
+
+| ≤ ℓj (1 + a2)/4.Such an interval is therefore long enough for the proposed statistic to identify the unique structural change it contains. Furthermore, if m is fixed, the collection I contains O(n)
+
+18 seeded intervals whose total length is O(n log n); consequently, the overall computational cost of SNOT is O(n log n). By contrast, methods based on random background intervals incur a cost of order n3 log (n2/δ n)/δ 2
+
+> n
+
+. Hence, whenever δn = o(n), the SNOT algorithm is more computationally efficient than methods with random background intervals. Moreover, this theorem allows for δ1/2 
+
+> n
+
+βn, which captures the intrinsic difficulty of the detection problem, to be as small as order √log n. As argued in Chan & Walther (2013), this is the minimal rate required for consistent change point detection from a minimax perspective. The bound max j=1 ,...,K n |ˆτj − τ ∗ 
+
+> j
+
+|(∆ βj )2 ≤ C4 log n quantifies the maximum discrepancy between the estimated and true structural change locations, weighted by the squared jump magnitudes. This implies that the minimal signal strength cannot be arbitrarily weak, which is reasonable as it serves as the common identifiability condition. For βn ∼ 1, the maximum spacing is of order Op(log n), which trails the minimax rate of 
+
+Op(1) by only a logarithmic factor. 
+
+Remark 4. For the classical separable growth systems–linear system, the theoretical proper-ties in Section S3 of the Supplementary Material illustrate that under the same signal-strength condition as in Baranowski et al. (2019), the proposed framework yields a localization error of order 
+
+min 
+
+> j
+> {(
+
+∆θj
+
+> )−2/3
+
+log 1/3(n), (
+
+∆γj /τ ∗
+
+> j
+> )−2/3
+
+log 1/3(n)
+
+> }
+
+.
+
+The result in Baranowski et al. (2019) is recovered through the first term, corresponding to the slope-change component. The additional term shows that our method also accounts for local-ization driven by intercept changes, thereby providing a strictly more general characterization in the piecewise linear setting. 
+
+As a consequence, the candidate set of structural changes ˜T , obtained via the threshold 19 ˜ζn, satisfies the following consistency property: 
+
+P
+
+> {
+
+˜Kn ≥ Kn, max 
+
+> j=1 ,...,K n
+> ∣∣∣
+
+ˆτj − τ ∗ 
+
+> j
+> ∣∣∣
+
+(∆ βj )2 ≤ C4 log( n)
+
+> }
+
+→ 1, (6) where ˆτj = arg min ˜τk ∈ ˜T
+
+> ∣∣∣
+
+τk − τ ∗
+
+> j
+> ∣∣∣
+
+. This result implies that ˜T provides a consistent cover of the true structural changes, capturing all structural changes with high probability. Building on this result, we now proceed to establish the theoretical guarantees for the FDR control procedure. In particular, we show that the final set of structural change estimates, obtained by applying the SPC procedure to ˜T , achieves valid false discovery rate control. 
+
+# 3.2 FDR control property 
+
+Now, we focus on the asymptotic property of the proposed FDR control procedure. Recall that the candidate set of structural changes is denoted by ˜T = {˜τ1, . . . , ˜τ ˜Kn }, with J0( ˜T )
+
+and J1( ˜T ) representing the sets of uninformative and informative candidates, respectively. For notational convenience, we denote these sets simply as J0 and J1 in what follows. We impose a theoretical requirement for the spacings among the structural changes in ˜T .
+
+Assumption 3. Let T (ωn) = {T : min j (τj+1 − τj ) ≥ ωn}, then ˜T ⊂ T (ωn) with ωn < δ n.
+
+Assumption 3 imposes a lower bound on the minimal separation between estimated structural changes. This is necessary because inference on estimated change points requires a sufficient amount of sample information within each segment. Empirically, this assumption can be satisfied by appropriately choosing the minimal gap length g (e.g., g = m/ 2) in the searching Algorithm S1. In addition, to ensure the validity of the FDR control procedure, it is reasonable to require that each true structural change is closely approximated by at least one estimated candidate. Specifically, we require that the candidate structural changes satisfy that ˜Kn ≥ Kn and there exist ˜τj1 < · · · < ˜τjKn ∈ ˜T such that |˜τjk − τ ∗ 
+
+> k
+
+| ≤ λnk holds with probability approaching 20 one as n → ∞ . According to Theorem 2 and equation (6) , this condition is automatically satisfied with λnk = C4(∆ βk )−2 log n. Under this setup, we establish the following FDR control result. 
+
+Theorem 3. Suppose Assumptions 1–3 hold, then if ω1/2 
+
+> n
+
+βn/ log n → ∞ as n → ∞ , we have that lim n→∞ P (J1 ⊂ M ) = 1 , and for any α ∈ (0 , 1) , FDP (M) ≤ α + op(1) . It follows that lim sup n→∞ FDR( M) ≤ α.
+
+This theorem implies that, under an identifiable signal strength, the FDR control procedure can consistently detect all structural changes while asymptotically controlling the FDR level. The condition ω1/2 
+
+> n
+
+βn/ log n → ∞ implies a wider spacing between true structural changes than required by Assumption 2. However, the overall selection procedure still achieves consistent recovery even when the minimum spacing δn between true structural changes is only of order log k(n) for some k > 2.Compared to the theoretical guarantees of the strengthened Schwarz Information Cri-terion (sSIC; see Theorem 3 in Baranowski et al. (2019)), our SPC procedure requires slightly larger spacing when βn ∼ 1, as sSIC needs ωn/ log α′
+
+(n) → ∞ for some α′ > 1.However, unlike sSIC, our approach does not require the number of structural changes Kn to remain fixed, making the SPC procedure more broadly applicable in practice. Furthermore, empirical results reported in Table 3 suggest that the sSIC procedure tends to be relatively conservative, as the difference in the numerical performance between the proposed test statistic and the GLR statistic is likely to be minimal. 
+
+# 4 Simulation Studies 
+
+In this section, we conduct simulation studies to evaluate the numerical performance of our proposed method and existing methods in detecting structural changes in complex 21 dynamic systems. For fair comparison, we also conduct simulations in linear and linear regression systems to illustrate that the proposed method is broadly applicable, where the linear system is also a typical separable growth system. 
+
+# 4.1 FitzHugh–Nagumo Equation Model 
+
+The dynamic system we chose here is the FitzHugh–Nagumo (FN) equation, which was developed by Nagumo et al. (1962) to model the behavior of spike potentials in the giant axon of squid neurons: 
+
+dV dt = 3( V − V 3
+
+3 + R), dR dt = −13(V − 0.2 + θR ).
+
+The system is governed by the systematic parameter θ, along with the initial values V0 = V (0) 
+
+and R0 = R(0) . We denote this system as F N (t; b, V 0, R 0), and use DF N (t) to represent the entire system when structural changes are present. To illustrate our method, we consider two representative scenarios involving structural changes. Recall that there are Kn structural changes located at time points τ ∗ 
+
+> 1
+
+, . . . , τ ∗ 
+
+> Kn
+
+. For notational convenience, we let τ ∗ 
+
+> 0
+
+= 1 and 
+
+τ ∗ 
+
+> Kn+1
+
+= n. The tested models are then defined as follows. (1) General structural change . In the initial segment [τ ∗ 
+
+> 0
+
+, τ ∗ 
+
+> 1
+
+], the system is defined as 
+
+F N (t; θ0, −1, 1) . For each subsequent segment (τ ∗ 
+
+> j
+
+, τ ∗
+
+> j+1
+
+] with j = 1 , . . . , K n, we assign a distinct systematic parameter θj . The start time for the system on each segment is set to 
+
+tτ ∗ 
+
+> j
+
+, and the corresponding initial value is given by DF N (tτ ∗ 
+
+> j
+
+) + μj , where μj introduces a shift in initial condition to reflect general structural change. (2) Systematic structural change . This setting follows the same construction as in (1), but the initial value at time tτ ∗ 
+
+> j
+
+is taken directly as DF N (tτ ∗ 
+
+> j
+
+), without any shift. This ensures continuity of the trajectory across structural changes. The first setting represents general structural changes that may occur in various sci-entific applications. The second, systematic structural change, is more typical in social 22 or epidemiological systems governed by evolving but policy-driven regimes, where the dynamic trajectory remains continuous across structural changes. A representative example includes modeling the spread of COVID-19, where distinct policy phases lead to changes in transmission dynamics without abrupt changes in observed variables. We set n = 2000 and Kn = 10 , with observation times defined as tj = 0 .1 × j for 
+
+j = 1 , . . . , n . The location of the k-th structural change is given by τ ∗ 
+
+> k
+
+= j⌊n/ (Kn + 1) ⌋ +Unif (−n1/4, n 1/4), for j = 1 , . . . , K n + 1 , where Unif (a, b ) denotes the uniform distribution over the interval [a, b ]. The full set of n observations is generated from the complete system 
+
+DF N (t) with added noise, specifically, y(ti) = DF N (ti) + εi, i = 1 , . . . , n , where each noise term εi = ( εi1, ε i2)⊤, and the components εij , j = 1 , 2, are independently and identically distributed according to either a normal distribution N (0 , σ 2) or a t-distribution σt (3) /√3.The systematic parameters θj , for j = 0 , . . . , K n, are drawn independently from 
+
+N (0 .6, 0.2) . For general structural change scenarios, the perturbations μj are sampled from N (0 , 0.2) . To control the noise-to-signal ratio (NSR), the noise standard deviation is defined as σ = γu n, where 
+
+un = min  
+
+> j=1 ,...,K n
+> √√√√√
+
+1
+
+nj + nj+1   
+
+> τ∗
+> j+1
+> ∑
+> i=τ∗
+> j
+> {
+
+V (ti; β∗
+
+> j+1
+
+) − V (ti; β∗ 
+
+> j
+
+)}2
+
++ {
+
+R(ti; β∗
+
+> j+1
+
+) − R(ti; β∗ 
+
+> j
+
+)}2
+
+,
+
+and γ ∈ { 0.5, 0.7, 0.9, 1.1, 1.3} specifies the target NSR level. Further discussion on the interpretation and computation of un is provided in Section S5 of the Supplementary Material. The performance of the proposed method is evaluated using the false discovery rate (FDR) along with several additional indices. These include the true positive rate (TPR), defined as the proportion of informative locations that are correctly identified, and the average number of estimated structural changes, denoted by ˆK. To assess the accuracy of the estimated structural change locations, we also report the distance between the estimated set M and the true structural change set T ∗, defined as d(M, T ∗) = ∑    
+
+> τ∗
+> k∈T ∗
+
+min ˆτj ∈M |ˆτj − τ ∗ 
+
+> k
+
+|/|T ∗|,23 which reflects the average minimum deviation of estimated locations from the true structural change locations. The detection results for our proposed method under both Model (1) and Model (2) are summarized in Table 1. Table 1: Detection results for system DF N with general and systematic structural changes. Model (1): General Model (2): Systematic NSR( γ) TPR FDR ˆK d(M, T ∗) TPR FDR ˆK d(M, T ∗)                                                                                 
+
+> Normal distributed error 0.5 0.976 0.112 11.11 7.617 0.954 0.164 11.60 23.44 0.7 0.958 0.107 10.87 11.81 0.942 0.170 11.56 26.45 0.9 0.935 0.103 10.62 17.34 0.932 0.163 11.37 30.26 1.1 0.917 0.115 10.57 23.00 0.932 0.168 11.44 32.29 1.3 0.883 0.126 10.37 28.86 0.906 0.154 11.00 38.98 t distributed error, df = 3
+> 0.5 0.981 0.129 11.42 7.736 0.954 0.165 11.63 24.48 0.7 0.971 0.136 11.42 11.47 0.944 0.169 11.59 28.54 0.9 0.946 0.139 11.23 19.29 0.927 0.178 11.48 32.76 1.1 0.954 0.158 11.58 19.68 0.921 0.173 11.36 35.04 1.3 0.928 0.159 11.31 24.20 0.911 0.177 11.30 36.17
+
+From the results, it is evident that our proposed method consistently achieves accurate FDR control across all scenarios while successfully detecting nearly all structural changes. This empirical finding aligns well with the theoretical guarantees established in Section 3. Furthermore, the reported empirical distances demonstrate that the method not only provides a reliable estimate of the number of structural changes but also achieves high precision in localizing their positions. Despite different model assumptions, we also compare the detection performance in terms of TPR and FDR with the original Narrowest-over-threshold (NOT) method and the Narrowest Significance Pursuit (NSP) method. This comparison is conducted under the setting where only the trajectory V (ti) + εi1, for i = 1 , . . . , n , is observed in Models (1) and (2), as both NOT and NSP are designed for univariate time series. The detection procedures for the NOT and NSP methods are implemented using the R packages not and 
+
+nsp . Throughout this study, the final set of estimated structural changes for the NOT 24 method is obtained via the strengthened Schwarz information criterion (sSIC). For NSP, we adopt the midpoints of the estimated intervals as the final estimates. Since the intervals produced by NSP are sufficiently short, the precise choice of representative points has minimal impact on the TPR and FDR calculations. The detection TPRs and FDRs for Model (1) under Gaussian noise are reported in 2. Table 2: Detection results of different methods for Model (1) (general structural change) with trajectory V (t) only. The notation “NOT-*” means that the method is the NOT algorithm with “*” contrast function. For example, “CM” is the “pcwsConstMean” contrast function. One can refer to R package not for detailed explanations for all the contrast functions. The notation “NSP-Poly(*)” is the NSP algorithm for piecewise-polynomial signals with the polynomial degree “*”.                                                                                                                   
+
+> 0.5 0.7 0.9 1.1 1.3 Method TPR FDR TPR FDR TPR FDR TPR FDR TPR FDR Proposed 0.891 0.133 0.842 0.130 0.813 0.127 0.756 0.128 0.641 0.127 NOT-CM 0.921 0.460 0.933 0.469 0.934 0.467 0.943 0.471 0.951 0.470 NOT-CMHT 0.938 0.476 0.942 0.470 0.944 0.471 0.953 0.478 0.954 0.474 NOT-LCM 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 0.000 NOT-LM 1.000 0.491 1.000 0.491 1.000 0.491 1.000 0.491 1.000 0.491 NOT-QM 1.000 0.500 1.000 0.500 1.000 0.499 1.000 0.499 1.000 0.499 NOT-CMV 0.966 0.492 0.981 0.492 0.973 0.493 0.971 0.493 0.968 0.493 NSP-Poly(1) 1.000 0.883 1.000 0.882 1.000 0.881 1.000 0.878 1.000 0.872 NSP-Poly(2) 1.000 0.811 1.000 0.805 1.000 0.792 1.000 0.781 1.000 0.774 NSP-Poly(3) 1.000 0.876 1.000 0.872 1.000 0.870 1.000 0.869 1.000 0.867
+
+From Table 2, it is clear that both the original NOT method and the NSP method perform poorly in detecting structural changes within complex dynamic systems. In contrast, our proposed method maintains effective control over the FDR, and although the TPRs are slightly reduced due to the absence of the trajectory R(t), the results still demonstrate that our method performs reliably even when only a single component of the multivariate system is observed. We also note that the R function “nsp_poly_selfnorm()”, which implements the self-normalized NSP algorithm for piecewise-polynomial signals, occasionally fails when applied to certain realizations of the data. Consequently, we exclude the self-normalized NSP method from our comparison. 25 4.2 Linear and Linear Regression Systems 
+
+Since the original NOT method and NSP are designed for piecewise polynomial signals, and NSP is also applicable in general linear regression settings, we include additional comparisons to ensure fairness. Specifically, we evaluate the detection performance of our proposed method on the linear system DL and the linear regression system DLR , noting that the linear system is a special case of the broader separable growth system, and our method can be directly applied to linear regression. The two models are defined as follows: (3) Linear system . We set ti = i, i = 1 , . . . , n , DL (1) = 0 and for i ∈ (τ ∗ 
+
+> j
+
+, τ ∗
+
+> j+1
+
+], j = 0 , . . . , K n,
+
+DL (i) = DL (τ ∗ 
+
+> j
+
+) + βj (i − τ ∗ 
+
+> j
+
+), where the systematic parameter βj , j = 0 , . . . , K n are sampled from the normal distribution 0.01 × N (0 , 1) , n = 2000 and the number of changes Kn = 10 .(4) Linear regression system . We set ti = i, i = 1 , . . . , n and for i ∈ (τ ∗ 
+
+> j
+
+, τ ∗
+
+> j+1
+
+], j = 0 , . . . , K n,
+
+DLR (i) = Xiβj , where the general covariates Xi, i = 1 , . . . , n are generated from N (1 , 1) 
+
+and the systematic parameter βj , j = 0 , . . . , K n are sampled from N (4 , 1) .The change magnitude is calculated with the same formula as in equation (4.1) , and the NSR parameter γ is set to 2.5, 2.7, and 2.9. Table 3 summarizes the detection performance of various methods applied to the linear system. According to the system design, the appropriate contrast function for the original NOT method is “pcwsLinContMean,” which we refer to as “NOT-LCM.” The polynomial degree for both NSP and the self-normalized NSP is set to 1, denoted respectively as “NSP-Poly(1)” and “NSP-Poly-Self(1).” The results demonstrate that, across most scenarios, our proposed method achieves the highest true positive rates (TPRs) while maintaining good control of false discovery rates (FDRs). Although the sSIC procedure successfully reduces false positives for NOT-LCM, it tends to be more conservative than our method, as reflected in lower TPRs. NSP-Poly(1) and NSP-Poly-Self(1) produce the lowest FDRs overall, but the former fails to handle heavy-tailed noise in this setting. Moreover, the proposed method has comparable detection 26 accuracy d(M, T ∗) as NOT-LCM, even if the searching procedure in Section 2.2 only involves half of the samples. Table 3: Detection results for the linear system DL .Normal distributed error t distributed error Method TPR FDR ˆK d(M, T ∗) TPR FDR ˆK d(M, T ∗)                                                                                                      
+
+> NSR: γ= 2 .5
+> Proposed 0.947 0.194 11.95 34.97 0.963 0.203 12.25 35.71 NOT-LCM 0.825 0.000 8.250 36.93 0.825 0.031 8.570 37.93 NSP-Poly(1) 0.755 0.001 7.560 -0.988 0.566 23.34 -NSP-Poly-Self(1) 0.575 0.000 5.750 -0.600 0.000 6.000 -NSR: γ= 2 .7
+> Proposed 0.945 0.191 11.94 35.89 0.955 0.197 12.04 37.15 NOT-LCM 0.818 0.001 8.190 38.32 0.824 0.022 8.450 38.51 NSP-Poly(1) 0.711 0.001 7.120 -0.988 0.563 23.18 -NSP-Poly-Self(1) 0.559 0.000 5.590 -0.574 0.000 5.740 -NSR: γ= 2 .9
+> Proposed 0.939 0.186 11.77 38.64 0.952 0.194 11.98 37.97 NOT-LCM 0.816 0.001 8.170 39.00 0.821 0.025 8.450 39.33 NSP-Poly(1) 0.692 0.001 6.930 -0.989 0.561 23.11 -NSP-Poly-Self(1) 0.541 0.000 5.410 -0.564 0.000 5.640 -
+
+We now turn to the detection performance in the linear regression system DLR , with results reported in Table 4. Since the original NOT method is not specifically designed for linear regressions with general covariates, we evaluate it using all available candidate contrast functions. Among these, the contrast function “pcwsConstMeanVar” (denoted as NOT-CMV) delivers the best performance in this setting. Therefore, we report only the results of NOT-CMV in the main text, while the performance of other contrast functions is provided in Table S1 of the Supplementary Material. The NSP and self-normalized NSP methods for linear regression with general covariates are denoted as “NSP-Reg” and “NSP-Reg-Self,” respectively. From Table 4, we observe that our proposed method achieves the best detection per-formance across all scenarios. As expected, the original NOT method is not well-suited for general linear regression systems. The NSP-Reg and NSP-Reg-Self methods perform similarly under normally distributed errors; however, consistent with observations in the 27 Table 4: Detection results for the linear regression system DLR .Normal distributed error t distributed error Method TPR FDR ˆK d(M, T ∗) TPR FDR ˆK d(M, T ∗)
+
+NSR: γ = 2 .5
+
+Proposed 0.987 0.170 12.10 9.965 0.994 0.150 11.88 9.145 NOT-CMV 0.398 0.000 3.980 148.0 0.395 0.000 3.950 150.1 NSP-Reg 0.832 0.001 8.330 - 0.973 0.544 21.98 -NSP-Reg-Self 0.825 0.000 8.250 - 0.832 0.000 8.320 -NSR: γ = 2 .7
+
+Proposed 0.983 0.167 12.01 10.83 0.989 0.151 11.83 10.29 NOT-CMV 0.396 0.000 3.960 149.4 0.392 0.000 3.920 152.1 NSP-Reg 0.822 0.001 8.220 - 0.967 0.545 21.91 -NSP-Reg-Self 0.816 0.000 8.160 - 0.821 0.000 8.210 -NSR: γ = 2 .9
+
+Proposed 0.976 0.158 11.82 12.39 0.982 0.150 11.75 11.67 NOT-CMV 0.395 0.000 3.950 150.1 0.391 0.000 3.910 152.8 NSP-Reg 0.815 0.001 8.150 - 0.964 0.547 21.91 -NSP-Reg-Self 0.811 0.000 8.110 - 0.817 0.000 8.170 -linear system, NSP-Reg fails under t-distributed errors. Additionally, the reported distances 
+
+d(M, T ∗) for our method remain within 6% of the minimum spacing δn = 176 , further demonstrating its strong localization accuracy. Taken together, these simulation results confirm that the proposed method delivers robust FDR control, high TPR, and precise detection across a variety of settings. 
+
+# 5 Real Data Analysis 
+
+# 5.1 Spread of COVID-19 in Italy 
+
+The novel coronavirus (COVID-19) is an emerging disease that has developed in the entire world and has attracted worldwide attention. We analyze the Italian COVID-19 dataset that is available from Johns Hopkins University Center for Systems Science and Engineering (JHU CCSE) Coronavirus (https://systems.jhu.edu/research/public-health/ncov/), consisting of daily summaries of the COVID-19 cases from 20th March 2020 to 8th August 2021. The dataset can be derived through the R package coronavirus . The spread of 28 COVID-19 can be modeled by the following well-known Susceptible-Infected-Recovered (SIR) epidemic equation (Hethcote 2000), 
+
+ds (t)
+
+dt = −βi (t)s(t), di (t)
+
+dt = βi (t)s(t) − γi (t),
+
+where s is the number of susceptible individuals, i is the number of infectious individuals, 
+
+β is the infection rate, and γ is the removal (recovery or death) rate. According to the government policies, medical resources, and some other external factors, the infection and removal rate are possibly different in different periods. Since the number of susceptible individuals can not be observed directly, we utilize the proposed method on the infection curve i(t) for detecting locations of structural changes. The number of infectious individuals and the detected structural changes are shown in the left panel of Figure 1. We identify ten structural changes, which align closely with the major policy shifts and epidemic events in Italy. In particular, stringent control measures introduced in early 2020 reduced transmission by mid-April, and infections began to decline as medical resources improved. Restrictions were gradually relaxed during the summer, including the reopening of schools and domestic travel, and infections resurged in the autumn. After stricter measures were reinstated in mid-October, the outbreak was brought under control by early December. See Bosa et al. (2022) for additional details on events and policies in 2020. With the rollout of vaccines at the beginning of 2021, infections declined again in the following months. Restrictions were then eased in early February 2021, contributing to another rebound from late February to late March, before renewed controls at the end of March mitigated transmission. Italy began reopening again in mid-2021, but infections increased during the summer with the spread of new variants. Additionally, the estimates of i(t) with zero change and detected structural changes are presented in the right panel of Figure 1. The fitted curves with zero change (green line) only capture one peak of the original data, while the curve with detected changes (blue line) 29 Figure 1: Detection results and the number of infectious individuals of COVID-19 in Italy (black line). Left panel: the detected structural changes (red dot) and their corresponding date. Right panel: the estimate of the infection curve with zero change (green line) and that with detected structural changes (blue line). 
+
+fits the original data well, which also supports the detection results. 
+
+# 5.2 Temperature change in Holocene 
+
+We analyze the global temperature reconstruction for the Holocene (past 11,300 years) compiled by Marcott et al. (2013). The dataset provides a globally stacked temperature series constructed using their Standard method, which averages standardized proxy temperature records across sites after temporal alignment. To account for reconstruction uncertainty, we add independent Gaussian perturbations to the records based on their reported standard deviations. Both the reconstructed temperatures and their associated standard deviations are available in the supplementary data file “marcott.sm.database.s1.xlsx” accompanying Marcott et al. (2013), and can be accessed via https://www.science.org/doi/suppl/10.1126/ science.1228026/suppl_file/marcott.sm.database.s1.xlsx. The dynamic system we used here is the energy balance equation (Kaper & Engler 2013), 
+
+R dT dt = Q(1 − α) − εσT 4,
+
+where T is the average temperature on the Earth’s surface, t is the time (year), R is the 30 average heat capacity of the Earth system, Q is the annual global mean incoming solar radiation per square meter of the Earth’s surface, α is the planetary reflectivity, ε is the emission rate of the Earth and σ = 5 .67 × 10 −8 is the Stefan-Boltzmann constant. To ensure identifiability, we set the average heat capacity R = 20 .83 and the planetary reflectivity 
+
+α = 0 .3 according to previous research (Kaper & Engler 2013). 
+
+Figure 2: Detection results and the temperatures in the Holocene. Red line: the original reconstruction of Marcott et al. (2013); grey line: the reconstruction that takes 1 σ uncertainty into account; red dot: detected structural changes; blue line: estimated temperatures with detected structural changes; green line: estimated temperatures with zero structural change. 
+
+Figure 2 shows the temperatures in the Holocene, the detected six structural changes, and the corresponding estimates of the temperature curve. The six structural changes occurred around 8680, 5720, 3440, 2320, 1080, and 400 years before present (BP). These estimated periods align closely with major transitions identified in paleoclimate research. In particular, the early Holocene warming phase—known as the Holocene Climate Optimum (HCO, 9500–5500 BP; Marcott et al. 2013)—is clearly reflected in our results. The temperature increased gradually until around 8500 BP, remained relatively stable between 8500 and 5720 BP, and then entered a long-term cooling phase lasting roughly 3000 years. The subsequent warming trend beginning near 2000 BP corresponds to the Medieval Climate Optimum (MCO, 950–1250 BP; Mann et al. 2009). A cooling transition detected around 1000 BP marks the onset of the coldest interval between 100 and 700 BP, consistent with the Little 31 Ice Age (100–600 BP; Matthews & Briffa 2005). Finally, the detected change around 400 BP indicates the beginning of a sustained warming trend, aligning with the onset of the Contemporary Climate period (Karl & Trenberth 2003). Overall, the close correspondence between the detected structural changes and established geological periods supports the validity of our proposed method in identifying meaningful regime shifts in paleoclimate dynamics. 
+
+# 6 Discussion 
+
+In this paper, we develop a unified framework for detecting structural changes in dynamic systems governed by ordinary differential equations. The method combines residual-based discrepancy and normalized parameter contrasts, uses the SNOT algorithm with a data-driven threshold for candidate screening, and applies an SPC procedure for FDR control based on order-preserving sample splitting. It accommodates both stable and diverging trajectories, applies to nonlinear dynamics without requiring closed-form ODE solutions, and is supported by theoretical guarantees on detection consistency, localization accuracy, and FDR control. Several directions remain for future work. These include extensions to broader classes of dynamic systems, such as stochastic, partial, and delay differential equations, as well as scalable adaptations to more general growth settings and high-dimensional models. 
+
+# 7 Disclosure statement 
+
+No competing interest is declared. 
+
+# 8 Data Availability Statement 
+
+Previously published data were used for this work. The Italian COVID-19 dataset is available from Johns Hopkins University Center for Systems Science and Engineering (JHU CCSE) Coronavirus (https://systems.jhu.edu/research/public-health/ncov/). The global temperature reconstruction dataset for the Holocene can be accessed via https://www.scie nce.org/doi/suppl/10.1126/science.1228026/suppl_file/marcott.sm.database.s1.xlsx. 32 SUPPLEMENTARY MATERIAL 
+
+Supplement Algorithms, Theoretical details, along with additional simulation settings and results for “Structural Change Detection in Dynamic Systems”. (.pdf file) 
+
+# References 
+
+Bai, J. & Perron, P. (1998), ‘Estimating and testing linear models with multiple structural changes’, Econometrica 66 (1), 47–78. Baranowski, R., Chen, Y. & Fryzlewicz, P. (2019), ‘Narrowest-over-threshold detection of multiple change points and change-point-like features’, Journal of the Royal Statistical Society Series B: Statistical Methodology 81 (3), 649–672. Benestad, R. E. & Schmidt, G. A. (2009), ‘Solar trends and global warming’, Journal of Geophysical Research: Atmospheres 114 (D14), 1–18. Bosa, I., Castelli, A., Castelli, M., Ciani, O. et al. (2022), ‘Response to COVID-19: was Italy (un)prepared?’, Health Economics, Policy and Law 17 (1), 1–13. Brauner, J. M., Mindermann, S., Sharma, M., Johnston, D. et al. (2021), ‘Inferring the effectiveness of government interventions against covid-19’, Science 371 (6531), eabd9338. Chan, H. P. & Walther, G. (2013), ‘Detection with the scan and the average likelihood ratio’, Statistica Sinica 23 (1), 409–428. Chen, H., Ren, H., Yao, F. & Zou, C. (2023), ‘Data-driven selection of the number of change-points via error rate control’, Journal of the American Statistical Association 118 (542), 1415–1428. Chen, Z., Yan, S. & Yao, F. (2025), ‘Deep semiparametric partial differential equation models’, arXiv preprint arXiv:2506.22779 . Fearnhead, P., Maidstone, R. & Letchford, A. (2019), ‘Detecting changes in slope with an l0 penalty’, Journal of Computational and Graphical Statistics 28 (2), 265–275. 
+
+33 Fryzlewicz, P. (2014), ‘Wild binary segmentation for multiple change-point detection’, The Annals of Statistics 42 (6), 2243–2281. Fryzlewicz, P. (2024), ‘Narrowest significance pursuit: Inference for multiple change-points in linear models’, Journal of the American Statistical Association 119 (546), 1633–1646. Ghil, M. & Lucarini, V. (2020), ‘The physics of climate variability and climate change’, Reviews of Modern Physics 92 , 035002. Goldenshluger, A., Tsybakov, A. & Zeevi, A. (2006), ‘Optimal change-point estimation from indirect observations’, The Annals of Statistics 34 (1), 350 – 372. Hethcote, H. W. (2000), ‘The mathematics of infectious diseases’, SIAM Review 42 (4), 599–653. Kaper, H. & Engler, H. (2013), Mathematics and Climate, Society for Industrial and Applied Mathematics, Philadelphia, PA. Karl, T. R. & Trenberth, K. E. (2003), ‘Modern global climate change’, Science 302 (5651), 1719– 1723. Keeling, M. J. & Rohani, P. (2008), Modeling Infectious Diseases in Humans and Animals, Princeton University Press. Kovács, S., Bühlmann, P., Li, H. & Munk, A. (2022), ‘Seeded binary segmentation: a general methodology for fast and optimal changepoint detection’, Biometrika 110 (1), 249–256. Li, H., Munk, A. & Sieling, H. (2013), ‘FDR-control in multiscale change-point segmentation’, Electronic Journal of Statistics 10 (1), 918–959. Mann, M. E., Zhang, Z., Rutherford, S., Bradley, R. S. et al. (2009), ‘Global signatures and dynamical origins of the little ice age and medieval climate anomaly’, Science 326 (5957), 1256– 1260. Marcott, S. A., Shakun, J. D., Clark, P. U. & Mix, A. C. (2013), ‘A reconstruction of regional and global temperature for the past 11,300 years’, Science 339 (6124), 1198–1201. 
+
+34 Matthews, J. A. & Briffa, K. R. (2005), ‘The ‘Little Ice Age’: Re-evaluation of an evolving concept’, Geografiska Annaler: Series A, Physical Geography 87 (1), 17–36. Miao, H., Dykes, C., Demeter, L. M. & Wu, H. (2009), ‘Differential equation modeling of HIV viral fitness experiments: Model identification, model selection, and multimodel inference’, Biometrics 65 (1), 292–300. Nagumo, J., Arimoto, S. & Yoshizawa, S. (1962), ‘An active pulse transmission line simulating nerve axon’, Proceedings of the IRE 50 (10), 2061–2070. Ramsay, J. O., Hooker, G., Campbell, D. & Cao, J. (2007), ‘Parameter estimation for differential equations: a generalized smoothing approach’, Journal of the Royal Statistical Society Series B: Statistical Methodology 69 (5), 741–796. Reiß, M., Strauch, C. & Trottner, L. (2026), ‘Change point estimation for a stochastic heat equation’, The Annals of Statistics 54 (1), 277 – 299. Seber, G. A. F. & Wild, C. J. (2003), Nonlinear Regression, John Wiley & Sons, New Jersey. Strogatz, S. (2015), Nonlinear Dynamics and Chaos: With Applications to Physics, Biology, Chemistry, and Engineering, 2nd edn, CRC Press. Tan, J., Zhang, G., Wang, X., Huang, H. & Yao, F. (2024), ‘Green’s matching: an efficient approach to parameter estimation in complex dynamic systems’, Journal of the Royal Statistical Society Series B: Statistical Methodology 86 (5), 1266–1285. Tibshirani, R. J. (2014), ‘Adaptive piecewise polynomial estimation via trend filtering’, The Annals of Statistics 42 (1), 285 – 323. Vogt, M. & Dette, H. (2015), ‘Detecting gradual changes in locally stationary processes’, The Annals of Statistics 43 (2), 713 – 740. Wang, Y. (1995), ‘Jump and sharp cusp detection by wavelets’, Biometrika 82 (2), 385–397. Xia, Z. & Qiu, P. (2015), ‘Jump information criterion for statistical inference in estimating discontinuous curves’, Biometrika 102 (2), 397–408. 
+
+35

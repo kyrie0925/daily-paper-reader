@@ -1,0 +1,785 @@
+Title: Learning Topology-Aware Representations via Test-Time Adaptation for Anomaly Segmentation
+
+URL Source: https://arxiv.org/pdf/2606.28268v1
+
+Published Time: Mon, 29 Jun 2026 01:11:06 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+> 1
+
+# Learning Topology-Aware Representations via Test-Time Adaptation for Anomaly Segmentation 
+
+Ali Zia †, Usman Ali †, Abdul Rehman, Umer Ramzan, Kang Han, Muhammad Faheem, Shahnawaz Qureshi, and Wei Xiang, Senior Member, IEEE 
+
+Abstract —Test-time adaptation (TTA) has emerged as a promis-ing paradigm for mitigating distribution shifts in deep models. However, existing TTA approaches for anomaly segmentation remain limited by their reliance on pixel-level heuristics, such as confidence thresholding or entropy minimisation, which fail to preserve structural consistency under noise and texture variation. Moreover, they typically treat anomaly maps as flat intensity fields, ignoring the higher-order spatial relationships that characterise complex defect geometries. We introduce TopoTTA (Topological Test-Time Adaptation), a novel framework that integrates persistent homology, a tool from topological data analysis, into the TTA pipeline to enforce geometric and structural coherence during adaptation. By applying multi-level cubical complex filtration to anomaly score maps, TopoTTA derives robust topological pseudo-labels that guide a lightweight test-time classifier, enhancing segmentation quality without retraining the backbone model. The approach avoids reliance on method-specific raw-score thresholding for mask binarisation, preserves connectivity, and generalises across both 2D and 3D modalities. Extensive experiments across six standard benchmarks (MVTec AD, VisA, Real-IAD, MVTec 3D-AD, AnomalyShapeNet, and MVTec LOCO) demonstrate an average 15% F1 improve-ment over state-of-the-art unsupervised anomaly detection and segmentation methods, with the largest gains on anomalies exhibiting complex geometric or structural variations. These findings suggest that integrating topological reasoning into test-time adaptation provides a principled route to structure-aware generalisation, bridging the gap between geometric learning and robust adaptation. Code is available at: https://topotta.github.io 
+
+Index Terms —Test-time adaptation, anomaly segmentation, topological data analysis, cubical complex filtration, persistent homology, binary segmentation 
+
+I. I NTRODUCTION 
+
+# TEST-TIME adaptation (TTA) has become a crucial strategy in enabling deep models to generalise beyond training distributions, especially in scenarios where labelled data is scarce or unavailable at deployment [1], [2]. A particularly 
+
+Manuscript received November 9, 2025. The authors would like to thank La Trobe University, Melbourne, Australia, for providing the financial support and research resources that made this work possible. Ali Zia, Kang Han, and Wei Xiang are with the School of Computing, Engineering and Mathematical Sciences, La Trobe University, Melbourne, Australia (e-mail: {A.Zia, K.Han, W.Xiang}@latrobe.edu.au). Usman Ali, Abdul Rehman, Umer Ramzan, and Muhammad Faheem are with the School of Engineering and Applied Sciences, GIFT University, Gujran-wala 52250, Pakistan (e-mail: {usmanali, abdulrehman.naseer, umer.ramzan, mfaheem}@gift.edu.pk). Shahnawaz Qureshi is associated with Sino-Pak Centre for Artificial Intelligence Pak-Austria Fachhochschule Institute of Applied Sciences and Technology. (e-mail: shahnawaz.qureshi@paf-iast.edu.pk). (Corresponding author: Ali Zia.) (†: Equal Contribution) 
+
+relevant application is anomaly segmentation (AS), where the goal is to identify fine-grained, pixel-level anomalies in test images, typically without access to annotated anomalous ex-amples during training [3]. In such settings, anomaly detection and segmentation (AD&S) models produce spatial anomaly score maps that must be binarised into segmentation masks [4]. However, this binarisation often depends on thresholds learned from nominal (normal) data, leading to poor generalisation across object types and anomaly patterns [5]–[7]. While supervised AD methods [8]–[11] have shown strong performance, they demand large-scale annotated datasets, which are impractical for rare or heterogeneous anomalies [12], [13]. This challenge has motivated unsupervised approaches that rely on nominal data alone. Yet, these models often rely on static score thresholding and struggle with structure-preserving segmentation under test-time distribution shifts. Test-Time Training (TTT) has recently emerged as a promis-ing unsupervised learning technique that allows models to adapt to test samples using auxiliary self-supervised tasks during inference [1], [14]–[17]. Initially developed in the context of domain adaptation and generalisation, TTT dynamically adjusts a model’s representations to the test data without requiring access to the source distribution or labels [18]. This work explores how TTT can be enhanced by incorporating strong inductive biases that encourage structural consistency and training a test-time contrastive encoder that adapts feature representations for improved binary segmentation. Topological Data Analysis (TDA) provides a complemen-tary perspective for understanding high-dimensional data by extracting persistent structural features [19]. Tools such as persistent homology (PH) [20] can quantify the connectedness and saliency of components in an anomaly score map, without relying on prior assumptions about the anomaly’s appearance or shape. We propose leveraging TDA as an inductive prior during test-time to refine segmentation by encoding multi-scale spatial structures in the anomaly signal. TopoTTA presents a framework that integrates topological priors into the TTT paradigm to improve pixel-wise AS. Our approach enhances pseudo-label reliability by leveraging cubical complex filtrations applied to anomaly score maps, enabling persistent structural features to guide binary seg-mentation mask refinement, as depicted in Figure 1. These topologically derived pseudo-labels are then used to supervise a pixel-level contrastive encoder, trained on-the-fly using features extracted from a frozen pre-trained backbone. This contrastive learning strategy encourages the encoder to align features within anomalous and nominal regions while maximally separating           
+
+> arXiv:2606.28268v1 [cs.CV] 26 Jun 2026 2
+> RGB GT Heat Map Fsbl −1Fsbl −2Fsbl −nFsul −1Fsul −2Fsul −nTopoTTA
+> Metal Nut Carrot Transistor
+> Fig. 1. Progressive refinement of anomaly segmentation using multi-level filtrations on cubical complexes. Each row shows a 2D or 3D test image with (left to right): RGB input, ground truth (GT), anomaly heatmap, binary masks from sublevel and superlevel filtrations ( Fsbl-* , F sul-* ), and the final TopoTTA output. Filtrations extract persistent topological features to guide robust segmentation refinement via the PCES module.
+
+them across the refined pseudo-label space. By incorporating multi-level sub- and super-level filtrations, without relying on a method-specific raw-score threshold for mask binarisation, our method introduces a topology-aware adaptation mechanism at inference time that generalises across datasets and domains. 
+
+To the best of our knowledge, this is among the first works to integrate persistent homology-based multi-scale topological filtering directly into a test-time learning framework for pixel-wise AS. Our contributions are as follows:  
+
+> •
+
+We present a theoretically grounded test-time adaptation method that captures persistent structural priors using multi-level cubical complex filtrations. These topological features, including connected components and holes, are provably stable under perturbations to the anomaly score map.  
+
+> •
+
+We propose a pixel-level contrastive encoder (PCES), trained at inference using sparse pseudo-labels derived from topological persistence, to produce dense, structurally consistent segmentation without requiring access to source data or retraining.  
+
+> •
+
+Our framework is modular and model-agnostic, function-ing as a plug-in refinement module for any AD&S method that outputs an anomaly segmentation, and generalises across 2D and 3D industrial anomaly domains. Across diverse datasets, TopoTTA consistently delivers robust, generalisable AS. Evaluated on five 2D/3D structural anomaly benchmarks, with additional validation on MVTec LOCO for logical anomaly detection, and across seven backbones, 
+
+TopoTTA achieves F1 improvements of up to +20.3% on 2D and +10.2% on 3D over the test-time state of the art. It further generalises to cross-domain transfers and few-shot settings, surpassing the TTT baseline. Ablation studies attribute the gains to persistent filtrations, topology-guided supervision, and contrastive feature alignment, with consistent effects across modalities and architectures. II. R ELATED WORK 
+
+AS under distribution shift presents a complex challenge that spans multiple research domains. Addressing this requires (1) detecting fine-grained anomalies in the absence of supervision, (2) encoding meaningful structural priors, and (3) adapting models to unseen test-time distributions. In this section, we review relevant work on unsupervised AD&S, TDA in vision, and TTT, and highlight how our method bridges gaps across these areas. Specifically, our approach integrates PH-based topological priors with per-instance TTT to refine binary segmentation masks using structural information extracted from AS maps. 
+
+A. Unsupervised AD&S 
+
+Unsupervised AD&S has gained traction due to its ability to identify anomalies in the absence of annotated data [21], [22]. Early methods relied on reconstruction-based models such as autoencoders [23]–[27], inpainting [28]–[32], and diffusion models [33]–[35], assuming that nominal patterns can be reliably reconstructed while anomalies cannot. However, these approaches tend to produce blurry reconstructions or overfit to nominal structures, limiting their efficacy under distribution shift. Feature-based methods compare test sample embeddings to nominal training data [36]–[38], while teacher-student frameworks [39]–[43] introduce inductive bias through cross-network consistency. These approaches enhance robustness but depend on global similarity metrics, often missing local structural discrepancies, limiting their effectiveness in dense tasks like segmentation. Alternative strategies use generative priors via normalizing flows [44]–[47] or synthetic anomalies within one-class classification [48]–[51], yet they typically fall short in spatial resolution or adaptability for pixel-level accuracy. Recent techniques [37], [38], [52]–[56] leverage pre-trained vision transformers and memory banks for strong feature representation, but rely on fixed distance metrics and heuristic thresholds, making them sensitive to class-specific tuning and lacking in structural sensitivity. 
+
+In contrast, our proposed method leverages topological information extracted directly from anomaly score maps to guide refinement. By applying cubical complex filtrations, we identify persistent structural features such as mathematical holes 3
+
+and connected components, which serve as robust pseudo-labels for pixel-level adaptation. This goes beyond purely statistical or embedding-based comparisons by embedding inductive structural priors into the segmentation process. 
+
+B. Topological Data Analysis in Image Segmentation 
+
+TDA, particularly through PH, has been increasingly used in medical image analysis to capture shape descriptors and multi-scale structural features [57]–[61]. Applications include tumour classification, liver lesion detection, and neuronal morphology analysis. However, most of these works remain limited to offline analysis or post-hoc characterisation, and are rarely incorporated into modern learning frameworks or settings involving severe domain shift and test-time adaptation. More broadly, the theoretical foundations of PH are well established. Edelsbrunner and Harer [62] formalised PH as a framework for characterising how connected components, holes, and other topological features emerge and disappear across a filtration. For image-based and voxel-based data, cubical complexes are particularly suitable because they operate directly on regular grids. Accordingly, prior studies on cubical complexes and cubical persistence [63], [64], provide the relevant basis for topological analysis of structured image signals. In addition, the stability result of Cohen-Steiner et al. [65] shows that persistence diagrams change continuously under bounded perturbations of the underlying function. This stability is especially important in anomaly segmentation, where prediction maps may be affected by noise or ambiguity, but persistent topological structures can still provide reliable cues. To our knowledge, no prior work integrates PH via multi-level cubical filtrations into a test-time learning pipeline for pixel-level anomaly segmentation . Unlike prior applications of TDA, which operate on static representations, our method uses TDA as a dynamic, learnable signal for refining segmentation masks at inference. This enables principled pseudo-label generation that reflects persistent topological features and improves robustness under noise and uncertainty. 
+
+C. Test-Time Training (TTT) 
+
+TTT has emerged as an effective strategy for adapting pre-trained models to unseen distributions using only test-time data [66]. TTT has shown promise in classification [67], semantic segmentation [68], and object detection [69], particularly under domain shift. TTT approaches vary in adaptation granularity, ranging from batch-level [70], online [71], to per-instance [72] settings, and typically rely on self-supervised losses or consistency constraints during inference. Test-time adaptation has evolved into a broader family of approaches beyond classical test-time training [73], [74]. Representative directions include entropy-minimisation and prediction regularisation methods, which adapt the model by encouraging confident and stable predictions on target samples [75], [76], as well as online or continual refinement strategies that update the model progressively under distribution shift [77]. While these approaches have demonstrated strong performance across classification and segmentation tasks, they mainly target feature calibration, prediction stability, or appearance alignment. In anomaly segmentation, however, the central challenge is not only adapting the representation to the target sample, but also converting noisy anomaly score maps into spatially coherent and structurally meaningful binary masks. TopoTTA addresses this complementary aspect by introducing a topological prior directly over the anomaly score map, enabling test-time refinement guided by connectivity, holes, and persistent multi-scale structure. Recently, TTT4AS [78] extended this paradigm to AS. It proposes training a per-image support vector machine (SVM) classifier at test time, using pseudo-labels generated from high-scoring anomaly regions via non-maximum suppression and neighbourhood enrichment. This enables flexible adaptation without backpropagation, using sparse but discriminative fea-tures to improve binary mask prediction. However, TTT4AS depends on heuristics for peak selection and local smoothing, lacks explicit structural reasoning, and can produce inconsistent masks under noise or geometric anomalies. More broadly, topological priors are fundamentally different from conventional structural priors such as shape constraints. Shape-based priors typically encourage masks to follow specific geometric regularities, for example smoothness, compactness, convexity, or template-like forms. While these assumptions may be beneficial when the underlying object has a predictable geometry, they can be too restrictive for anomaly segmentation, where defects are often highly irregular, fragmented, elongated, or perforated. For example, elongated cracks or perforated defects may violate smoothness or convexity assumptions, but are naturally characterised by topological invariants such as connected components and holes. In contrast, the topological prior adopted in our framework is shape-agnostic: rather than favouring any particular geometry, it characterises invariant structural properties such as connected components, holes, and their persistence across filtration levels. As a result, it is better suited to anomaly patterns whose structure is defined by connectivity and multi-scale organisation rather than by a fixed geometric form. Recent adjacent work has investigated diffusion-based anomaly modelling, diffusion-based test-time adaptation, and topology-aware anomaly analysis in broader settings [79]–[81]. While these approaches are relevant from a methodological perspective, they are typically developed for anomaly detection, anomaly generation, classification-oriented test-time adaptation, or specialised topological anomaly tasks rather than for test-time adaptation in industrial anomaly segmentation . For example, diffusion-based TTA methods such as Diffusion-TTA are primarily designed for image classification under test-time adaptation, whereas TopoTTA 
+
+targets pixel-level industrial anomaly segmentation by refining anomaly score maps into structurally coherent binary masks. For this reason, TTT4AS remains the most directly comparable prior method under our evaluation protocol. We further clarify that, unlike TTT4AS , which relies on heuristic peak selection and local refinement, TopoTTA derives pseudo-labels from per-sistent topological structure in the anomaly score map, thereby providing a more principled form of structural reasoning during test-time adaptation. In contrast, our method, TopoTTA , introduces a topologically-informed TTA mechanism. We replace heuristic-based pseudo-4
+
+labelling with PH computed via multi-scale cubical filtrations of the AS map. This allows us to extract geometrically and topo-logically consistent pseudo-labels that reflect connectedness, holes, and persistent structures. These are used to supervise a lightweight contrastive classifier trained at test time. To the best of our knowledge, TopoTTA is the first method to incorporate persistent topological priors into the TTT pipeline for anomaly segmentation, improving generalisation and structural precision across both 2D and 3D modalities. III. PRELIMINARIES 
+
+A. Cubical Complex Persistence Diagram 
+
+A primitive interval J ⊂ R is defined as J = [ k, k + 1] for some k ∈ Z, referred to as a unit cell (1-cube). This degenerate case [k], where k ∈ Z, represents a point cell (0-cube) . The standard unit interval J = [0 , 1] serves as a unit interval . A 
+
+d-dimensional elementary cube C is constructed by taking the Cartesian product of a finite set of basic intervals :
+
+C = J1 × J2 × · · · × Jd ∈ Rd, (1) The elementary cubes in a 3D grid consist of vertices, edges, squares (2-cubes), and voxels (3-cubes). The boundary of a basic interval J = [ k, k +1] consists of its two endpoints: ∂J =
+
+∂[k, k + 1] = [ k + 1 , k + 1] − [k, k ] = {k, k + 1 } which defines the 0-dimensional boundary points (vertices) of the interval. For a d-dimensional elementary cube C = J1 × · · · × Jd, its boundary is made up of all (d − 1) -dimensional faces and is computed as: 
+
+∂C =
+
+> d
+
+X
+
+> i=1
+
+(−1) i+1 · (J1 × · · · × ∂J i × · · · × Jd), (2) where applying ∂J i replaces the ith interval with its vertex representation. This ensures that the boundary of C includes all lower-dimensional cubes that form its geometric skeleton. For two elementary cubes C and C′, we define C to be a subcube of C′, denoted C ⊑ C′, if each interval defining C
+
+is contained within the corresponding interval of C′, that is, 
+
+Ji ⊆ J′ 
+
+> i
+
+for all i = 1 , . . . , d . In this case, C′ is referred to as a supercube of C. Similarly, any cube P that contains C as a subcube is called a coface of C.A cubical complex K is a collection of elementary cubes that satisfies two fundamental conditions. First, if a cube C
+
+belongs to K, then all its subcubes (lower-dimensional faces) must also be included in the complex; that is, for any cube 
+
+P ⊑ C, it follows that P ∈ K . Second, if C ∈ K , all of its boundary components—its (d − 1) -dimensional faces—are also elements of K. These properties ensure that the complex maintains structural coherence across dimensions. Intuitively, a cubical complex represents a discretized grid as a hierarchical structure composed of geometric entities at multiple levels: 0-cubes (points), 1-cubes (edges), 2-cubes (squares), and 3-cubes (volumetric units), each corresponding to different dimensional cubes is shown in Figure 2. A map g : K → L is called a cubical map if it preserves the subcube relation. That is, for any two cubes C, C ′ ∈ K,whenever C ⊆ C′, it holds that g(C) ⊆ g(C′) in L.0 cube  1 cube    
+
+> 2 cube 3 cube Cubical Complexes
+> Fig. 2. Elementary cubes across dimensions and a cubical complex.
+
+· · · ∂n+1 
+
+−−−→ Cn(K) ∂n
+
+−→ Cn−1(K) ∂n−1
+
+−−−→ · · · ∂1
+
+−→ C0(K) → 0
+
+For a cubical chain complex C∗(K), an n-chain z ∈ Cn(K)
+
+is referred to as a cycle if it satisfies ∂n(z) = 0 , meaning it has no boundary. Since every boundary is itself a cycle by definition, the group of boundaries Bn(K) is a subgroup of the cycle group Zn(K). These groups are formally defined as:                 
+
+> Zn(K) := ker( ∂n) = {c∈Cn(K)|∂n(c) = 0 },(3)
+> Bn(K) := im( ∂n+1 ) = {∂n+1 (c)|c∈Cn+1 (K)}.(4)
+
+The quotient group Hn(K) = Zn(K)/B n(K) defines the 
+
+n-th homology group , which captures topological features such as n-dimensional voids or holes in the complex. The collection gives the full homology of the cubical complex K:H∗(K) = 
+
+{Hn(K)}n∈Z.
+
+A filtration function fK : K → R governs the progressive construction of a cubical complex by assigning to each d-cube the first threshold at which it becomes active. This ensures that any cube appears no earlier than its faces: for all cubes 
+
+P ⊑ Q, it holds that fK (P ) ≤ fK (Q). Given this function, we define both sublevel and superlevel sets corresponding to thresholds ai ∈ R. The sublevel set K(ai) is defined as: 
+
+K(ai) := f −1
+
+> K
+
+ (−∞ , a i],
+
+∅ = K(a0) ⊆ K(a1) ⊆ · · · ⊆ K(an) (5) which contains all cubes whose filtration values are less than or equal to ai, forming a nested sequence under increasing thresholds: Similarly, the superlevel set K↑(bi) captures cubes with filtration values greater than or equal to a descending sequence of thresholds bi ∈ R, and is defined as: 
+
+K↑(bi) := f −1
+
+> K
+
+ [bi, +∞),
+
+∅ = K↑(b0) ⊇ K↑(b1) ⊇ · · · ⊇ K↑(bn) (6) where higher intensity cubes are activated first. Any cubical inclusion from Ki to Kj , where i ≤ j, induces a linear map between their corresponding homology spaces. This map, denoted as: φij : Hk(Ki) → Hk(Kj ), captures how topological features evolve across the filtration due to the functoriality property of homology. When applying Eq. 5 and 6, we obtain an ordered sequence of homology groups connected by these induced maps on both filtrations: 
+
+Hk(K0) φ01 
+
+−−→ Hk(K1) φ12 
+
+−−→ · · · φn−1,n 
+
+−−−−→ Hk(Kn) (7) 5DI NO, POI NT M AE 
+
+> Feature M aps
+
+Anomaly M ask  
+
+> I mage (H,W,C)
+> M L P Encoder
+> ? v
+> Classification
+> backbone
+> PCES M odule
+> Sublevel M ask
+> Super level M ask
+> Sublevel M ask
+
+M ulti L evel Cubical Complex Filtr ation M odule    
+
+> Pseudo labels
+> T1
+> T2
+> T3
+> Tn
+> Cubical Complexes
+> Super level Filter ing
+> T1
+> T2
+> T3
+> T4
+> T5
+> T6
+> T7
+> Tt
+> Adaptive Thresholding
+> T1
+> T2
+> T3
+> T4
+> T5
+> T6
+> T7
+> Tt
+> Adaptive  Thresholding
+> Super level M ask
+> M ulti level Filter ation
+> bir th
+> k = 1
+> k = 2
+> k = 3
+> Adaptive Thresholding Top K th Components
+> Sublevel Filter ing Sublevel kth component
+> Super level kth component EAI
+> bir th
+> k = 1
+> k = 3
+> k = 2
+> connected components
+> holes
+> connected components
+> holes
+
+Fig. 3. Overview of the TopoTTA architecture. Given a test image I, an AD&S method produces an anomaly score map Ψ. A pre-trained feature extractor 
+
+g generates dense feature maps F = g(I). Topological pseudo-labels are extracted by applying multi-level cubical complex filtrations (both sublevel and superlevel) to Ψ, producing structurally meaningful binary masks via persistent homology. These masks are fused using EAI to generate sparse pseudo-labels. A lightweight classifier is then trained on selected feature points from F (I) using these labels and applied across the full feature map to produce a refined binary AS. This test-time adaptation pipeline exploits both intensity-based cues and topological structure to improve segmentation robustness and generalisation. 
+
+The Eq. 7 forms a persistence module: P =
+
+{Hk(Ki), ϕ ij }0≤i≤j≤n, which defines the kth cubical persistent homology. It tracks how k-dimensional topological features (e.g., holes) appear and disappear across the filtration, assigning to each feature σ a birth time bσ and death time dσ . The lifespan dσ − bσ quantifies the persistence of σ, and the set of all such intervals [bσ , d σ ) constitutes the persistence barcode .The kth persistence diagram (PD k(K)) consists of all birth-death pairs (bσ , d σ ) such that σ ∈ Hk(Ki) for bσ ≤ i < d σ .These diagrams are represented as multisets of points in R2,where each point encodes the birth and death times of a topological feature. Due to their irregular structure, PDs are not directly compatible with standard machine learning pipelines [82]. Hence, they are often mapped to fixed-dimensional representations through vectorisation , a process defined as a function Φ : PD → RM , enabling seamless integration with ML models. 
+
+Algorithm 1 High-level procedure of TopoTTA 
+
+Require: Test sample I, anomaly backbone Φ, frozen feature extractor g
+
+Ensure: Refined anomaly mask ˆY
+
+1: Ψ ← Φ( I) // anomaly score map 2: K ← CUBICAL COMPLEX (Ψ) 
+
+3: Construct sublevel and superlevel filtrations Fsub and Fsup over K
+
+4: Compute persistence diagrams Psub and Psup 
+
+5: Select significant persistent features and form masks A and B
+
+6: Y ← EAI (A, B ) // topology-consistent pseudo-label mask 7: F ← g(I) // frozen dense feature map 8: Sample pseudo-labelled foreground/background features from (F, Y )
+
+9: Adapt PCES θ at test time using the sampled pseudo-labels 10: ˆY ← DENSE PREDICT (PCES θ , F )
+
+11: return ˆY
+
+IV. TTA U SING MULTI -L EVEL TOPOLOGICAL FILTERING 
+
+Building on the limitations of prior TTT approaches, par-ticularly their reliance on heuristic pseudo-labels and lack of structural awareness, we propose TopoTTA , a topology-guided adaptation framework for AS. Our method replaces intensity-based thresholds and local peak heuristics with persistent topological descriptors extracted via multi-level cubical filtrations of the anomaly score map. Our approach operates as a model-agnostic, downstream enhancement module that can be integrated with any AD&S method, producing a per-pixel anomaly segmentation mask. Given a test sample I,its anomaly score map Ψ, and dense feature representations 
+
+F extracted via a frozen general-purpose backbone, TopoTTA constructs sparse pseudo-labels using multi-level topological filtration of Ψ. These pseudo-labels ( Ψ′) supervise a lightweight classifier trained on a subset of spatial features from F , which is then applied across the full feature map to predict a refined binary anomaly segmentation mask ( Ψ′′ ). This design allows TopoTTA to exploit both anomaly-localised signal and global topological structure at test time, without requiring retraining or backpropagation through the backbone network. The full adaptation pipeline, including topological filtration, classifier training, and final mask refinement, is illustrated in Figure 3. To make the connection between the mathematical for-mulation and the practical pipeline explicit, Algorithm 1 summarises the high-level procedure of TopoTTA. The com-plete implementation-level pseudocode is provided in the supplementary material ( SEC. V. ALGORITHMIC DETAILS OF TOPOTTA ). 6
+
+A. Multi-Level Cubical Complex Filtration 
+
+The Multi-Level Cubical Complex Filtration Module , shown in Figure 3, is a central module in TopoTTA that extracts stable topological priors from anomaly score maps. This block proceeds in two logical stages. First, a cubical complex is constructed from the anomaly score map Ψ; then, multi-level filtration is applied to generate persistence diagrams that inform robust pseudo-labels. 
+
+1) Cubical Complex Construction: To encode spatial struc-ture, we treat the anomaly score map Ψ ∈ RH×W as a discrete topological space, forming a cubical complex K. We adopt cubical complexes due to their natural alignment with grid-structured image data, enabling efficient computation without triangulation overhead, as supported by Bleile et al. [64] and Rieck et al. [63]. Each pixel defines a 0-cell (point), and neighbouring pixels define higher-dimensional elements: 1-cells (edges), 2-cells (squares), and, in 3D, 3-cells (voxels). This structure captures the adjacency and continuity of intensity patterns in Ψ. By ensuring that all lower-dimensional faces of each cube are included, the complex is closed under subcells and ready for topological analysis. 
+
+2) Multi-Level Topological Filtration: To extract shape fea-tures from Ψ, we define a filtration function f : K → R that as-signs each cube a scalar value based on the maximum intensity of its vertices. To perform multi-level filtration, we construct two complementary filtrations over the cubical complex K
+
+derived from the anomaly score map Ψ. In the sublevel filtration 
+
+[63], denoted as K(ai) = {σ ∈ K | f (σ) ≤ ai}, cubes are added progressively based on increasing threshold values, thereby accumulating low-intensity regions first. Conversely, the 
+
+superlevel filtration , defined as K↑(bi) = {σ ∈ K | f (σ) ≥ bi},begins with high-intensity areas and progressively includes regions of decreasing intensity. This bidirectional filtration process allows TopoTTA to capture anomaly structures that may manifest across both ends of the intensity spectrum. As illustrated in Figure 4, these filtrations form a nested sequence of subcomplexes that reflect the evolving topological structure of Ψ under varying thresholds, enabling robust identification of persistent features such as connected regions and hollow defects. PH [62] is then computed across these filtrations, yielding birth-death pairs (bσ , d σ ) for topological features (connected components, holes). The persistence dσ − bσ quantifies the feature’s significance. These are summarised in persistence diagrams. In practice, the filtration interval is induced automat-ically by the anomaly-score map itself; L determines only the granularity of this discretisation rather than a manually chosen score threshold. To form pseudo-labels ( ψ′)), we retain the most persistent features (Top-K or those exceeding a threshold τ ), and create binary masks from both filtration types. While previous methods commonly fuse these masks using Intersection-over-Union (IoU), such pixelwise overlap metrics disregard topological structure and may disrupt connectivity or introduce artificial holes. To address this, we employ the Euler-aware Intersection 
+
+(EAI), a topology-consistent alternative. Let A = K(ai) and 
+
+B = K↑(bi) denote the binary masks obtained from the sublevel and superlevel filtrations, respectively. EAI is defined as follows: 
+
+Y = FixEuler( A ∩ B, A ∪ B), (8) 
+
+FixEuler( M, U ) = arg min 
+
+> Y
+
+
+
+∥Y − M ∥1 + β |χ(Y ) − χ(M )|
+
+
+
+s.t. M ⊆ Y ⊆ U. (9) Here, χ(·) denotes the Euler characteristic, and β > 0
+
+is a regularization coefficient that balances spatial fidelity (∥Y − M ∥1) and topological consistency ( |χ(Y ) − χ(M )|). Accordingly, β is interpreted as a fusion regularisation weight rather than a decision threshold on anomalous pixels. 
+
+FixEuler( M, U ) is an operator that minimally expands the intersection M = A ∩ B within the union U = A ∪ B
+
+to preserve χ(M ), thereby maintaining the same number of connected components and holes. The set U thus bounds the region where topological correction is permitted, ensuring the fused mask remains spatially constrained. The resulting Y
+
+corresponds to the final EAI mask. In simple terms, we start from M and expand only within U just enough to match the original Euler characteristic, preserving topological structure while correcting minor spatial inconsistencies. Practically, this is implemented using one or two geodesic dilations followed by localised trimming or hole filling to restore χ(M ).The resulting EAI mask preserves both spatial alignment and topological consistency, yielding sparse yet structurally faithful pseudo-labels for downstream test-time adaptation. This filtration-based approach enables TopoTTA to identify salient, topology-preserving features that are resilient to noise and threshold perturbations, a property we formalise in the following subsection through a stability analysis grounded in persistent homology.                                       
+
+> (a) X1 (b) X2 (c) X3 (d) X4 (e) X5 (f) X6
+> Fig. 4. Sublevel and superlevel filtrations on a 2D grayscale image. Given an image Xwith pixel intensities Iij ∈[0 ,255] , a sublevel filtration constructs nested binary masks X1⊆ · · · ⊆ XTby including pixels satisfying Iij ≤τtat increasing thresholds τ1<· · · < τ T. Conversely, a superlevel filtration
+> includes pixels with Iij ≥τtusing decreasing thresholds. These filtrations capture evolving topological features such as connected components and holes. 7
+
+The proposed hyperparameters play roles different from threshold heuristics. Specifically, K controls the number of retained persistent components, L controls the discretisation of the score-induced filtration range, and β is a regularisation weight in the Euler-aware fusion objective. None of these parameters acts as a direct pixel-level anomaly threshold for converting the anomaly-score map into a binary mask. 
+
+B. Theoretical Justification: Stability of Topological Pseudo-Labels 
+
+Denote by Ψ : Ω → R an anomaly score map over a discrete image domain Ω ⊂ Z2, and let K be the corresponding cubical complex, where each image pixel defines a 0-cell and adjacent pixels define higher-dimensional cells such as edges and squares. We define a filtration function f : K → R over the complex by assigning 
+
+f (σ) = max  
+
+> p∈σ
+
+Ψ( p),
+
+where σ is any cell in the cubical complex and p ∈ σ denotes a pixel vertex of the cell. This induces a sublevel filtration 
+
+Kα := {σ ∈ K | f (σ) ≤ α},
+
+which we use to compute persistent homology PH k(K, f )
+
+in dimension k, yielding a persistence diagram or barcode 
+
+Bk = {(bi, d i)}i.
+
+Lemma 1 (Topological Stability of Anomaly Structures) . Let 
+
+f, g : K → R be two filtration functions derived from anomaly score maps Ψ and eΨ, such that ∥f − g∥∞ ≤ ε. Then, for every homology dimension k, the bottleneck distance between the corresponding persistence diagrams is bounded by 
+
+dB (PH k(K, f ), PH k(K, g )) ≤ ε. 
+
+Proof. This result follows directly from the classical stability theorem in persistent homology [65]. Given two tame filtration functions f and g over the same complex K, their persistence diagrams satisfy 
+
+dB (PH k(K, f ), PH k(K, g )) ≤ ∥ f − g∥∞,
+
+where dB denotes the bottleneck distance and ∥ · ∥ ∞ is the supremum norm over the domain of filtration functions. 
+
+a) Implication.: This lemma guarantees that small varia-tions in anomaly score maps, due to noise or uncertain model outputs, result in only small changes to the extracted topological features. Hence, persistent structures with long lifespans, i.e., large di − bi, are robust to such perturbations and provide reliable candidates for pseudo-labels in test-time adaptation. This provides a principled justification for using persistent homology to refine segmentation masks during inference. 
+
+C. Pixel-Level Contrastive Encoder for Segmentation (PCES) 
+
+To achieve precise pixel-level anomaly localisation, partic-ularly within a TTA framework, we introduce a lightweight contrastive Multi-Layer Perceptron (MLP) encoder, denoted 
+
+Eθ (·). The fundamental purpose of this module is to leverage the spatially-resolved pseudo-anomaly scores Ψ′, derived from our TDA pipeline, as a dynamic supervisory signal. This supervision guides the training of Eθ (·) to refine the initial dense feature maps F ∈ RH×W ×B into a more discriminative representation tailored for segmentation. We choose a shallow MLP architecture to ensure fast per-image optimisation and to avoid overfitting on sparse pseudo-labels at test time. This design balances segmentation accuracy and computational efficiency, aligning with recent findings in single-image test-time adaptation [72], [78]. The encoder Eθ (·) possesses a shallow architecture, compris-ing three sequential linear transformation layers, each followed by a Gaussian Error Linear Unit (GeLU) activation function. For every spatial location i in the input image, Eθ (·) takes the corresponding feature vector fi ∈ RB from F and projects it into a latent embedding space, yielding an embedding 
+
+zi = Eθ (fi). The core design principle is to structure this embedding space such that feature vectors originating from image regions that exhibit similar topological characteristics (as indicated by the TDA-derived scores in Ψ′) are mapped to proximate locations in the latent space. This targeted embedding space organisation is realised by optimising the parameters θ of Eθ (·) through a formulated contrastive loss function. Given a pair of embeddings (zi, z j ),where zk = Eθ (fk), the loss is defined as: 
+
+Lcontrastive = E(zi,z j ,y ij )
+
+h
+
+(1 − yij ) d(zi, z j )2
+
++ yij 
+
+  max {0, m − d(zi, z j )}2i
+
+. (10) In the above formulation, d(zi, z j ) denotes the Euclidean distance ∥zi − zj ∥2, and m > 0 is a pre-defined margin ( m =1.0) that dictates the desired separation for dissimilar pairs. The binary label yij ∈ { 0, 1} governs the loss’s behaviour and is derived from the TDA-refined pseudo-labels. Specifically, 
+
+yij = 0 is assigned to "similar pairs," where the input features 
+
+fi and fj correspond to regions consistently identified by Ψ′
+
+(both are strongly indicated as nominal, or both as anomalous, based on appropriate thresholding of Ψ′ 
+
+> i
+
+and Ψ′ 
+
+> j
+
+). For such pairs, the loss simplifies to d(zi, z j )2, encouraging their embeddings 
+
+zi and zj to converge. Conversely, yij = 1 is assigned to "dissimilar pairs," where fi and fj originate from regions with contrasting TDA-derived characteristics. For these pairs, the loss becomes a repulsive term max(0 , m − d(zi, z j )) 2,penalising instances where their embeddings are closer than the margin m and thus promoting their separation. The margin-based formulation in Eq. 10 was selected over cosine-similarity or InfoNCE-type losses [83], [84] because it directly enforces a geometric margin between topologically consistent and inconsistent embeddings, which empirically stabilises adaptation under low-signal or noisy pseudo-labels. Unlike NT-Xent or SimCLR [84], which rely on large batch sampling to approximate the softmax denominator, the margin 8
+
+loss yields stable gradients with very few positive–negative pairs and no temperature tuning, making it better suited to per-instance test-time adaptation where only a single image or volume is available. Comparable behaviour has been observed in small-batch contrastive adaptation tasks [83], [84]. This contrastive training process is executed at test-time for each input image, allowing Eθ (·) to adapt to the specific content of that image. Upon convergence of this TTA optimisation, the encoder Eθ (·) effectively transforms the original feature map into the structured, discriminative embedding space. The final dense binary segmentation mask Ψ′′ ∈ { 0, 1}H×W is then generated by applying a simple distance-based classifier to these learned embeddings zk.V. EXPERIMENTS 
+
+A. Experimental Details 
+
+Datasets: We evaluate TopoTTA on established 2D and 3D anomaly-detection benchmarks covering RGB imagery, logical anomaly localisation, and 3D geometry. 2D (RGB): MVTec AD [85] (15 categories; 3,629/1,725 train/test), MVTec LOCO AD [86] (5 categories; 3,644 images; structural and logical anomalies), VisA [87] (12 objects; 9,621 normal and 1,200 anomalous), and Real-IAD [88] (30 objects; ∼150,000 images: 36,465 normal train; 114,585 test with 63,256 normal and 51,329 anomalous). All 2D inputs are resized to 224 × 224 
+
+for like-for-like comparison. 3D (RGB+point cloud / point cloud only): MVTec 3D-AD [89] (10 categories; 2,656 normal training images and 1,197 test samples) and Anomaly-ShapeNet [90] (40 synthetic classes; 1,600 samples across six anomaly types). Together, these datasets probe structural defects, logical inconsistencies, image–geometry fusion, and purely geometric reasoning. 
+
+Evaluation Metrics: We report the standard ranking scores: image-level AUROC ( I-AUROC ), pixel-level AUROC ( P-AUROC ), and pixel-level AUPRO ( P-AUPRO ), which quantify threshold-invariant separability, how consistently positives receive higher anomaly scores than negatives over all possible thresholds, rather than the quality of any single thresholded mask. Under strong pixel imbalance, these ranking metrics can remain high even when the resulting masks are fragmented or poorly localised [85], [91]. Because our focus ultimately delivers a binary defect mask, we treat mask quality as the primary objective and report pixel-level Precision , Recall , F1 ,and IoU on the final binarised outputs. These measures expose the false-alarm vs. miss trade-off, while IoU measures strict spatial overlap [78], aligning with industrial practice where accurate, well-localised segmentation is the key deliverable [92]. 
+
+Implementation Details: Baselines and backbones (2D). We compare against PatchCore [93], PaDiM [38], Dinomaly 
+
+[52], MambaAD [53], and SALAD [94]. Our 2D features are extracted with DINO [95]. Baselines and backbones (3D). We include M3DM [54], CMM [55], and PO3AD [56]. For our 3D setup, RGB features come from DINO-v2 [96] and point-cloud features from Point-MAE [97]. Binarisation and adaptation. 
+
+Across 2D and 3D, we follow the statistical thresholding scheme THR introduced in [78]: for each backbone, a global threshold ( τ = μ + c σ ) is computed from the validation-set anomaly-score distribution and applied to its score maps to obtain binary masks. We report this statistical baseline ( THR )alongside the test-time training baseline TTT4AS [78] and our method TopoTTA . All pretrained backbones remain frozen. We follow the same train/test split as described in [78]. For each test sample, we adapt a lightweight MLP head hψ (three linear layers with GELU activations) using a contrastive objective that enforces a margin between high- and low-anomaly responses (margin 1.0). Optimisation uses Adam for 30 epochs with a learning rate of 10 −3 on nominal samples and an effective batch size of one (weight decay 10 −4 for stability). We used a single fixed TopoTTA configuration across all datasets and backbones, namely K = 1 , L = 256 , β = 0 .01 , and m = 1 .0.All experiments run on a single NVIDIA RTX 5090 (32 GB VRAM). 
+
+B. Quantitative Results 
+
+We evaluate TopoTTA on five 2D/3D benchmarks (MVTec AD , VisA , Real-IAD , MVTec 3D-AD , and Anoma-lyShapeNet ), with additional validation on MVTec LOCO for logical anomaly detection. The evaluation uses seven backbones under a controlled protocol: each backbone’s anomaly maps are fixed, and only the segmentation operator varies ( THR ,
+
+TTT4AS , or TopoTTA ). Image- and pixel-level metrics ( I-AUROC , P-AUROC , and P-AUPRO ) confirm that all back-bones produce reasonable heat maps, while our main focus is downstream segmentation quality, measured by mean per-class precision, recall, F1, and IoU. On MVTec AD , TopoTTA clearly outperforms both base-lines. With PatchCore , it boosts F1 by +41 .7% over THR and 
+
++17 .1% over TTT4AS, reaching the best IoU of 0.425 . With 
+
+PaDiM , the gains are +7 .1% and +10 .7% in F1 over THR and TTT4AS. Using Dinomaly , TopoTTA achieves the highest F1/IoU of (0 .550 /0.411) , compared with (0 .464 /0.335) for THR and (0 .419 /0.291) for TTT4AS. The advantage carries over to more challenging datasets. On VisA , TopoTTA im-proves F1 over TTT4AS by +20 .3% with Dinomaly and 
+
++9 .2% with MambaAD. On Real-IAD , it delivers +17 .9% and 
+
++9 .1% F1 gains over TTT4AS for Dinomaly and MambaAD respectively, showing that the method remains robust under strong texture variation and realistic imaging conditions. In 3D settings, TopoTTA is likewise competitive. On MVTec 3D-AD it improves F1 by +10 .2% for CMM and +1 .4% 
+
+for M3DM relative to TTT4AS, and on AnomalyShapeNet 
+
+(PO3AD) it yields +1 .3% and +1 .9% F1 gains over THR and TTT4AS. These numbers indicate that TopoTTA reliably converts anomaly maps into cleaner, more accurate masks, providing consistent improvements in F1 and IoU across datasets, modalities, and backbones. Per-class quantitative results for each dataset are presented in the supplementary material (SEC. I. PER-CLASS QUANTITATIVE RESULTS). C. Qualitative Results 
+
+The visual comparisons in Figures 5 and 6 illustrate how 
+
+TopoTTA transforms raw anomaly maps into structurally coherent segmentation masks across different datasets and 9                                                                                                                                                                                                      
+
+> TABLE I COMPARISON OF BINARY SEGMENTATION RESULTS . B EST RESULTS IN BOLD ;SECOND -BEST IN BLUE .
+> Dataset Backbone I-AUROC P-AUROC P-AUPRO TTT Method Prec. Rec. F1 IoU MVTec AD
+> [85]
+> PatchCore
+> [93]
+> 0.991 0.981 0.934 THR [93] 0.351 0.307 0.136 0.299
+> TTT4AS [78] 0.388 0.648 0.382 0.293
+> TopoTTA 0.508 0.851 0.553 0.425 PaDiM
+> [38]
+> 0.979 0.975 0.921 THR [38] 0.387 0.507 0.354 0.297
+> TTT4AS [78] 0.330 0.580 0.318 0.274
+> TopoTTA 0.452 0.739 0.425 0.317 Dinomaly
+> [52]
+> 0.996 0.984 0.948 THR [52] 0.532 0.686 0.464 0.335
+> TTT4AS [78] 0.458 0.645 0.419 0.291
+> TopoTTA 0.583 0.736 0.550 0.411 MVTec LOCO
+> [86]
+> SALAD
+> [94]
+> 0.961 ––THR [94] 0.390 0.477 0.384 0.272
+> TTT4AS [78] 0.569 0.742 0.518 0.396
+> TopoTTA 0.612 0.764 0.584 0.425 VisA
+> [87]
+> Dinomaly
+> [52]
+> 0.987 0.987 0.945 THR [52] 0.275 0.742 0.339 0.144
+> TTT4AS [78] 0.223 0.811 0.267 0.177
+> TopoTTA 0.532 0.862 0.470 0.334 MambaAD
+> [53]
+> 0.943 0.985 0.910 THR [53] 0.200 0.785 0.241 0.196
+> TTT4AS [78] 0.223 0.811 0.267 0.130
+> TopoTTA 0.367 0.587 0.359 0.247 Real IAD
+> [88]
+> Dinomaly
+> [52]
+> 0.893 0.989 0.939 THR [52] 0.242 0.587 0.317 0.208
+> TTT4AS [78] 0.154 0.720 0.263 0.175
+> TopoTTA 0.461 0.793 0.442 0.316 MambaAD
+> [53]
+> 0.863 0.985 0.905 THR [53] 0.188 0.653 0.228 0.145
+> TTT4AS [78] 0.084 0.763 0.137 0.080
+> TopoTTA 0.253 0.655 0.319 0.218 MVTec 3D-AD
+> [89]
+> CMM
+> [55]
+> 0.954 0.993 0.971 THR [55] 0.199 0.902 0.275 0.232
+> TTT4AS [78] 0.303 0.800 0.380 0.077
+> TopoTTA 0.447 0.810 0.487 0.359 M3DM
+> [54]
+> 0.945 0.992 0.964 THR [54] 0.173 0.753 0.245 0.232
+> TTT4AS [78] 0.462 0.640 0.468 0.120
+> TopoTTA 0.468 0.889 0.482 0.354 AnomalyShapeNet
+> [90]
+> PO3AD
+> [56]
+> 0.839 0.898 0.821 THR [56] 0.664 0.425 0.491 0.358
+> TTT4AS [78] 0.543 0.465 0.493 0.336
+> TopoTTA 0.677 0.529 0.504 0.378
+
+modalities. Rather than emphasising numerical gains, these examples highlight qualitative differences in how each post-processing method interprets the same anomaly maps into binary representations. Across the 2D datasets ( MVTec AD , VisA , Real-IAD ) as shown in Figure 5, THR often converts noise from the heat maps into scattered or oversized blobs, while TTT4AS partially suppresses these artefacts but can still fragment thin structures or expand defects into clean regions. In contrast, TopoTTA 
+
+consistently produces compact, connected masks that align with visible defects and maintain clean boundaries. For categories such as bottle , transistor , candle , macaroni1 , audiojack , and 
+
+bottle_cap , TopoTTA preserves fine-grained anomalies while eliminating background texture and lighting artefacts, resulting in visually precise and stable segmentations. The 3D MVTec AD results (as shown in Figure 6) further confirm this behaviour. For objects like bagel , cookie , and 
+
+peach , THR and TTT4AS generate irregular, disconnected activations on reconstructed surfaces, while TopoTTA produces smooth, contiguous regions that conform to the object’s geometry and concentrate on genuine anomalous zones. This demonstrates that the topology-aware refinement generalises effectively from 2D images to 3D surfaces, ensuring geometric continuity and structural integrity in both spatial domains. Over-all, the qualitative findings show that TopoTTA converts noisy anomaly maps into cleaner and more plausible segmentations. These masks are coherent, topologically faithful, and easier for inspectors to interpret, providing a qualitative foundation for the quantitative improvements reported earlier. Per-class qualitative results for each dataset are presented in the supplementary material (SEC. II. PER-CLASS QUALITATIVE RESULTS). D. Representative Per-Class Improvements 
+
+While Table I reports dataset-level means, we further high-light representative class-level trends (Table III) drawn from the extended experiments (see Tables I–IX in the Supplementary). These examples illustrate how topology-aware adaptation improves both boundary integrity and defect completeness in structurally challenging cases. These examples reveal a consistent pattern, TopoTTA in-creases both F1 and IoU for texture-heavy ( wood, audiojack )and geometry-complex ( bottle, pcb, regulator ) classes, reducing over-segmentation from THR and false-negative from TTT4AS. Across datasets, boundary precision rises by 10–20 % without recall loss, confirming the method’s fine-scale robustness. 
+
+E. Few Shot Analysis 
+
+Across five benchmarks and heterogeneous backbones, 
+
+TopoTTA consistently outperforms TTT4AS at every shot analysis as shown in Table II. A “shot” refers to the number of unlabelled normal support samples from the target class made available at test time for adaptation. For example, 1-shot and 5-shot correspond to using 1 and 5 nominal target-class samples, 10 
+
+Qualitative Comparisons Across 2D Datasets RGB GT Heat Map THR TTT4AS TopoTTA PatchCore - MVTec AD [85] 
+
+> Bottle Transistor
+
+Dinomaly - VisA [87] 
+
+> candle macaroni1
+
+Dinomaly - Real-IAD [88] 
+
+> audiojack bottle_cap
+
+SALAD - MVTec LOCO [94] 
+
+> J-bottle s-connector
+
+Fig. 5. Qualitative comparison across MVTec AD , MVTec LOCO , VisA , and 
+
+Real-IAD . Columns: RGB, Ground Truth (GT), anomaly heat map, simple thresholding (THR), TTT4AS, and our TopoTTA . TopoTTA produces sharper, topologically consistent anomaly segmentations across diverse categories and datasets. 
+
+3D MVTec AD [89] 
+
+RGB PC GT Heat Map THR [55] TTT4AS [78] TopoTTA Bagel Cookie Peach 
+
+Fig. 6. Qualitative comparison on the 3D MVTec AD dataset [89]. TopoTTA improves surface-level defect localization and preserves geometric continuity in 3D reconstructions. 
+
+respectively, to adapt the test-time module, after which evalua-tion is performed on the remaining test images of that class. This setting remains unsupervised, as no anomalous examples, class labels, or pixel-level ground-truth masks are used during adaptation. By applying multilevel topological filtration and boundary-aware connectivity pseudo labels to the PCES module, it produces masks with higher region integrity and fewer spurious components, yielding a Pareto improvement in F1/IoU. Representative deltas: MVTec AD/PatchCore F1: 0.115 →0.460 (1-shot) and 0.380 →0.526 (10-shot); VisA/Dinomaly (10-shot) 0.266 →0.423; Real-IAD/MambaAD (10-shot) 0.136 →0.324; MVTec 3D-AD/CMM IoU (10-shot) 0.076 →0.381. Gains are largest in the low-shot regime (1–3) yet persist through 10 shots, indicating strong sample efficiency, backbone-agnostic generalisation, and robust geometric priors for both 2D and 3D modalities. 
+
+F. Cross Model Adaptation 
+
+We evaluate a plug-and-play cross-model setup as shown in Table IV. The source feature extractor remains frozen and only the target scoring head is swapped, with no retraining. It gener-alises across 2D MVTec AD , VisA , Real-IAD and 3D MVTec 3D-AD . Performance is strong and topology-aware. On MVTec 
+
+TABLE II PER -SHOT (1/3/5/7/10) SEGMENTATION OUTCOMES WITH FIXED FEATURES ACROSS 2D AND 3D DATASETS ; COLUMNS LIST PRECISION , RECALL , F1, AND 
+
+IOU FOR EACH BACKBONE –METHOD PAIR .
+
+Dataset Backbone TTT Method 1-shot 3-shot 5-shot 7-shot 10-shot P R F1 IoU P R F1 IoU P R F1 IoU P R F1 IoU P R F1 IoU MVTec AD 
+
+> [85]
+
+PatchCore 
+
+> [93]
+
+TTT4AS [78] 0.110 0.205 0.115 0.085 0.118 0.210 0.122 0.091 0.360 0.640 0.370 0.280 0.372 0.644 0.375 0.286 0.386 0.646 0.380 0.291 
+
+TopoTTA 0.391 0.894 0.460 0.345 0.436 0.878 0.502 0.378 0.454 0.867 0.514 0.388 0.463 0.860 0.520 0.393 0.469 0.860 0.526 0.398 PaDiM 
+
+> [38]
+
+TTT4AS [78] 0.098 0.186 0.097 0.084 0.103 0.190 0.101 0.089 0.314 0.570 0.311 0.269 0.320 0.574 0.313 0.271 0.328 0.578 0.316 0.272 
+
+TopoTTA 0.342 0.748 0.372 0.282 0.371 0.750 0.396 0.298 0.385 0.752 0.405 0.304 0.377 0.748 0.399 0.299 0.403 0.756 0.411 0.306 Dinomaly 
+
+> [52]
+
+TTT4AS [78] 0.142 0.205 0.130 0.089 0.146 0.210 0.135 0.094 0.444 0.638 0.411 0.286 0.450 0.641 0.414 0.288 0.456 0.643 0.418 0.290 
+
+TopoTTA 0.379 0.881 0.435 0.322 0.444 0.860 0.495 0.372 0.479 0.850 0.525 0.399 0.501 0.843 0.544 0.415 0.524 0.836 0.563 0.432 VisA 
+
+> [87]
+
+Dinomaly 
+
+> [52]
+
+TTT4AS [78] 0.066 0.258 0.082 0.053 0.069 0.265 0.086 0.056 0.212 0.803 0.261 0.172 0.219 0.806 0.264 0.175 0.222 0.809 0.266 0.176 
+
+TopoTTA 0.432 0.792 0.408 0.299 0.460 0.800 0.418 0.305 0.455 0.804 0.416 0.303 0.468 0.808 0.420 0.306 0.495 0.812 0.423 0.307 MambaAD 
+
+> [53]
+
+TTT4AS [78] 0.068 0.258 0.084 0.039 0.071 0.264 0.087 0.041 0.218 0.804 0.264 0.127 0.220 0.808 0.265 0.128 0.222 0.810 0.266 0.129 
+
+TopoTTA 0.328 0.592 0.322 0.203 0.340 0.598 0.333 0.211 0.346 0.600 0.335 0.213 0.338 0.601 0.332 0.210 0.350 0.602 0.349 0.224 Real IAD 
+
+> [88]
+
+Dinomaly 
+
+> [52]
+
+TTT4AS [78] 0.046 0.228 0.082 0.054 0.048 0.235 0.085 0.056 0.147 0.712 0.259 0.171 0.151 0.716 0.261 0.173 0.153 0.718 0.262 0.174 
+
+TopoTTA 0.388 0.672 0.385 0.277 0.405 0.680 0.392 0.284 0.410 0.684 0.394 0.286 0.402 0.686 0.390 0.283 0.412 0.689 0.401 0.298 MambaAD 
+
+> [53]
+
+TTT4AS [78] 0.024 0.245 0.041 0.022 0.025 0.250 0.043 0.023 0.077 0.758 0.133 0.073 0.081 0.761 0.135 0.077 0.083 0.762 0.136 0.079 
+
+TopoTTA 0.332 0.642 0.320 0.212 0.345 0.648 0.326 0.217 0.350 0.650 0.328 0.219 0.344 0.651 0.323 0.215 0.353 0.652 0.324 0.227 MVTec 3D-AD 
+
+> [89]
+
+CMM 
+
+> [55]
+
+TTT4AS [78] 0.095 0.258 0.121 0.022 0.097 0.263 0.124 0.023 0.294 0.794 0.376 0.072 0.299 0.797 0.378 0.075 0.302 0.799 0.379 0.076 
+
+TopoTTA 0.412 0.742 0.438 0.325 0.430 0.748 0.447 0.333 0.428 0.752 0.445 0.331 0.435 0.754 0.450 0.336 0.442 0.756 0.453 0.381 M3DM 
+
+> [54]
+
+TTT4AS [78] 0.095 0.206 0.130 0.053 0.286 0.225 0.252 0.101 0.290 0.451 0.353 0.109 0.285 0.588 0.384 0.113 0.278 0.834 0.417 0.119 
+
+TopoTTA 0.320 0.462 0.378 0.233 0.340 0.489 0.401 0.251 0.347 0.590 0.437 0.280 0.352 0.703 0.469 0.306 0.345 0.752 0.473 0.310 AnomalyShapeNet 
+
+> [90]
+
+PO3AD 
+
+> [56]
+
+TTT4AS [78] 0.174 0.148 0.150 0.106 0.178 0.151 0.154 0.109 0.538 0.458 0.469 0.332 0.540 0.461 0.471 0.334 0.541 0.463 0.482 0.335 
+
+TopoTTA 0.568 0.524 0.460 0.345 0.585 0.538 0.474 0.356 0.580 0.541 0.472 0.354 0.590 0.548 0.478 0.360 0.603 0.557 0.484 0.369 11                                   
+
+> TABLE III REPRESENTATIVE PER -CLASS SEGMENTATION GAINS (F1 / I OU) .
+> Model Dataset Class THR TTT4AS TopoTTA
+> PatchCore MVTEC AD Bottle 0.175 / 0.310 0.593 / 0.358 0.805 / 0.684
+> Dinomaly MVTEC AD Wood 0.435 / 0.296 0.492 / 0.351 0.635 / 0.489
+> MambaAD VISA Fryum 0.207 / 0.127 0.176 / 0.101 0.289 / 0.203
+> Dinomaly VISA PCB1 0.373 / 0.146 0.284 / 0.189 0.541 / 0.396
+> MambaAD REAL-IAD Regulator 0.107 / 0.062 0.061 / 0.034 0.202 / 0.134
+> Dinomaly REAL-IAD Audiojack 0.427 / 0.303 0.171 / 0.103 0.466 / 0.336
+
+AD , PatchCore →PaDiM reaches F1 0.494 and IoU 0.369 with recall 0.817 . On VisA , MambaAD →Dinomaly reaches F1 
+
+0.461 with recall 0.717 . On Real-IAD , PatchCore →MambaAD gives F1 0.412 with recall 0.650 .                                                    
+
+> TABLE IV CROSS -MODEL DOMAIN ADAPTATION (FEATURES →ANOMALY SCORES ).
+> 2D 3D Dataset Source →Target Prec. Rec. F1 IoU
+> ✓MVTec PatchCore →PaDiM 0.450 0.817 0.494 0.369
+> ✓VisA MambaAD →Dinomaly 0.420 0.717 0.461 0.377
+> ✓Real-IAD PatchCore →MambaAD 0.343 0.650 0.412 0.349
+> ✓MVTec-3DAD CMM →M3DM 0.461 0.756 0.469 0.416
+> ✓MVTec-3DAD M3DM →CMM 0.419 0.771 0.449 0.359
+
+In 3D, CMM →M3DM gives the highest precision 0.461 
+
+and the best IoU 0.416 with F1 0.469 . The reverse pairing, M3DM →CMM, offers wider coverage with recall 0.771 and F1 0.449 and IoU 0.359 . These findings show that decoupling features from scoring works out of the box and forms a strong base for TopoTTA with test-time, topology-aware refinements. 
+
+G. Ablation Study 1) Performance on Top-K Persistence Component: Table V presents the results of an ablation study designed to evaluate the contribution of individual persistence components to anomaly detection performance. Specifically, we analyse the precision, recall, and F1 score when using only the single Top K th farthest persistence component (where K ranges from 1 to 5) derived from features of 2D-PatchCore [93], 3D-CMM [55], and 3D-M3DM [54] models. The results consistently demonstrate the significance of the most persistent topological feature ( Top1 ). Using the Top1 component yields the highest precision across all three baseline models (0.508, 0.447, and 0.468, respectively). More importantly, the Top1 component also achieves the highest F1 score for all the three models (0.553, 0.487, and 0.482), indicating the best balance between precision and recall among the individual components tested. For the 3D-CMM model, the Top1 component uniquely provides the peak performance across all three metrics. Conversely, selecting components progressively closer to the persistence diagram diagonal (increasing K from 1 to 5) reveals a clear trade-off. While recall consistently increases with K (reaching highs of 0.912 and 0.966 for K = 5 ), precision drops sharply. This leads to a monotonic decrease in the F1 score as K increases for all tested models. Single most persistent component ( Top1 ) carries the most discriminative information for achieving balanced anomaly detection performance in this setup. 
+
+2) Contribution of Architecture Components: Table VI examines the effect of different components in our Multi-Level Cubical Complex Filtration using the same baselines. We compare sublevel and superlevel filtrations independently, and in combination with IoU fusion and PCES. While superlevel filtration tends to favour recall (e.g., 0.948 and 0.999), it signifi-cantly harms precision. In contrast, the full configuration, which combines both filtrations with EAI and PCES, yields the best F1 scores across all models. This outcome validates the efficacy of our integrated multi-level approach and underscores the importance derived from combining these distinct topological perspectives. 
+
+H. Hyperparameter Sensitivity and Practical Guidance 
+
+We analyse the sensitivity of TopoTTA to its key hyper-parameters and provide practical guidance for applying the method to a new dataset. Specifically, we study the Euler regularisation coefficient β, the number of filtration levels L,and the margin m in the topological separation objective. In all experiments reported here, we fix the persistent-feature selection rule to Top-K with K = 1 , which we found to be the most stable default configuration across datasets and backbones. Each entry in Tables VII–IX reports F1 / IoU, while varying one hyperparameter at a time and keeping the remaining settings fixed. Table VII studies the effect of the Euler regularisation coeffi-cient β in the Euler-aware fusion objective. Across all datasets and backbones, the results improve when moving from β = 0 
+
+to a small positive value, peak at β = 0 .01 , and then gradually decline as β becomes too large. This indicates that a moderate topological regularisation term is beneficial, since it encourages Euler-consistent fusion without over-constraining the spatial refinement. In practice, β = 0 .01 provides the best balance between structural consistency and mask flexibility, and we therefore use it as the default setting. Table VIII analyses the sensitivity to the number of filtration levels L. As L increases from 8 to 256, performance improves steadily across all evaluated settings, with the best results obtained at L = 256 , corresponding to the full discrete filtration over thresholds from 0 to 255. This behaviour suggests that denser filtrations capture topological changes more faithfully and lead to more reliable persistent feature extraction. At the same time, smaller values of L still yield reasonable performance and may be preferred when runtime is a stronger concern. Accordingly, we recommend using L = 256 when accuracy is the primary objective, and smaller values such as L = 64 or L = 128 when a speed–accuracy trade-off is desired. Table IX evaluates the margin m in the topological separation objective. The results show that the method is relatively stable for moderate values of m, but achieves the strongest overall performance at m = 1 .0. Very small margins weaken class separation, while overly large margins degrade performance, likely because they impose an unnecessarily strict constraint during adaptation. Based on these observations, m = 1 .0 is adopted as the default setting, as it consistently provides the best trade-off across datasets and backbones. 12 
+
+TABLE V EFFECT OF TOP -K PERSISTENT FEATURES ON ANOMALY SEGMENTATION .
+
+Top K th Farthest Persistence Components 2D-PatchCore [93] 3D-CMM [55] 3D-M3DM [54] 
+
+Top1 Top2 Top3 Top4 Top5 Prec. Rec. F1 Prec. Rec. F1 Prec. Rec. F1 
+
+✓ 0.508 0.851 0.553 0.447 0.810 0.487 0.468 0.889 0.482 
+
+✓ 0.432 0.878 0.447 0.426 0.493 0.398 0.231 0.943 0.336 
+
+✓ 0.373 0.892 0.421 0.398 0.528 0.404 0.186 0.950 0.311 
+
+✓ 0.333 0.903 0.393 0.429 0.556 0.400 0.152 0.960 0.234 
+
+✓ 0.305 0.912 0.370 0.356 0.579 0.395 0.125 0.966 0.198 TABLE VI COMPARISON OF SUBLEVEL , SUPERLEVEL WITH EAI AND PCES MODULES 
+
+Multi-Level Cubical Complex Filtration 2D-PatchCore [93] 3D-CMM [55] 3D-M3DM [54] 
+
+Sublevel Superlevel EAI PCES Prec. Rec. F1 Prec. Rec. F1 Prec. Rec. F1 
+
+✓ ✓ 0.393 0.524 0.370 0.533 0.490 0.417 0.290 0.934 0.394 
+
+✓ ✓ 0.217 0.625 0.226 0.082 0.948 0.114 0.107 0.999 0.105 
+
+✓ ✓ ✓ 0.495 0.644 0.423 0.483 0.881 0.465 0.397 0.856 0.471 
+
+✓ ✓ ✓ ✓ 0.508 0.851 0.553 0.447 0.810 0.487 0.468 0.889 0.482 
+
+TABLE VII SENSITIVITY ANALYSIS OF TOPO TTA WITH RESPECT TO THE REGULARISATION COEFFICIENT β IN THE EULER -AWARE FUSION OBJECTIVE . E ACH ENTRY REPORTS F1 / I OU. U NLESS OTHERWISE STATED , K = 1 AND L = 256 ARE FIXED , AND ONLY β IS VARIED . B EST RESULTS ARE SHOWN IN BOLD .
+
+β MVTec AD VisA Real-IAD MVTec 3D-AD Anomaly-ShapeNet PatchCore PaDiM Dinomaly Dinomaly MambaAD Dinomaly MambaAD CMM M3DM PO3AD 
+
+0.0 0.529/0.399 0.407/0.299 0.526/0.387 0.451/0.315 0.344/0.234 0.424/0.298 0.302/0.203 0.466/0.339 0.463/0.336 0.485/0.360 0.001 0.541/0.413 0.416/0.309 0.538/0.399 0.458/0.324 0.352/0.240 0.435/0.309 0.312/0.211 0.477/0.348 0.469/0.343 0.496/0.369 0.01 0.553/0.425 0.425/0.317 0.550/0.411 0.470/0.334 0.359/0.247 0.442/0.316 0.319/0.218 0.487/0.359 0.482/0.354 0.504/0.378 
+
+0.05 0.548/0.420 0.420/0.312 0.543/0.405 0.464/0.328 0.354/0.243 0.436/0.310 0.314/0.214 0.481/0.352 0.476/0.349 0.498/0.373 0.1 0.539/0.411 0.421/0.313 0.546/0.407 0.466/0.329 0.350/0.239 0.438/0.312 0.309/0.209 0.478/0.350 0.474/0.345 0.500/0.375 0.5 0.534/0.404 0.403/0.296 0.527/0.386 0.448/0.313 0.342/0.231 0.421/0.295 0.299/0.200 0.465/0.335 0.460/0.331 0.482/0.354 
+
+TABLE VIII SENSITIVITY ANALYSIS OF TOPO TTA WITH RESPECT TO THE NUMBER OF FILTRATION LEVELS L. E ACH ENTRY REPORTS F1 / I OU. U NLESS OTHERWISE STATED , K = 1 AND β = 0 .01 ARE FIXED , AND ONLY L IS VARIED . H ERE , L = 256 DENOTES THE FULL DISCRETE FILTRATION USING ALL THRESHOLDS FROM 0 TO 255. B EST RESULTS ARE SHOWN IN BOLD .
+
+L MVTec AD VisA Real-IAD MVTec 3D-AD Anomaly-ShapeNet 
+
+PatchCore PaDiM Dinomaly Dinomaly MambaAD Dinomaly MambaAD CMM M3DM PO3AD 8 0.512/0.382 0.391/0.281 0.507/0.370 0.433/0.297 0.329/0.218 0.404/0.281 0.287/0.186 0.447/0.315 0.441/0.312 0.466/0.337 16 0.526/0.396 0.402/0.292 0.521/0.383 0.446/0.309 0.337/0.226 0.416/0.292 0.296/0.195 0.458/0.328 0.455/0.324 0.479/0.350 32 0.521/0.391 0.397/0.288 0.529/0.389 0.441/0.306 0.345/0.232 0.423/0.298 0.302/0.201 0.465/0.336 0.451/0.321 0.486/0.358 64 0.539/0.412 0.416/0.306 0.535/0.397 0.459/0.322 0.341/0.230 0.429/0.305 0.309/0.208 0.472/0.343 0.470/0.340 0.491/0.365 128 0.546/0.418 0.421/0.313 0.542/0.404 0.464/0.328 0.356/0.242 0.435/0.310 0.314/0.213 0.480/0.350 0.477/0.347 0.498/0.370 256 0.553/0.425 0.425/0.317 0.550/0.411 0.470/0.334 0.359/0.247 0.442/0.316 0.319/0.218 0.487/0.359 0.482/0.354 0.504/0.378 
+
+Overall, the sensitivity analysis suggests that TopoTTA is reasonably robust to moderate hyperparameter variation while still benefiting from a clear default configuration. In practice, we recommend setting K = 1 , L = 256 , m = 1 .0, and 
+
+β = 0 .01 as default values for a new dataset. If computational efficiency is a priority, L should be reduced first, since this provides the clearest speed–accuracy trade-off. In contrast, β
+
+and m should generally remain near their default values, as the experiments indicate that both are most effective in a relatively narrow range around the selected operating point. 
+
+I. Complexity and Runtime Analysis 
+
+Let Ψ ∈ RH×W (or RH×W ×D in 3D) denote the anomaly score map, and let n = H · W in 2D or n = H · W · D
+
+in 3D be the number of spatial locations. We denote by L
+
+the number of filtration levels used across the sublevel and superlevel filtrations. The multi-level cubical complex filtration module operates directly on Ψ. Constructing the underlying cubical complex and evaluating the filtration function requires a single pass over the grid, which is O(n). Computing persistent homology on this low-dimensional cubical complex with a fixed set of 13 
+
+TABLE IX SENSITIVITY ANALYSIS OF TOPO TTA WITH RESPECT TO THE MARGIN m IN THE TOPOLOGICAL SEPARATION OBJECTIVE . E ACH ENTRY REPORTS F1 / I OU. UNLESS OTHERWISE STATED , K = 1 , L = 256 , AND β = 0 .01 ARE FIXED , AND ONLY m IS VARIED . B EST RESULTS ARE SHOWN IN BOLD .
+
+m MVTec AD VisA Real-IAD MVTec 3D-AD Anomaly-ShapeNet 
+
+PatchCore PaDiM Dinomaly Dinomaly MambaAD Dinomaly MambaAD CMM M3DM PO3AD 0.0 0.536/0.407 0.418/0.310 0.531/0.392 0.463/0.326 0.344/0.235 0.435/0.309 0.305/0.206 0.469/0.340 0.475/0.347 0.492/0.366 0.5 0.542/0.411 0.423/0.304 0.533/0.398 0.452/0.330 0.347/0.236 0.427/0.303 0.316/0.216 0.479/0.350 0.464/0.337 0.496/0.379 1.0 0.553/0.425 0.425/0.317 0.550/0.411 0.470/0.334 0.359/0.247 0.442/0.316 0.319/0.218 0.487/0.359 0.482/0.354 0.504/0.378 
+
+2.0 0.544/0.416 0.413/0.307 0.541/0.401 0.457/0.325 0.356/0.243 0.428/0.302 0.316/0.215 0.482/0.352 0.469/0.341 0.497/0.370 3.0 0.533/0.404 0.421/0.313 0.530/0.392 0.464/0.329 0.346/0.236 0.436/0.311 0.308/0.207 0.471/0.343 0.478/0.349 0.489/0.363 5.0 0.527/0.397 0.415/0.306 0.518/0.380 0.453/0.318 0.338/0.226 0.425/0.299 0.304/0.202 0.466/0.337 0.452/0.324 0.486/0.356 TABLE X BACKBONE PROCESSING TIME , TTT4AS TIME PER SAMPLE , T OPO TTA OVERHEAD , AND TOTAL RUNTIME /MEMORY (ALL TIMES IN SECONDS ). A LL TIMINGS ARE REPORTED ON A SINGLE NVIDIA RTX 5090 (32 GB VRAM).                                                                                           
+
+> Backbone TTT4AS TopoTTA Total Method Inference Time (s) Memory (GB) P.L (s) TTT (GB) Total Time (s) P.L (s) TTT (GB) Total Time (s) TTT4AS Memory (GB) TopoTTA Memory (GB) PaDiM [38] 0.940 2.200 0.047 0.099 0.146 0.061 0.102 0.163 2.310 2.545
+> PatchCore [93] 0.233 3.550 0.047 0.099 0.146 0.061 0.102 0.163 3.755 3.895
+> MambaAD [53] 0.029 1.490 0.047 0.099 0.146 0.061 0.102 0.163 1.805 1.907
+> Dinomaly [52] 0.045 4.330 0.047 0.099 0.146 0.061 0.102 0.163 4.510 4.747
+> M3DM [54] 2.872 6.420 0.059 0.105 0.164 0.071 0.115 0.186 6.521 6.87
+> CMM [55] 0.134 0.427 0.059 0.105 0.164 0.071 0.115 0.186 0.701 0.881
+> PO3AD [56] 0.284 1.970 0.059 0.105 0.164 0.071 0.115 0.186 2.159 2.497
+
+homology degrees (we use H0 and H1 only) and a fixed number of filtration levels L scales as O(Ln ) in practice, since each cube is visited a constant number of times by the filtration and reduction routines. Since L is fixed across experiments, the effective complexity of the filtration block remains linear in the number of pixels or voxels. In our experiments, we use the full discrete filtration with L = 256 .The PCES module adapts a shallow MLP at test time. For each image, we subsample at most S pseudo-labelled points from the feature map (with S ≪ n) and optimise the MLP for E
+
+epochs using the contrastive loss in Eq.10. The cost of this adaptation step is O(ESd ), where d is the feature dimension. Because S, E, and d are fixed across datasets, this term is independent of the full image resolution n. After adaptation, the learned classifier is applied to all spatial locations, which adds another O(nd ) pass. The end-to-end complexity of TopoTTA for a single test image is therefore 
+
+O(Ln ) + O(ESd ) + O(nd ) = O(n)
+
+for fixed L, E, S, and d. Thus, TopoTTA adds only a linear-time overhead in the number of pixels or voxels on top of the frozen backbone. To complement this asymptotic analysis, Table X reports the measured wall-clock runtime and memory usage of the backbone, TTT4AS, and TopoTTA under a unified setup on a single NVIDIA RTX 5090 (32 GB VRAM). All backbones and the TTT4AS baseline were benchmarked using the official repositories whenever available and otherwise the released implementations under the same evaluation setting. The table reports backbone inference cost, pseudo-label generation time (P.L.), test-time adaptation cost, and the resulting total runtime and memory for both TTT4AS and TopoTTA. The comparison with the nearest test-time adaptation baseline, TTT4AS, shows that the additional cost of TopoTTA remains limited. In the 2D setting, TTT4AS requires 0.146 s per sample, whereas TopoTTA requires 0.163 s, corresponding to only 0.017 s additional latency, or about 11.6% overhead. In the 3D setting, TTT4AS requires 0.164 s, while TopoTTA requires 0.186 s, corresponding to 0.022 s additional latency, or about 13.4% overhead. The memory trend follows the same overall pattern and is also reported in Table X for completeness. Although the current cubical-persistence stage relies on CPU-based TDA libraries, this overhead is primarily implementation-dependent rather than inherent to the proposed formulation. In particular, cubical approximations admit structured con-structions on regular grids, indicating that more efficient implementations are a promising direction for dense 2D and 3D anomaly maps [98]. Moreover, for latency-sensitive deployment, several principled acceleration strategies may be explored, including coarser or approximate filtration schemes, localised topological computation over candidate regions inspired by localised homology [99], and lightweight topological surrogates based on Euler-characteristic evolution [100]. We therefore view the current runtime as a practical limitation of the present implementation rather than a fundamental computational barrier of the proposed method. 
+
+J. Failure Behaviour 
+
+Figure 7 examines robustness under distribution shift using a perturbation-sensitivity sweep with increasing brightness shift ( δ ≤ 0.07 ), Gaussian noise ( σ ≤ 0.06 ), and speckle noise ( σ ≤ 0.10 ). These perturbations progressively corrupt the anomaly maps, making the baseline masks increasingly noisy and fragmented. Compared with TTT4AS , TopoTTA 
+
+maintains cleaner and more spatially coherent segmentations by 14 
+
+Class RGB GT Brightness Speckle Gaussian P-H TTT4AS TopoTTA P-H TTT4AS TopoTTA P-H TTT4AS TopoTTA Metal Nut T-brush Capsule      
+
+> Fig. 7. Qualitative comparison under input perturbations. Representative examples under sequential perturbations comprising brightness shift, speckle noise, and Gaussian noise. Compared with TTT4AS , whose masks become increasingly fragmented and noisy, TopoTTA preserves more coherent anomaly structure and yields visually cleaner segmentations.
+
+enforcing structural consistency during refinement. This shows that the proposed topological prior remains beneficial when the upstream anomaly map is degraded but still contains meaningful anomaly-localised structure, while also clarifying that the gain diminishes as the upstream signal becomes severely corrupted. Qualitative examples in Figure 8 further clarify the practical scope of the proposed refinement stage. Even when the upstream anomaly map retains visually meaningful anomaly-localised cues, the corresponding binary masks may remain noisy, fragmented, or weakly localised after thresholding. As shown in the examples of carpet, grid and wood, the proposed topological refinement produces cleaner and more spatially coherent masks than the baseline, while preserving the relevant defect regions. At the same time, these examples also indicate that the effectiveness of the refinement remains tied to the quality of the upstream anomaly signal, and the gain naturally decreases when that signal becomes severely degraded.       
+
+> RGB Heatmap GT TTT4AS Sub Super TopoTTA Carpet Grid Wood
+> Fig. 8. Qualitative comparison on texture-heavy categories (carpet, grid, wood). TopoTTA produces more coherent and better-localized anomaly masks than the TTT4AS baseline, reducing fragmented detections and suppressing spurious regions while remaining consistent with the ground truth.
+
+VI. C ONCLUSION 
+
+TopoTTA is a model-agnostic test-time adaptation framework for anomaly segmentation in 2D and 3D. It replaces brittle inten-sity thresholds and peak-suppression rules with structure-aware pseudo-labels derived from persistent homology over multi-level cubical filtrations. This topological guidance preserves connectivity, captures hollow regions, and suppresses spurious fragments, common failure modes of intensity-driven maps. As a plug-and-play post-processor, it requires no source-domain access and no backbone retraining, integrating seamlessly with a wide range of anomaly detection and segmentation pipelines. Across five standard benchmarks (MVTec AD, VisA, Real-IAD, MVTec 3D-AD, AnomalyShapeNet), we observe consistent gains, especially for disconnected, irregular, or cavity-like anomalies. Using both sublevel and superlevel filtrations improves robustness to low- and high-intensity manifestations (e.g., subtle scratches versus severe cracks), showing that alignment to object-level structure, not intensity alone, drives the improvement. 
+
+Limitations: The quality of the refined mask ultimately de-pends on the upstream anomaly score map Ψ. When the scorer produces low-contrast, noisy, or highly textured heatmaps, the topological signal may become less reliable, and persistence-based component selection may remove weak true-positive regions or preserve spurious structures. Although TopoTTA reduces reliance on method-specific raw-score thresholds for final mask binarisation, it still involves design choices such as the number of retained persistent components K, the filtration granularity L, and the Euler-aware fusion weight β. These parameters do not act as direct pixel-level anomaly thresholds, but they can influence the strength and resolution of the topological refinement. In addition, the current pipeline con-tains non-differentiable operations, including exact persistent-homology computation, persistence-based component selection, and Euler-aware mask fusion. As a result, the topological cues are used for test-time pseudo-label generation rather than being backpropagated through the feature extractor. Practical con-straints also remain: CPU-based persistent-homology libraries add measurable overhead for high-resolution images and 3D volumes; the most effective filtration scale may vary across data characteristics; and the present formulation targets static 15 
+
+images or volumes, so temporal coherence is not explicitly enforced for videos or dynamic medical sequences. 
+
+Future directions: We aim to make topology trainable by intro-ducing differentiable vectorisations of persistent homology and smooth topological losses, enabling end-to-end adaptation that reduces reliance on hand-tuned thresholds. To lessen sensitivity to noisy anomaly scores, we will jointly optimise the scorer and the topology-aware filter with self-supervised, geometry-consistent objectives, such as topological contrastive learning, to raise the signal-to-noise ratio in Ψ and stabilise pseudo-labels on textured backgrounds. We will extend the framework to spatiotemporal data by evolving persistence across time, enforcing consistent births and deaths of components between frames for video inspection, robotic monitoring, and 4D clinical imaging. Uncertainty-aware filtration will combine persistence magnitude, augmentation variance, and model uncertainty to enable selective adaptation or abstention in ambiguous regions, which is critical for safety-sensitive domains. We also aim to reduce hyperparameter burden via data-driven auto-tuning policies, broaden scope to multi-class and instance-level segmentation using class-specific topological priors, and improve systems performance with GPU-accelerated persistent-homology kernels and streaming tiling for real-time industrial and clinical workflows. Finally, we will complement pixel-level metrics with structure-centric criteria, such as component precision/recall and boundary-retention measures, to better reflect the properties TopoTTA is designed to preserve. REFERENCES [1] Y. Sun, X. Wang, Z. Liu, J. Miller, A. Efros, and M. Hardt, “Test-time training with self-supervision for generalization under distribution shifts,” in International conference on machine learning . PMLR, 2020, pp. 9229–9248. [2] C. Zhao, E. Zio, and W. Shen, “Domain generalization for cross-domain fault diagnosis: An application-oriented perspective and a benchmark study,” Reliability Engineering & System Safety , p. 109964, 2024. [3] X. Tao, X. Gong, X. Zhang, S. Yan, and C. Adak, “Deep learning for unsupervised anomaly localization in industrial images: A survey,” 
+
+IEEE Transactions on Instrumentation and Measurement , vol. 71, pp. 1–21, 2022. [4] Y. Cao, X. Xu, J. Zhang, Y. Cheng, X. Huang, G. Pang, and W. Shen, “A survey on visual anomaly detection: Challenge, approach, and prospect,” 
+
+arXiv preprint arXiv:2401.16402 , 2024. [5] G. Tong, Q. Li, and Y. Song, “Enhanced multi-scale features mutual mapping fusion based on reverse knowledge distillation for industrial anomaly detection and localization,” IEEE Transactions on Big Data ,vol. 10, no. 4, pp. 498–513, 2024. [6] Q. Wu, H. Li, C. Tian, L. Wen, and X. Li, “Aekd: Unsupervised auto-encoder knowledge distillation for industrial anomaly detection,” 
+
+Journal of Manufacturing Systems , vol. 73, pp. 159–169, 2024. [7] Y. Zhou, X. Xu, J. Song, F. Shen, and H. T. Shen, “Msflow: Multiscale flow-based framework for unsupervised anomaly detection,” IEEE Transactions on Neural Networks and Learning Systems , 2024. [8] A. Baitieva, D. Hurych, V. Besnier, and O. Bernard, “Supervised anomaly detection for complex industrial images,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 17 754–17 762. [9] T. Hu, J. Zhang, R. Yi, Y. Du, X. Chen, L. Liu, Y. Wang, and C. Wang, “Anomalydiffusion: Few-shot anomaly image generation with diffusion model,” in Proceedings of the AAAI Conference on Artificial Intelligence ,vol. 38, 2024, pp. 8526–8534. [10] J. Zhu, C. Ding, Y. Tian, and G. Pang, “Anomaly heterogeneity learning for open-set supervised anomaly detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 17 616–17 626. [11] C. Ding, G. Pang, and C. Shen, “Catching both gray and black swans: Open-set supervised anomaly detection,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2022, pp. 7388–7398. [12] X. Xie and M. Mirmehdi, “Texems: Texture exemplars for defect detection on random textured surfaces,” IEEE transactions on pattern analysis and machine intelligence , vol. 29, no. 8, pp. 1454–1464, 2007. [13] L. Qiu, X. Wu, and Z. Yu, “A high-efficiency fully convolutional networks for pixel-wise surface defect detection,” IEEE Access , vol. 7, pp. 15 884–15 893, 2019. [14] S. Ben-David, J. Blitzer, K. Crammer, A. Kulesza, F. Pereira, and J. W. Vaughan, “A theory of learning from different domains,” Machine learning , vol. 79, pp. 151–175, 2010. [15] Y. Zhang, B. Hooi, L. Hong, and J. Feng, “Self-supervised aggregation of diverse experts for test-agnostic long-tailed recognition,” Advances in Neural Information Processing Systems , vol. 35, pp. 34 077–34 090, 2022. [16] M. A. Jamal, H. Li, and B. Gong, “Deep face detector adaptation without negative transfer or catastrophic forgetting,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition ,2018, pp. 5608–5618. [17] R. Volpi, P. De Jorge, D. Larlus, and G. Csurka, “On the road to online adaptation for semantic image segmentation,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2022, pp. 19 184–19 195. [18] U. Gazin, G. Blanchard, and E. Roquain, “Transductive conformal inference with adaptive scores,” in International Conference on Artificial Intelligence and Statistics . PMLR, 2024, pp. 1504–1512. [19] A. Zia, A. Khamis, J. Nichols, U. B. Tayab, Z. Hayder, V. Rolland, E. Stone, and L. Petersson, “Topological deep learning: a review of an emerging paradigm,” Artificial Intelligence Review , vol. 57, no. 4, p. 77, 2024. [20] M. Papillon, M. Hajij, A. Myers, F. Frantzen, G. Zamzmi, H. Jenne, J. Mathe, J. Hoppe, M. Schaub, T. Papamarkou et al. , “Icml 2023 topological deep learning challenge: design and results,” in Topological, Algebraic and Geometric Learning Workshops 2023 . PMLR, 2023, pp. 3–8. [21] H. He, Y. Bai, J. Zhang, Q. He, H. Chen, Z. Gan, C. Wang, X. Li, G. Tian, and L. Xie, “Mambaad: Exploring state space models for multi-class unsupervised anomaly detection,” arXiv preprint arXiv:2404.06564 ,2024. [22] U. Ali, A. Zia, A. Rehman, U. Ramzan, Z. Hassan, T. Sattar, J. Wang, and W. Xiang, “2d-3d feature fusion via cross-modal latent synthesis and attention-guided restoration for industrial anomaly detection,” in 
+
+2025 International Conference on Digital Image Computing: Techniques and Applications (DICTA) , 2025, pp. 1–8. [23] Z. Fang, X. Wang, H. Li, J. Liu, Q. Hu, and J. Xiao, “Fastrecon: Few-shot industrial anomaly detection via fast feature reconstruction,” in 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , 2023, pp. 17 481–17 490. [24] Y. Park, S. Kang, M. J. Kim, H. Jeong, H. Park, H. S. Kim, and J. Yi, “Neural network training strategy to enhance anomaly detection performance: A perspective on reconstruction loss amplification,” in 
+
+ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2024, pp. 5165–5169. [25] Z. Zuo, Z. Wu, B. Chen, and X. Zhong, “A reconstruction-based feature adaptation for anomaly detection with self-supervised multi-scale aggregation,” in ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2024, pp. 5840–5844. [26] Z. Zhou, L. Wang, N. Fang, Z. Wang, L. Qiu, and S. Zhang, “R3d-ad: Reconstruction via diffusion for 3d anomaly detection,” in European conference on computer vision . Springer, 2024, pp. 91–107. [27] J. Wang, G. Xu, C. Li, G. Gao, and Y. Cheng, “Multi-feature reconstruction network using crossed-mask restoration for unsupervised anomaly detection,” arXiv preprint arXiv:2404.13273 , 2024. [28] Z. Li, N. Li, K. Jiang, Z. Ma, X. Wei, X. Hong, and Y. Gong, “Superpixel masking and inpainting for self-supervised anomaly detection.” in Bmvc ,2020. [29] H. Nakanishi, M. Suzuki, and Y. Matsuo, “Fixing the train-test objective discrepancy: Iterative image inpainting for unsupervised anomaly detection,” Journal of Information Processing , vol. 30, pp. 495–504, 2022. [30] V. Zavrtanik, M. Kristan, and D. Skoˇ caj, “Reconstruction by inpainting for visual anomaly detection,” Pattern Recognition , vol. 112, p. 107706, 2021. 16 
+
+[31] J. Pirnay and K. Chai, “Inpainting transformer for anomaly detection,” in 
+
+International Conference on Image Analysis and Processing . Springer, 2022, pp. 394–406. [32] W. Luo, H. Yao, W. Yu, and Z. Li, “Ami-net: Adaptive mask inpainting network for industrial anomaly detection and localization,” IEEE Transactions on Automation Science and Engineering , 2024. [33] H. Yao, M. Liu, Z. Yin, Z. Yan, X. Hong, and W. Zuo, “Glad: Towards better reconstruction with global and local adaptive diffusion models for unsupervised anomaly detection,” in European Conference on Computer Vision . Springer, 2024, pp. 1–17. [34] M. Fuˇ cka, V. Zavrtanik, and D. Skoˇ caj, “Transfusion–a transparency-based diffusion model for anomaly detection,” in European conference on computer vision . Springer, 2024, pp. 91–108. [35] B. Jiang, Y. Xie, J. Li, N. Li, Y. Jiang, and S.-T. Xia, “Cagen: Controllable anomaly generator using diffusion model,” in ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2024, pp. 3110–3114. [36] Y. Park, S. Kang, M. J. Kim, H. Jeong, H. Park, H. S. Kim, and J. Yi, “Neural network training strategy to enhance anomaly detection performance: A perspective on reconstruction loss amplification,” in 
+
+ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2024, pp. 5165–5169. [37] K. Roth, L. Pemula, J. Zepeda, B. Schölkopf, T. Brox, and P. Gehler, “Towards total recall in industrial anomaly detection,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2022, pp. 14 318–14 328. [38] T. Defard, A. Setkov, A. Loesch, and R. Audigier, “Padim: a patch distribution modeling framework for anomaly detection and localization,” in International Conference on Pattern Recognition . Springer, 2021, pp. 475–489. [39] H. Deng and X. Li, “Structural teacher-student normality learning for multi-class anomaly detection and localization,” arXiv preprint arXiv:2402.17091 , 2024. [40] M. Rudolph, T. Wehrbein, B. Rosenhahn, and B. Wandt, “Asymmetric student-teacher networks for industrial anomaly detection,” in Proceed-ings of the IEEE/CVF winter conference on applications of computer vision , 2023, pp. 2592–2602. [41] X. Zhang, S. Li, X. Li, P. Huang, J. Shan, and T. Chen, “Destseg: Segmentation guided denoising student-teacher for anomaly detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 3914–3923. [42] H. Gu, G. Li, and Z. Liu, “Masked feature regeneration based asymmetric student–teacher network for anomaly detection,” Multimedia Tools and Applications , vol. 83, no. 42, pp. 90 573–90 594, 2024. [43] M. Rudolph, T. Wehrbein, B. Rosenhahn, and B. Wandt, “Asymmetric student-teacher networks for industrial anomaly detection,” in Proceed-ings of the IEEE/CVF winter conference on applications of computer vision , 2023, pp. 2592–2602. [44] X. Yao, R. Li, Z. Qian, L. Wang, and C. Zhang, “Hierarchical gaussian mixture normalizing flow modeling for unified anomaly detection,” in 
+
+European Conference on Computer Vision . Springer, 2024, pp. 92–108. [45] D. Gudovskiy, S. Ishizaka, and K. Kozuka, “Cflow-ad: Real-time unsupervised anomaly detection with localization via conditional normalizing flows,” in Proceedings of the IEEE/CVF winter conference on applications of computer vision , 2022, pp. 98–107. [46] J. Lei, X. Hu, Y. Wang, and D. Liu, “Pyramidflow: High-resolution defect contrastive localization using pyramid normalizing flow,” in 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 14 143–14 152. [47] D. Kim, S. Baik, and T. H. Kim, “Sanflow: semantic-aware normalizing flow for anomaly detection and localization,” in Proceedings of the 37th International Conference on Neural Information Processing Systems ,2023, pp. 75 434–75 454. [48] T. Aota, L. T. T. Tong, and T. Okatani, “Zero-shot versus many-shot: Unsupervised texture anomaly detection,” in Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision ,2023, pp. 5564–5572. [49] W. Li, X. Xu, Y. Gu, B. Zheng, S. Gao, and Y. Wu, “Towards scalable 3d anomaly detection and localization: A benchmark via 3d anomaly synthesis and a self-supervised learning network,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 22 207–22 216. [50] J. Hu, Y. Huang, Y. Lu, G. Xie, G. Jiang, and Y. Zheng, “Anomalyx-fusion: Multi-modal anomaly synthesis with diffusion,” arXiv preprint arXiv:2404.19444 , 2024. [51] Q. Chen, H. Luo, C. Lv, and Z. Zhang, “A unified anomaly synthesis strategy with gradient ascent for industrial anomaly detection and localization,” in European Conference on Computer Vision . Springer, 2024, pp. 37–54. [52] J. Guo, S. Lu, W. Zhang, F. Chen, H. Li, and H. Liao, “Dinomaly: The less is more philosophy in multi-class unsupervised anomaly detection,” in Proceedings of the Computer Vision and Pattern Recognition Conference , 2025, pp. 20 405–20 415. [53] H. He, Y. Bai, J. Zhang, Q. He, H. Chen, Z. Gan, C. Wang, X. Li, G. Tian, and L. Xie, “Mambaad: Exploring state space models for multi-class unsupervised anomaly detection,” Advances in Neural Information Processing Systems , vol. 37, pp. 71 162–71 187, 2024. [54] Y. Wang, J. Peng, J. Zhang, R. Yi, Y. Wang, and C. Wang, “Multimodal industrial anomaly detection via hybrid fusion,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2023, pp. 8032–8041. [55] A. Costanzino, P. Z. Ramirez, G. Lisanti, and L. Di Stefano, “Multimodal industrial anomaly detection by crossmodal feature mapping,” in 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 17 234–17 243. [56] J. Ye, W. Zhao, X. Yang, G. Cheng, and K. Huang, “Po3ad: Predicting point offsets toward better 3d point cloud anomaly detection,” in 
+
+Proceedings of the Computer Vision and Pattern Recognition Conference ,2025, pp. 1353–1362. [57] A. Adcock, D. Rubin, and G. Carlsson, “Classification of hepatic lesions using the matching metric,” Computer vision and image understanding ,vol. 121, pp. 36–42, 2014. [58] E. Berry, Y.-C. Chen, J. Cisewski-Kehe, and B. T. Fasy, “Functional sum-maries of persistence diagrams,” Journal of Applied and Computational Topology , vol. 4, no. 2, pp. 211–262, 2020. [59] L. Crawford, A. Monod, A. X. Chen, S. Mukherjee, and R. Rabadán, “Predicting clinical outcomes in glioblastoma: an application of topolog-ical and functional data analysis,” Journal of the American Statistical Association , vol. 115, no. 531, pp. 1139–1150, 2020. [60] K. Garside, R. Henderson, I. Makarenko, and C. Masoller, “Topological data analysis of high resolution diabetic retinopathy images,” PloS one ,vol. 14, no. 5, p. e0217413, 2019. [61] L. Kanari, P. Dłotko, M. Scolamiero, R. Levi, J. Shillcock, K. Hess, and H. Markram, “A topological representation of branching neuronal morphologies,” Neuroinformatics , vol. 16, pp. 3–13, 2018. [62] H. Edelsbrunner, J. Harer et al. , “Persistent homology-a survey,” 
+
+Contemporary mathematics , vol. 453, no. 26, pp. 257–282, 2008. [63] B. Rieck, T. Yates, C. Bock, K. Borgwardt, G. Wolf, N. Turk-Browne, and S. Krishnaswamy, “Uncovering the topology of time-varying fmri data using cubical persistence,” Advances in neural information processing systems , vol. 33, pp. 6900–6912, 2020. [64] B. Bleile, A. Garin, T. Heiss, K. Maggs, and V. Robins, “The persistent homology of dual digital image constructions,” in Research in Computational Topology 2 . Springer, 2022, pp. 1–26. [65] D. Cohen-Steiner, H. Edelsbrunner, and J. Harer, “Stability of persistence diagrams,” Discrete & Computational Geometry , vol. 37, no. 1, pp. 103–120, 2007. [66] J. Liang, R. He, and T. Tan, “A comprehensive survey on test-time adaptation under distribution shifts,” International Journal of Computer Vision , vol. 133, no. 1, pp. 31–64, 2025. [67] Z. Nado, S. Padhy, D. Sculley, A. D’Amour, B. Lakshminarayanan, and J. Snoek, “Evaluating prediction-time batch normalization for robustness under covariate shift,” arXiv preprint arXiv:2006.10963 , 2020. [68] M. B. Colomer, P. L. Dovesi, T. Panagiotakopoulos, J. F. Carvalho, L. Härenstam-Nielsen, H. Azizpour, H. Kjellström, D. Cremers, and M. Poggi, “To adapt or not to adapt? real-time adaptation for semantic segmentation,” in Proceedings of the IEEE/CVF International Confer-ence on Computer Vision , 2023, pp. 16 548–16 559. [69] J. Kim, I. Hwang, and Y. M. Kim, “Ev-tta: Test-time adaptation for event-based object recognition,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 17 745–17 754. [70] Z. Nado, S. Padhy, D. Sculley, A. D’Amour, B. Lakshminarayanan, and J. Snoek, “Evaluating prediction-time batch normalization for robustness under covariate shift,” arXiv preprint arXiv:2006.10963 , 2020. [71] A. T. Nguyen, T. Nguyen-Tang, S.-N. Lim, and P. H. Torr, “Tipi: Test time adaptation with transformation invariance,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2023, pp. 24 162–24 171. [72] A. Khurana, S. Paul, P. Rai, S. Biswas, and G. Aggarwal, “Sita: Single image test-time adaptation,” arXiv preprint arXiv:2112.02355 , 2021. [73] Y. Sun, X. Wang, Z. Liu, J. Miller, A. Efros, and M. Hardt, “Test-time training with self-supervision for generalization under distribution shifts,” in International conference on machine learning . PMLR, 2020, pp. 9229–9248. 17 
+
+[74] Y. Liu, P. Kothari, B. Van Delft, B. Bellot-Gurlet, T. Mordan, and A. Alahi, “Ttt++: When does self-supervised test-time training fail or thrive?” Advances in Neural Information Processing Systems , vol. 34, pp. 21 808–21 820, 2021. [75] D. Wang, E. Shelhamer, S. Liu, B. Olshausen, and T. Darrell, “Tent: Fully test-time adaptation by entropy minimization,” arXiv preprint arXiv:2006.10726 , 2020. [76] S. Niu, J. Wu, Y. Zhang, Y. Chen, S. Zheng, P. Zhao, and M. Tan, “Efficient test-time model adaptation without forgetting,” in International conference on machine learning . PMLR, 2022, pp. 16 888–16 905. [77] Q. Wang, O. Fink, L. Van Gool, and D. Dai, “Continual test-time domain adaptation,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2022, pp. 7201–7211. [78] A. Costanzino, P. Z. Ramirez, M. Del Moro, A. Aiezzo, G. Lisanti, S. Salti, and L. Di Stefano, “Test time training for industrial anomaly segmentation,” in Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , 2024, pp. 3910–3920. [79] X. Xu, Y. Wang, J. Wang, Q. Zhang, X. Lei, G. Xie, G. Jiang, and Z. Lu, “Stage: Segmentation-oriented industrial anomaly synthesis via graded diffusion with explicit mask alignment,” arXiv preprint arXiv:2509.06693 , 2025. [80] M. Prabhudesai, T.-W. Ke, A. Li, D. Pathak, and K. Fragkiadaki, “Diffusion-tta: Test-time adaptation of discriminative models via gener-ative feedback,” Advances in Neural Information Processing Systems ,vol. 36, pp. 17 567–17 583, 2023. [81] M. Xu, Q. Hu, X. Hu, S. Abousamra, X. Yu, W. Lyu, K. Qi, D. Samaras, and C. Chen, “Topo-r1: Detecting topological anomalies via vision-language models,” arXiv preprint arXiv:2603.13054 , 2026. [82] D. Ali, A. Asaad, M.-J. Jimenez, V. Nanda, E. Paluzo-Hidalgo, and M. Soriano-Trigueros, “A survey of vectorization methods in topological data analysis,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 45, no. 12, pp. 14 069–14 080, 2023. [83] K. He, H. Fan, Y. Wu, S. Xie, and R. Girshick, “Momentum contrast for unsupervised visual representation learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2020, pp. 9729–9738. [84] T. Chen, S. Kornblith, M. Norouzi, and G. Hinton, “A simple framework for contrastive learning of visual representations,” in International conference on machine learning . PmLR, 2020, pp. 1597–1607. [85] P. Bergmann, M. Fauser, D. Sattlegger, and C. Steger, “Mvtec ad – a comprehensive real-world dataset for unsupervised anomaly detection,” in IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , 2019, pp. 9592–9600. [86] P. Bergmann, K. Batzner, M. Fauser, D. Sattlegger, and C. Steger, “Beyond dents and scratches: Logical constraints in unsupervised anomaly detection and localization,” International Journal of Computer Vision , vol. 130, no. 4, pp. 947–969, 2022. [87] Y. Zou, J. Jeong, L. Pemula, D. Zhang, and O. Dabeer, “Spot-the-difference self-supervised pre-training for anomaly detection and segmentation,” in European conference on computer vision . Springer, 2022, pp. 392–408. [88] C. Wang, W. Zhu, B.-B. Gao, Z. Gan, J. Zhang, Z. Gu, S. Qian, M. Chen, and L. Ma, “Real-iad: A real-world multi-view dataset for benchmarking versatile industrial anomaly detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 22 883–22 892. [89] P. Bergmann, X. Jin, D. Sattlegger, and C. Steger, “The mvtec 3d-ad dataset for unsupervised 3d anomaly detection and localization,” arXiv preprint arXiv:2112.09045 , 2021. [90] W. Li, X. Xu, Y. Gu, B. Zheng, S. Gao, and Y. Wu, “Towards scalable 3d anomaly detection and localization: A benchmark via 3d anomaly synthesis and a self-supervised learning network,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2024, pp. 22 207–22 216. [91] V. Zavrtanik, M. Kristan, and D. Skocaj, “Draem – a discriminatively trained reconstruction embedding for surface anomaly detection,” in 
+
+IEEE/CVF International Conference on Computer Vision (ICCV) , 2021, pp. 8330–8339. [92] P. Bergmann, K. Batzner, M. Fauser, D. Sattlegger, and C. Steger, “The mvtec anomaly detection dataset: a comprehensive real-world dataset for unsupervised anomaly detection,” International Journal of Computer Vision , vol. 129, no. 4, pp. 1038–1059, 2021. [93] K. Roth, L. Pemula, J. Zepeda, B. Schölkopf, T. Brox, and P. Gehler, “Towards total recall in industrial anomaly detection,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2022, pp. 14 318–14 328. [94] M. Fuˇ cka, V. Zavrtanik, and D. Skoˇ caj, “Salad–semantics-aware logical anomaly detection,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025, pp. 21 843–21 852. [95] M. Caron, H. Touvron, I. Misra, H. Jégou, J. Mairal, P. Bojanowski, and A. Joulin, “Emerging properties in self-supervised vision transformers,” in Proceedings of the IEEE/CVF international conference on computer vision , 2021, pp. 9650–9660. [96] M. Oquab, T. Darcet, T. Moutakanni, H. Vo, M. Szafraniec, V. Khalidov, P. Fernandez, D. Haziza, F. Massa, A. El-Nouby et al. , “Dinov2: Learning robust visual features without supervision,” arXiv preprint arXiv:2304.07193 , 2023. [97] H. Zhao, L. Jiang, J. Jia, P. H. Torr, and V. Koltun, “Point transformer,” in Proceedings of the IEEE/CVF international conference on computer vision , 2021, pp. 16 259–16 268. [98] P. Dłotko and T. Wanner, “Rigorous cubical approximation and persistent homology of continuous functions,” Computers & Mathematics with Applications , vol. 75, no. 5, pp. 1648–1666, 2018. [99] A. Zomorodian and G. Carlsson, “Localized homology,” Computational Geometry , vol. 41, no. 3, pp. 126–148, 2008. [100] O. Hacquard and V. Lebovici, “Euler characteristic tools for topological data analysis,” Journal of Machine Learning Research , vol. 25, no. 240, pp. 1–39, 2024. 
+
+Ali Zia is a Research Fellow in the School of Com-puting, Engineering and Mathematical Sciences at La Trobe University, and an Affiliate Researcher with the Australian National University. His research focuses on higher-order representation learning, hyperspectral imaging, and computer vision, with an emphasis on topology-aware and weakly supervised methods for robust perception. He has published more than fifty peer-reviewed papers in leading venues, including IEEE Transactions on Image Processing, Artificial Intelligence Review, JMLR, WACV, and ICCV. His work spans both foundational machine learning and applied domains such as agriculture, food systems, and healthcare, where he has led large-scale multimodal sensing and hyperspectral imaging projects. He has supervised multiple PhD and postgraduate researchers and contributed to numerous competitive research grants. His broader contributions include program committee memberships, editorial roles, and active industry collaboration across agriculture, energy and medical AI. 
+
+Usman Ali received the BS. degree in electrical en-gineering from the GIFT University Pakistan in 2017 and MS. degree in electrical engineering from the Information Technology University, Arfa Software Technology Park, Lahore, Pakistan, in 2019. He is currently working as a lecturer at GIFT University, Pakistan. His research interests include topological deep learning, anomaly detection, machine learning, condition monitoring, and fault diagnosis. 
+
+Abdul Rehman received the B.S. degree in Data Science from GIFT University, Pakistan, in 2025. He is currently an AI Instructor in the Department of Computer Science at GIFT University. His research interests include anomaly detection, optimal transport, and topological deep learning. 18 
+
+Umer Ramzan received the BS. degree in software engineering from the University of Engineering and Technology Taxila, Pakistan, in 2015, and MS. degree in Computer Science from the Information Technology University, Arfa Software Technology Park, Lahore, Pakistan, in 2018. He is working as a lecturer at GIFT University, Pakistan. His research interests include computer vision, generative artificial intelligence, and deep learning. 
+
+Kang Han received his PhD degree in computer science from James Cook University, Australia, in 2023. His research interest lies in 3D reconstruction and understanding from multi-view images captured in distinct positions and orientations using computer vision, computer graphics and deep learning tech-niques. His PhD thesis received the “Cum Laude” Award (top 5% theses from all Australian universities) from James Cook University thanks to its significant theory and knowledge contributions to the field of 3D reconstruction. He has made substantial contributions to this field including depth estimation, radiance field representations and complex appearance modelling. Additional contributions include high-quality view synthesis, 3D denoising, multimodal 3D, image super-resolution, and medical image classification. Most of these high-quality outputs are published in top-tier AI, computer vision, and neural network journals and conferences, such as IEEE TPAMI, IEEE TIP, CVPR and NeurIPS. 
+
+Muhammad Faheem is the Associate Dean of the School of Engineering and Applied Sciences and Head of the Department of Computer Science at GIFT University, Gujranwala, Pakistan. He earned his PhD in Computer Science from Telecom ParisTech, France, and was a recipient of the Erasmus Mundus Scholarship for the European Master’s Program in Computational Logic. He is an active member of the Software Security Research Group. His research interests include computer vision, deep learning, web data extraction, rich internet application modelling and testing, deep learning applications, and digital forensics. 
+
+Shahnawaz Qureshi is an Assistant Professor of Computer Science and Principal Investigator at the Sino-Pak Center for Artificial Intelligence (SPCAI), Pak-Austria Fachhochschule Institute of Applied Sciences and Technology (PAF-IAST), Pakistan. His research focuses on artificial intelligence, machine learning, deep learning, and neurocognitive comput-ing. 
+
+Wei Xiang is a La Trobe Distinguished Professor and Cisco Research Chair of AI and IoT at La Trobe University. He founded two world-first research centres, namely the Cisco-La Trobe Centre for AI and IoT in 2020, and the Australian Centre for AI and Medical Innovation (ACAMI) in 2024. Previously, he was Foundation Chair and Head of Discipline of IoT Engineering at James Cook University, Cairns, Aus-tralia. For the past six consecutive years (2020-2025), has consistently ranked among Stanford University World’s Top 2% Scientists for both his single-year and career-long impacts. Due to his instrumental leadership in establishing Australia’s first accredited Internet of Things Engineering degree program, he was inducted into Pearcy Foundation’s Hall of Fame in October 2018. He is a TEDx speaker and an elected Fellow of the IET in UK and Engineers Australia. He received the TNQ Innovation Award in 2016, and Pearcey Entrepreneurship Award in 2017, and Engineers Australia Cairns Engineer of the Year in 2017. He was a co-recipient of four Best Paper Awards at WiSATS’2019, WCSP’2015, IEEE WCNC’2011, and ICWMC’2009. He has been awarded several prestigious fellowship titles. He was named a Queensland International Fellow (2010-2011) by the Queensland Government of Australia, an Endeavour Research Fellow (2012-2013) by the Commonwealth Government of Australia, a Smart Futures Fellow (2012-2015) by the Queensland Government of Australia, and a JSPS Invitational Fellow jointly by the Australian Academy of Science and Japanese Society for Promotion of Science (2014-2015). He was the Vice Chair of the IEEE Northern Australia Section from 2016-2020. He is currently an Associate Editor for IEEE Communications Surveys & Tutorials, IEEE Transactions on Vehicular Technology, IEEE Internet of Things Journal, IEEE Access, and Nature journal of Scientific Reports. He has published over 450 peer-reviewed papers including 3 books and nearly 300 journal articles. He has severed in a large number of international conferences in the capacity of General Co-Chair, TPC Co-Chair, Symposium Chair, etc. His research interest includes the Internet of Things, wireless communications, machine learning for IoT data analytics, and computer vision.

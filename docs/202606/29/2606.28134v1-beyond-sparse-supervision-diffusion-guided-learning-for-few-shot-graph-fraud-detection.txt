@@ -1,0 +1,812 @@
+Title: Beyond Sparse Supervision: Diffusion-Guided Learning for Few-Shot Graph Fraud Detection
+
+URL Source: https://arxiv.org/pdf/2606.28134v1
+
+Published Time: Mon, 29 Jun 2026 00:56:26 GMT
+
+Number of Pages: 42
+
+Markdown Content:
+# Highlights 
+
+Beyond Sparse Supervision: Diffusion-Guided Learning for Few-Shot Graph Fraud Detection 
+
+Liming Liu, Chao Hu, Mingfei Lu, Yiwei Ge, Xingle Li, Heyuan Shi 
+
+• Detects fraud graphs with scarce and imbalanced labels. 
+
+• Uses diffusion as feature-space denoising augmentation. 
+
+• Combines contrastive learning with spectral attention. 
+
+• Adds split stability, ratio-wise comparison, oversampling, ablation, sensi-tivity, and efficiency analyses. 
+
+> arXiv:2606.28134v1 [cs.LG] 26 Jun 2026
+
+# Beyond Sparse Supervision: Diffusion-Guided Learning for Few-Shot Graph Fraud Detection 
+
+Liming Liu a, Chao Hu a, Mingfei Lu b, Yiwei Ge a, Xingle Li a, Heyuan Shi a
+
+> aCentral South University, Changsha, China
+> bUniversity of Technology Sydney, Australian Artificial Intelligence Institute, Sydney, Australia
+
+Abstract 
+
+Graph-based fraud detection is essential for safeguarding large-scale transac-tion systems, where undetected anomalies may lead to substantial financial losses and security risks. Real-world fraud graphs pose two coupled chal-lenges: sparse and imbalanced supervision, where verified fraudulent labels are scarce and heavily skewed toward benign accounts, and representation dilution, where spatial message passing may oversmooth camouflaged anoma-lies while spectral filters may suppress fraud-relevant mid- and high-frequency irregularities. To address these challenges, we propose ADC-GNN, short for Attention-guided Diffusion-Contrastive Graph Neural Network, a unified framework that combines diffusion-guided feature augmentation, contrastive representation learning, and multi-hop spectral attention for few-shot graph fraud detection. The diffusion component is formulated as a feature-space denoising augmentation mechanism rather than a full topology-generative graph diffusion model: it constructs noise-perturbed node-feature views un-der a cosine schedule and uses contrastive learning to stabilize node rep-resentations across perturbations. The spectral attention module further adaptively emphasizes fraud-relevant hop-level and relation-level cues. We evaluate ADC-GNN primarily on three public benchmarks and additionally report a proprietary real-world telecom transaction dataset with approxi-mately 60,000 records as a private case study. Under the 1% training set-ting, ADC-GNN achieves consistent improvements over original graph fraud baselines and four protocol-consistent recent graph anomaly/fraud baselines on the public benchmarks. Additional analyses on split stability, training ratios, oversampling alternatives, module-level ablations, diffusion sched-ules, and runtime and memory-consumption comparisons further character-ize the effective operating regime of ADC-GNN. Our code is released at 
+
+https://github.com/llmllmllm/ADC-GNN .
+
+Keywords: graph neural networks, fraud detection, contrastive learning, spectral attention, feature-space denoising augmentation 
+
+1. Introduction 
+
+With the widespread digitization of financial services, online transac-tion networks have become increasingly complex, enabling sophisticated and large-scale fraudulent activities. Accurately identifying fraudulent accounts in such environments is essential for maintaining system integrity and finan-cial security [1, 2]. Graph Neural Networks (GNNs) [3, 4, 5, 6, 7], including both spatial message passing and spectral filtering variants, have demon-strated strong potential in modeling relational dependencies and capturing structural patterns for fraud detection [8, 9, 10, 11], often outperforming traditional feature-based detectors by leveraging relational signals.        
+
+> Figure 1: Illustration of the few-shot and label-imbalance challenges in real-world transaction networks. Few-shot: only a small portion of nodes are labeled, result-ing in insufficient supervision. Label im-balance: fraudulent nodes are often buried within clusters of normal nodes.
+
+(i) Spatial GNNs improve ro-bustness via sampling, pruning, or relation-aware aggregation, yet they still rely on message passing that is vulnerable to adversarial neighbor-hood construction: fraudsters delib-erately attach to benign nodes to camouflage their behavior, making lo-cal aggregation propagate misleading context and wash out rare anomaly cues. (ii) Spectral GNNs incor-porate frequency-domain filtering to capture global structures, but many filters are biased toward low-frequency smoothness; as a consequence, irregu-lar mid/high-frequency components— often associated with abrupt be-havioral deviations and structural inconsistency—can be suppressed, especially when supervision is scarce and gradients are dominated by the benign majority. (iii) Heterogeneous models introduce relation-specific modeling for multi-type interactions, but 2practical deployments may still suffer from semantic collapse when different relation types are merged into a shared representation or when relation-specific fraud semantics are weakly supervised. However, two gaps remain under real-world supervision regimes. (1) supervision regime mismatch: transaction graphs provide sparse and unreliable supervision with extreme class imbalance. Labels are expensive, delayed, and sometimes uncertain, leaving most nodes unlabeled; meanwhile, fraudulent accounts often constitute only a tiny fraction of the population. Under this regime, gradient-based training is biased toward the benign major-ity, and self-training can amplify majority patterns, causing feature collapse where anomalous embeddings drift toward benign ones. This effect is further exacerbated by intentional camouflage, which creates unreliable propagation paths and injects noise into neighborhood signals. (2) anomaly represen-tation dilution across views: under weak supervision, existing designs struggle to preserve discriminative anomaly cues consistently across spatial and spectral perspectives. Spatial aggregation tends to oversmooth sub-tle and long-range anomaly patterns, while spectral smoothing suppresses fraud-relevant high-frequency irregularities. Moreover, heterogeneous rela-tion semantics are not exploited in a complementary spatial–spectral man-ner: when multi-type interactions are collapsed, relation-specific cues that indicate collusion can be blurred into background noise, further weakening anomaly separability in the learned embedding space. These gaps jointly motivate the need for a framework that (a) enriches mi-nority supervision without additional labels and (b) preserves discriminative anomaly cues across spatial, spectral, and relational views. Accordingly, we propose ADC-GNN, short for Attention-guided Diffusion-Contrastive Graph Neural Network , for fraud detection under sparse, imbalanced, and heteroge-neous graph settings. To avoid overstating the role of the diffusion compo-nent, we clarify that ADC-GNN does not perform full graph generation with a learned reverse process over both node attributes and edges. Instead, it uses diffusion-guided feature-space augmentation: node attributes are perturbed under a cosine schedule to construct multiple noisy views, and contrastive learning is used to preserve node identity and stabilize representations across perturbations. This design provides controlled feature-space regularization without requiring additional manual annotations while avoiding invalid edge perturbations in transaction graphs, where relation semantics are often con-strained by real business events. To enhance structural discrimination, we further design a relation-aware multi-hop spectral attention mechanism that 3adaptively emphasizes fraud-relevant hop-level and relation-level cues. The resulting graph–spectral representation combines local topology, relation se-mantics, and frequency-domain irregularities under a unified classification objective. We evaluate ADC-GNN on three public benchmarks—Amazon [12], YelpChi [13], and T-Finance [14]—as well as a proprietary real-world telecom transaction dataset containing approximately 60,000 records. The public datasets serve as the main reproducibility anchors, while the proprietary CM dataset is re-ported as a private case-study setting with schema-level disclosure and aggre-gate statistics. Experimental results show that ADC-GNN obtains consistent gains at the 1% training ratio. We retain the original graph fraud baselines and further include protocol-consistent recent graph anomaly/fraud base-lines, including CGAD, ARC, UniGAD, and CGNN. Methods whose official protocols rely on incompatible training ratios, evaluation metrics, or unre-leased preprocessing settings are discussed in related work but are not mixed into the main comparison table, so that the experimental protocol remains internally consistent. Additional experiments report training-ratio compar-isons, oversampling-based baselines, granular ablations, diffusion-schedule comparisons, split stability analysis, and runtime and memory-consumption comparisons to better delimit the effective operating regime and computa-tional cost of ADC-GNN. Our main contributions are summarized as follows: 
+
+• We formulate few-shot graph fraud detection as a sparse-supervision and representation-dilution problem, and propose ADC-GNN, an attention-guided diffusion-contrastive framework that jointly exploits feature-space perturbation, contrastive alignment, and relation-aware spectral attention. 
+
+• We clarify and instantiate the diffusion component as feature-space de-noising augmentation rather than full graph generation. The module constructs controlled noisy node-feature views and combines them with contrastive learning to stabilize anomaly-sensitive representations under scarce and imbalanced supervision. 
+
+• We design a relation-aware multi-hop spectral attention module that adap-tively integrates hop-level and relation-level cues, reducing the risk of spa-tial over-smoothing, spectral low-pass bias, and heterogeneous semantic collapse. 
+
+• We expand the empirical evaluation with protocol-consistent recent base-lines, training-ratio comparisons, oversampling alternatives, granular mod-4ule ablations, diffusion-schedule analysis, split stability analysis, and run-time/memory comparisons, providing a more conservative and reproducible assessment of the proposed framework. 
+
+2. Related Work 
+
+2.1. Spatial-based GNNs 
+
+Spatial GNNs, such as GCN, GraphSAGE, and GIN [3, 4, 8], aggre-gate neighborhood information to capture local structural patterns. In fraud detection, methods including CARE-GNN [15], FRAUDRE [16], and PC-GNN [17] improve robustness via reinforcement-based thresholding, relation-specific edges, or label-balanced sampling. Subsequent works like GTAN [18], Dig-In-GNN [19], and ConsisGAD [20] introduce temporal modeling and con-trastive regularization to enhance message quality under label scarcity. How-ever, these spatial models rely heavily on the homophily assumption that neighboring nodes share similar semantics, which does not hold in fraud net-works where fraudulent nodes are intentionally camouflaged within benign clusters. As a result, minority anomaly signals are easily diluted through message passing, and gradients are dominated by the majority class [21, 22]. 
+
+2.2. Spectral-based GNNs 
+
+Spectral approaches analyze graph signals in the frequency domain. GWNN [23] and its variants emphasize low-frequency components to enforce smoothness, while BWGNN [14] and AMNet [24] attempt to reintroduce mid- and high-frequency information using adaptive kernels and attention mechanisms. Yet, their filtering processes are often biased toward low-pass smoothing, suppress-ing high-frequency irregularities—the very cues most indicative of fraudulent behavior. When labeled data are scarce, gradients corresponding to minor-ity classes cannot sustain these high-frequency channels, leading to spectral collapse and loss of anomaly relevance [25, 26]. 
+
+2.3. Heterogeneous GNNs 
+
+Real-world fraud networks involve multiple entity and relation types, such as users, devices, merchants, and transactions [6, 27, 28]. Models such as Het-eroGNN and GHRN [29, 30] aim to exploit relation-specific semantics via edge-level modeling or structure refinement. However, many approaches still collapse heterogeneous relations into a unified adjacency or homogeneous Laplacian, causing semantic loss. Important relation-driven patterns—like 5repeated account–device interactions or merchant collusions—are blurred into background noise once aggregated indiscriminately [31, 32, 33, 34]. Recent studies further extend graph fraud and anomaly detection under sparse supervision and distribution shift. CGAD introduces a contrastive learning-based framework for anomaly detection in attributed networks, im-proving anomaly-aware representation learning by considering negative-sampling bias and neighborhood information [35]. ARC explores a generalist graph anomaly detector with in-context learning, aiming to transfer anomaly pat-terns across graphs using few-shot normal samples [36]. UniGAD unifies node-, edge-, and graph-level anomaly detection through a Rayleigh-quotient-based subgraph sampler and a shared GraphStitch network [37]. CGNN fo-cuses on graph-based fraud detection with extremely limited labels by com-bining context-aware category semantics, denoising attention, feature aug-mentation, and consistency regularization [38]. These methods are included in the experimental comparison because they are relevant to scarce-label graph anomaly/fraud detection and can be evaluated under our unified 1% AUC/macro-F1 protocol. Beyond graph fraud detection, several adjacent representation-learning paradigms are also relevant to ADC-GNN’s design scope. Knowledge con-densation distillation studies how to retain compact but informative super-vision under limited or redundant knowledge transfer [39]. Cross-network embedding methods study transfer and alignment across graph domains where directly shared labels or anchors are sparse [40]. AFSC uses adap-tive Fourier-space compression for anomaly-sensitive representation model-ing, which is conceptually related to preserving abnormal spectral compo-nents [41]. InfoBridge-style information-bridge estimation and multimodal bridge modeling provide a broader view of dependency-preserving representa-tion learning under weak supervision [42]. The heterogeneous graph learning study by Li et al. further illustrates how cross-modal graph construction and multi-modal completion can support robust representation learning across diverse relation types [43]. These studies are not direct fraud-detection base-lines because they target different modalities, tasks, or evaluation protocols; however, they help position ADC-GNN as a task-specific instantiation of robust low-label heterogeneous representation learning. These observations reveal three intertwined challenges in real-world fraud graphs: (i) minority-signal dilution in spatial aggregation, (ii) suppression of fraud-relevant high-frequency components in spectral filtering, and (iii) semantic collapse under heterogeneous relations. Previous studies have ad-6dressed each partially—via consistency regularization, edge pruning, or dual-frequency filters—but none jointly overcomes all three limitations under few-shot and imbalanced supervision. To bridge this gap, we propose ADC-GNN, a unified graph–spectrum framework that integrates feature-space diffusion-guided augmentation, spec-tral attention, and relation-aware fusion. Rather than generating new nodes, synthetic transactions, or graph topology, the diffusion component constructs noise-perturbed feature views and regularizes them through denoising and contrastive alignment. A multi-hop spectral attention mechanism adaptively emphasizes anomaly-related frequency bands while maintaining stability un-der few-shot settings. Finally, a relation-aware attention fusion module pre-serves heterogeneous semantics and reduces information collapse across rela-tion types. Together, these components form a robust joint embedding space that captures both global and local fraud cues across relational contexts while keeping the scope of the diffusion component technically precise. 
+
+3. Problem Definition 
+
+In this section, we formally define the concept of a multi-relational graph and introduce the graph-based fraud detection problem. 
+
+Graph Modeling. Let G = ( V, E, X, Y ) be a graph, where V = {v1, v 2, . . . , v N }
+
+is the node set (with N = |V |), E = {E1, E 2, . . . , E R} is the edge set parti-tioned into R relation types, X ∈ RN ×d is the node feature matrix (each node 
+
+vi has a d-dimensional feature vector xi), and Y ∈ { 0, 1}N is the label vector, where yi = 1 indicates a fraudulent node and yi = 0 indicates a legitimate (benign) node, capturing structural and feature information. 
+
+Relational adjacency. For each relation type r ∈ { 1, . . . , R }, let A(r) ∈{0, 1}N ×N be the adjacency of the r-th edge subset Er, and ˜A(r) = D(r)− 12
+
+ A(r)+
+
+ID(r)− 12 its symmetrically normalized version with self-loops. When the un-derlying graph is mono-relational, we have R=1 and the formulation reduces to the standard single-adjacency case. 
+
+Graph-Based Fraud Detection. Given graph G as defined above, graph-based fraud detection is formulated as a binary node classification task. The objective is to predict for each node vi ∈ V whether it is fraudulent ( yi = 1 )or benign ( yi = 0 ), based on relational context. 
+
+Spectral-based Fraud Detection. These approaches leverage the fre-quency characteristics of graphs by analyzing signals defined over nodes. A common assumption is that legitimate nodes exhibit smooth behaviors 7Figure 2: Overall architecture of ADC-GNN. 
+
+aligned with the graph’s low-frequency spectrum, whereas fraudulent nodes manifest as high-frequency anomalies that deviate from local structural con-sistency, motivating the use of spectral analysis to expose subtle structural irregularities that are difficult to capture through local aggregation alone. 
+
+4. Methodology 
+
+Our proposed ADC-GNN (Figure 2) mitigates label scarcity and class im-balance in graph-based fraud detection by integrating feature-space diffusion-guided augmentation with a contrastive, relation-aware spectral GNN back-bone [8]. As depicted in Figure 2, the model consists of three linked modules. (a) Graph sample generation constructs noise-perturbed node-feature views in the feature space under a cosine schedule. Importantly, this module per-turbs node attributes rather than creating new graph topology; thus, it is best interpreted as denoising-based feature augmentation, not as a full graph generative diffusion model. (b) Spectral frequency modulation converts each noisy view into multi-hop relation-aware spectral representations and uses adaptive attention to emphasize fraud-relevant frequency bands and rela-tions. (c) Graph–spectral feature discrimination fuses graph- and spectral-domain embeddings and optimizes classification, denoising, and contrastive 8objectives to improve anomaly separability under scarce supervision. 
+
+4.1. Graph Sample Generation 
+
+In practical applications, the high cost of annotation results in scarce la-beled samples, limiting supervised learning and weakening the model’s ability to recognize rare anomalous patterns. Inspired by diffusion models in com-puter vision [44, 45], we employ a cosine-scheduled noise injection mechanism to perturb node features and construct multiple noisy views. However, un-like full graph diffusion models that learn a reverse process for generating both node attributes and graph topology, our module does not add or re-move edges. This design choice is deliberate: in transaction graphs, edges usually correspond to observed business events or verified relations, and ar-bitrary topology perturbation may introduce invalid transactions or destroy relation semantics. Therefore, our diffusion module is used as a feature-space denoising augmentation strategy. It exposes the encoder to controlled pertur-bations of node attributes and relies on contrastive learning to preserve node identity while improving representation robustness under scarce supervision. Specifically, we define the cumulative retention factor at diffusion step t,where T denotes the total number of diffusion steps [44], and s is a small positive constant introduced to prevent the process from starting at zero—an issue that could otherwise cause instability by forcing the model to predict noise when none exists. At each step t, the node feature x0 is perturbed as: 
+
+¯αt =
+
+> t
+
+Y
+
+> i=0
+
+αi = cos 2
+
+ tT + s
+
+1 + sπ
+
+2
+
+
+
+,xt = √¯αt x0 + √1 − ¯αt ϵ, ϵ ∼ N (0 , I ),
+
+(1) Here, √¯αt controls the proportion of the original features retained, while √1 − ¯αt governs the magnitude of the injected noise. As t increases, the re-tained feature component gradually decreases and the stochastic component increases, producing a spectrum of node-feature views from near-original to strongly perturbed. The informative signal does not come from Gaussian noise itself, but from the constraint that two independently perturbed views of the same node should remain close in the learned representation while representations of different nodes are separated through the contrastive ob-jective in Section 4.3. Thus, the diffusion-guided views act as structured reg-ularization for node representations rather than as random synthetic fraud 9samples. In practice, the schedule length T = 1000 specifies the discretization of the noise schedule. During training, noisy views can be sampled directly from q(xt|x0) at selected timesteps without executing an iterative 1000-step reverse chain, and inference uses the trained encoder/classifier without dif-fusion sampling, which keeps deployment latency comparable to standard GNN inference. 
+
+4.2. Spectral Frequency Modulation 
+
+Multi-Hop Spectral Encoding. To transform graph data into the spectral domain, we first preprocess the features through a three-stage pipeline. We apply two linear transformations, each followed by a non-linear activa-tion ϕ (ReLU) [46], and then apply dropout [47]. This preprocessing yields a smoother, normalized, and expressive feature representation hpre , which serves as the input for subsequent spectral encoding: 
+
+h(1) = ϕ W (1) x + b(1) ,h(2) = ϕ W (2) h(1) + b(2) ,
+
+˜h(2) = dropout  h(2) .
+
+(2) To construct robust, scalable spectral representations, we employ a uni-fied strategy known as Multi-Hop Spectral Encoding. This approach lever-ages an n-order polynomial expansion to build n parallel branches, where each branch captures graph signals at a specific hop scale and encodes lo-cal structural information [4, 48]. Lower-order terms emphasize immediate neighborhood structures, while higher-order terms progressively incorporate long-range dependencies. By aggregating these multiple branches, the model is able to balance local smoothness with global anomaly cues, thereby avoid-ing over-smoothing and preserving discriminative high-frequency informa-tion. The resulting multi-scale features are then fused into a compact multi-band spectral representation, which retains both fine-grained local semantics and coarse-grained global patterns essential for fraud detection. 
+
+Relation-aware polynomial filtering. Within the multi-hop spectral module, each branch k applies relation-specific polynomial filters of order d with learn-able coefficients α(k,r ) 
+
+> i
+
+to aggregate information from 0-hop to d-hop neigh-borhoods of relation r:
+
+z(k,r ) =
+
+> d
+
+X
+
+> i=0
+
+α(k,r )
+
+> i
+
+  ˜A(r)i hpre , r = 1 , . . . , R, (3) 10 where ˜A(r) denotes the normalized adjacency matrix of relation r.
+
+Relation attention fusion. To prevent collapsing heterogeneous edge seman-tics, we learn attention weights β(k) 
+
+> i,r
+
+for each node i over relations: 
+
+β(k) 
+
+> i,r
+
+=exp 
+
+
+
+q⊤ 
+
+> k
+
+tanh  Wk[ z(k,r ) 
+
+> i
+
+; hpre ,i ]PRℓ=1 exp 
+
+
+
+q⊤ 
+
+> k
+
+tanh  Wk[ z(k,ℓ ) 
+
+> i
+
+; hpre ,i ], (4) where PRr=1 β(k) 
+
+> i,r
+
+= 1 . The branch output for node i is then obtained as 
+
+z(k) 
+
+> i
+
+=
+
+> R
+
+X
+
+> r=1
+
+β(k) 
+
+> i,r
+
+z(k,r ) 
+
+> i
+
+. (5) Since z(k) has already integrated all R relation types through the relation-attention fusion in Eq. (5), the subsequent stacking across branches does not explicitly maintain a separate relation dimension. Finally, stacking the outputs of all K branches yields a fused tensor: 
+
+Hfused = stack  z(1) , z (2) , . . . , z (K) ∈ RN ×K×F , (6) where K is the number of branches and F is the feature dimensionality of each branch’s output. The resulting fused tensor Hfused thus provides a unified representation of multi-scale structural information while preserving relational heterogeneity through attention-based fusion. 
+
+Attention-Based Feature Amplification. To highlight salient fea-tures, we propose a branch attention mechanism that adaptively assigns attention weights to each node’s multi-hop feature channels. Different hop scales capture distinct structural semantics, and directly averaging them may dilute informative signals. To address this, we reweight branch features based on their relative importance. Formally, we stack the feature vectors from K branches of N nodes into a three-dimensional tensor Hfused , and flatten it into a two-dimensional matrix 
+
+Hembed , where row (i, j ) corresponds to branch j of node i. A fully-connected layer is applied to compute the unnormalized attention score si,j [5]: 
+
+Hembed [i · K + j, :] = Hfused [i, j, :] ,si,j = FC  Hembed [i · K + j, :] . (7) 11 Reshaping these scores back into matrix form yields 
+
+S ∈ RN ×K , Si, : = [ si, 1, s i, 2, . . . , s i,K ], (8) which contains the branch-level scores for node i. We then normalize them with a softmax across branches [49]: 
+
+αi,j = exp( si,j )
+
+PKl=1 exp( si,l ). (9) Here, αi,j denotes the normalized attention weight, guiding the model to emphasize more discriminative hop-level features for each node. These weights αi,j indicate the relative importance of the j-hop fea-tures for node i, encouraging the model to attend to more informative spec-tral branches. To obtain the final node representation ˆhi, we integrate the attention-weighted branch outputs with a mean-fusion term for stability, as well as a residual projection to retain the original feature information. Let 
+
+z(j) 
+
+> i
+
+denote the output of branch j for node i. We define: 
+
+Ai =
+
+> K
+
+X
+
+> j=1
+
+αi,j z(j) 
+
+> i
+
+, Mi = 1
+
+K
+
+> K
+
+X
+
+> j=1
+
+z(j) 
+
+> i
+
+, Ri = Wres hpre ,i , (10) where Ai is the attention-weighted fusion, Mi is the mean of branch outputs, and Ri is the residual projection of the preprocessed feature hpre . We then compute an adaptive fusion coefficient βi via a small multilayer perceptron: 
+
+βi = σ MLP([ Ai; Mi]) , μi = 1 − βi, (11) where σ denotes the sigmoid function and μi is the corresponding mean-fusion weight. Finally, the three components are combined as 
+
+ˆfi = βi Ai + μi Mi + γ R i, (12) with γ a hyperparameter controlling the contribution of the residual term. This formulation allows the model to balance attention, mean pooling, and original structural information in a fully adaptive manner. [49, 50] 
+
+4.3. Graph–Spectral Feature Discrimination 
+
+To effectively leverage local neighborhood information, we feed the orig-inal input features into the GNN backbone to obtain the logits ˆyi. These 12 Algorithm 1 Training Process of ADC-GNN with Timestep Sampling 
+
+Require: Graph G = ( V, E, X, Y ); diffusion schedule length T ; branches K
+
+Ensure: Fused features ˆf; total loss Ltotal 
+
+// Diffusion-guided feature-view construction  
+
+> 1:
+
+Sample a timestep t ∼ Uniform( {1, . . . , T }) for the current mini-batch  
+
+> 2:
+
+Sample two independent noises ϵ1, ϵ 2 ∼ N (0 , I ) 
+
+> 3:
+
+Construct two noisy feature views x(1)  
+
+> t
+
+and x(2)  
+
+> t
+
+directly from q(xt|x0)
+
+// Relation-aware spectral frequency modulation  
+
+> 4:
+
+Obtain hpre from x(1)  
+
+> t
+
+and x(2)  
+
+> t
+> 5:
+
+for k ← 1 to K do  
+
+> 6:
+
+Compute relation-aware polynomial features z(k) 
+
+> 7:
+
+end for // Feature fusion and optimization  
+
+> 8:
+
+for each node i in the current training batch B do  
+
+> 9:
+
+Obtain ¯fi via attention, mean, and residual fusion of {z(k) 
+
+> i
+
+}Kk=1  
+
+> 10:
+
+end for  
+
+> 11:
+
+Compute Lcls on labeled nodes VL ∩ B , and compute Ldiff and Lcon on the sampled feature views  
+
+> 12:
+
+Obtain total loss Ltotal ← λcls Lcls + λdiff Ldiff + λcon Lcon 
+
+logits are supervised using the ground-truth labels yi ∈ { 0, 1} through the binary cross-entropy loss, which yields the classification loss Lcls . Let VL
+
+denote the labeled training nodes. To avoid using validation and test labels during optimization, the supervised classification loss is computed only over 
+
+VL:
+
+Lcls = − 1
+
+|V L|
+
+X
+
+> i∈V L
+
+[yi log(ˆ yi) + (1 − yi) log(1 − ˆyi)] . (13) Here, yi is the true label of labeled training node vi, and ˆyi is the fraud probability output by the model. Unlabeled, validation, and test nodes may be used through their graph structure and node features in the transductive graph setting, but their labels are never used in Lcls .To enhance the discriminative power of the learned features, we inde-pendently sample two noise realizations, ϵ1 and ϵ2, for each node’s original feature vector x0, thereby constructing two noisy views at diffusion step t:
+
+x(1)  
+
+> t
+
+= q(x0, ϵ 1), x(2)  
+
+> t
+
+= q(x0, ϵ 2). (14) 13 These two noisy features are then processed by the Spectral Frequency Modulation module for feature enhancement. The resulting fused represen-tations f (1) and f (2) are subsequently input into the Noise Predictive Model. For each view, the model predicts the corresponding noise, and the diffusion loss is computed as: 
+
+(ˆ ϵ(i), f (i)) = M(f (i), t ), i = 1 , 2,
+
+Ldiff = 12
+
+> 2
+
+X
+
+> i=1
+
+MSE(ˆ ϵ(i), ϵ i). (15) where M(·, t ) denotes the lightweight noise-prediction head and MSE( ·, ·)
+
+denotes the mean squared error. The denoising loss encourages the model to retain perturbation-aware information, but by itself it does not enforce class separation; this is why we separately introduce the contrastive objective below. Note that this loss supervises only the denoising capability and does not involve contrastive supervision. To further encourage feature separability, we introduce a contrastive loss Lcon , which pulls together the embeddings of the same node under different noise perturbations and pushes apart those of different nodes. In implementation, the contrastive loss is optimized on a mini-batch B with sampled negatives rather than by materializing all N 2
+
+node pairs: 
+
+Lcon = − 1
+
+|B| 
+
+X
+
+> i∈B
+
+log exp  sim( ¯f (1)  
+
+> i
+
+, ¯f (2)  
+
+> i
+
+)/τ P 
+
+> j∈B
+
+exp  sim( ¯f (1)  
+
+> i
+
+, ¯f (2)  
+
+> j
+
+)/τ  . (16) where sim( ·, ·) denotes cosine similarity (implemented as the dot product between ℓ2-normalized vectors), and τ is a temperature parameter controlling distribution sharpness. To further emphasize anomalous samples, we define a positive pair for each sample i as (¯f (1)  
+
+> i
+
+, ¯f (2)  
+
+> i
+
+), where both embeddings are generated from in-dependent noise perturbations of the same input. In contrast, for j̸ = i, the pair (¯f (1)  
+
+> i
+
+, ¯f (2)  
+
+> j
+
+) is treated as a negative pair. Following [51], we compute a cross-entropy loss for each sample i that maximizes the similarity of its positive pair while minimizing the similarities of its negative pairs. Averaging over all samples yields the contrastive loss 
+
+Lcon . This loss encourages the model to align the feature representations of the same node under different noise views, while pushing apart those of 14 different nodes. Such contrastive regularization helps the model better cap-ture fine-grained variations of anomalous samples throughout the denoising process. We define the total training objective as the weighted sum of the contrastive loss, diffusion loss, and classification loss: 
+
+Ltotal = λcon Lcon + λdiff Ldiff + λcls Lcls . (17) Here, λcon , λ diff , λ cls ≥ 0 are trade-off coefficients that balance the contribu-tions of the three objectives. Specifically, λcon controls the strength of feature alignment under contrastive learning, λdiff determines the relative importance of denoising guidance in the diffusion process, and λcls adjusts the emphasis placed on supervised node classification. This composite objective integrates three complementary learning signals: (i) feature alignment via Lcon , (ii) denoising guidance via Ldiff , and (iii) supervised classification via Lcls . To-gether, these weighted components drive convergence and ensure that subtle but informative anomalous patterns are preserved throughout training. 
+
+5. Experiments 
+
+In this section, we evaluate ADC-GNN on three public fraud-detection benchmarks and report the proprietary CM dataset as a private deployment-style case study. The public datasets provide the primary reproducible ev-idence, while CM is used to illustrate applicability in a real telecom risk-control scenario. To keep the evaluation self-contained, we move the core experimental clarifications and additional experimental analyses into this section, including dataset semantics, CM dataset disclosure, split protocol, implementation fairness, stability analysis, training-ratio comparison, over-sampling comparison, diffusion-schedule analysis, complexity discussion, and granular ablation interpretation. The appendix is retained only for supple-mentary dataset and reproducibility notes. We answer the following research questions: 
+
+RQ1 : How does ADC-GNN compare with graph fraud detection methods under conditions of extremely limited labels and severe class imbalance? 
+
+RQ2 : What is the individual contribution of each key component of ADC-GNN—specifically the contrastive diffusion module and the attention mechanism—to the model’s aggregate performance? 
+
+RQ3 : How sensitive is ADC-GNN’s detection performance to the choice of critical training hyperparameters and diffusion schedules? 15 RQ4 : How do the submodules within ADC-GNN coordinate to progres-sively reconstruct and enhance discriminative graph representations under few-shot and imbalanced settings? 
+
+RQ5 : Is ADC-GNN robust under different random few-shot splits, dif-ferent training ratios, and classical oversampling alternatives? 
+
+RQ6 : What computational overhead does ADC-GNN introduce com-pared with representative graph fraud detection baselines? 
+
+5.1. Experimental Settings 
+
+Datasets. We conduct the main reproducible experiments on three pub-lic datasets: Amazon [12], YelpChi [13], and T-Finance [14]. We additionally include CM as a proprietary telecom transaction fraud dataset. Since CM cannot be independently released, it is reported as a private case study with schema-level disclosure rather than as the main reproducibility anchor. Ta-ble 1 reports the dataset statistics. Amazon is a public review-spam benchmark in which nodes correspond to reviewer or user entities and edges are derived from review-related relational links released by the benchmark. These relations encode reviewer-item or review-behavior associations that are widely used in graph-based fraud de-tection. The node features are behavioral and metadata-derived descriptors, and the labels indicate whether the corresponding reviewer or review-related entity is fraudulent or benign. YelpChi is another public review-spam bench-mark, where nodes correspond to reviewers and edges are constructed from review-, product-, and behavior-based co-occurrence relations. Its features describe user-review behavioral patterns, and its labels are public spam-review labels. T-Finance is a public financial fraud detection benchmark. Its nodes correspond to account or transaction-related financial entities, and its edges describe benchmark-defined financial interaction relations. The re-leased anonymized financial behavioral features and public fraud labels are used under the same few-shot split protocol as the other datasets. The CM dataset is collected from a company-owned telecom risk-control scenario over approximately 11 months. It contains 61,582 nodes, 39,381,037 edges, 14 de-identified node features, and a fraud ratio of 3.76%. In CM, each node denotes an anonymized telecom account or transaction-related entity. Raw account identifiers, phone numbers, device identifiers, trans-action identifiers, transaction contents, and business-rule thresholds cannot be released due to privacy, compliance, and contractual restrictions. Edges are constructed from verified interaction evidence, including shared-device 16 Dataset Amazon YelpChi T-Finance CM Nodes 11,944 45,954 39,357 61,582 
+
+## Edges 4,398,392 3,846,979 21,222,543 39,381,037 
+
+## Features 25 32 10 14 
+
+## Fraud (%) 6.87 14.53 4.58 3.76 
+
+> Table 1: Statistics of the selected four datasets.
+
+links, shared-contact or identity-attribute links, transaction co-occurrence links, and regional-temporal co-occurrence links. The node features are de-identified numerical or categorical risk descriptors summarizing transaction frequency, account behavior, regional information, device or identity risk, and historical interaction statistics. Positive labels are obtained from the inter-nal risk-control system and manual verification records, while negative labels correspond to entities not verified as fraudulent during the observation and verification window. To reduce temporal leakage, all features are generated only from information available before the label-verification time. Therefore, the CM experiment controls feature-time leakage, although it should not be interpreted as a fully prospective temporal deployment evaluation. A concrete CM example is a telecom risk-control case in which several newly registered accounts repeatedly access services through the same device fingerprint, share similar contact attributes, conduct transactions within a short regional-temporal window, and interact with overlapping counterpar-ties. Each account may appear normal when considered independently, and each single behavior may be insufficient to confirm fraud. However, their graph-level co-occurrence can form a suspicious local pattern: the accounts may share the same device environment, show synchronized regional activity bursts, and repeatedly interact with a small set of common transaction en-tities. Such cases are difficult for purely feature-based detectors because the anomalous signal is distributed across multiple weak relational cues. ADC-GNN is designed to capture these weak but correlated signals by jointly mod-eling feature perturbation robustness, relation-aware neighborhood structure, and multi-hop spectral information. This example is provided only to clarify the graph construction logic; exact business rules, thresholds, and private transaction contents are not disclosed. 
+
+Split protocol. For each dataset, we construct few-shot splits using strat-17 Method Amazon YelpChi T-Finance CM AUC MF1 AUC MF1 AUC MF1 AUC MF1 
+
+ChebyNet 0.8821 0.8741 0.7422 0.6363 0.8753 0.7918 0.8161 0.7309 GWNN 0.8769 0.8899 0.7658 0.6463 0.8734 0.7263 0.8442 0.6654 GIN 0.8265 0.7281 0.6646 0.5872 0.7004 0.6021 0.6912 0.5412 CARE-GNN 0.8869 0.5953 0.7448 0.5874 0.9050 0.7332 0.8258 0.6723 PC-GNN 0.9148 0.8736 0.7523 0.5498 0.9076 0.6206 0.8384 0.5597 BW-GNN 0.9075 0.9109 0.7467 0.6726 0.9275 0.8573 0.8583 0.7374 COFD 0.9012 0.8795 0.7026 0.5907 0.9010 0.8322 0.8733 0.7357 GTAN 0.9079 0.8754 0.7571 0.6017 0.9074 0.8028 0.8782 0.7696 GHRN 0.9276 0.9129 0.7833 0.6608 0.9304 0.8305 0.8424 0.7450 DIG-In-GNN 0.9279 0.8447 0.7368 0.6386 0.9131 0.6851 0.8828 0.5949 ConsisGAD 0.9201 0.9054 0.8000 0.6321 0.9316 0.8513 0.8815 0.7720 CGAD 0.9186 0.9049 0.7936 0.6584 0.9228 0.8410 0.8796 0.7724 ARC 0.9268 0.9076 0.8003 0.6688 0.9272 0.8493 0.8788 0.7605 UniGAD 0.9242 0.9122 0.7968 0.6635 0.9312 0.8569 0.8819 0.7692 CGNN 0.9275 0.9097 0.7986 0.6691 0.9308 0.8549 0.8824 0.7708 
+
+ADC-GNN 0.9501 0.9230 0.8316 0.6949 0.9503 0.8924 0.9397 0.8269 
+
+Table 2: Experimental results at a 1% training ratio under the same fixed split and random seed (seed=72) as the original submission. Original baseline results are preserved, and protocol-consistent recent graph anomaly/fraud baselines are additionally included. Bold values indicate the best overall results, and underlined values indicate the strongest non-ADC-GNN baseline in each column. Amazon, YelpChi, and T-Finance are the main public benchmarks. CM is reported as a proprietary private case study and is not used as the primary reproducibility anchor. 
+
+ified random sampling according to the node labels, such that the labeled training set approximately preserves the original class distribution. In the 1% setting, 1% of all nodes are used as labeled training nodes, while the remaining nodes are divided into validation and test sets with a validation-to-test ratio of 1:2. The main comparison follows the same fixed split with random seed 72 as in the original submission to ensure direct comparability with the reported baseline results. For experiments that require stability analysis, we further repeat the sampling procedure with five independent random seeds: 72, 123, 2024, 3407, and 7777. Under the 1% split with seed 72, the training sets contain 119 nodes with 8 fraudulent nodes for Amazon, 459 nodes with 67 fraudulent nodes for YelpChi, 393 nodes with 18 fraudulent nodes for T-Finance, and 615 18 Dataset Seeds AUC (%) Macro-F1 (%) 
+
+Amazon 5 95 .24 ±1.25 92 .15 ±1.21 
+
+YelpChi 5 82 .89 ±0.32 69 .67 ±0.26 
+
+T-Finance 5 95 .22 ±1.36 88 .46 ±2.16 
+
+CM 5 94 .21 ±1.31 81 .92 ±0.82  
+
+> Table 3: Five-seed stability analysis of ADC-GNN under the 1% few-shot protocol. Values are reported in percentage points as mean ±standard deviation over five independent seeds {72, 123, 2024, 3407, 7777}. The reported metrics are restricted to AUC and Macro-F1 to remain consistent with the main comparison in Table 2. Amazon, YelpChi, and T-Finance are public benchmark datasets, while CM is additionally included as a proprietary real-world case-study dataset. This table is interpreted as a split-stability diagnostic rather than as a replacement for the fixed seed-72 main comparison in Table 2.
+
+nodes with 23 fraudulent nodes for CM. The validation sets contain 3,942, 15,165, 12,988, and 20,322 nodes for Amazon, YelpChi, T-Finance, and CM, respectively. The corresponding test sets contain 7,883, 30,330, 25,976, and 40,645 nodes, respectively. 
+
+Metrics. We use two widely adopted metrics: Macro-F1 and AUC. Macro-F1 computes the harmonic mean of precision and recall calculated for each class. AUC measures the model’s ability to rank positive instances higher than negative instances, regardless of any specific decision threshold. 
+
+Parameter Setting. We set the number of diffusion steps to 1000 with a cosine scheduler and an initial offset of 8 × 10 −3. For contrastive learning, the contrastive loss weight λ is 0.1. The hidden dimension is 64, polynomial order is 2, and dropout is 0.2. The default training set consists of 1% of all nodes. After removing the labeled training nodes, the remaining nodes are divided into validation and test sets with a validation-to-test ratio of 1:2. In other words, the validation set contains approximately one third of the remaining nodes, while the test set contains approximately two thirds. The maximum number of training epochs is 100 for Amazon and YelpChi, and 500 for T-Finance and CM due to their more complex relational struc-tures. The learning rate is fixed at 0.01. For direct comparability with the original submission, Table 2 preserves the fixed seed-72 results. To address split stability, Table 3 reports five-seed reruns under the same 1% few-shot protocol. Amazon, YelpChi, and T-Finance serve as public reproducibility anchors, while CM is additionally included as a proprietary real-world case-study dataset. Since the raw CM data cannot be released, its reproducibility 19 is supported through schema-level documentation, aggregate statistics, split-generation code, model configurations, and evaluation scripts. We adopt the cosine schedule as a practical noise schedule commonly used in diffusion-style perturbation processes. Rather than treating it as a task-specific optimality proof, we use it to obtain a smoothly decaying retention factor that avoids an abrupt transition from clean to heavily corrupted node features. This is im-portant in few-shot fraud graphs because overly weak perturbations provide limited regularization, whereas overly strong perturbations may erase al-ready scarce minority-class cues. In our implementation, the schedule length 
+
+T = 1000 specifies the discretization of the noise schedule. During training, noisy views are sampled directly from q(xt|x0) at selected timesteps instead of executing an iterative 1000-step reverse chain. During inference, the trained encoder and classifier are used directly without diffusion sampling, so the deployment latency remains comparable to standard GNN inference. Ad-ditional comparisons with linear and noise-aware schedules are reported in Table 10. 
+
+Efficiency and Resource Consumption. Besides detection effective-ness, we examine the practical training cost of ADC-GNN in terms of wall-clock time, peak GPU memory, and additional CPU RAM. All runtime and memory measurements are conducted on a single NVIDIA Tesla V100 32GB GPU under the same software environment, data splits, and training proto-cols as the main experiments. For each compared method, we record the end-to-end training time until the configured maximum epoch or early-stopping criterion, and we measure the observed memory footprint during training. The reported CPU increment denotes the additional host memory introduced during training relative to the corresponding plain GNN backbone. The comparison shows that ADC-GNN is not always the fastest method in raw training time, because GHRN and BWGNN use slightly simpler train-ing pipelines. However, the runtime overhead of ADC-GNN remains modest under the same hardware setting. Compared with the average training time of GHRN and BWGNN, ADC-GNN increases training time by approximately 8.1% on average across the four datasets. In return, ADC-GNN consistently uses less memory than both GHRN and BWGNN. Averaged over all datasets, ADC-GNN reduces the memory footprint by approximately 11.0% and the additional CPU RAM usage by approximately 8.7% compared with the aver-age of these two strong graph fraud baselines. Compared with CGAD, ADC-GNN is substantially more efficient, reducing training time by approximately 49.3%, memory footprint by approximately 47.4%, and additional CPU RAM 20 Dataset Method Time (s) Memory (MB) Increment (MB)                                                 
+
+> Amazon GHRN 8.92 3288.55 +398.20 BWGNN 9.14 4588.90 +416.35 CGAD 21.20 6288.90 +798.50 ADC-GNN 10.90 1788.40 +368.15 YelpChi GHRN 30.15 27262.91 +390.65 BWGNN 31.42 28562.41 +402.88 CGAD 68.50 46280.20 +780.32 ADC-GNN 34.87 25262.51 +360.77 T-Finance GHRN 47.83 19743.12 +387.32 BWGNN 49.67 21043.22 +393.45 CGAD 100.80 38040.55 +757.88 ADC-GNN 51.43 18043.66 +357.90 CM GHRN 89.24 35128.60 +398.17 BWGNN 91.05 36128.60 +402.56 CGAD 190.50 58120.90 +768.45 ADC-GNN 96.05 33128.60 +368.48
+
+Table 4: Runtime and memory comparison across datasets under the same experimental setup on a single NVIDIA Tesla V100 32GB GPU. Time denotes wall-clock training time in seconds, Memory denotes the observed memory footprint in MB, and Increment de-notes the additional CPU RAM usage during training. GHRN, BWGNN, and CGAD are included as representative baselines for relation-aware, spectrum-aware, and contrastive graph anomaly or fraud detection, respectively. 
+
+usage by approximately 53.1% on average. These results indicate that the diffusion-guided and contrastive components introduce manageable compu-tational overhead while preserving a favorable memory profile. Importantly, the diffusion schedule does not require an iterative 1000-step reverse chain during either training or inference: training samples noisy views directly from 
+
+q(xt|x0) at selected timesteps, and inference uses only the trained encoder and classifier. Therefore, the runtime is dominated by sparse graph oper-ations and branch-wise spectral filtering rather than by repeated diffusion sampling. The theoretical complexity comparison is provided in Table 9, while the additional diffusion-schedule comparison is reported in Table 10. 
+
+Baseline implementation and fairness. All reported baseline numbers are organized under the same training, validation, and test split protocol unless otherwise stated. For the added recent baselines (CGAD, ARC, Uni-GAD, and CGNN), we follow released implementations when available; oth-21 Figure 3: Coarse ablation visualization on four datasets at a 1% training ratio. “ours–a” removes the attention branch, “ours–d–c” removes the diffusion-contrastive branch, and “ours–a–c” removes both branches. This figure summarizes the large-component effect, while Table 11 provides the main fine-grained ablation evidence. 
+
+erwise, we implement the published model description and tune hyperparam-eters using the same validation protocol. To ensure that ADC-GNN is not benefiting from dataset-specific architectural tuning, we fix the same back-bone configuration, hidden dimension, polynomial order, dropout, and loss weights across datasets unless explicitly analyzed in the sensitivity study. Dataset-specific changes in the earlier codebase, including activation choices, fusion choices, or residual weights, are removed or moved into ablation ex-periments. 22 5.2. Evaluating Model Performance Across Scenarios 
+
+To answer RQ1, we compare ADC-GNN with the original baselines and protocol-consistent recent graph anomaly/fraud baselines under the unified 1% few-shot protocol (Table 2). ADC-GNN achieves the strongest over-all performance on the three public benchmarks and also obtains the best result on the proprietary CM case-study dataset, which is interpreted as deployment-style evidence rather than independently reproducible bench-mark evidence. On Amazon and YelpChi, the gains indicate that the spectrum-aware multi-hop encoder helps preserve discriminative structural cues under sparse supervision. On T-Finance, the results further suggest that ADC-GNN maintains a favorable precision–recall balance in a highly imbalanced financial graph. Across the public benchmarks, ADC-GNN outperforms the strongest non-ADC competitor by approximately 1.9–3.1 percentage points in AUC and 1.0–3.5 percentage points in macro-F1 under the fixed 1% pro-tocol. The CM result is therefore interpreted as deployment-style evidence rather than independently reproducible benchmark evidence. 
+
+Answer to RQ1. ADC-GNN consistently outperforms the compared base-lines under the unified 1% few-shot protocol, supporting its effectiveness in sparse-label and imbalanced fraud detection scenarios. To further examine whether the advantage of ADC-GNN persists when the labeled-data budget changes, we conduct a ratio-wise comparison on the three public datasets. We focus on 1%, 2%, 5%, and 10% training ratios under the same stratified few-shot split rule as described in the experimental settings. For each ratio, the labeled training nodes are sampled according to the node labels so that the training set approximately preserves the original class distribution, and the remaining nodes are divided into validation and test sets with a 1:2 ratio. The 1% setting is kept identical to the fixed seed-72 main comparison in Table 2. This design anchors the ratio-wise analysis to the primary 1% results and ensures consistency between the main comparison table and the ratio-sweep table. The 2%, 5%, and 10% settings are additional reruns under the same stratified ratio-sweep protocol. We do not include sub-1% settings in the main manuscript because, under the severe class imbalance of fraud graphs, such splits may contain only a very small number of fraudulent train-ing nodes and therefore are more suitable for stress testing than for main comparative evidence. Table 5 shows that ADC-GNN consistently achieves the best AUC and Macro-F1 across all reported training ratios and all three public datasets. 23 Training ratio Method Amazon YelpChi T-Finance AUC (%) Macro-F1 (%) AUC (%) Macro-F1 (%) AUC (%) Macro-F1 (%)                                                                                                 
+
+> 1.0% DIG-In-GNN 92.79 84.47 73.68 63.86 91.31 68.51 CGAD 91.86 90.49 79.36 65.84 92.28 84.10 ARC 92.68 90.76 80.03 66.88 92.72 84.93 ADC-GNN 95.01 92.30 83.16 69.49 95.03 89.24
+> 2.0% DIG-In-GNN 91.50 88.80 79.50 65.90 88.90 79.80 CGAD 91.90 90.20 80.00 66.30 89.50 80.50 ARC 92.00 90.50 80.40 67.00 90.00 81.20 ADC-GNN 95.26 92.64 83.28 69.75 92.54 83.64
+> 5.0% DIG-In-GNN 91.80 87.00 80.90 66.10 90.30 86.20 CGAD 92.00 88.60 81.10 66.60 90.70 86.30 ARC 92.20 88.80 81.50 67.20 91.00 86.60 ADC-GNN 95.22 90.36 84.30 69.78 93.79 89.58
+> 10.0% DIG-In-GNN 92.50 88.50 81.90 67.60 92.40 83.50 CGAD 92.80 89.50 82.20 68.10 92.80 84.00 ARC 93.00 89.80 82.50 68.80 93.20 84.80 ADC-GNN 96.19 92.67 85.40 71.19 95.97 87.39
+
+Table 5: Ratio-wise comparison on the three public datasets. Values are reported as AUC (%) and Macro-F1 (%). All methods are evaluated under the same stratified few-shot split protocol for each training ratio. The 1% setting is kept identical to the fixed seed-72 main comparison in Table 2, while the 2%, 5%, and 10% settings are additional ratio-sweep reruns under the same split-generation rule. Sub-1% settings are not included in the main manuscript because they may contain too few labeled fraudulent nodes for stable main-table comparison under severe class imbalance. 
+
+This result directly answers whether the proposed method remains compet-itive when the labeled-data budget changes from the extremely scarce 1% setting to less restrictive 5% and 10% settings. The advantage of ADC-GNN persists across different labeled-data budgets, indicating that its effectiveness is not limited to a single favorable 1% split. The ratio-wise results also show mild non-monotonicity, especially in Macro-F1. This is expected in few-shot and imbalanced fraud detection be-cause increasing the training ratio does not simply add homogeneous super-vision; it may also change which minority subpatterns are represented in the labeled set. For example, on T-Finance, some baseline methods obtain higher Macro-F1 at 5% than at 10%, reflecting the threshold sensitivity of minority-class prediction under severe imbalance. In contrast, ADC-GNN maintains strong AUC and Macro-F1 across all ratios, suggesting that diffusion-guided feature augmentation, contrastive alignment, and relation-aware spectral at-tention jointly improve the robustness of anomaly-sensitive representations. We additionally compare diffusion-guided augmentation with traditional 24 Method Amazon YelpChi T-Finance CM AUC MF1 AUC MF1 AUC MF1 AUC MF1                                                 
+
+> GCN 0.8420 0.7810 0.7010 0.5850 0.8060 0.6900 0.7430 0.5520 GCN + ROS 0.8580 0.8040 0.7160 0.6040 0.8260 0.7160 0.7720 0.5910 GCN + SMOTE 0.8720 0.8250 0.7280 0.6210 0.8440 0.7420 0.8010 0.6250 GraphSAGE + SMOTE 0.8890 0.8420 0.7410 0.6360 0.8620 0.7680 0.8170 0.6460 BW-GNN + SMOTE 0.9130 0.9100 0.7590 0.6680 0.9320 0.8600 0.8730 0.7480
+> ADC-GNN 0.9501 0.9230 0.8316 0.6949 0.9503 0.8924 0.9397 0.8269
+
+Table 6: Comparison with traditional oversampling under the 1% training ratio. ROS denotes random minority oversampling in the labeled feature space. SMOTE improves standard GNN backbones, but it cannot fully replace diffusion-guided denoising and con-trastive alignment, especially on the more imbalanced datasets. The ADC-GNN row is copied from Table 2. 
+
+oversampling strategies. Specifically, we combine representative GNN back-bones with SMOTE-style oversampling in the labeled feature space and com-pare them with ADC-GNN under the same split protocol. This experiment tests whether the improvement can be reproduced by a simpler imbalance-handling method. The numerical comparison is summarized in Table 6. 
+
+5.3. Ablation Study 
+
+To answer RQ2 more rigorously while keeping the main text concise, we report the coarse ablation visualization in Figure 3 and provide the granular numerical ablation table in Table 11. Figure 3 removes large architectural components, including the attention branch, the diffusion-contrastive branch, or both. This provides an intuitive overview of the large-component effect, while Table 11 supplies the fine-grained numerical evidence. The detailed granular ablation in Table 11 separately evaluates the de-noising loss, contrastive loss, relation-aware fusion, branch attention, residual fusion, and polynomial order. This design directly separates the contribution of diffusion-guided feature augmentation from the contribution of contrastive alignment and relation-aware spectral fusion. The results support a conser-vative interpretation: ADC-GNN benefits from the combination of diffusion-guided augmentation, contrastive alignment, and relation-aware spectral at-tention, rather than from any single component alone. 
+
+Answer to RQ2. The performance gain of ADC-GNN is best explained by the joint effect of diffusion-guided feature augmentation, contrastive align-ment, and relation-aware spectral attention. The ablation results do not 25 imply that every module is required in every setting, but they show that each component contributes to the reported performance under the evalu-ated few-shot fraud detection protocols. 
+
+5.4. Sensitivity Analysis 
+
+To answer RQ3 and the reviewers’ request for more imbalanced datasets, we extend the sensitivity analysis from YelpChi to T-Finance and CM. We vary the cosine-schedule offset and the number of diffusion timesteps, and report AUC and Macro-F1 under the same 1% stratified training split. This analysis verifies whether the diffusion hyperparameters remain stable when the fraud ratio is lower and class imbalance is stronger. The results in Figure 4 show that ADC-GNN is not overly sensitive to moderate changes in the cosine offset or timestep budget. Moderate set-tings generally provide the best trade-off between perturbation diversity and representation recoverability. We further compare cosine, linear, and noise-aware schedules in Table 10; the cosine schedule is retained because it offers stable performance across datasets without increasing inference cost. The additional schedule table is restricted to the three public datasets to keep the reproducibility claim independent of the proprietary CM case study. 
+
+Answer to RQ3. ADC-GNN exhibits stable performance across a wide range of diffusion hyperparameters, indicating that the model is not overly sensitive to precise tuning. Empirical results further show that moder-ate hyperparameter values strike the best balance between preserving dis-criminative anomaly cues and maintaining overall detection accuracy across datasets. 
+
+5.5. Visualization and Analysis 
+
+To answer RQ4, we revise the visualization analysis with more caution. The PCA plots are used as diagnostic tools rather than definitive proof of a unique denoising trajectory. Taking the Amazon dataset as a representa-tive case, we project node embeddings obtained under forward noising and denoising-guided representation recovery into a shared two-dimensional space using a standardized PCA projection fitted across all timesteps. In Figure 5, each point corresponds to a node, and the decision boundaries are obtained from a linear probe trained on the corresponding embeddings. To reduce the possibility that the observed trends are artifacts of a single projection or probe, we add quantitative visualization controls. Specifically, we compare PCA with alternative projections such as t-SNE and UMAP, and 26 0.004 0.006 0.008 0.010 0.012 
+
+cos s 
+
+82 
+
+84 
+
+86 
+
+88 
+
+90 
+
+92 
+
+94 
+
+96 
+
+> AUC (%)
+
+Impact of cos s on AUC 
+
+(n step = 1000) 
+
+0.004 0.006 0.008 0.010 0.012 
+
+cos s 
+
+70 
+
+75 
+
+80 
+
+85 
+
+90 
+
+95 
+
+> F1 (%)
+
+Impact of cos s on F1 
+
+(n step = 1000) 
+
+600 800 1000 1200 1400 
+
+n tsp 
+
+82 
+
+84 
+
+86 
+
+88 
+
+90 
+
+92 
+
+94 
+
+96 
+
+> AUC (%)
+
+Impact of n tsp on AUC 
+
+(cos s = 8e 3) 
+
+600 800 1000 1200 1400 
+
+n tsp 
+
+70 
+
+75 
+
+80 
+
+85 
+
+90 
+
+95 
+
+> F1 (%)
+
+Impact of n tsp on F1 
+
+(cos s = 8e 3) 
+
+Amazon Yelp T finance CM Figure 4: Sensitivity of ADC-GNN to the cosine-schedule offset and diffusion timestep budget. 
+
+compare the linear probe with SVM and kNN probes. The probe-level and projection-level controls are summarized in Tables 7 and 8. We also compare ADC-GNN against simpler noise-only and contrastive-only variants. These 27 PC1 
+
+> -4
+> -3
+> -2
+> -1
+> 0
+> 1
+> 2
+> 3
+> 4
+> PC2
+> sep_fwd=0.97
+> sep_rev=0.55
+
+t=0 
+
+> label=0
+> label=1
+
+PC1 
+
+> PC2
+> sep_fwd=0.67
+> sep_rev=0.58
+
+t=7      
+
+> -6 -4 -2 024
+
+PC1 
+
+> -4
+> -3
+> -2
+> -1
+> 0
+> 1
+> 2
+> 3
+> 4
+> PC2
+> sep_fwd=0.64
+> sep_rev=0.62
+
+t=15      
+
+> -6 -4 -2 024
+
+PC1 
+
+> PC2
+> sep_fwd=0.66
+> sep_rev=0.97
+
+t=24 Figure 5: Each subfigure visualizes the 2D projection of node embeddings at different dif-fusion timesteps ( t = 0 , 7, 15 , 24 ). Solid lines denote the decision boundary obtained from the forward (noising) trajectory, while dashed lines correspond to the reverse (denoising) trajectory. 0.0 0.2 0.4 0.6 0.8 1.0 
+
+Normalized time (0 clean, 1 noisy)      
+
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Margin / Linear separability (  ) Margin (fwd)
+> Margin (rev)
+> Linear sep. (fwd)
+> Linear sep. (rev)
+> 0.0 0.2 0.4 0.6 0.8 1.0
+
+Normalized time (0 clean, 1 noisy) 
+
+> 0.125
+> 0.150
+> 0.175
+> 0.200
+> 0.225
+> 0.250
+> 0.275
+> 0.300
+> 0.325
+> SupCon loss (  )
+> SupCon (fwd)
+> SupCon (rev)
+
+Figure 6: The left plot tracks the evolution of contrastive margin and linear separability along both forward and reverse diffusion trajectories, while the right plot shows the corre-sponding supervised contrastive (SupCon) loss. A consistent pattern emerges: the forward trajectory reduces discriminative structure (margin ↓, separability ↓, loss ↑), whereas the reverse trajectory exhibits monotonic recovery (margin ↑, separability ↑, loss ↓). 
+
+28 Variant Linear probe SVM probe kNN probe 
+
+Noise-only 0.61 0.64 0.59 Contrastive-only 0.74 0.76 0.72 ADC-GNN 0.86 0.88 0.84    
+
+> Table 7: Quantitative controls for visualization-based separability analysis on Amazon embeddings. Values report probe AUC on the learned representations using different downstream probes. These values are diagnostic controls for representation separability and are not direct replacements for the main test-set AUC results in Table 2.
+
+Projection Noise-only Contrastive-only ADC-GNN 
+
+PCA 0.61 0.74 0.86 t-SNE 0.60 0.73 0.85 UMAP 0.63 0.75 0.87   
+
+> Table 8: Projection-level controls for the visualization analysis. Values report linear-probe AUC after projecting Amazon embeddings with different dimensionality-reduction methods. These controls indicate that the separability advantage is not specific to a single PCA projection.
+
+controls test whether the forward–reverse separability trend is specific to the proposed combination of diffusion-guided augmentation, contrastive learning, and spectral attention. The interpretation is therefore conservative. Forward noising tends to reduce linear separability by perturbing the feature space, while the learned representation recovers part of the class-separating structure. However, we do not claim that the PCA trajectory alone proves a complete reverse dif-fusion process. Instead, the visualization supports the empirical observation that the proposed training objectives help preserve anomaly-sensitive repre-sentation geometry under controlled feature perturbations. 
+
+5.6. Theoretical Complexity and Efficiency Analysis 
+
+This subsection discusses the practical training efficiency of ADC-GNN from both theoretical and empirical perspectives, complementing the mea-sured runtime and resource-consumption comparison above. Although the contrastive learning objective in ADC-GNN has a theoret-ical pairwise comparison form, full pairwise comparisons over all nodes are 29 avoided in practice through mini-batch training and negative sampling. As a result, the practical training cost is dominated by sparse graph operations, relation-aware polynomial filtering, and branch-wise feature fusion. For a polynomial order d and edge number |E|, the main graph propagation cost is close to O(d|E|) under sparse matrix implementation. 
+
+Model Time Complexity 
+
+PC-GNN O(Tep · g · (|E| + |V |)) 
+
+DIG-In-GNN O(Tep · | V | · (|E| + 1)) 
+
+BWGNN / GHRN O(Tep · d · (|E| + |V |)) 
+
+ADC-GNN O(Tep · d · | E|)            
+
+> Table 9: Theoretical time-complexity comparison of representative graph fraud detection models. Tep denotes the number of training epochs, gdenotes the number of grid-search configurations, ddenotes the polynomial order, and |V|and |E|denote the number of nodes and edges, respectively. This table provides a coarse theoretical comparison and should be interpreted together with the measured runtime and memory results in Table 4.
+
+The diffusion component should not be interpreted as an iterative 1000-step generation chain during training or inference. The schedule length 
+
+Tdiff = 1000 defines the discretized noise schedule, while each training iter-ation samples selected timesteps and constructs noisy feature views directly from q(xt|x0). Therefore, the cost of diffusion-guided augmentation is mainly the cost of constructing perturbed feature views and computing the denois-ing and contrastive losses, rather than repeatedly running a reverse diffusion chain. During inference, ADC-GNN uses only the trained encoder and clas-sifier, and no diffusion sampling is performed. Compared with methods that require repeated neighborhood aggrega-tion, expensive hyperparameter grid searches, or heavy contrastive pipelines, ADC-GNN keeps the additional overhead manageable by generating multi-hop representations in a shared forward process, using lightweight attention modules for relation and branch fusion, and relying on sparse GPU opera-tions. The measured results in the main paper show that, on a single NVIDIA Tesla V100 32GB GPU, ADC-GNN introduces moderate runtime overhead relative to simpler relation-aware or spectrum-aware baselines while main-taining a favorable memory profile. 30 5.7. Additional Sensitivity Analysis of Diffusion Schedules 
+
+To supplement the sensitivity analysis above, we provide additional quan-titative comparisons of different diffusion noise-schedule designs under a sep-arate fixed timestep budget ( Tdiff = 1500 ). We consider cosine, linear, and noise-aware schedules, and report their performance on three public bench-mark datasets. This analysis compares the relative behavior of different schedules under the same schedule-analysis setting; it is not intended to re-place the fixed seed-72 main comparison in Table 2. 
+
+Schedule Amazon YelpChi T-Finance AUC Macro-F1 AUC Macro-F1 AUC Macro-F1 
+
+Cosine 94.38 92.01 82.98 69.25 93.38 86.13 Linear 93.79 91.72 82.69 69.26 92.99 84.29 Noise-Aware 93.51 90.65 82.92 69.24 90.16 76.11  
+
+> Table 10: Additional comparison of different diffusion noise-schedule designs on the three public datasets under a separate fixed timestep budget ( Tdiff = 1500 ). Values are reported in percentage points. This table is used only to compare the relative behavior of schedule designs and is not directly compared with the fixed seed-72 main results. Cosine scheduling is retained because it provides the strongest overall balance between AUC and Macro-F1 while keeping the same training and inference procedure.
+
+The results show that the cosine schedule provides the strongest overall balance across the three public datasets. The linear schedule obtains a com-parable Macro-F1 on YelpChi, but it is weaker on Amazon and T-Finance. The noise-aware schedule remains competitive on YelpChi but degrades sub-stantially on T-Finance, suggesting that overly aggressive or data-dependent perturbation can erase useful minority-class cues under severe class imbal-ance. Therefore, we adopt the cosine schedule as the default diffusion sched-ule in ADC-GNN. 
+
+5.8. Granular Ablation Study 
+
+To provide a more detailed decomposition of ADC-GNN, we conduct granular ablations under the 1% training ratio. The ablation variants sep-arately remove the denoising loss, contrastive loss, relation-aware fusion, branch attention, and residual fusion, and also compare different polyno-mial orders. This analysis complements the coarse ablation visualization in Figure 3. 31 Variant Amazon YelpChi T-Finance CM AUC MF1 AUC MF1 AUC MF1 AUC MF1                                                                       
+
+> Full ADC-GNN 0.9501 0.9230 0.8316 0.6949 0.9503 0.8924 0.9397 0.8269 w/o Ldiff 0.9392 0.9124 0.8147 0.6758 0.9379 0.8691 0.9152 0.7950 w/o Lcon 0.9345 0.9068 0.8071 0.6662 0.9306 0.8543 0.9038 0.7804 w/o relation-aware fusion 0.9410 0.9150 0.8184 0.6810 0.9395 0.8720 0.9186 0.7975 w/o branch attention 0.9324 0.9145 0.8110 0.6818 0.9411 0.8657 0.9125 0.7892 w/o residual fusion 0.9440 0.9180 0.8230 0.6880 0.9420 0.8780 0.9250 0.8090 Polynomial order d= 1 0.9380 0.9130 0.8150 0.6780 0.9360 0.8660 0.9140 0.7920 Polynomial order d= 3 0.9470 0.9205 0.8260 0.6905 0.9475 0.8875 0.9340 0.8210
+
+Table 11: Granular ablation study at the 1% training ratio. Values are reported as AUC and Macro-F1. The results show that ADC-GNN benefits from the joint contribution of denoising supervision, contrastive alignment, relation-aware fusion, branch attention, residual stabilization, and a moderate polynomial order. 
+
+Removing Ldiff tests whether denoising supervision contributes beyond contrastive learning. Removing Lcon tests whether feature-space noising alone is sufficient. Removing relation-aware fusion evaluates the value of preserving relation semantics, while removing branch attention evaluates whether adaptive hop selection is useful. The polynomial-order variants test whether the reported performance depends on a specific spectral order. Table 11 supports a more conservative interpretation: ADC-GNN benefits from the combination of diffusion-guided augmentation, contrastive align-ment, relation-aware fusion, branch-level attention, and residual stabiliza-tion, rather than from any single component alone. Removing either Ldiff or 
+
+Lcon degrades performance, indicating that feature-space perturbation and contrastive alignment play complementary roles. Removing relation-aware fusion or branch attention also reduces performance, showing that preserv-ing relation semantics and adaptively selecting hop-level information are both useful for fraud-sensitive representation learning. The polynomial-order vari-ants further suggest that the model does not rely on an arbitrarily large spec-tral order; instead, a moderate order provides a better balance between local smoothing and anomaly-sensitive structural information. 
+
+6. Conclusion 
+
+This paper presents ADC-GNN, an attention-guided diffusion-contrastive graph neural network for few-shot graph fraud detection under label scarcity 32 and class imbalance. ADC-GNN combines feature-space diffusion-guided augmentation, contrastive representation learning, and relation-aware multi-hop spectral attention to improve anomaly-sensitive node representations. Experiments on three public benchmarks provide the main reproducible ev-idence that ADC-GNN is effective under sparse supervision; the proprietary CM dataset is retained as a private case study. Additional experiments fur-ther examine split stability, training-ratio behavior, oversampling alterna-tives, sensitivity, and efficiency. Despite these results, ADC-GNN has several limitations. First, the dif-fusion module is a feature-space denoising augmentation mechanism rather than a full graph generative diffusion model; it does not explicitly generate or reconstruct graph topology. Therefore, when fraud patterns are dominated by edge rewiring rather than node-feature deviations, topology-aware graph diffusion or structural augmentation may be necessary. Second, although the proposed method is designed for low-label and imbalanced settings, its advantage may decrease when abundant high-quality labels are available or when simpler imbalance-aware GNNs can already separate fraudulent nodes. Third, the proprietary CM dataset cannot be fully released due to privacy constraints, although we provide schema-level details and split protocols to improve reproducibility. Future work will explore privacy-preserving release of synthetic or partially anonymized graph statistics, topology-aware dif-fusion mechanisms, and more efficient deployment strategies for real-time transaction screening. 
+
+Data Availability 
+
+The Amazon, YelpChi, and T-Finance datasets used in this study are publicly available and are cited in the manuscript. The proprietary CM dataset contains de-identified but commercially sensitive telecom transac-tion and risk-control records and cannot be released publicly due to privacy, compliance, and contractual restrictions. To support reproducibility, we pro-vide the split-generation procedure, hyperparameter configurations, evalua-tion scripts, schema-level dataset documentation, and anonymized aggregate statistics that do not expose individual entities or transactions. 
+
+Declaration of competing interest 
+
+33 The authors declare that they have no known competing financial inter-ests or personal relationships that could have appeared to influence the work reported in this paper. 
+
+Appendix A. Supplementary Dataset and Reproducibility Notes 
+
+This appendix clarifies the reproducibility boundary of the datasets with-out repeating the detailed experimental explanations already consolidated in Section 5. Amazon, YelpChi, and T-Finance are public benchmark datasets and serve as the main reproducibility anchors of this study. Their graph semantics, feature types, and labels follow the released benchmark settings, and the corresponding code, split-generation scripts, configuration files, and evaluation scripts are provided with our implementation. CM is a proprietary telecom risk-control dataset and is included only as a private case study. The raw account identifiers, phone numbers, device identi-fiers, transaction identifiers, transaction contents, and internal business-rule thresholds cannot be released. Before model training, sensitive identifiers are replaced by irreversible hashes or aggregate descriptors, and only de-identified numerical or categorical risk descriptors are used as node features. The CM labels are obtained from the internal risk-control system and man-ual verification records. Because the raw CM data cannot be independently inspected, the CM results should be interpreted as deployment-style appli-cability evidence rather than as public benchmark evidence. 
+
+Schema-level description of CM. In the CM graph, each node denotes an anonymized telecom account or transaction-related entity observed by the company’s risk-control system during an approximately 11-month collection window. An edge denotes a verified interaction or co-occurrence relation between two entities. The retained relation semantics include shared-device links, shared-contact or identity-attribute links, transaction co-occurrence links, and regional-temporal co-occurrence links. For example, a shared-device edge may indicate that multiple anonymized accounts repeatedly ac-cess services from the same device environment; a shared-contact or identity-attribute edge may indicate overlap in de-identified contact or registration attributes; a transaction co-occurrence edge may indicate repeated interac-tions with the same counterparties; and a regional-temporal co-occurrence edge may indicate concentrated activity within a short time window and re-lated region. Exact matching rules, thresholds, and business-rule triggers 34 are not disclosed because they are commercially sensitive and could expose operational risk-control policies. 
+
+Feature groups. Each CM node contains 14 de-identified numerical or cat-egorical risk descriptors. These descriptors summarize several broad groups of information available before label verification, including account-behavior statistics, transaction-frequency statistics, regional and temporal activity de-scriptors, device or identity risk descriptors, and historical interaction statis-tics. The features do not include raw phone numbers, raw account identifiers, raw device identifiers, transaction contents, or manually verified future in-formation. This design reduces direct identity exposure and also reduces feature-time leakage because the features are computed only from informa-tion available before the label-verification time. 
+
+Label source and leakage control. Positive labels are obtained from the internal risk-control system and manual verification records. Negative labels correspond to entities not verified as fraudulent during the observation and verification window. The split protocol used in the experiments is the same stratified few-shot protocol described in Section 5: in the 1% setting, labeled training nodes are sampled in a label-stratified manner, and the remaining nodes are divided into validation and test sets with a validation-to-test ratio of 1:2. The CM experiment controls feature-time leakage by constructing fea-tures only from information available before label verification. Nevertheless, because the split is not a fully prospective chronological deployment split and the raw data cannot be released, the CM result should be interpreted as a private case-study result rather than as an independently reproducible public benchmark. 
+
+Concrete example. A representative CM scenario is a telecom risk-control case involving a group of newly registered accounts. When examined indi-vidually, each account may appear weakly suspicious but not conclusive: one account may have a moderate transaction frequency, another may share a device environment with several accounts, and a third may interact with a common counterparty. The graph-level pattern becomes more informative when these weak signals co-occur. For instance, several accounts may re-peatedly access services through the same device fingerprint, share similar de-identified contact attributes, conduct transactions within a short regional-temporal window, and interact with overlapping counterparties. Such a local subgraph may indicate coordinated account operation or collusive behavior even though each single feature is insufficient to confirm fraud. This illus-trates why graph-based modeling is useful for CM: the suspicious signal is 35 distributed across multiple weak relational cues rather than concentrated in one obvious node attribute. ADC-GNN is designed to capture this type of pattern by combining feature-space perturbation robustness, relation-aware spectral propagation, and contrastive alignment under scarce labels. 
+
+Reproducibility boundary. For public datasets, reproducibility is sup-ported by released benchmark data, code, split-generation scripts, and eval-uation configurations. For CM, full data release is not possible due to pri-vacy, compliance, and contractual restrictions. Therefore, we provide only schema-level information, aggregate statistics, split protocol, hyperparameter settings, and implementation details that do not expose individual entities, raw transactions, or internal business rules. This disclosure is intended to make the CM experimental setting interpretable while avoiding an unsup-ported claim of full public reproducibility. 
+
+References 
+
+[1] X. Ma, J. Wu, S. Xue, J. Yang, C. Zhou, Q. Z. Sheng, H. Xiong, L. Akoglu, A comprehensive survey on graph anomaly detection with deep learning, IEEE transactions on knowledge and data engineering 35 (12) (2021) 12012–12038. [2] H. Qiao, Q. Wen, X. Li, E.-P. Lim, G. Pang, Generative semi-supervised graph anomaly detection, in: Advances in Neural Information Process-ing Systems, Vol. 37, 2024, pp. 4660–4688. [3] W. Hamilton, Z. Ying, J. Leskovec, Inductive representation learning on large graphs, Advances in neural information processing systems 30 (2017). [4] K. Xu, W. Hu, J. Leskovec, S. Jegelka, How powerful are graph neural networks?, arXiv preprint arXiv:1810.00826 (2018). [5] P. Veličković, G. Cucurull, A. Casanova, A. Romero, P. Lio, Y. Bengio, Graph attention networks, arXiv preprint arXiv:1710.10903 (2017). [6] F. Xu, N. Wang, H. Wu, X. Wen, X. Zhao, H. Wan, Revisiting graph-based fraud detection in sight of heterophily and spectrum, in: Proceed-ings of the AAAI conference on artificial intelligence, Vol. 38, 2024, pp. 9214–9222. 36 [7] B. Fang, H. Chen, W. Wang, Y. Wang, Graphfa: Graph enhanced fraud detectors with camouflage detection for financial anti-fraud, in: 2024 9th International Conference on Intelligent Computing and Signal Pro-cessing (ICSP), IEEE, 2024, pp. 323–327. [8] T. N. Kipf, M. Welling, Semi-supervised classification with graph con-volutional networks, arXiv preprint arXiv:1609.02907 (2016). [9] E. Chien, J. Peng, P. Li, O. Milenkovic, Adaptive universal generalized pagerank graph neural network, arXiv preprint arXiv:2006.07988 (2020). [10] J. Tang, F. Hua, Z. Gao, P. Zhao, J. Li, Gadbench: Revisiting and benchmarking supervised graph anomaly detection, Advances in Neural Information Processing Systems 36 (2023) 29628–29653. [11] X. Li, L. Chen, Graph anomaly detection with domain-agnostic pre-training and few-shot adaptation, in: 2024 IEEE 40th International Conference on Data Engineering (ICDE), IEEE, 2024, pp. 2667–2680. [12] S. Rayana, L. Akoglu, Collective opinion spam detection: Bridging re-view networks and metadata, in: Proceedings of the 21th acm sigkdd international conference on knowledge discovery and data mining, 2015, pp. 985–994. [13] J. J. McAuley, J. Leskovec, From amateurs to connoisseurs: modeling the evolution of user expertise through online reviews, in: Proceedings of the 22nd international conference on World Wide Web, 2013, pp. 897–908. [14] J. Tang, J. Li, Z. Gao, J. Li, Rethinking graph neural networks for anomaly detection, in: International conference on machine learning, PMLR, 2022, pp. 21076–21089. [15] Y. Dou, Z. Liu, L. Sun, Y. Deng, H. Peng, P. S. Yu, Enhancing graph neural network-based fraud detectors against camouflaged fraudsters, in: Proceedings of the 29th ACM international conference on information & knowledge management, 2020, pp. 315–324. [16] G. Zhang, J. Wu, J. Yang, A. Beheshti, S. Xue, C. Zhou, Q. Z. Sheng, Fraudre: Fraud detection dual-resistant to graph inconsistency 37 and imbalance, in: 2021 IEEE international conference on data mining (ICDM), IEEE, 2021, pp. 867–876. [17] Y. Liu, X. Ao, Z. Qin, J. Chi, J. Feng, H. Yang, Q. He, Pick and choose: a gnn-based imbalanced learning approach for fraud detection, in: Proceedings of the web conference 2021, 2021, pp. 3168–3177. [18] S. Xiang, M. Zhu, D. Cheng, E. Li, R. Zhao, Y. Ouyang, L. Chen, Y. Zheng, Semi-supervised credit card fraud detection via attribute-driven graph representation, in: Proceedings of the AAAI Conference on Artificial Intelligence, Vol. 37, 2023, pp. 14557–14565. [19] J. Zhang, Z. Xu, D. Lv, Z. Shi, D. Shen, J. Jin, F. Dong, Dig-in-gnn: discriminative feature guided gnn-based fraud detector against incon-sistencies in multi-relation fraud graph, in: Proceedings of the AAAI Conference on Artificial Intelligence, Vol. 38, 2024, pp. 9323–9331. [20] N. Chen, Z. Liu, B. Hooi, B. He, R. Fathony, J. Hu, J. Chen, Consistency training with learnable data augmentation for graph anomaly detection with limited supervision, In The Twelfth International Conference on Learning Representations (ICLR 2024), spotlight paper (2024). URL https://openreview.net/forum?id=elMKXvhhQ9 
+
+[21] D. Cheng, X. Wang, Y. Zhang, L. Zhang, Graph neural network for fraud detection via spatial-temporal attention, IEEE Transactions on Knowledge and Data Engineering 34 (8) (2020) 3800–3813. [22] S. Tian, J. Dong, J. Li, W. Zhao, X. Xu, B. Song, C. Meng, T. Zhang, L. Chen, et al., Sad: Semi-supervised anomaly detection on dynamic graphs, arXiv preprint arXiv:2305.13573 (2023). [23] B. Xu, H. Shen, Q. Cao, Y. Qiu, X. Cheng, Graph wavelet neural net-work, arXiv preprint arXiv:1904.07785 (2019). [24] Z. Chai, S. You, Y. Yang, S. Pu, J. Xu, H. Cai, W. Jiang, Can ab-normality be detected by graph neural networks?, in: IJCAI, 2022, pp. 1945–1951. [25] B. Wu, X. Yao, B. Zhang, K.-M. Chao, Y. Li, Splitgnn: Spectral graph neural network for fraud detection against heterophily, in: Proceedings 38 of the 32nd ACM international conference on information and knowledge management, 2023, pp. 2737–2746. [26] R. Guo, M. Zou, S. Zhang, X. Zhang, Z. Yu, Z. Feng, Graph local ho-mophily network for anomaly detection, in: Proceedings of the 33rd ACM International Conference on Information and Knowledge Manage-ment, 2024, pp. 706–716. [27] J. Tang, H. Gu, D. B. Vuković, G. Xu, Y. Wang, H. Tao, J. Cao, Fraud detection in multi-relation graph: Contrastive learning on feature and structural levels, Neurocomputing 637 (2025) 130063. [28] J. Liu, Y. Tian, G. Liu, Global confidence degree based graph neural network for financial fraud detection, arXiv preprint arXiv:2407.17333 (2024). [29] Y. Gao, X. Wang, X. He, Z. Liu, H. Feng, Y. Zhang, Addressing het-erophily in graph anomaly detection: A perspective of graph spectrum, in: Proceedings of the ACM web conference 2023, 2023, pp. 1528–1538. [30] Y. Zhang, X. Ma, J. Wu, J. Yang, H. Fan, Heterogeneous subgraph transformer for fake news detection, in: Proceedings of the ACM Web Conference 2024, 2024, pp. 1272–1282. [31] Z. Liu, C. Chen, X. Yang, J. Zhou, X. Li, L. Song, Heterogeneous graph neural networks for malicious account detection, in: Proceedings of the 27th ACM international conference on information and knowledge man-agement, 2018, pp. 2077–2085. [32] S. Li, B. Qiao, K. Li, Q. Lu, M. Lin, W. Zhou, Multi-modal social bot detection: Learning homophilic and heterophilic connections adaptively, in: Proceedings of the 31st ACM International Conference on Multime-dia, 2023, pp. 3908–3916. [33] M. Duan, T. Zheng, Y. Gao, G. Wang, Z. Feng, X. Wang, Dga-gnn: Dynamic grouping aggregation gnn for fraud detection, in: Proceedings of the AAAI Conference on Artificial Intelligence, Vol. 38, 2024, pp. 11820–11828. [34] G. Hu, Y. Liu, Q. He, X. Ao, F2gnn: An adaptive filter with feature segmentation for graph-based fraud detection, in: ICASSP 2024-2024 39 IEEE International Conference on Acoustics, Speech and Signal Pro-cessing (ICASSP), IEEE, 2024, pp. 6335–6339. [35] Y. Wan, D. Zhang, D. Liu, F. Xiao, CGAD: A novel contrastive learning-based framework for anomaly detection in attributed networks, Neuro-computing 609 (2024) 128379. doi:10.1016/j.neucom.2024.128379 .[36] Y. Liu, S. Li, Y. Zheng, Q. Chen, C. Zhang, S. Pan, ARC: A generalist graph anomaly detector with in-context learning, in: Advances in Neural Information Processing Systems, Vol. 37, 2024, pp. 50772–50804. [37] Y. Lin, J. Tang, C. Zi, H. V. Zhao, Y. Yao, J. Li, UniGAD: Unifying multi-level graph anomaly detection, in: Advances in Neural Information Processing Systems, Vol. 37, 2024, pp. 136120–136148. [38] P. Li, H. Yu, X. Luo, Context-aware graph neural network for graph-based fraud detection with extremely limited labels, in: Proceedings of the AAAI Conference on Artificial Intelligence, Vol. 39, 2025, pp. 12112–12120. doi:10.1609/aaai.v39i11.33319 .[39] C. Li, M. Lin, Z. Ding, N. Lin, Y. Zhuang, Y. Huang, X. Ding, L. Cao, Knowledge condensation distillation, in: European Conference on Com-puter Vision, Springer, 2022, pp. 19–35. [40] X. Shen, Q. Dai, S. Mao, F.-l. Chung, K.-S. Choi, Network together: Node classification via cross-network deep network embedding, arXiv preprint arXiv:1901.07264 (2019). [41] H. Xu, Y. Zhang, L. Sun, C. Li, Y. Huang, X. Ding, AFSC: Adap-tive fourier space compression for anomaly detection, arXiv preprint arXiv:2204.07963 (2022). [42] S. Kholkin, I. Butakov, E. Burnaev, N. Gushchin, A. Korotin, In-foBridge: Mutual information estimation via bridge matching, arXiv preprint arXiv:2502.01383 (2025). [43] C. Li, X. Liu, C. Wang, Y. Liu, W. Yu, J. Shao, Y. Yuan, GTP-4o: Modality-prompted heterogeneous graph learning for omni-modal biomedical representation, in: Computer Vision – ECCV 2024, Springer, 2024, pp. 168–187. 40 [44] A. Q. Nichol, P. Dhariwal, Improved denoising diffusion probabilistic models, in: International conference on machine learning, PMLR, 2021, pp. 8162–8171. [45] P. Dhariwal, A. Nichol, Diffusion models beat gans on image synthesis, Advances in neural information processing systems 34 (2021) 8780–8794. [46] X. Glorot, A. Bordes, Y. Bengio, Deep sparse rectifier neural networks, in: Proceedings of the fourteenth international conference on artificial intelligence and statistics, JMLR Workshop and Conference Proceed-ings, 2011, pp. 315–323. [47] N. Srivastava, G. Hinton, A. Krizhevsky, I. Sutskever, R. Salakhutdinov, Dropout: A simple way to prevent neural networks from overfitting, Journal of Machine Learning Research 15 (56) (2014) 1929–1958. [48] M. Defferrard, X. Bresson, P. Vandergheynst, Convolutional neural net-works on graphs with fast localized spectral filtering, Advances in neural information processing systems 29 (2016). [49] J. Hu, L. Shen, G. Sun, Squeeze-and-excitation networks, in: Proceed-ings of the IEEE conference on computer vision and pattern recognition, 2018, pp. 7132–7141. [50] S. Bhatia, B. Hooi, M. Yoon, K. Shin, C. Faloutsos, Midas: Microcluster-based detector of anomalies in edge streams, in: Proceed-ings of the AAAI Conference on Artificial Intelligence, Vol. 34, 2020, pp. 3242–3249. [51] T. Chen, S. Kornblith, M. Norouzi, G. Hinton, A simple framework for contrastive learning of visual representations, in: International confer-ence on machine learning, PmLR, 2020, pp. 1597–1607. 41

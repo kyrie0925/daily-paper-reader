@@ -1,0 +1,763 @@
+Title: Robust Expectation-Maximization for Covariance Estimation in SIRV Models with Missing Data: Application to InSAR Time Series
+
+URL Source: https://arxiv.org/pdf/2606.22628v1
+
+Published Time: Tue, 23 Jun 2026 02:51:38 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+> IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 1
+
+# Robust ExpectationMaximization for Covariance Estimation in SIRV Models with Missing Data: Application to InSAR Time Series 
+
+M. Cherifi, M. N. El Korso, A. Hippert-Ferrer, and Y. Yan 
+
+Abstract —This paper presents a comprehensive Expectation-Maximization (EM) framework for robust covariance estimation in Scale-Invariant Random Vector (SIRV) models with missing data under ignorable missingness mechanisms. We focus on a practically important subclass of SIRVs by assuming conjugate inverse-gamma priors on the scale variables, which leads to a complex multivariate Student-t observation model. We de-rive closed-form solutions for the E-step for this subclass by leveraging the conjugacy property, enabling efficient estimation while maintaining theoretical coherence. The proposed algorithm incorporates numerical robustness techniques including compu-tation reuse for common observation patterns, regularized matrix inversions, and explicit enforcement of Hermitian positive semi-definite structure. Validation on synthetic data and Sentinel-1 interferograms demonstrates effective missing value retrieval and denoising performance even with limited data and correlated gaps. 
+
+Index Terms —SIRV, EM algorithm, covariance estimation, missing data, robust estimation, SAR. 
+
+I. I NTRODUCTION 
+
+Reliable reconstruction of covariance matrices from incom-plete observations is a central problem in signal processing and remote sensing. In contexts such as synthetic aperture radar (SAR) imaging or wireless communications, measure-ments often exhibit heavy-tailed distributions and local energy fluctuations (speckle), for which classical Gaussian models are inadequate [1], [2]. Scale-invariant random vector (SIRV) models provide a natural representation of these phenomena by separating a complex Gaussian directional component from a positive random scale factor that accounts for texture and amplitude variability [3], [4], [5]. Robust structured covariance estimation under such elliptical models has been successfully applied to detection and estimation problems in radar imaging [6], [7], where the same non-Gaussian, heavy-tailed behav-ior that motivates robust detectors also motivates the robust estimation framework developed in this paper. Among the SAR applications affected by these non-Gaussian phenomena, surface displacement time series derived 
+
+M. Cherifi is with the Laboratoire Traitement du Signal, École Mili-taire Polytechnique (EMP), Bordj El Bahri, Algiers, Algeria (e-mail: cher-ifi.meddd@gmail.com). M. N. El Korso is with CentraleSupélec, Université Paris-Saclay, Gif-sur-Yvette, France (e-mail: mohammed.nabil.el-korso@centralesupelec.fr). He is a Member of IEEE. A. Hippert-Ferrer is with LASTIG, IGN Géodata Paris, Université Gustave Eiffel, Champs-sur-Marne, France (e-mail: alexandre.hippert-ferrer@ign.fr). Y. Yan is with LISTIC, Polytech Annecy-Chambéry, Université Savoie Mont Blanc, Annecy, France (e-mail: yajing.yan@univ-smb.fr). 
+
+from interferometry (InSAR) are particularly challenging, as they commonly contain spatial and temporal gaps caused by decorrelation, algorithmic limitations, or surface changes. Restoring these time series while preserving their dynamic components (trends, oscillations) as well as the spatial and temporal correlation of noise is a recurring challenge in geo-science and remote sensing [8], [9]. Various methods exploit spatio-temporal structure to fill in missing data, for instance through factorial models, modal decompositions, or spatio-temporal kriging [10], [11], [12], [13]. However, these impu-tation methods are generally built on Gaussian assumptions: when observations display strongly non-Gaussian behavior or contain significant outliers, estimators based on the empirical covariance may be biased. Adopting a statistical framework that explicitly accounts for non-Gaussianity, in the spirit of the robust SIRV-based estimators discussed above, can thus improve estimator robustness in these situations [2], [14]. Although robust covariance estimation and missing data imputation have been extensively studied separately, their intersection remains relatively unexplored. A recent compre-hensive survey [15] provides a unified view of missing data models, methods, and modern approaches, motivating the joint treatment pursued in this work. Related robust inference frameworks with incomplete data have also been explored in other statistical models, such as logistic regression [16]. Stan-dard Expectation-Maximization (EM) algorithms for Gaussian data with missing values lack robustness to outliers and non-Gaussianity [17], while robust estimators based on SIRVs generally assume complete data [18], [19], [20]. This gap is particularly critical in applications such as SAR interferome-try, where data are intrinsically non-Gaussian and frequently incomplete. This article addresses this gap by developing a unified EM framework tailored to a practically important subclass of SIRV models with missing data under ignorable missingness mech-anisms, namely Missing Completely At Random (MCAR) and Missing At Random (MAR). Specifically, by placing a conjugate inverse-gamma prior on the scale variables, the resulting observation model reduces to a complex multivariate Student-t distribution, for which closed-form E-step and M-step updates can be derived. The main contribution of this work is the complete derivation of this EM algorithm for SIRV covariance estimation with missing data, providing closed-form analytical expressions for both steps by exploiting the conjugacy between the inverse-gamma prior and the complex Gaussian likelihood. Our approach preserves the full SIRV  
+
+> arXiv:2606.22628v1 [stat.ME] 21 Jun 2026 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 2
+
+structure during imputation, thereby avoiding the trade-offs between robustness and efficiency inherent to Gaussian EM methods or ad hoc imputation procedures. Comprehensive experimental validation on synthetic data and real Sentinel-1 interferograms demonstrates the method’s effectiveness in estimating covariance matrices and imputing missing values under various missingness regimes and non-Gaussian charac-teristics. We validate the method on synthetic datasets designed to mimic the key properties of interferograms and on a Sentinel-1 A/B time series. The experiments demonstrate that the EM–SIRV approach produces faithful imputations and yields covariance estimators more resilient to heavy tails and outliers than procedures based solely on the empirical covariance. The proposed framework provides a solid foundation for applications in radar imaging, remote sensing, and wireless communications, where non-Gaussian distributions and miss-ing data are prevalent. The remainder of this article is organized as follows. Sec-tion 2 presents the full derivation of the EM algorithm for SIRV models with missing data. Section 3 details the exper-imental validation on synthetic and real SAR data. Finally, Section 4 concludes with a discussion and perspectives for future work. II. R OBUST EM A LGORITHM FOR SIRV M ODELS WITH 
+
+MISSING DATA 
+
+We derive the Expectation-Maximization (EM) algorithm for a scaled complex Gaussian (SIRV) observation model in which each spatial sample i is associated with two latent quantities: a positive scalar τi that models local power vari-ability (speckle) and a subset of missing complex components 
+
+xi, m of the multivariate observation xi ∈ Cl. The exposition establishes the complete-data likelihood, applies the law of iterated expectations to obtain closed-form expressions for the E-step under an inverse-gamma prior on τi, and derives the M-step closed form for the covariance Σ. Emphasis is placed on mathematical rigor and on numerical robustness: choice of conditioning order, reuse of computations across common observation patterns, regularized inversions, and ex-plicit enforcement of Hermitian positive semi-definiteness. Notation: l denotes the ambient dimension, n the patch size, and xi = [ x⊤
+
+> i,o
+
+, x⊤
+
+> i,m
+
+]⊤ the partition into observed and missing blocks. 
+
+A. Model Formulation and Priors 
+
+We consider the general SIRV observation model: 
+
+xi | τi, Σ ∼ CN (0, τ iΣ), (1) where Σ ∈ Cl×l is an unknown Hermitian positive semidef-inite (PSD) covariance matrix, and τi > 0 is an unobserved scalar random variable modeling the local power. The marginal distribution of xi is obtained by integrating over τi and is generally non-Gaussian and heavy-tailed. The complete-data likelihood, considering both the observed vector and the latent scale, is given (up to a constant) by: 
+
+log p(xi, τ i | Σ) = −l log τi−log det Σ− 1
+
+τi
+
+xH 
+
+> i
+
+Σ−1xi+log p(τi).
+
+(2) To obtain a tractable Expectation-Maximization (EM) algo-rithm with closed-form updates, we must specify a prior p(τi).A common and convenient choice that retains conjugacy with the complex Gaussian likelihood is the inverse-gamma (IG) distribution: 
+
+τi ∼ IG (α0, β 0), p(τi) ∝ τ −(α0+1)  
+
+> i
+
+exp( −β0/τ i). (3) This specific choice leads to a complex multivariate Student-t 
+
+distribution for xi after marginalizing over τi [18], [21]. While this defines a particular subclass of SIRVs, the derivations that follow provide a computationally efficient framework for robust covariance estimation and imputation within this class. The hyperparameters α0 and β0 can be set to fixed values or estimated from the data. 
+
+B. Complete-Data Likelihood 
+
+When the inverse-gamma prior (3) is adopted, the complete-data log-likelihood becomes, up to additive constants indepen-dent of Σ and τi:
+
+log p(xi, τ i | Σ) = −l log τi − log det Σ − 1
+
+τi
+
+xH 
+
+> i
+
+Σ−1xi
+
+− (α0 + 1) log τi − β0
+
+τi
+
++ const .
+
+(4) Grouping the terms by powers of τi yields the form used in the subsequent EM derivation. 
+
+C. EM Framework and Q-Function 
+
+The Expectation-Maximization (EM) algorithm is an iter-ative procedure that alternates between two steps: the Ex-pectation (E) step, which computes the expected complete-data log-likelihood given the current parameter estimate, and the Maximization (M) step, which updates the parameters by maximizing this expected log-likelihood. At iteration (t + 1) , the E-step computes the expectation of the complete-data log-likelihood with respect to the posterior distribution of the latent variables {xi,m , τ i} conditioned on the observed data xi,o and the current estimate Σ(t). This expectation defines the Q-function: 
+
+Q(Σ; Σ(t)) = 
+
+> n
+
+∑
+
+> i=1
+
+E
+
+[
+
+log p(xi, τ i | Σ) | xi,o , Σ(t)]
+
+, (5) where E[ · | xi,o , Σ(t)] denotes expectation under the posterior 
+
+p(xi,m , τ i | xi,o , Σ(t)).Focusing on the dependence on Σ and using (4) together with linearity of expectation, we obtain 
+
+Q(Σ; Σ(t)) = −n log det Σ − tr 
+
+(
+
+Σ−1
+
+> n
+
+∑
+
+> i=1
+
+S(t)
+
+> i
+
+)
+
++ K(t), (6) where the sufficient matrix S(t) 
+
+> i
+
+is defined as 
+
+S(t) 
+
+> i
+
+:= E
+
+[ 1
+
+τi
+
+xixH 
+
+> i
+
+| xi,o , Σ(t)
+
+]
+
+. (7) IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 3
+
+All dependence of Q on Σ is captured by the two explicit terms; the scalar K(t) collects constants that are independent of Σ. The superscript (t) in S(t) 
+
+> i
+
+and K(t) indicates that these quantities are evaluated at the current estimate Σ(t).
+
+D. E-step: Computation of Sufficient Statistics 
+
+To compute S(t) 
+
+> i
+
+in closed form, we apply the tower rule (law of iterated expectation) in two possible orders: 
+
+S(t) 
+
+> i
+
+= E
+
+[ 1
+
+τi
+
+xixH 
+
+> i
+
+| xi,o , Σ(t)
+
+]
+
+(8) 
+
+= E
+
+[
+
+E[ 1 
+
+> τi
+
+xixH 
+
+> i
+
+| xi,o , τ i, Σ(t)] | xi,o , Σ(t)]
+
+(9) 
+
+= E
+
+[
+
+E[ 1 
+
+> τi
+
+xixH 
+
+> i
+
+| xi,o , xi,m , Σ(t)] | xi,o , Σ(t)]
+
+. (10) Both orderings are algebraically equivalent, but the ordering in (9)conditioning first on τi and then averaging over τiturns out to be analytically convenient for the chosen SIRV model with conjugate inverse-gamma prior. The reason is twofold. On one hand, given τi and Σ(t), the missing block xi,m is conditionally Gaussian: 
+
+xi,m | xi,o , τ i, Σ(t) ∼ CN (μ(t) 
+
+> i
+
+, τ iC(t)
+
+> i
+
+), (11) with conditional mean and conditional covariance given, re-spectively, by 
+
+μ(t) 
+
+> i
+
+= Σ(t)
+
+> mo
+
+(Σ(t)
+
+> oo
+
+)−1xi,o , C(t) 
+
+> i
+
+= Σ(t)
+
+> mm
+
+−Σ(t)
+
+> mo
+
+(Σ(t)
+
+> oo
+
+)−1Σ(t)
+
+> om
+
+.
+
+(12) This Gaussian structure allows the inner expectation in (9) to be evaluated in closed form via standard second-moment identities. On the other hand, under the inverse-gamma prior the posterior τi | xi,o , Σ(t) remains inverse-gamma (see Sec-tion II-F), so the outer expectation reduces to a simple scalar multiplication. By contrast, the ordering in (10) would require computing Exi,m 
+
+[(β0 +xH 
+
+> i
+
+(Σ(t))−1xi)−1], which is not avail-able in closed form. 
+
+E. Inner Expectation Conditioned on τi
+
+For a fixed τi > 0, we define 
+
+Ai(τi) := E
+
+[ 1
+
+τi
+
+xixH 
+
+> i
+
+| xi,o , τ i, Σ(t)
+
+]
+
+. (13) Using (11) and the identity E[zz H] = Cov( z) + E[z]E[z]H
+
+for a random vector z, the matrix Ai(τi) takes the block form 
+
+Ai(τi) = 
+
+( 1 
+
+> τi
+
+xi,o xH  
+
+> i,o 1
+> τi
+
+xi,o (μ(t) 
+
+> i
+
+)H 
+
+> 1
+> τi
+
+μ(t) 
+
+> i
+
+xH 
+
+> i,o
+
+C(t) 
+
+> i
+
++ 1 
+
+> τi
+
+μ(t) 
+
+> i
+
+(μ(t) 
+
+> i
+
+)H
+
+)
+
+. (14) Here Ai(τi) is partitioned conformably with the decomposition of xi = ( x⊤
+
+> i,o
+
+, x⊤
+
+> i,m
+
+)⊤ into its observed part xi,o (indexed by 
+
+Oi) and its missing part xi,m (indexed by Mi). The top-left entry, corresponding to the observed–observed subspace, follows immediately since xi,o is fixed and contributes no ran-domness. The top-right entry, corresponding to the observed– missing subspace, equals xi,o E[xH 
+
+> i,m
+
+| xi,o , τ i, Σ(t)]/τ i =
+
+xi,o (μ(t) 
+
+> i
+
+)H/τ i, because xi,o is fixed and the conditional mean of xi,m is μ(t) 
+
+> i
+
+by (11). Finally, for the bottom-right entry corresponding to the missing–missing subspace, the second-moment identity gives E[xi,m xH 
+
+> i,m
+
+| xi,o , τ i, Σ(t)] = 
+
+τiC(t) 
+
+> i
+
++ μ(t) 
+
+> i
+
+(μ(t) 
+
+> i
+
+)H, and dividing by τi yields the bottom-right expression in (14). 
+
+F. Outer Expectation: Posterior of τi and Final Form 
+
+Under the inverse-gamma prior (3), a standard Bayesian conjugacy argument shows that the posterior of τi given the observed block xi,o and the current estimate Σ(t) is again inverse-gamma: 
+
+τi | xi,o , Σ(t) ∼ IG (α0 + di, β 0 + q(t)
+
+> i
+
+), (15) where di = |O i| is the number of observed components of xi
+
+and 
+
+q(t) 
+
+> i
+
+:= xH
+
+> i,o
+
+(Σ(t)
+
+> oo
+
+)−1xi,o (16) is the Mahalanobis distance of the observed block. From the mean of the inverse-gamma distribution, the scalar weight needed in the E-step is therefore 
+
+a(t) 
+
+> i
+
+:= E
+
+[ 1
+
+τi
+
+| xi,o , Σ(t)
+
+]
+
+= α0 + di
+
+β0 + q(t)
+
+> i
+
+, (17) which is fully computable from the observed data and the current estimate. Combining (14) and (17), the sufficient matrix takes the explicit closed form 
+
+S(t) 
+
+> i
+
+=
+
+(a(t) 
+
+> i
+
+xi,o xH 
+
+> i,o
+
+a(t) 
+
+> i
+
+xi,o (μ(t) 
+
+> i
+
+)H
+
+a(t) 
+
+> i
+
+μ(t) 
+
+> i
+
+xH 
+
+> i,o
+
+C(t) 
+
+> i
+
++ a(t) 
+
+> i
+
+μ(t) 
+
+> i
+
+(μ(t) 
+
+> i
+
+)H
+
+)
+
+, (18) which is the central quantity passed to the M-step. 
+
+G. M-step: Covariance Update 
+
+In the M-step, the covariance matrix is updated by maximiz-ing the Q-function with respect to Σ. Substituting (18) into (6) and differentiating with respect to Σ via standard matrix-calculus identities, the stationarity condition reads 
+
+−nΣ−1 + Σ−1( n∑
+
+> i=1
+
+S(t)
+
+> i
+
+)
+
+Σ−1 = 0. (19) Multiplying both sides on the left and right by Σ immediately yields the explicit update rule 
+
+Σ(t+1) = 1
+
+n
+
+> n
+
+∑
+
+> i=1
+
+S(t) 
+
+> i
+
+. (20) The M-step therefore reduces to a simple empirical average of the sufficient matrices S(t) 
+
+> i
+
+computed during the E-step, with no iterative inner loop required. III. E XPERIMENTAL VALIDATION 
+
+We evaluate the performance of several covariance estima-tion and imputation methods on synthetic complex-valued data with controlled missingness under MCAR mechanisms. All Monte Carlo experiments are ran with a fixed random seed for reproducibility. Unless otherwise stated, the main experimental settings are: number of Monte Carlo runs M C = 100 ,dimension l = 8 , number of samples n = 1000 .IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 4
+
+A. Synthetic datasets 
+
+Synthetic observations X ∈ Cn×l are generated from a complex Gaussian-like model built from a true covariance matrix Σtrue , which is a Toeplitz matrix with correlation parameter ρ = 0 .7. For each Monte Carlo repetition we draw 
+
+n independent samples using the Cholesky factor of Σtrue .An independent scale factor vector τ is set to ones by default (the Student-t/SIRV heavy-tailed extension can be activated if needed). To assess robustness, we inject two types of data degrada-tion. First, a missing completely at random (MCAR) mech-anism masks a fraction missRate = 0.30 of the entries of the first data block X1; the masked entries are set to 
+
+NaN and are later used to evaluate imputation accuracy, while the ground truth values are preserved from the generated complete dataset X. Second, row-wise outliers are introduced by corrupting a fraction outlier_frac = 0.1 of rows, either additively or by replacement. In the additive mode, an outlier matrix X2 (with amplitude scaled by amp_factor )is added to the selected rows; otherwise, the rows are replaced by X2. Outliers are injected only to fully observed rows. We compare five different methods for covariance estima-tion under missing data. The first, EM-SIRV, is the robust Expectation-Maximization algorithm specifically adapted to SIRV models as derived in this paper. The second, EM-EOF [11], combines the EM framework with an EOF/PCA-based low-rank approximation, allowing the optimal rank k to be se-lected. The third, MeanImpute, performs a simple column-wise mean imputation before computing the empirical covariance. The fourth, PCA imputation [22], reconstructs the data through a low-rank PCA model with a chosen number of components. Finally, EM-Gauss corresponds to the classical EM algorithm designed for Gaussian data with missing values. For all methods, the estimated covariance matrices are symmetrized and projected onto the nearest Hermitian positive semi-definite matrix before computing the performance metrics. To evaluate the quality of the imputation and covariance estimation, a set of complementary metrics is employed. Denoting by ˆxi,j the imputed value of the j-th component of sample i (after unscaling, if applicable) and by xi,j the corresponding true value, the normalized mean squared error (NMSE) is defined as 
+
+NMSE = 
+
+∑ 
+
+> (i,j )∈M
+
+| ˆxi,j − xi,j |2
+
+∑ 
+
+> (i,j )∈M
+
+|xi,j |2 , (21) where M is the set of masked entries. The com-plex root-mean-square error (RMSE-cpx) is given by √ 1
+
+> |M|
+
+∑ 
+
+> M
+
+| ˆxi,j − xi,j |2. For applications involving interfer-ometric phase and amplitude, the phase RMSE (in radians) and amplitude RMSE are evaluated separately by decomposing the complex residuals. The accuracy of the covariance estimate ˆΣ
+
+is measured by the Frobenius distance ∥ ˆΣ − Σtrue ∥F . All metrics are averaged over Monte Carlo repetitions; boxplots summarize their distributions across runs. 
+
+Results on synthetic data: Figures1a and 1b show the performance comparison on synthetic data. The proposed EM-SIRV method consistently outperforms the other approaches in both imputation accuracy and covariance estimation, par-ticularly in the presence of outliers and non-Gaussian char-acteristics. The robustness of the SIRV model to heavy-tailed distributions is evident in these results. Figures 1c and 1d compares the imputation NMSE of all methods under two scenarios: varying missing data rate with fixed 20% outliers, and varying outlier rate with fixed 20% missing entries. In both cases, EMSIRV achieves the lowest NMSE across the whole range. EMGauss ranks second, followed by EMEOF and PCA, while mean imputation shows the highest errors. The perfor-mance gap widens with increasing corruption, demonstrating the robustness of the proposed SIRVbased EM algorithm. 
+
+B. Real Dataset 
+
+We evaluate the proposed method on a real Sentinel-1 InSAR dataset over Mexico City, a region affected by signifi-cant land subsidence due to intensive groundwater extraction. The data consist of a complex-valued cube of dimensions 
+
+1000 × 2200 × 10 , where the three axes correspond to rows, columns, and interferometric acquisitions, respectively. The 10 interferograms were acquired every 12 days over the period from August 14, 2019 to November 18, 2019. For the experiments, the interferometric cube is reshaped into a matrix X ∈ Cn×l, with n = 1 ,000 ×2,200 = 2 ,200 ,000 
+
+pixels and l = 10 interferograms. Each pixel time series is normalized by its mean amplitude across acquisitions to reduce scale variability across spatial locations. The complete cube serves both as input and as ground truth to assess reconstruction quality and covariance estimation accuracy. To evaluate the robustness of the proposed method under realistic degradation scenarios, three missing-data mechanisms are considered. The first two are MAR mechanisms applied with a fixed overall missing rate of 25% ; the third is an MNAR mechanism based on coherence thresholding. In addition, 10% 
+
+of all pixels are simultaneously corrupted by amplitude outliers in all three scenarios. 
+
+Missing Data Mechanisms: Spatial patches. Spatially co-herent missing regions are generated to simulate localized decorrelation zones such as vegetated areas or high-phase-noise urban patches. At each acquisition t, a white-noise field is convolved with a Gaussian kernel of standard deviation 
+
+σsp = 0 .02 min( H, W ) pixels and thresholded at its (1 − p)-th percentile to produce the binary mask. A persistence pa-rameter γ = 0 .20 carries a random fraction of the previous mask forward, introducing mild temporal continuity between consecutive acquisitions while keeping the dominant structure spatially driven. 
+
+Spatio-temporal patches. Spatially and temporally corre-lated missing regions are produced to mimic persistent atmo-spheric disturbances or slowly evolving decorrelation fronts. A latent spatial field Zt follows a first-order autoregressive process, 
+
+Zt = ρ Z t−1 + √1 − ρ2 εt, εt ∼ N (0, I), (22) with temporal correlation ρ = 0.85 . At each step, Zt is smoothed by a Gaussian kernel of standard deviation σsp =0.03 min( H, W ) pixels and thresholded at its (1 − p)-th IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 5EM-SIRV EM-EOF MeanImp PCA EM-Gauss 
+
+> 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1
+> NMSE (imputation)
+
+(a) Boxplots of NRMSE for imputation across Monte Carlo repetitions. EM-SIRV EM-EOF MeanImp PCA EM-Gauss 
+
+> 0246810 12 14 16 18
+> Frobenius error
+
+(b) Boxplots of the Frobenius distance between estimated and true covariance matrices. 5 10 15 20 25 30 35 40 
+
+> Missing data rate (%)
+> 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 11.1
+> NMSE (imputation)  EM-SIRV
+> EM-EOF
+> MeanImp
+> PCA
+> EM-Gauss
+
+(c) Mean NMSE (imputation) vs. missing data rate (fixed outlier rate = 20%). 0 10 20 30 40 50 
+
+> Outlier rate (%)
+> 00.5 11.5 22.5
+> NMSE (imputation)
+> EM-SIRV
+> EM-EOF
+> MeanImp
+> PCA
+> EM-Gauss
+
+(d) Mean NMSE (imputation) vs. outlier rate (fixed missing rate = 20%). Fig. 1: Performance comparison on synthetic data with MCAR missing entries and row-wise outliers. (a, b) Results for 30% missing rate and 10% outliers (Monte Carlo repetitions). (c, d) Mean NMSE under varying missing rate (5% to 40%) with 20% outliers, and varying outlier rate (0% to 50%) with 20% missing entries. 
+
+percentile. The high value of ρ produces slowly evolving connected patches that are strongly correlated across consec-utive interferograms, representing the most challenging MAR scenario for imputation. 
+
+MNAR coherence-based self-masking. To assess the pro-posed method under a non-ignorable missingness mechanism, we consider a scenario in which pixels whose interferometric coherence falls below a threshold γ = 0 .40 are declared miss-ing. This self-masking mechanism is physically motivated— low-coherence pixels are genuinely unreliable in InSAR— and statistically challenging, since the missingness probability is correlated with the signal quality itself. For each slave acquisition t ∈ { 2, . . . , T }, the interferometric coherence with respect to the master (acquisition t = 1 ) is estimated over a 
+
+5 × 5 sliding spatial window: 
+
+ˆγt =
+
+∣∣∑ 
+
+> W
+
+zt z∗
+
+> 1
+
+∣∣√∑  
+
+> W
+
+|zt|2 ∑ 
+
+> W
+
+|z1|2 , (23) where W denotes the local spatial window, zt the complex SLC value at acquisition t, and z1 the master SLC. A pixel is then masked at all dates if its minimum master–slave coherence falls below the threshold: 
+
+min   
+
+> t∈{ 2,...,T }
+
+ˆγt < γ, (24) yielding a single spatial mask applied uniformly across acqui-sitions, with approximately 13 .8% of missing entries concen-trated in low-coherence zones (vegetated areas, layover). 
+
+Outlier Model: A fraction of 10% of all n pixels are corrupted by amplitude spikes. Outlier pixels are drawn ex-clusively from the set of fully-observed pixels (those with no missing entry across all l acquisitions), ensuring that the outlier and missing-data masks are disjoint by construction. Their entire temporal profile is multiplied by a random factor 
+
+fi ∼ U [60 , 100] :
+
+˜xi = fi xi, fi ∼ U [60 , 100] , (25) where xi ∈ Cl is the normalized pixel time series. This model mimics strong double-bounce or man-made reflector returns IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 6
+
+common in urban InSAR scenes [14], [23], [24] and consti-tutes a severe test for robust estimators, since the corrupted pixels retain their original phase structure while dominating the empirical covariance through their inflated amplitude. This outlier injection procedure is applied identically across all three scenarios. For visualization purposes, outlier pixels are replaced by their ground-truth values in all displayed phase maps, so that visual comparisons focus exclusively on imputation quality at the masked locations. 
+
+Experimental Setup: All three mechanisms are evaluated under identical conditions (outlier rate 10% , fixed random seed) to ensure a fair comparison. Performance on the masked entries is measured by four complementary metrics: the nor-malized mean squared error (NMSE) on the complex residuals, the phase RMSE (in radians), the complex RMSE, and the Signal-to-Distortion Ratio (SDR in dB). The preprocessing of the Sentinel-1 data was performed using the Sentinel Ap-plication Platform (SNAP) developed by the European Space Agency [25]. The processing chain is available online 1, and the dataset is publicly available 2.
+
+Results on Real Data: Figures 2 and 3 present visual results for acquisition T = 7 under the spatial patches and spatio-temporal patches scenarios, respectively, with a missing rate of 25% and 10% amplitude outliers. Quantitative results, aggregated over all masked entries across the ten acquisitions, are reported in Tables I and II. Under the spatial patches scenario, EM-SIRV achieves the best performance across all metrics, with a complex RMSE of 
+
+1.009 , a phase RMSE of 1.339 rad, an NMSE of 0.845 , and an SDR of 0.73 dB. All competing methods yield higher NMSE and negative SDR values, indicating that their reconstructions are of lower quality than the trivial mean baseline. Visually, the phase maps reconstructed by EM-SIRV for T = 7 (Figure 2) faithfully restore the spatial structure of the interferograms, including the characteristic subsidence fringes over Mexico City, while competing methods introduce artefacts or over-smooth spatial details in regions with dense missing data. Under the more challenging spatio-temporal patches sce-nario, the performance gap widens further. EM-SIRV retains competitive performance with a complex RMSE of 1.048 ,a phase RMSE of 1.479 rad, an NMSE of 0.909 , and an SDR of 0.41 dB, whereas the other methods exhibit SDR values ranging from −3.61 dB (EM-Gauss) to −7.74 dB (EM-EOF). The particularly severe degradation of EM-EOF under strongly correlated gaps highlights its sensitivity to the tem-poral structure of the missing-data patterns. Qualitatively, the reconstructions produced by EM-SIRV for T = 7 (Figure 3) preserve the spatial coherence of the interferometric fringes despite the extent and temporal persistence of the masked regions, whereas competing methods produce incoherent or heavily distorted maps in the affected areas. Under the MNAR self-masking scenario, quantitative results are reported in Table III. Figure 4(a) displays, for acquisition 
+
+T = 7 , the true phase and the observed phase after coherence-based masking; the masked regions clearly correspond to low-
+
+> 1https://github.com/DanaElhajjar/InSAR_ChainProcessing
+> 210.5281/zenodo.11283419
+
+TABLE I: Quantitative results on the Sentinel-1 Mexico City dataset under the spatial patches scenario (missing rate 25%, outlier rate 10%). Best results are highlighted in bold .                        
+
+> Method NMSE RMSE-cpx RMSE-ph (rad) SDR (dB)
+> EM-SIRV 0.8447 1.0085 1.3393 0.73
+> EM-EOF 1.5163 1.3512 1.4759 -1.81 MeanImp 2.1636 1.6140 1.6924 -3.35 PCA 1.4333 1.3137 1.4679 -1.56 EM-Gauss 1.4200 1.3076 1.4499 -1.52
+
+TABLE II: Quantitative results on the Sentinel-1 Mexico City dataset under the spatio-temporal patches scenario (missing rate 25%, outlier rate 10%). Best results are highlighted in bold .                        
+
+> Method NMSE RMSE-cpx RMSE-ph (rad) SDR (dB)
+> EM-SIRV 0.9090 1.0481 1.4787 0.41
+> EM-EOF 5.9461 2.6806 1.6100 -7.74 MeanImp 3.2854 1.9926 1.7021 -5.17 PCA 2.3855 1.6979 1.5928 -3.78 EM-Gauss 2.2976 1.6663 1.5694 -3.61
+
+TABLE III: Quantitative results on the Sentinel-1 Mexico City dataset under the MNAR self-masking scenario (coherence threshold γ =0.40 , resulting in 13 .8% missing data and 10% outliers). Best results are highlighted in bold .                        
+
+> Method NMSE RMSE-cpx RMSE-ph (rad) SDR (dB)
+> EM-SIRV 1.0256 1.1483 1.6302 -0.11
+> EM-EOF 3.7648 2.2002 1.7055 -5.76 MeanImp 2.3628 1.7430 1.7612 -3.73 PCA 1.9510 1.5838 1.6804 -2.90 EM-Gauss 1.8570 1.5452 1.6620 -2.69
+
+coherence zones (vegetated areas and layover), confirming the self-masking nature of the mechanism. Figure 4(b) compares the phase reconstructions produced by all five methods. EM-SIRV visually preserves the characteristic subsidence fringes in the masked regions, whereas competing methods introduce spatial incoherence or over-smooth the fringe pattern, a degra-dation most pronounced for EM-EOF and MeanImp. Despite the MNAR nature of the missingness—which formally violates the MAR assumption underlying our derivation—EM-SIRV consistently achieves the best performance across all metrics: complex RMSE of 1.148 , phase RMSE of 1.630 rad, NMSE of 1.026 , and SDR of −0.11 dB. All competing methods yield substantially higher errors (SDR between −2.69 dB for EM-Gauss and −5.76 dB for EM-EOF). This behavior is consistent with the observation that coherence-based self-masking tends to remove the least informative pixels, making the remaining observed data relatively more representative of the underlying signal distribution. These results confirm the robustness of the proposed EM-SIRV framework to both heavy-tailed non-Gaussian distribu-tions and diverse missing-data mechanisms, including MNAR regimes, making it well suited for operational InSAR time series processing in urban environments. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 7True Phase 
+
+Observed (25% missing) 
+
+> -:
+> -:/2 0
+> :/2
+> :
+> Phase (rad)
+
+(a) True and observed phase for acquisition T = 7 .EM-SIRV RMSE=1.2829 
+
+EM-EOF RMSE=1.4121 
+
+MeanImp RMSE=1.7926 
+
+PCA RMSE=1.4696 
+
+EM-Gauss RMSE=1.4559 
+
+> 0
+> Phase (rad)
+
+(b) Phase estimates of the methods for acquisition T = 7 .Fig. 2: Results for acquisition T = 7 : phase comparisons with 25% spatial patches gaps and 10% outliers. 
+
+CONCLUSION 
+
+We proposed a unified Expectation-Maximization frame-work for robust covariance estimation in the Student-t subclass of SIRV models with missing data, leveraging conjugate inverse-gamma priors to obtain closed-form updates for both the E-step and M-step. Validation on synthetic data and real Sentinel-1 interferograms demonstrates that EM-SIRV con-sistently outperforms mean imputation, PCA-based methods, and standard Gaussian EM across all scenarios, including a coherence-based MNAR self-masking regime that formally violates the MAR assumption, confirming the practical ro-bustness of the framework beyond its theoretical assumptions. Future work will focus on explicitly integrating the missing-ness mechanism into the likelihood, deriving identifiability conditions for joint estimation of the covariance and missing-ness parameters, and extending the framework to other SIRV distributions beyond the Student-t model. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 8True Phase 
+
+Observed (25% missing) 
+
+> -:
+> -:/2 0
+> :/2
+> :
+> Phase (rad)
+
+(a) True and observed phase for acquisition T = 7 .EM-SIRV RMSE=1.4995 
+
+EM-EOF RMSE=1.6125 
+
+MeanImp RMSE=1.8278 
+
+PCA RMSE=1.6147 
+
+EM-Gauss RMSE=1.5580 
+
+> 0
+> Phase (rad)
+
+(b) Phase estimates of the methods for acquisition T = 7 .Fig. 3: Results for acquisition T = 7 : phase comparisons with 25% spatio-temporal patches gaps and 10% outliers. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 9True Phase Observed (15.3% missing) 
+
+-:
+
+-:/2 0
+
+:/2 
+
+:
+
+> Phase (rad)
+
+(a) True and observed phase for acquisition T = 7 .EM-SIRV RMSE_{ph}=1.6124 rad 
+
+> EM-EOF RMSE_{ph}=1.6929 rad
+> MeanImp RMSE_{ph}=1.8277 rad
+> PCA RMSE_{ph}=1.6851 rad
+> EM-Gauss RMSE_{ph}=1.6448 rad
+> 0
+> Phase (rad)
+
+(b) Phase estimates of the methods for acquisition T = 7 .Fig. 4: Results for acquisition T = 7 : phase comparisons with a coherence threshold γ = 0 .40 , resulting in 13 .8% missing data under MNAR self-masking and 10% outliers. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 10 
+
+REFERENCES [1] E. Conte, A. De Maio, and G. Ricci, “Recursive estimation of the covariance matrix of a compound-gaussian process and its application to adaptive cfar detection,” IEEE Transactions on signal processing ,vol. 50, no. 8, pp. 1908–1915, 2002. [2] Y. Chitour and F. Pascal, “Exact maximum likelihood estimates for sirv covariance matrix: Existence and algorithm analysis,” IEEE Transactions on signal processing , vol. 56, no. 10, pp. 4563–4573, 2008. [3] J.-P. Delmas, M. N. El Korso, S. Fortunati, and F. Pascal, Elliptically symmetric distributions in signal processing and machine learning .Springer, 2024, vol. 1. [4] F. Pascal, Y. Chitour, J.-P. Ovarlez, P. Forster, and P. Larzabal, “Co-variance structure maximum-likelihood estimates in compound Gaussian noise,” IEEE Trans. Signal Process. , vol. 56, no. 1, pp. 34–48, 2008. [5] D. E. Tyler, “A distribution-free M-estimator of multivariate scatter,” 
+
+Ann. Statist. , vol. 15, pp. 234–251, 1987. [6] B. Meriaux, C. Ren, A. Breloy, M. N. El Korso, and P. Forster, “Matched and mismatched estimation of kronecker product of linearly structured scatter matrices under elliptical distributions,” IEEE Transactions on Signal Processing , vol. 69, pp. 603–616, 2020. [7] R. B. Abdallah, A. Mian, A. Breloy, A. Taylor, M. N. El Korso, and D. Lautru, “Detection methods based on structured covariance matrices for multivariate sar images processing,” IEEE Geoscience and Remote Sensing Letters , vol. 16, no. 7, pp. 1160–1164, 2019. [8] D. Kondrashov and M. Ghil, “Spatio-temporal filling of missing points in geophysical data sets,” Nonlinear Processes in Geophysics , vol. 13, no. 2, pp. 151–159, 2006. [9] F. Gerber, R. de Jong, M. E. Schaepman, G. Schaepman-Strub, and R. Furrer, “Predicting missing values in spatio-temporal remote sensing data,” IEEE Transactions on Geoscience and Remote Sensing , vol. 56, no. 5, pp. 2841–2853, 2018. [10] J.-M. Beckers and M. Rixen, “Eof calculations and data filling from incomplete oceanographic datasets,” Journal of Atmospheric and oceanic technology , vol. 20, no. 12, pp. 1839–1856, 2003. [11] A. Hippert-Ferrer, Y. Yan, and P. Bolon, “Em-eof: Gap-filling in incom-plete sar displacement time series,” IEEE Transactions on Geoscience and Remote Sensing , vol. 59, no. 7, pp. 5794–5811, 2020. [12] A. Hippert-Ferrer, M. N. El Korso, A. Breloy, and G. Ginolhac, “Robust low-rank covariance matrix estimation with a general pattern of missing values,” Signal Processing , vol. 198, p. 108460, 2022. [13] R. J. A. Little and D. B. Rubin, Statistical Analysis with Missing Data ,2nd ed. New York: Wiley, 2002. [14] M. Chen, C. Gao, and Z. Ren, “Robust covariance and scatter matrix estimation under hubers contamination model,” The Annals of Statistics ,vol. 46, no. 5, pp. 1932–1960, 2018. [15] A. Hippert-Ferrer, A. Sportisse, A. Javaheri, M. N. E. Korso, and D. P. Palomar, “Missing data in signal processing and machine learning: Mod-els, methods and modern approaches,” arXiv preprint arXiv:2506.01696 ,2025. [16] M. Cherifi, M. N. El Korso, S. Fortunati, A. Mesloub, and L. Ferro-Famil, “Robust inference with incompleteness for logistic regression model,” Signal Processing , vol. 236, p. 110027, 2025. [17] A. P. Dempster, N. M. Laird, and D. B. Rubin, “Maximum likelihood from incomplete data via the em algorithm,” Journal of the royal statistical society: series B (methodological) , vol. 39, no. 1, pp. 1–22, 1977. [18] E. Ollila, D. E. Tyler, V. Koivunen, and H. V. Poor, “Complex elliptically symmetric distributions: Survey, new results and applications,” IEEE Transactions on signal processing , vol. 60, no. 11, pp. 5597–5625, 2012. [19] G. Frahm and U. Jaekel, “A generalization of Tyler’s M-estimators to the case of incomplete data,” Comput. Statist. Data Anal. , vol. 54, pp. 374–393, 2010. [20] Y. Sun, P. Babu, and D. P. Palomar, “Regularized tyler’s scatter esti-mator: Existence, uniqueness, and algorithms,” IEEE Transactions on Signal Processing , vol. 62, no. 19, pp. 5143–5156, 2014. [21] S. Kotz and S. Nadarajah, Multivariate t-distributions and their appli-cations . Cambridge university press, 2004. [22] J. Josse and F. Husson, “Handling missing values in exploratory mul-tivariate data analysis methods,” Journal de la société française de statistique , vol. 153, no. 2, pp. 79–99, 2012. [23] R. Bamler and P. Hartl, “Synthetic aperture radar interferometry,” Inverse problems , vol. 14, no. 4, pp. R1–R54, 1998. [24] H. Zebker, J. Villasenor et al. , “Decorrelation in interferometric radar echoes,” IEEE Transactions on geoscience and remote sensing , vol. 30, no. 5, pp. 950–959, 1992. [25] European Space Agency (ESA), “SNAP,” https://step.esa.int/main/ toolboxes/snap.
