@@ -1,0 +1,1762 @@
+Title: What Drives the Inlier-Memorization Effect? A Theory of Outlier Detection via Early Training Dynamics
+
+URL Source: https://arxiv.org/pdf/2606.29791v1
+
+Published Time: Tue, 30 Jun 2026 01:43:20 GMT
+
+Number of Pages: 33
+
+Markdown Content:
+# What Drives the Inlier-Memorization Effect? A Theory of Outlier Detection via Early Training Dynamics 
+
+Kunwoong Kim 
+
+KAIST AI 
+
+kunwoong.kim@kaist.ac.kr 
+
+Dongha Kim ∗
+
+Department of Statistics Center for Data Science Sungshin Women’s University 
+
+dongha0718@sungshin.ac.kr 
+
+Abstract 
+
+Outlier detection (OD) aims to identify anomalous instances by learning the un-derlying structure of normal data (inliers), and is particularly challenging in fully unsupervised settings where no information about anomalies is available during training. Recent advances have leveraged the inlier-memorization (IM) effect , a phenomenon in which deep models memorize inlier patterns earlier than those of outliers, as a powerful signal for distinguishing outliers. However, despite its empirical success, the theoretical understanding of the IM effect remains limited. In this work, we present a theoretical study of the IM effect. Focusing on a simple autoencoder, we show that, under mild assumptions, the model can successfully memorize inliers while failing to memorize outliers during certain stages of early training. In particular, we characterize not only the emergence of the IM effect, but also its strength and persistence, and analyze how these properties depend on the data distribution and parameter initialization. In addition, building on these insights, we derive simple yet practical guidelines for enhancing the IM effect, including data preprocessing and parameter initialization schemes, achieving state-of-the-art performance on the ADBench datasets. Our findings provide a theoretical foun-dation for the IM effect and offer actionable directions for improving IM-based outlier detection methods. 
+
+1 Introduction 
+
+Outlier detection (OD) aims to identify anomalous instances (outliers) that deviate from the underlying structure of normal data (inliers) [ 1, 2]. It plays a crucial role in a wide range of applications, including fraud detection [ 3 ], cybersecurity [ 4], medical diagnosis [ 5], and data preprocessing for downstream learning tasks. Among various settings, unsupervised outlier detection (UOD), where both inliers and outliers are contained in the training data and no information about anomalousness is accessible, is the most general and particularly challenging setting. In this scenario, the model must learn the patterns of inliers while being trained on contaminated data. To this end, a recent line of work exploits the inlier-memorization (IM) effect [ 6 ]: when a deep unsupervised model is trained on data containing both inliers and outliers, it prioritizes reducing the loss of inliers before that of outliers in early training steps. Thus, the per-sample loss of an under-fitted model effectively serves as an outlier score, and this insight motivates various methodologies [6 , 7, 8, 9]. These approaches consistently demonstrate strong empirical performance across diverse datasets, highlighting the practical importance of the IM effect in UOD.   
+
+> ∗Corresponding author. Preprint.
+> arXiv:2606.29791v1 [cs.LG] 29 Jun 2026 Dense inlier clusters
+> Sparse / separated outliers Strong and persistent IM effect
+> Data structure Autoencoder model
+> Inlier -aligned initialization
+> Training iterations
+> Loss
+> Outlier
+> Inlier
+
+IM effect 
+
+> Inlier
+> Outlier
+
+Figure 1: Inlier-memorization (IM) effect and the factors that influence its strength (how large the loss gap is) and persistence (how long the loss gap persists). Despite these successes, the IM effect itself remains largely underexplored from a theoretical perspec-tive. Existing works primarily rely on empirical observations or heuristic arguments (for example, attributing the IM effect to the higher density and prevalence of inliers in the data distribution), but lack a rigorous understanding of how long the effect persists and how strong the resulting separation is, i.e., its persistence and strength, and how they depend on key factors such as the data distribution and model initialization. This gap limits both the interpretability of the IM effect and the principled design of more reliable IM-based outlier detection methods. In this work, we theoretically study the IM effect. For a simple autoencoder trained by minimizing reconstruction error via gradient descent, we theoretically show that, under mild assumptions, an under-fitted autoencoder memorizes inliers while failing to memorize outliers. We characterize the conditions under which the IM effect exhibits persistence (i.e., the range of training steps over which the effect holds) and strength (reflecting how many outliers can be separated from inliers), from two key perspectives: the data distribution and weight initialization. In particular, we show that the IM effect persists longer and exhibits stronger separability when inliers form dense clusters and outliers are sparse and well-separated, and that it further persists longer when the initialization captures inlier structure. Figure 1 illustrates the IM effect and the factors governing its strength and persistence. Building on these insights, we provide two simple yet effective guidelines for enhancing the IM effect in practice. First, we show that using embedding representations can induce more favorable data structures, making the IM effect clearer. Second, we demonstrate that applying EMA-based weight initialization helps preserve inlier information during early training, allowing the IM effect to last longer. These guidelines are intentionally simple and broadly applicable, requiring only minimal modifications to existing methods. We empirically verify that incorporating these two components into existing IM-based outlier detection approaches consistently leads to improved performance, achieving gains over state-of-the-art IM-based methods. The remainder of this paper is organized as follows. Section 2 briefly reviews related research on OD problems. In Section 3, we present a theoretical study of the IM effect, including the problem setup, a formal description of the phenomenon, and the corresponding theoretical analysis. Section 4 provides empirical validation and discusses practical implications, including guidelines for data preprocessing and weight initialization, followed by concluding remarks in Section 5. Our contributions can be summarized as follows: 
+
+⋄ We theoretically study the inlier-memorization (IM) effect, showing that under-fitted autoencoders memorize inliers earlier than outliers, and identifying key factors that govern this behavior, including the data distribution and weight initialization. 
+
+⋄ Inspired by our theoretical study, we propose two simple yet effective strategies for IM-based outlier detection and show that they consistently improve performance over existing IM-based methods, achieving state-of-the-art results. 
+
+2 Related Works 
+
+Recent advances have shown that deep learning provides a powerful framework for UOD. Classical approaches include density-based methods such as LOF [ 10 ], cluster-based methods such as CBLOF [ 11 ], robust statistics-based approaches such as MCD [ 12 ], and tree-based methods such as Isolation 2Forest (IF) [ 13 ]. Boundary-based methods such as OCSVM [ 14 ] and SVDD [ 15 ] learn a separating boundary for normal data, with deep extensions including DeepSVDD [16] and DeepSAD [17]. Self-supervised learning has also been widely applied to OD tasks [ 18 , 19 ]. Representative approaches include SimCLR [ 20 ], which learns informative representations via contrastive learning, and ICL [ 21 ], which detects anomalies by maximizing mutual information between masked and unmasked data. NeuTraL AD [ 22 ] further learns neural transformations to generate diverse views, enabling effective anomaly detection. A wide range of deep learning techniques with diverse modeling perspectives have been applied to UOD. For example, RDA [ 23 ] enhances autoencoder-based anomaly detection by improving robustness to outliers during representation learning, while DSEBM [ 24 ] detects anomalies using deep energy-based models that assign low energy to normal samples and high energy to anomalous ones. AnoGAN [ 25 ] employs generative adversarial networks to learn the manifold of normal data, and GAAL [ 26 ] generates informative potential outliers to better define the decision boundary. More recently, DTE [ 27 ] leverages diffusion-based models for likelihood-based detection, and ROBOD [28] improves robustness via a hyper-ensemble framework. Recently, the IM effect has attracted increasing attention in the outlier detection literature. Following its introduction in ODIM [ 6], several subsequent works have developed improved methods based on this phenomenon. For instance, ALTBI [ 8] enhances the IM effect via adaptive mini-batch scheduling and trimmed loss optimization, while IMBoost [ 9 ] improves performance by incorporating active learning. These methods achieve strong performance while remaining efficient. However, they largely assume the existence of the IM effect, without providing a theoretical explanation of why it arises or when it can be expected to hold. Although GradStop [ 7] takes a step toward understanding this phenomenon, a rigorous theoretical characterization of the IM effect remains limited. 
+
+3 A Theoretical Analysis of the Inlier-Memorization Effect 
+
+3.1 Preliminaries and Problem Setup Inlier-Memorization Effect When training deep unsupervised models on datasets containing both inliers and outliers, it is often observed that the model tends to fit inlier samples earlier than outliers [ 6, 7]. Consequently, after a certain number of training iterations, the reconstruction or likelihood errors of inliers become small, whereas those of outliers remain relatively large. We refer to this phenomenon as the inlier-memorization (IM) effect . Intuitively, inliers are more frequent and share a common structure, whereas outliers are less frequent and deviate from this structure, making them harder to fit. As a result, reducing the loss of inliers first provides a more effective direction for minimizing the overall loss during the early stages of training, thereby leading to the IM effect. Importantly, the IM effect is a general phenomenon arising during the training of deep unsupervised models, rather than being specific to a particular architecture. It has been empirically observed across a range of models, including autoencoders, variational autoencoders (VAEs, [ 29 , 30 ]), and normalizing flows [ 31 ]. For theoretical simplicity, we focus our analysis on a simple autoencoder. Extending the analysis to other generative models is a promising direction for future work. 
+
+Data Distribution Under the UOD regime, we observe data {xi}ni=1 ⊂ Rp containing both inliers and outliers. For simplicity, we assume that the norm of each sample is uniformly bounded as 
+
+∥xi∥2 ≤ 1 for all i ∈ [n]. In practice, this condition can be readily satisfied, e.g., by applying min-max normalization followed by scaling. We assume that the data exhibit an underlying clustered structure . Specifically, there exist K cluster centers μ1, . . . , μ K ∈ Rp. Let g : [ n] → [K] denote a cluster-assignment map, where [N ] := 
+
+{1, . . . , N } for N ∈ N. We represent each observed sample by a decomposition 
+
+xi = exi + ξi + oi, i ∈ [n], (1) where (i) exi := μg(i) is the cluster center associated with xi, (ii) ξi ∈ Rp represents within-cluster variation, and (iii) oi ∈ Rp denotes an additional perturbation corresponding to outliers. For each cluster k ∈ [K], we define Λk := {i ∈ [n] : g(i) = k} as the index set of data assigned to 
+
+k-th cluster. We further define nmin := min k∈[K] nk and nmax := max k∈[K] nk. And let δ := min a̸=b∈[K] ∥μa − μb∥2 denote the minimum separation between cluster centers. 3The term ξi captures small deviations of samples around the cluster center, reflecting the natural noise of inlier data. Assumption 3.1 assumes that inlier data remain close to their corresponding cluster centers. 
+
+Assumption 3.1 (Small within-cluster variation) . ∥ξi∥2 ≤ εc, ∀i ∈ [n], for some constant εc ≥ 0.
+
+Furthermore, the term oi represents abnormal deviations that generate outliers. Under this decomposi-tion, we define xi as an inlier when oi = 0 , and as an outlier otherwise. Let O := {i ∈ [n] : oi̸ = 0 }
+
+denote the index set of outliers. The outlier rate of cluster k is then defined as |O∩ Λk | 
+
+> nk
+
+. Assumption 3.2 assumes that the fraction of outliers in each cluster is uniformly bounded. 
+
+Assumption 3.2 (Bounded outlier rate) . The outlier rate is at most ρ for some constant ρ > 0, i.e., 
+
+max k∈[K] |O∩ Λk | 
+
+> nk
+
+≤ ρ.
+
+In addition, we say that an outlier is well-separated if its additional perturbation is relatively large: 
+
+Assumption 3.3 (Well-separated outlier) . Let xi be an outlier with perturbation oi. We say that xi is well-separated if ∥oi∥2 > δ + 2 εc.
+
+Here, the quantity δ + 2 εc corresponds to an upper bound on the distance between inliers from two closest clusters. Thus, a well-separated outlier lies sufficiently far from all inliers. 
+
+Model Setup We consider a bias-free single-hidden-layer autoencoder FW : Rp → Rp defined as 
+
+FW (x) := Aϕ (W x ), (2) where W ∈ RH×p is the trainable encoder weight matrix ( H denotes the number of hidden nodes), 
+
+A ∈ Rp×H is the fixed decoder weight matrix, and ϕ is an activation function applied elementwise. Following standard autoencoder training frameworks [ 32 ], we train an autoencoder model to re-construct each input from itself (i.e., the prediction target is the input itself). To learn the encoder parameters W , we minimize the mean squared reconstruction error over the training data. Specifically, we minimize the following mean squared reconstruction error 
+
+L(W ) := 12
+
+> n
+
+X
+
+> i=1
+
+∥xi − FW (xi)∥22 = 12 ∥X − F W (X)∥22 (3) where X := [ x⊤ 
+
+> 1
+
+, . . . , x ⊤ 
+
+> n
+
+]⊤ ∈ Rnp and FW (X) := [ FW (x1)⊤, . . . , F W (xn)⊤]⊤ ∈ Rnp . That is, the model is trained so that xi ≈ FW (xi) for all i ∈ [n]. We optimize this objective using gradient descent, a standard learning approach in deep learning. For theoretical simplicity, as mentioned above, we assume that only the encoder weight matrix W is trained, while the decoder weight matrix A is fixed during optimization. We note that such a simplification is commonly adopted in theoretical analyses of single-hidden-layer neural networks [33, 34, 35]. 
+
+Training via Gradient Descent We minimize the objective function eq. (3) using gradient descent (GD) with initialization W0 ∈ RH×p and learning rate η > 0. Let w := vec( W ) ∈ RHp denote the vectorized parameter, and we use W and w interchangeably when no confusion arises. The GD algorithm at each iteration step τ ∈ Z≥0 updates the parameter as wτ +1 = wτ − η∇wL(Wτ ), given an initial weight w0. The update can be equivalently written as 
+
+wτ +1 = wτ − ηJ (Wτ )⊤rτ , (4) where J(Wτ ) := ∂∂w FWτ (X) ∈ Rnp ×Hp and rτ := FWτ (X) − X ∈ Rnp denote the Jacobian of the model outputs with respect to the trainable parameter w and the concatenated residual at iteration step τ , respectively. 
+
+3.2 Theoretical Analysis 
+
+We define the initialization error on the cluster-centered-inputs eR0 := ∥F W0 ( eX) − eX∥2, where 
+
+eX = [ ex⊤ 
+
+> 1
+
+, . . . , ex⊤ 
+
+> n
+
+]⊤ denotes the concatenation of cluster centers corresponding to the samples. This quantity measures how well the initialization W0 captures the underlying cluster structure. As W0
+
+better captures the inlier cluster structure, eR0 becomes smaller. In addition, we use the notation 4c = c(a1 ↑, . . . , a m ↓) to indicate that the constant c depends on a1, . . . , a m, where ↑ and ↓ denote that c is increasing or decreasing in the corresponding argument. Logarithmic factors are ignored in this notation when specifying the monotonicity. We show that under several mild assumptions, minimizing the reconstruction objective in eq. (3) via GD in eq. (4) leads to a training phase in which the reconstruction error of inliers decreases earlier than that of outliers, thereby giving rise to the IM effect. 
+
+Theorem 3.1 (IM Effect) . Assume that the training data {xi}ni=1 , containing both inliers and outliers, satisfy Assumptions 3.1 and 3.2 as well as regularity conditions in Appendix A. Suppose that the autoencoder in eq. (2) is trained by minimizing the reconstruction error in eq. (3) via GD, updating the encoder parameter W according to eq. (4) . Then, there exist a learning rate η > 0 and two integers 0 < T 1 < T 2 with 
+
+T1 = c(nmin ↓) and T2 = c(nmin ↑, n max ↓, ε c ↓, eR0 ↓, ρ ↓, δ ↑) (5) 
+
+such that for any iteration τ ∈ [T1, T 2], inliers have smaller reconstruction loss than well-separated outliers. In particular, for any outlier xi satisfying Assumption 3.3, we have 
+
+max  
+
+> j∈O c
+
+∥xj − FWτ (xj )∥22 < ∥xi − FWτ (xi)∥22. (6) The regularity conditions, the full statement of Theorem 3.1, and its proof are deferred to Appendix A (see Theorem A.11 and Corollary A.12 for details). Detailed derivations of the monotonic dependence of T1 and T2 on key factors are provided in Appendix A.4.3. When every outlier is well-separated, Theorem 3.1 immediately implies the occurrence of the perfect IM effect, as stated in Corollary 3.2. 
+
+Corollary 3.2 (Perfect separation via the IM effect) . Under the assumptions of Theorem 3.1 and with the interval [T1, T 2] defined therein, suppose that Assumption 3.3 holds for all i ∈ O . Then for any iteration τ ∈ [T1, T 2], the reconstruction error of every outlier is strictly larger than that of every inlier, i.e., 
+
+max  
+
+> j∈O c
+
+∥xj − FWτ (xj )∥22 < min  
+
+> i∈O
+
+∥xi − FWτ (xi)∥22.
+
+Hence, perfect separation between inliers and outliers in terms of reconstruction loss is achieved during the training iterations [T1, T 2].
+
+The IM effect is an early-training phenomenon in which a separation in reconstruction error between inliers and outliers is guaranteed over a finite interval [T1, T 2], rather than after full convergence. This provides a theoretical explanation for why under-fitted unsupervised models, such as autoencoders, are beneficial for UOD, as suggested in previous studies on the IM effect [ 6, 7]. Theorem 3.1 and Corollary 3.2 yield several important implications that are closely aligned with practical scenarios. 
+
+⋄ (Persistence of the IM Effect) The persistence of the IM effect, characterized by the interval 
+
+[T1, T 2], depends on both the data distribution and weight initialization . From a data distribution perspective, this interval tends to be extended when inlier clusters are internally compact, i.e., when δ is large and εc is small. Specifically, this is reflected in the quantity δ − 4εc, whose monotonic dependence is summarized in Appendix A.4.3. In addition, the interval [T1, T 2]
+
+becomes longer when the cluster sizes are balanced, i.e., when the difference between nmin 
+
+and nmax is small. If the data distribution is imbalanced, the interval becomes shorter, as minor clusters may be misrecognized as outliers by the model. Moreover, the interval increases when the outlier rate is small, since such outliers are harder to memorize during the early training stage, which is related to the empirical findings in [8]. Finally, the interval is also affected by the weight initialization. In particular, when the initial autoencoder captures inlier cluster structure more effectively, i.e., for smaller values of eR0, the IM effect persists over a longer training period. This can be explained by the fact that such initialization biases the optimization trajectory toward inlier reconstruction, thereby delaying the model’s tendency to fit outliers. 
+
+⋄ (Strength of the IM Effect) The strength of the IM effect depends on the data distribution ;specifically, the gap between inliers and outliers in terms of loss values is determined by their distance in the input space. The degree of separation in Assumption 3.3, i.e., δ + 2 εc, reflects the 
+
+proximity among inlier clusters. When δ + 2 εc is small, the inliers are closely distributed, and in 5this case, outliers can be easily separated even if they are not far from the inliers. On the other hand, when the inlier clusters are relatively far apart, outliers can be identified only if they are located sufficiently far from the inliers. In conclusion, the persistence and strength of the IM effect are governed by multiple aspects of the data distribution, with the separation δ and the within-cluster variation εc jointly influencing both. Persistence is associated with a large value of δ − 4εc, whereas strength is associated with a small value of δ + 2 εc. Both quantities improve as εc becomes smaller; a smaller εc increases δ − 4εc and decreases δ + 2 εc, thereby extending the IM interval and strengthening the IM effect. 
+
+Remark 3.1 (Milder Assumptions) . An advantage of our theoretical framework is that, in contrast to existing works that analyze training dynamics of neural networks, it does not rely on strong overparameterization or restrictive architectural assumptions. These analyses typically consider extremely wide networks and carefully structured output layers to guarantee perfect fitting [ 33 , 34 ,35 , 36 , 37 , 38 ]. On the other hand, our analysis does not require perfect fitting, but only that inliers achieve smaller reconstruction error than outliers at some stage of training. This enables milder assumptions, including no restriction on the number of hidden nodes and only a bounded spectral norm of the decoder matrix A, thereby narrowing the gap between theory and practice. 
+
+Remark 3.2 (Possible Extensions) . For theoretical simplicity, we consider a setting where the decoder is fixed and only the encoder is trained. While this simplifies the analysis, practical autoencoders are typically trained jointly. Recent studies have analyzed the training dynamics in such jointly trained settings [ 39 ]. These results suggest that extending our analysis to jointly trained models may yield a more complete understanding of the IM effect. Moreover, our framework may extend to broader generative models, such as VAEs, where training dynamics have also been studied [ 40 ]. We leave these directions for future work. 
+
+4 Experiments 
+
+4.1 Simulation Study for Validating Theoretical Results 
+
+We conduct a simulation study to empirically validate the key implications of Theorem 3.1 and Corollary 3.2. Specifically, we investigate the following four key main factors that affect the IM effect. The first three focus on the effects of data distribution, including (i) the within-cluster variation εc,(ii) cluster-size balance ( nmin : nmax ), and (iii) the outlier rate ρ. The fourth examines the effect of parameter initialization, namely (iv) the initialization quality eR0.
+
+Data Generation We generate n = 2 ,000 samples in R2 with K = 3 cluster centers. The centers 
+
+μ1, μ 2, and μ3 are located in [−10 , 10] 2, with pairwise separation δ = 16 . Inlier samples are distributed equally across the three clusters ( nmin = 666 and nmax = 667 ) unless otherwise noted. Each inlier receives Gaussian perturbation ξi ∼ N (0 , eε2 
+
+> c
+
+I), where I denotes the identity matrix, and we can control the within-cluster variation εc in Assumption 3.1 using eεc. For notational simplicity, we write εc instead of eεc whenever the context is clear in this section. We set the default outlier rate as ρ = 0 .05 (100 outliers), and the outliers are distributed uniformly in [−18 , 18] 2 subject to a minimum distance of 10 from every cluster center. All features are min–max scaled to [0 , 1/√2] so that their norms are at most one. 
+
+Model Training and Evaluation Metrics We train a single-hidden-layer autoencoder in eq. (2) with tanh activation and hidden size H = 32 . Both the encoder and decoder weights are trained and initialized using the Kaiming uniform scheme [ 41 ]. We use the Adam optimizer [ 42 ] with a learning rate of 2 × 10 −4 and a batch size of 500 for 1,000 epochs, corresponding to 4,000 updates. At each epoch τ , we compute the per-sample reconstruction error ∥xi − FWτ (xi)∥22 as the outlier score and evaluate the corresponding AUROC, denoted by AUROC (τ ). We define the IM window as the maximal contiguous interval of epochs for which AUROC (τ ) ≥ 0.9, which serves as an empirical approximation of [T1, T 2].
+
+Results We present the results showing how εc, (nmin , n max ), ρ, and eR0 each affect the IM effect. (i) Effect of within-cluster variation εc: We vary εc ∈ { 1.0, 2.5, 4.0} while keeping all other terms fixed. Figure 2 shows the data distributions and AUROC trajectories of the trained autoencoder. As 6suggested by Theorem 3.1, tighter clusters (smaller εc) yield a stronger and more sustained IM effect: the peak AUROC increases from 0.944 (εc = 4 .0) to 0.975 (εc = 1 .0), and the IM window widens from 193 to 372 epochs. This result confirms that smaller within-cluster variation makes the IM effect more stable and more pronounced. c = 1.0 c = 2.5 c = 4.0                
+
+> 0250 500 750 1000
+> Epoch
+> 0.7
+> 0.8
+> 0.9
+> AUROC
+> max 0.975
+> max 0.964
+> max 0.944
+> c= 1.0 c= 2.5 c= 4.0
+> IM window
+> AUROC = 0.9
+> Inlier (Cluster 1, Cluster 2, Cluster 3 )Outlier
+
+Figure 2: Effect of within-cluster variation εc. (Left) Data distributions for εc ∈ { 1.0, 2.5, 4.0}.(Right) AUROC trajectories; shaded regions indicate the IM window. (ii) Effect of cluster-size balance : With fixed εc = 1 .5, we vary the cluster-size ratio nmax : nmin 
+
+across three levels: balanced ( 1:1 ), moderate ( 11:1 ), and heavy imbalance ( 27:1 ). The smallest cluster is assigned to a fixed spatial position across settings for fair comparison. Figure 3 shows that heavier imbalance degrades the persistence of the IM effect: the IM window narrows from 596 epochs (balanced) to 462 epochs (heavy imbalance). This is consistent with Theorem 3.1, which suggests that imbalanced cluster sizes lead to a shorter duration of the IM effect. 1 : 1 11 : 1 27 : 1             
+
+> 0250 500 750 1000
+> Epoch
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> AUROC
+> 1 : 1 11 : 1 27 : 1
+> IM window
+> AUROC = 0.9
+> Inlier (Cluster 1, Cluster 2, Cluster 3 )Outlier
+
+Figure 3: Effect of cluster-size balance nmax : nmin . (Left) Data distributions for (nmax : nmin ) ∈{(1 : 1) , (11 : 1) , (27 : 1) }. (Right) AUROC trajectories; shaded regions indicate the IM window. (iii) Effect of outlier rate ρ: We fix εc = 2 .0 and vary ρ ∈ { 0.03 , 0.10 , 0.25 }. Figure 4 shows that a higher ρ substantially shortens the IM window from 391 epochs ( ρ = 0 .03 ) to 94 epochs ( ρ = 0 .25 ). This is consistent with our theoretical analysis, which suggests that a smaller ρ leads to a prolonged IM effect. Interestingly, we also observe that strength of the IM effect improves as ρ decreases, as the peak AUROC increases from 0.929 to 0.968 . While this behavior is not directly explained by the current theory, it suggests that a lower ρ may further facilitate the distinction between inliers and outliers in practice. = 0.05 = 0.1 = 0.15             
+
+> 0250 500 750 1000
+> Epoch
+> 0.7
+> 0.8
+> 0.9
+> AUROC
+> max 0.969
+> max 0.958
+> max 0.947
+> = 0.05 = 0.1 = 0.15
+> IM window
+> AUROC = 0.9
+> Inlier (Cluster 1, Cluster 2, Cluster 3 )Outlier
+
+Figure 4: Effect of outlier rate ρ. (Left) Data distributions for ρ ∈ { 0.03 , 0.10 , 0.25 }. (Right) AUROC trajectories; shaded regions indicate the IM window. (iv) Effect of initialization quality eR0: We fix εc = 3 .0 and examine how the initial reconstruction quality affects the IM window. As discussed in Section 3.2, a low eR0 = ∥F W0 ( eX) − eX∥2 indicates 7a high quality of the initial parameter W0. Table 1 reports the IM window [T1, T 2] and the best AUROC for three initializations with different eR0. A smaller eR0 produces a later T2 and thus a wider IM window at a similar best AUROC, supporting our theoretical finding that a smaller eR0 lets the autoencoder capture the inlier cluster structure early, thereby prolonging the IM effect. Interestingly, although not predicted by the theory, T1 also decreases as eR0 becomes smaller, suggesting that better initialization accelerates the onset of the IM effect in practice. Table 1: Effect of initialization error eR0 on the IM window and detection performance (best AUROC).                    
+
+> eR0T1T2IM window length (T2−T1)Best AUROC 0.40 37 509 472 0.961 0.55 56 433 377 0.962 0.60 94 456 362 0.964
+
+4.2 Theory-Driven Guidelines for Real-World Data Analysis 
+
+Our theoretical analysis in Section 3 explains the emergence of the IM effect and characterizes how its strength and persistence depend on data distribution and initialization. Building on these insights, we propose two simple yet effective strategies for improving IM-based UOD solvers: (i) data preprocessing to shape the data distribution, and (ii) initialization schemes that guide optimization toward inlier-favorable dynamics. 
+
+Using Compact Representations While several key properties of the data distribution, such as the outlier rate ρ and cluster sizes (nmin , n max ), are intrinsic and not directly controllable, data preprocessing can influence the within-cluster variation εc. As suggested by our theoretical analysis, we again note that both the persistence and strength of the IM effect improve as εc decreases. In practice, this can be achieved by removing nuisance variations and noise that do not contribute to the underlying cluster structure of inliers. A natural approach is to transform the data into a representation space where inlier clusters become more compact. One can leverage pre-trained foundation models used in the same domain, such as ViT [ 43 ] for images, BERT [ 44 ] for text, and TabPFN [ 45 , 46 ] for tabular data. These models, trained on large-scale real and synthetic datasets, capture meaningful structures while filtering out irrelevant variations, often yielding well-formed cluster structures. When such models are unavailable, an alternative is to use self-supervised representations [ 47 ], such as contrastive learning [ 48 ]. Prior work shows that contrastive learning preserves cluster structure while reducing within-cluster variability [49 ]. As a result, these approaches reduce εc and enhance both persistence and strength, improving IM-based outlier detection. 
+
+Initialization for Capturing Cluster Structure A smaller value of eR0 leads to a wider IM window, extending the period during which inliers are reconstructed more accurately than outliers. This suggests that favorable initializations should capture the coarse structure of inliers while avoiding early fitting of sample-specific noise. In practice, however, obtaining such favorable initializations is challenging in the UOD setting, motivating the need for practical mechanisms to approximate them. One practical approach is to refine the initialization by applying an exponential moving average (EMA, [ 50 ]) to the model parameters during the early training phase. While EMA is commonly used to stabilize optimization, here it also plays an important role in suppressing the influence of outliers in the early stage. By averaging parameters over successive updates, EMA biases the model toward consistently learned structures, which are dominated by inliers, and mitigates the effect of irregular gradient signals induced by outliers. As a result, the resulting model better captures the underlying inlier structure and effectively reduces the initial reconstruction error eR0.
+
+Empirical Validation on Real-World Data We evaluate the two proposed strategies on the tabular and image datasets from [ 51 ] using two representative IM-based methods, ODIM [ 6] and ALTBI [ 8 ]. For each method, we compare the vanilla version (using raw inputs and random initialization) with its variants incorporating representation learning and EMA warm-up. Specifically, we initialize the model parameters obtained by applying EMA with decay 0.999 over the first 50 training iterations. For representation learning, we use TabPFN [ 45 ] and ViT [ 43 ] embeddings for tabular and image 8data, respectively. For tabular data, TabPFN embeddings are applied only to datasets of moderate size due to scalability limitations. The UOD performance is measured by AUROC and AUPRC. Further details are provided in Appendices B.1 and B.2. Figure 5 shows that the proposed variants, which combine EMA warm-up and learned representations, outperform all baselines on the 47 tabular datasets and on CIFAR10 and FashionMNIST (AUPRC results and ablation studies are given in Appendix B.3). The only exception is SVHN , where the pre-trained ViT embeddings do not produce sufficiently compact inlier clusters. Notably, the im-provement is particularly pronounced on CIFAR10 , where using pre-trained embeddings significantly outperforms using raw inputs. This is expected, as background variations in raw images tend to dominate pairwise distances, whereas embeddings suppress such nuisance factors and better capture the underlying structure [52, 53]. 0.75 0.76 0.77 0.78              
+
+> ALTBI
+> ALTBI*
+> 0.764
+> 0.775
+> Tabular (47 datasets)
+> 0.6 0.8 1.0
+> 0.576
+> 0.888
+> CIFAR10
+> 0.90 0.92
+> 0.901
+> 0.920
+> FashionMNIST
+> 0.50 0.55 0.60
+> 0.592
+> 0.581
+> SVHN
+> 0.75 0.76 0.77 0.78
+> ODIM
+> ODIM*
+> 0.759
+> 0.766
+> 0.6 0.8 1.0
+> 0.578
+> 0.876
+> 0.90 0.92
+> 0.893
+> 0.902
+> 0.50 0.55 0.60
+> 0.577
+> 0.579
+
+AUROC  
+
+> Ours (EMA + embedding) Original (raw input, no EMA)
+
+Figure 5: Average over 47 tabular datasets (leftmost) and results on CIFAR10 , FashionMNIST ,and SVHN . Hatched bars (ALTBI* and ODIM*) are the proposed variants combining TabPFN/ViT embeddings with EMA warm-up, while the plain bars (ALTBI and ODIM) correspond to training on raw inputs without EMA. Furthermore, we apply the proposed modifications to ALTBI and ODIM across all 57 datasets in ADBench to evaluate their overall effectiveness. We compare our methods against 22 existing baselines, including both classical machine-learning and deep-learning approaches. The results of the 22 baseline methods are directly taken from [ 27 ], while ALTBI and ODIM are evaluated using our own implementations. All reported results are averaged over three random initializations. Note that the original ALTBI and ODIM already use embedding representations for image and text datasets; therefore, our modifications mainly consist of introducing the EMA warm-up and partially replacing tabular raw inputs with TabPFN embeddings. The proposed guidelines improve the average AUROC of the original ALTBI from 0.757 to 0.766 and that of the original ODIM from 0.751 to 0.757 . Moreover, among 22 existing baselines, the modified ALTBI achieves state-of-the-art performance with an average AUROC of 0.766 and an average AUPRC of 0.352 . Detailed implementations and comprehensive experimental results, including per-dataset analyses and AUPRC comparisons, are provided in Appendix B.3. Overall, these findings demonstrate the practical effectiveness and broad applicability of the proposed theoretical insights. 
+
+5 Concluding Remarks 
+
+We presented a theoretical study of the inlier-memorization (IM) effect, focusing on explaining why under-fitted autoencoders can reconstruct inliers earlier than outliers during training. Our analysis showed that the strength and persistence of the IM effect are governed by the data distribution and parameter initialization, providing a principled understanding of when IM-based outlier detection is effective. Simulation studies further verified the key implications of our theory under controlled settings. Building on these insights, we proposed two simple yet practical strategies for real-world UOD: using compact representations and an EMA-based technique. Experiments on real datasets demonstrated that these strategies improve IM-based outlier detection performance, achieving the state-of-the-art results. Future work includes extending the present analysis to deeper and jointly trained architectures, as well as to broader generative models such as VAEs, normalizing flows, and diffusion-based models. Another promising direction is to theoretically investigate more adaptive strategies for strengthening the IM effect, and to analyze how it can be integrated with active or semi-supervised frameworks for more label-efficient anomaly detection. 9References 
+
+[1] Varun Chandola, Arindam Banerjee, and Vipin Kumar. Anomaly detection: A survey. ACM computing surveys (CSUR) , 41(3):1–58, 2009. [2] Raghavendra Chalapathy and Sanjay Chawla. Deep learning for anomaly detection: A survey. arXiv preprint arXiv:1901.03407 , 2019. [3] Waleed Hilal, S Andrew Gadsden, and John Yawney. Financial fraud: a review of anomaly detection techniques and recent advances. Expert systems With applications , 193:116429, 2022. [4] Mohiuddin Ahmed, Abdun Naser Mahmood, and Jiankun Hu. A survey of network anomaly detection techniques. Journal of network and computer applications , 60:19–31, 2016. [5] Tharindu Fernando, Harshala Gammulle, Simon Denman, Sridha Sridharan, and Clinton Fookes. Deep learning for medical anomaly detection–a survey. ACM computing surveys (CSUR) , 54(7):1–37, 2021. [6] Dongha Kim, Jaesung Hwang, Jongjin Lee, Kunwoong Kim, and Yongdai Kim. ODIM: outlier detection via likelihood of under-fitted generative models. In Forty-first International Conference on Machine Learning, ICML 2024, Vienna, Austria, July 21-27, 2024 . OpenReview.net, 2024. [7] Yuang Zhang, Liping Wang, Yihong Huang, Yuanxing Zheng, Fan Zhang, and Xuemin Lin. Grad-stop: Exploring training dynamics in unsupervised outlier detection through gradient. arXiv preprint arXiv:2412.08501 , 2024. [8] Seoyoung Cho, Jaesung Hwang, Kwan-Young Bak, and Dongha Kim. ALTBI: constructing improved outlier detection models via optimization of inlier-memorization effect. In Toby Walsh, Julie Shah, and Zico Kolter, editors, AAAI-25, Sponsored by the Association for the Advancement of Artificial Intelligence, February 25 - March 4, 2025, Philadelphia, PA, USA , pages 11544–11552. AAAI Press, 2025. [9] Minseo Kang, Seunghwan Park, and Dongha Kim. Memorize early, then query: Inlier-memorization-guided active outlier detection. Proceedings of the AAAI Conference on Artificial Intelligence , 40(17):15000– 15008, Mar. 2026. [10] Markus M. Breunig, Hans-Peter Kriegel, Raymond T. Ng, and Jörg Sander. Lof: Identifying density-based local outliers. SIGMOD Rec. , 29(2):93–104, may 2000. [11] Zengyou He, Xiaofei Xu, and Shengchun Deng. Discovering cluster-based local outliers. Pattern recognition letters , 24(9-10):1641–1650, 2003. [12] Cecile Fauconnier and Gentiane Haesbroeck. Outliers detection with the minimum covariance determinant estimator in practice. Statistical Methodology , 6(4):363–379, 2009. [13] Fei Tony Liu, Kai Ming Ting, and Zhi-Hua Zhou. Isolation forest. In 2008 eighth ieee international conference on data mining , pages 413–422. IEEE, 2008. [14] Bernhard Schölkopf, John Platt, John Shawe-Taylor, Alexander Smola, and Robert Williamson. Estimating support of a high-dimensional distribution. Neural Computation , 13:1443–1471, 07 2001. [15] David MJ Tax and Robert PW Duin. Support vector data description. Machine learning , 54:45–66, 2004. [16] Lukas Ruff, Robert Vandermeulen, Nico Goernitz, Lucas Deecke, Shoaib Ahmed Siddiqui, Alexander Binder, Emmanuel Müller, and Marius Kloft. Deep one-class classification. In Proceedings of the 35th International Conference on Machine Learning , volume 80 of Proceedings of Machine Learning Research ,pages 4393–4402. PMLR, 10–15 Jul 2018. [17] Lukas Ruff, Robert A. Vandermeulen, Nico Görnitz, Alexander Binder, Emmanuel Müller, Klaus-Robert Müller, and Marius Kloft. Deep semi-supervised anomaly detection. In International Conference on Learning Representations , 2020. [18] Jihoon Tack, Sangwoo Mo, Jongheon Jeong, and Jinwoo Shin. Csi: Novelty detection via contrastive learning on distributionally shifted instances. In Advances in Neural Information Processing Systems ,volume 33, pages 11839–11852. Curran Associates, Inc., 2020. [19] Izhak Golan and Ran El-Yaniv. Deep anomaly detection using geometric transformations. arXiv preprint arXiv:1805.10917 , 2018. 
+
+10 [20] Ting Chen, Simon Kornblith, Mohammad Norouzi, and Geoffrey Hinton. A simple framework for contrastive learning of visual representations. In Proceedings of the 37th International Conference on Machine Learning , volume 119 of Proceedings of Machine Learning Research , pages 1597–1607. PMLR, 13–18 Jul 2020. [21] Tom Shenkar and Lior Wolf. Anomaly detection for tabular data with internal contrastive learning. In 
+
+International conference on learning representations , 2022. [22] Chen Qiu, Timo Pfrommer, Marius Kloft, Stephan Mandt, and Maja Rudolph. Neural transformation learning for deep anomaly detection beyond images. In Marina Meila and Tong Zhang, editors, Proceedings of the 38th International Conference on Machine Learning, ICML 2021, 18-24 July 2021, Virtual Event ,Proceedings of Machine Learning Research, pages 8703–8714. PMLR, 2021. [23] Chong Zhou and Randy C. Paffenroth. Anomaly detection with robust deep autoencoders. In Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, Halifax, NS , pages 665–674. ACM, 2017. [24] Shuangfei Zhai, Yu Cheng, Weining Lu, and Zhongfei Zhang. Deep structured energy based models for anomaly detection. In International conference on machine learning , pages 1100–1109. PMLR, 2016. [25] Thomas Schlegl, Philipp Seeböck, Sebastian M. Waldstein, Ursula Schmidt-Erfurth, and Georg Langs. Unsupervised anomaly detection with generative adversarial networks to guide marker discovery. In Marc Niethammer, Martin Styner, Stephen R. Aylward, Hongtu Zhu, Ipek Oguz, Pew-Thian Yap, and Dinggang Shen, editors, Information Processing in Medical Imaging - 25th International Conference, IPMI 2017, Boone, NC, USA, June 25-30, 2017, Proceedings , Lecture Notes in Computer Science, pages 146–157. Springer, 2017. [26] Yezheng Liu, Zhe Li, Chong Zhou, Yuanchun Jiang, Jianshan Sun, Meng Wang, and Xiangnan He. Generative adversarial active learning for unsupervised outlier detection. IEEE Transactions on Knowledge and Data Engineering , 32(8):1517–1528, 2019. [27] Victor Livernoche, Vineet Jain, Yashar Hezaveh, and Siamak Ravanbakhsh. On diffusion modeling for anomaly detection. CoRR , abs/2305.18593, 2023. [28] Xueying Ding, Lingxiao Zhao, and Leman Akoglu. Hyperparameter sensitivity in deep outlier detection: Analysis and a scalable hyper-ensemble solution. In Sanmi Koyejo, S. Mohamed, A. Agarwal, Danielle Belgrave, K. Cho, and A. Oh, editors, Advances in Neural Information Processing Systems 35: Annual Conference on Neural Information Processing Systems 2022, NeurIPS 2022, New Orleans, LA, USA, November 28 - December 9, 2022 , 2022. [29] Diederik P Kingma and Max Welling. Auto-encoding variational bayes. arXiv preprint arXiv:1312.6114 ,2013. [30] Danilo Jimenez Rezende, Shakir Mohamed, and Daan Wierstra. Stochastic backpropagation and approxi-mate inference in deep generative models. In Eric P. Xing and Tony Jebara, editors, Proceedings of the 31st International Conference on Machine Learning , volume 32 of Proceedings of Machine Learning Research ,pages 1278–1286, Bejing, China, 22–24 Jun 2014. PMLR. [31] Ivan Kobyzev, Simon JD Prince, and Marcus A Brubaker. Normalizing flows: An introduction and review of current methods. IEEE transactions on pattern analysis and machine intelligence , 43(11):3964–3979, 2020. [32] G. E. Hinton and R. R. Salakhutdinov. Reducing the dimensionality of data with neural networks. Science ,313(5786):504–507, 2006. [33] Sanjeev Arora, Simon S. Du, Wei Hu, Zhiyuan Li, and Ruosong Wang. Fine-grained analysis of optimiza-tion and generalization for overparameterized two-layer neural networks. In Kamalika Chaudhuri and Ruslan Salakhutdinov, editors, Proceedings of the 36th International Conference on Machine Learning, ICML 2019, 9-15 June 2019, Long Beach, California, USA , Proceedings of Machine Learning Research, pages 322–332. PMLR, 2019. [34] Samet Oymak and Mahdi Soltanolkotabi. Towards moderate overparameterization: global convergence guarantees for training shallow neural networks. CoRR , abs/1902.04674, 2019. [35] Mingchen Li, Mahdi Soltanolkotabi, and Samet Oymak. Gradient descent with early stopping is provably robust to label noise for overparameterized neural networks. In Silvia Chiappa and Roberto Calandra, editors, The 23rd International Conference on Artificial Intelligence and Statistics, AISTATS 2020, 26-28 August 2020, Online [Palermo, Sicily, Italy] , Proceedings of Machine Learning Research, pages 4313–4324. PMLR, 2020. 
+
+11 [36] Jaehoon Lee, Yasaman Bahri, Roman Novak, Samuel S. Schoenholz, Jeffrey Pennington, and Jascha Sohl-Dickstein. Deep neural networks as gaussian processes. In 6th International Conference on Learn-ing Representations, ICLR 2018, Vancouver, BC, Canada, April 30 - May 3, 2018, Conference Track Proceedings . OpenReview.net, 2018. [37] Arthur Jacot, Clément Hongler, and Franck Gabriel. Neural tangent kernel: Convergence and generalization in neural networks. In Samy Bengio, Hanna M. Wallach, Hugo Larochelle, Kristen Grauman, Nicolò Cesa-Bianchi, and Roman Garnett, editors, Advances in Neural Information Processing Systems 31: Annual Conference on Neural Information Processing Systems 2018, NeurIPS 2018, December 3-8, 2018, Montréal, Canada , pages 8580–8589, 2018. [38] Jaehoon Lee, Lechao Xiao, Samuel S. Schoenholz, Yasaman Bahri, Roman Novak, Jascha Sohl-Dickstein, and Jeffrey Pennington. Wide neural networks of any depth evolve as linear models under gradient descent. In Hanna M. Wallach, Hugo Larochelle, Alina Beygelzimer, Florence d’Alché-Buc, Emily B. Fox, and Roman Garnett, editors, Advances in Neural Information Processing Systems 32: Annual Conference on Neural Information Processing Systems 2019, NeurIPS 2019, December 8-14, 2019, Vancouver, BC, Canada , pages 8570–8581, 2019. [39] Thanh Van Nguyen, Raymond K. W. Wong, and Chinmay Hegde. Benefits of jointly training autoencoders: An improved neural tangent kernel analysis. IEEE Trans. Inf. Theory , 67(7):4669–4692, 2021. [40] Li Wang and Wei Huang. On the convergence analysis of over-parameterized variational autoencoders: a neural tangent kernel perspective. Mach. Learn. , 114(1):15, 2025. [41] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Delving deep into rectifiers: Surpassing human-level performance on imagenet classification. In 2015 IEEE International Conference on Computer Vision (ICCV) , pages 1026–1034, 2015. [42] Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 , 2014. [43] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby. An image is worth 16x16 words: Transformers for image recognition at scale. In 9th International Conference on Learning Representations, ICLR 2021, Virtual Event, Austria, May 3-7, 2021 .OpenReview.net, 2021. [44] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT: pre-training of deep bidirectional transformers for language understanding. In Jill Burstein, Christy Doran, and Thamar Solorio, editors, Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2019, Minneapolis, MN, USA, June 2-7, 2019, Volume 1 (Long and Short Papers) , pages 4171–4186. Association for Computational Linguistics, 2019. [45] Noah Hollmann, Samuel Müller, Katharina Eggensperger, and Frank Hutter. Tabpfn: A transformer that solves small tabular classification problems in a second. In The Eleventh International Conference on Learning Representations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023 . OpenReview.net, 2023. [46] Han-Jia Ye, Si-Yang Liu, and Wei-Lun Chao. A closer look at tabpfn v2: Strength, limitation, and extension. 
+
+CoRR , abs/2502.17361, 2025. [47] Jie Gui, Tuo Chen, Jing Zhang, Qiong Cao, Zhenan Sun, Hao Luo, and Dacheng Tao. A survey on self-supervised learning: Algorithms, applications, and future trends. IEEE Trans. Pattern Anal. Mach. Intell. , 46(12):9052–9071, 2024. [48] Aäron van den Oord, Yazhe Li, and Oriol Vinyals. Representation learning with contrastive predictive coding. CoRR , abs/1807.03748, 2018. [49] Weiran Huang, Mingyang Yi, Xuyang Zhao, and Zihao Jiang. Towards the generalization of contrastive self-supervised learning. In The Eleventh International Conference on Learning Representations, ICLR 2023, Kigali, Rwanda, May 1-5, 2023 . OpenReview.net, 2023. [50] Antti Tarvainen and Harri Valpola. Mean teachers are better role models: Weight-averaged consistency targets improve semi-supervised deep learning results. In Isabelle Guyon, Ulrike von Luxburg, Samy Bengio, Hanna M. Wallach, Rob Fergus, S. V. N. Vishwanathan, and Roman Garnett, editors, Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems 2017, December 4-9, 2017, Long Beach, CA, USA , pages 1195–1204, 2017. 
+
+12 [51] Songqiao Han, Xiyang Hu, Hailiang Huang, Mingqi Jiang, and Yue Zhao. Adbench: Anomaly detection benchmark. In Neural Information Processing Systems (NeurIPS) , 2022. [52] Yoshua Bengio, Aaron Courville, and Pascal Vincent. Representation learning: A review and new perspec-tives. IEEE Trans. Pattern Anal. Mach. Intell. , 35(8):1798–1828, August 2013. [53] Alessandro Achille and Stefano Soatto. Emergence of invariance and disentanglement in deep representa-tions. Journal of Machine Learning Research , 19:1–34, 09 2018. [54] Sridhar Ramaswamy, Rajeev Rastogi, and Kyuseok Shim. Efficient algorithms for mining outliers from large data sets. In Proceedings of the 2000 ACM SIGMOD international conference on Management of data , pages 427–438, 2000. [55] Mei-Ling Shyu, Shu-Ching Chen, Kanoksri Sarinnapakorn, and LiWu Chang. A novel anomaly detection scheme based on principal component classifier. In Proceedings of the IEEE foundations and new directions of data mining workshop , pages 172–179. IEEE Press, 2003. [56] Aleksandar Lazarevic and Vipin Kumar. Feature bagging for outlier detection. In Proceedings of the eleventh ACM SIGKDD international conference on Knowledge discovery in data mining , pages 157–166, 2005. [57] Markus Goldstein and Andreas Dengel. Histogram-based outlier score (hbos): A fast unsupervised anomaly detection algorithm. KI-2012: poster and demo track , 1:59–63, 2012. [58] Tomáš Pevn` y. Loda: Lightweight on-line detector of anomalies. Machine Learning , 102:275–304, 2016. [59] Zheng Li, Yue Zhao, Nicola Botta, Cezar Ionescu, and Xiyang Hu. Copod: copula-based outlier detection. In 2020 IEEE international conference on data mining (ICDM) , pages 1118–1123. IEEE, 2020. [60] Zheng Li, Yue Zhao, Xiyang Hu, Nicola Botta, Cezar Ionescu, and George Chen. Ecod: Unsupervised outlier detection using empirical cumulative distribution functions. IEEE Transactions on Knowledge and Data Engineering , 2022. [61] Bo Zong, Qi Song, Martin Renqiang Min, Wei Cheng, Cristian Lumezanu, Daeki Cho, and Haifeng Chen. Deep autoencoding gaussian mixture model for unsupervised anomaly detection. In International Conference on Learning Representations , 2018. [62] Sachin Goyal, Aditi Raghunathan, Moksh Jain, Harsha Vardhan Simhadri, and Prateek Jain. DROCC: deep robust one-class classification. In Proceedings of the 37th International Conference on Machine Learning, ICML 2020 , volume 119 of Proceedings of Machine Learning Research , pages 3711–3721. PMLR, 2020. [63] Liron Bergman and Yedid Hoshen. Classification-based anomaly detection for general data. In International Conference on Learning Representations , 2020. 
+
+13 A Theoretical Studies 
+
+We present here the assumptions, formal statements, and proofs of Theorem 3.1 and Corollary 3.2, which establish the early inlier fitting behavior of the autoencoder. The proofs proceed in three steps. First, in Appendix A.2, we introduce the cluster-consistent subspace, study gradient descent on the cluster-centered inputs eX, and analyze the corresponding gradient descent dynamics. Second, in Appendix A.3, we show that the actual gradient descent trajectory on the observed inputs X remains close to the cluster-centered dynamics, by establishing uniform bounds on the induced output and Jacobian discrepancies caused by X − eX. Finally, in Appendix A.4, we combine these ingredients to prove the occurrence of the IM effect first in the exact clustered case (εc = 0) , and then in the general case (εc > 0) . We note that our proof follows a similar structure to that of [35]. 
+
+A.1 Preliminaries and Technical Setup 
+
+For a matrix W = [ w1, . . . , w v ] ∈ Ru×v , we write w := vec( W ) ∈ Ruv for the vector obtained by stacking the columns of W . We denote by mat( ·) the inverse operation of vec( ·), which reshapes a vector in Ruv back into a u × v matrix. For given W, we define the representative-input map and the observed-input map by 
+
+FW ( eX) := 
+
+
+
+FW (ex1)
+
+...
+
+FW (exn)
+
+ ∈ Rnp , FW (X) := 
+
+
+
+FW (x1)
+
+...
+
+FW (xn)
+
+ ∈ Rnp .
+
+We also define 
+
+X := 
+
+
+
+x1
+
+...
+
+xn
+
+ ∈ Rnp , eX := 
+
+ex1
+
+...
+
+exn
+
+ ∈ Rnp , O := 
+
+
+
+o1
+
+...
+
+on
+
+ ∈ Rnp , Ξ := 
+
+
+
+ξ1
+
+...
+
+ξn
+
+ ∈ Rnp .
+
+Let 
+
+E := X − eX = Ξ + O. 
+
+Note that under Assumption A.3, which leads to the idealized setting (no within-cluster variation) below, we have E = O.For any v ∈ Rnp , we write 
+
+v =
+
+
+
+v1
+
+...
+
+vn
+
+ , vi ∈ Rp,
+
+and define ∥v∥2 :=  P ni=1 ∥vi∥22
+
+1/2 , ∥v∥2,∞ := max 1≤i≤n ∥vi∥2. For matrices, let ∥ · ∥ denote the operator norm and ∥ · ∥ F denote the Frobenius norm. In addition to Assumption 3.1 and Assumption 3.2, we additionally impose the following assumptions for technical reasons. Assumption A.1 states that the norm of each sample is uniformly bounded. We set the upper bound to one for mathematical convenience, although any positive constant can be used. Assumption A.2 simply requires that the outlier perturbation is not excessively large, which is also a mild condition. 
+
+Assumption A.1 (Bounded Sample Norms) . ∥xi∥2 ≤ 1, ∀i ∈ [n].
+
+Assumption A.2 (Bounded Outlier Magnitude) . ∥oi∥2 ≤ εo for all i ∈ O .
+
+A.2 Cluster-Centered Framework A.2.1 Idealized Cluster Setting and Subspace Projections 
+
+For technical simplicity, we first consider the case εc = 0 , so that ξi = 0 for all i ∈ [n], and then extend the analysis to the general case εc > 0. The following assumption formalizes this idealized setting. 14 Assumption A.3 (No Within-Cluster Variation) . ξi = 0 for all i = 1 , . . . , n .
+
+Definition A.1 (Support Subspace) . Define 
+
+S+ := v = ( v⊤ 
+
+> 1
+
+, . . . , v ⊤ 
+
+> n
+
+)⊤ ∈ Rnp : ∃u1, . . . , u K ∈ Rp such that vi = uk whenever i ∈ Λk .
+
+We also define S− := S⊥ 
+
+> +
+
+, and let ΠS+ and ΠS− denote the orthogonal projections onto S+ and S−,respectively. 
+
+Remark A.1. S+ consists of vectors whose components are identical within each cluster. That is, all entries corresponding to samples in the same cluster share the same vector value. 
+
+Lemma A.1 (Explicit Expression for ΠS+ ). For any v = ( v⊤ 
+
+> 1
+
+, . . . , v ⊤ 
+
+> n
+
+)⊤ ∈ Rnp and any cluster 
+
+k ∈ [K], the orthogonal projection of v onto S+ is given by, 
+
+(Π S+ v)i = 1
+
+nk
+
+X
+
+> j∈Λk
+
+vj , ∀i ∈ Λk.
+
+Proof. Define P v ∈ Rnp by (P v )i := 1
+
+> nk
+
+P 
+
+> j∈Λk
+
+vj , ∀i ∈ Λk. Clearly P v ∈ S+. It remains to show that v − P v ∈ S⊥ 
+
+> +
+
+. Fix u ∈ S+. Then there exist u1, . . . , u K ∈ Rp such that ui = uk whenever 
+
+i ∈ Λk. Hence 
+
+⟨v − P v, u ⟩ =
+
+> K
+
+X
+
+> k=1
+
+X
+
+> i∈Λk
+
+*
+
+vi − 1
+
+nk
+
+X
+
+> j∈Λk
+
+vj , u k
+
++
+
+=
+
+> K
+
+X
+
+> k=1
+
+* X
+
+> i∈Λk
+
+vi − X
+
+> i∈Λk
+
+1
+
+nk
+
+X
+
+> j∈Λk
+
+vj , u k
+
++
+
+=
+
+> K
+
+X
+
+> k=1
+
+* X
+
+> i∈Λk
+
+vi − X
+
+> j∈Λk
+
+vj , u k
+
++
+
+= 0 .
+
+Therefore v − P v ∈ S⊥ 
+
+> +
+
+, so P v = Π S+ v.
+
+Remark A.2 (Interpretation of ΠS+ (O)). By Lemma A.1, the operator ΠS+ replaces, within each cluster, all block components corresponding to samples in the same cluster by their cluster-wise average. In particular, for the outlier perturbation matrix O, we have for each i ∈ Λk,
+
+(Π S+ (O)) i = 1
+
+nk
+
+X
+
+> j∈Λk
+
+oj .
+
+Hence, ΠS+ (O) represents the cluster-wise average of the outlier perturbations. 
+
+Lemma A.2 (Uniform Bound for ΠS+ (O)). Under Assumptions 3.2 and A.2, the following inequality holds: 
+
+∥ΠS+ (O)∥2,∞ ≤ ρε o.
+
+Proof. Let P := Π S+ . By Lemma A.1, for any i ∈ Λk, (P O )i = 1
+
+> nk
+
+P 
+
+> j∈Λk
+
+oj . Hence 
+
+∥(P O )i∥2 ≤ 1
+
+nk
+
+X
+
+> j∈Λk
+
+∥oj ∥2 = 1
+
+nk
+
+X
+
+> j∈O∩ Λk
+
+∥oj ∥2 ≤ |O ∩ Λk|
+
+nk
+
+εo ≤ ρε o.
+
+Taking the maximum over all i gives the result. 
+
+Lemma A.3 (Uniform Bound for ΠS+ (Ξ) ). Under Assumption 3.1, the following inequality holds: 
+
+∥ΠS+ (Ξ) ∥2,∞ ≤ εc.
+
+Proof. Let P := Π S+ . By Lemma A.1, for any i ∈ Λk, (P Ξ) i = 1
+
+> nk
+
+P 
+
+> j∈Λk
+
+ξj . Hence 
+
+∥(P Ξ) i∥2 ≤ 1
+
+nk
+
+X
+
+> j∈Λk
+
+∥ξj ∥2 ≤ 1
+
+nk
+
+X
+
+> j∈Λk
+
+εc = εc.
+
+Taking the maximum over i completes the proof. 15 A.2.2 Jacobian Structure on the Cluster-Centered Inputs 
+
+We define the reconstruction loss using cluster-centered inputs with observed targets by eL(W ) :=  
+
+> 12
+
+∥F W ( eX) − X∥22 as well as the standard reconstruction loss by L(W ) := 12 ∥F W (X) − X∥22. The cluster-centered loss replaces each input sample by its corresponding cluster-centered input while preserving the original reconstruction targets. For a given W , let eJ(W ) and J(W ) denote the Jacobian matrices of the cluster-centered and observed-input maps, respectively: 
+
+eJ(W ) := ∂FW ( eX)
+
+∂w ∈ Rnp ×Hp and J(W ) := ∂FW (X)
+
+∂w ∈ Rnp ×Hp .
+
+In addition, for two parameter matrices W1, W 2, define their corresponding averaged Jacobians by 
+
+eJ(W1, W 2) := 
+
+Z 10
+
+eJ(W2 + t(W1 − W2)) dt 
+
+and 
+
+J(W1, W 2) := 
+
+Z 10
+
+J(W2 + t(W1 − W2)) dt. 
+
+The following lemma shows that the averaged Jacobians yield an exact mean-value representation of the change in the autoencoder outputs between two parameter values. 
+
+Lemma A.4 (Mean-Value Jacobian Representation) . For any W1, W 2 ∈ RH×p, then we have 
+
+FW1 ( eX) − F W2 ( eX) = eJ(W1, W 2)(vec( W1) − vec( W2)) 
+
+and 
+
+FW1 (X) − F W2 (X) = J(W1, W 2)(vec( W1) − vec( W2)) 
+
+Proof. Let w1 := vec( W1), w2 := vec( W2), and ∆w := w1 − w2. Then, we define γ(t) := 
+
+Fmat( w2+t∆w)( eX), t ∈ [0 , 1] . By the chain rule, γ′(t) = eJ(W2 + t(W1 − W2))∆ w. Therefore 
+
+FW1 ( eX) − F W2 ( eX) = γ(1) − γ(0) = 
+
+Z 10
+
+γ′(t)dt =
+
+Z 10
+
+eJ(W2 + t(W1 − W2))∆ wdt 
+
+=
+
+Z 10
+
+eJ(W2 + t(W1 − W2)) dt 
+
+
+
+∆w = eJ(W1, W 2)(vec( W1) − vec( W2)) .
+
+We can similarly prove the claim FW1 (X) − F W2 (X) = J(W1, W 2)(vec( W1) − vec( W2)) using the same argument. We define the cluster-center map by 
+
+FW (μ) := 
+
+
+
+FW (μ1)
+
+...
+
+FW (μK )
+
+ ∈ RKp ,
+
+which stacks the autoencoder outputs evaluated at the cluster centers. We further define its Jacobian matrix with respect to the parameter vector w by 
+
+Jc(W ) := ∂FW (μ)
+
+∂w ∈ RKp ×Hp .
+
+The following assumption imposes standard local regularity conditions on the Jacobian at the cluster centers, ensuring stable and well-conditioned optimization dynamics near the initialization. 
+
+Assumption A.4 (Cluster-Center Jacobian) . Fix an initialization W0 ∈ RH×p and a radius Rloc > 0.Define 
+
+D(W0, R loc ) := {W ∈ RH×p : ∥W − W0∥F ≤ Rloc }.
+
+Assume that there exist constants αc, β c, L c > 0 such that, for every W ∈ D (W0, R loc ),
+
+16 (i) for every unit vector z ∈ RKp , αc ≤ ∥ Jc(W )⊤z∥2 ≤ βc;(ii) for all W1, W 2 ∈ D (W0, R loc ), ∥Jc(W1) − Jc(W2)∥ ≤ Lc∥W1 − W2∥F .
+
+Under Assumption A.4, the cluster-representative Jacobian inherits the same structured regularity properties, summarized in the following proposition. 
+
+Proposition A.5 (Jacobian Structure of Cluster-Representative Inputs) . Assume Assumption A.4. Fix 
+
+α := √nmin αc, β := √nmax βc, L := √nmax Lc.
+
+Then, for every W ∈ D (W0, R loc ),(i) range( eJ(W )) ⊂ S+;(ii) for every unit vector u ∈ S+, α ≤ ∥ eJ(W )⊤u∥2 ≤ β;(iii) for all W1, W 2 ∈ D (W0, R loc ), ∥ eJ(W1) − eJ(W2)∥ ≤ L∥W1 − W2∥F .Proof. Define the duplication operator D : RKp → Rnp by (Dz )i := zk whenever i ∈ Λk. Then 
+
+D(RKp ) = S+, FW ( eX) = DFW (μ)W ), and eJ(W ) = DJ c(W ). This proves range( eJ(W )) ⊂
+
+S+.Now fix a unit vector u ∈ S+. Since u ∈ S+, there exist vectors u1, . . . , u K ∈ Rp such that ui = uk
+
+for all i ∈ Λk. Then ∥u∥22 = PKk=1 nk∥uk∥22 = 1 and 
+
+D⊤u =
+
+
+
+n1u1
+
+...
+
+nK uK
+
+ .
+
+Hence, we get ∥D⊤u∥22 = PKk=1 n2
+
+> k
+
+∥uk∥22. Since PKk=1 nk∥uk∥22 = 1 , we also get nmin ≤∥D⊤u∥22 ≤ nmax and eJ(W )⊤u = Jc(W )⊤D⊤u. Let z := D⊤u/ ∥D⊤u∥2. Then ∥z∥2 = 1 ,so by Assumption A.4, 
+
+αc∥D⊤u∥2 ≤ ∥ eJ(W )⊤u∥2 ≤ βc∥D⊤u∥2.
+
+Using the bound on ∥D⊤u∥2 yields √nmin αc ≤ ∥ eJ(W )⊤u∥2 ≤ √nmax βc. Finally, we have 
+
+eJ(W1) − eJ(W2) = D(Jc(W1) − Jc(W2)) .
+
+Since ∥D∥ = √nmax , we obtain 
+
+∥ eJ(W1) − eJ(W2)∥ ≤ √nmax ∥Jc(W1) − Jc(W2)∥ ≤ √nmax Lc∥W1 − W2∥F .
+
+This completes the proof. 
+
+A.2.3 Gradient Descent Dynamics on Cluster-Centered Inputs 
+
+Let (fWτ )τ ≥0 denote the matrix-form gradient descent sequence for the cluster-centered loss eL(W ),initialized at fW0 = W0, and generated by 
+
+ewτ +1 = ewτ − η eJ(fWτ )⊤erτ , where erτ := FfWτ ( eX) − X, 
+
+and fWτ := mat( ewτ ). Let R0 := ∥er0∥2, bR0 := eR0 + √nε c + √ρnε o and for any ν > 0, we also define the iteration point 
+
+T⋆(ν) := 
+
+&
+
+2
+
+ηα 2 log +
+
+bR0
+
+ν
+
+!' 
+
+.
+
+To ensure that the gradient descent trajectory remains within the local neighborhood where the Jacobian regularity conditions hold, we impose the following radius condition. 
+
+Assumption A.5 (Radius condition) . Rloc ≥ 2βα2 bR0.
+
+17 Remark A.3. Recall that eR0 = ∥F W0 ( eX) − eX∥2. Since X = eX + E = eX + Ξ + O, we have the following relation between R0 and bR0:
+
+R0 ≤ eR0 + ∥Ξ∥2 + ∥O∥2 ≤ eR0 + √nε c + √ρnε o = bR0.
+
+The following lemma summarizes the key gradient descent dynamics under the cluster-centered loss. 
+
+Lemma A.6 (Gradient Descent Dynamics on Cluster Representatives) . Assume Assumption A.4 and Assumption A.5. If 0 < η ≤ min 
+
+n α2 
+
+> 8β4
+
+, α2 
+
+> 2Lβ 2bR0
+
+o
+
+, then we have for all τ ≥ 0 that 
+
+ΠS− (erτ ) = Π S− (er0), ∥ΠS+ (erτ )∥22 ≤ (1 − ηα 2)τ ∥ΠS+ (er0)∥22, and ∥fWτ − W0∥F ≤ 2βα2 bR0. More-over, if ∥ΠS+ (E)∥2,∞ ≤ ν, then every τ ≥ T⋆(ν) satisfies 
+
+∥F fWτ ( eX) − eX∥2,∞ ≤ 2ν. 
+
+Proof. Write rτ := Π S+ (erτ ), e τ := Π S− (erτ ), erτ = rτ + eτ . By Lemma A.4 and the gradient descent update, we have erτ +1 = erτ − ηC τ erτ , where Cτ := eJ(fWτ +1 , fWτ ) eJ(fWτ )⊤.
+
+Since range( eJ(fWτ )) ⊂ S+ by Proposition A.5(i), we have eJ(fWτ )⊤v = 0 for all v ∈ S−. Hence 
+
+eJ(fWτ )⊤eτ = 0 , and Cτ eτ = 0 . Therefore ΠS− (erτ +1 ) = Π S− (erτ − ηC τ erτ ) = Π S− (erτ ). By induction, 
+
+ΠS− (erτ ) = Π S− (er0) for all τ ≥ 0.
+
+Moreover, since Cτ eτ = 0 , we have rτ +1 = rτ − ηC τ rτ , which results in 
+
+∥rτ +1 ∥22 = ∥rτ ∥22 − 2η⟨rτ , C τ rτ ⟩ + η2∥Cτ rτ ∥22. (A.1) We also show that ∥rτ ∥2 ≤ bR0 for all τ ≥ 0. For τ = 0 , it is clear since ∥rτ ∥2 ≤ R0 ≤ bR0. Assume it holds at time τ . Then 
+
+∥fWτ +1 − fWτ ∥F = η∥ eJ(fWτ )⊤erτ ∥2 = η∥ eJ(fWτ )⊤rτ ∥2 ≤ ηβ ∥rτ ∥2 ≤ ηβ bR0.
+
+By Proposition A.5(iii), ∥ eJ(fWτ +1 , fWτ ) − eJ(fWτ )∥ ≤ L 
+
+> 2
+
+∥fWτ +1 − fWτ ∥F ≤ Lηβ  
+
+> 2
+
+bR0 ≤ α2 
+
+> 4β
+
+.
+
+Now fix a unit vector u ∈ S+. Then ⟨u, C τ u⟩ =
+
+D eJ(fWτ +1 , fWτ )⊤u, eJ(fWτ )⊤u
+
+E
+
+. Using Proposi-tion A.5(ii), 
+
+⟨u, C τ u⟩ = ∥ eJ(fWτ )⊤u∥22 +
+
+D
+
+( eJ(fWτ +1 , fWτ ) − eJ(fWτ )) ⊤u, eJ(fWτ )⊤u
+
+E
+
+≥ α2 − ∥ eJ(fWτ +1 , fWτ ) − eJ(fWτ )∥∥ eJ(fWτ )⊤u∥2 ≥ α2 − α2
+
+4 = 3α2
+
+4 ,
+
+and 
+
+∥Cτ u∥2 ≤ ∥ eJ(fWτ +1 , fWτ )∥∥ eJ(fWτ )⊤u∥2 ≤
+
+
+
+β + α2
+
+4β
+
+
+
+β ≤ 2β2.
+
+Applying these bounds to eq. (A.1), ∥rτ +1 ∥22 ≤  1 − 32 ηα 2 + 4 η2β4 ∥rτ ∥22. Since η ≤ α2/(8 β4),
+
+4η2β4 ≤ 12 ηα 2, and therefore ∥rτ +1 ∥22 ≤ (1 − ηα 2)∥rτ ∥22. In particular, we have that ∥rτ +1 ∥2 ≤∥rτ ∥2 ≤ bR0, which leads to ∥ΠS+ (erτ )∥22 ≤ (1 − ηα 2)τ ∥ΠS+ (er0)∥22.
+
+Using the gradient descent update, it holds that ∥fWτ +1 − fWτ ∥F ≤ ηβ ∥rτ ∥2 ≤ ηβ (1 − ηα 2)τ / 2 bR0.
+
+Therefore, we get 
+
+∥fWτ − W0∥F ≤ 
+
+> τ−1
+
+X
+
+> s=0
+
+∥fWs+1 − fWs∥F ≤ ηβR 0
+
+> ∞
+
+X
+
+> s=0
+
+(1 − ηα 2)s/ 2 ≤ 2βα2 R0 ≤ Rloc .
+
+Finally, since the inputs exi are constant inside each cluster, we have FW ( eX) ∈ S+ for every W .Also eX ∈ S+. Hence FfWτ ( eX) − eX ∈ S+. Since erτ = FfWτ ( eX) − X = ( FfWτ ( eX) − eX) − E, 
+
+we get FfWτ ( eX) − eX = Π S+ (erτ ) + Π S+ (E). Therefore ∥F fWτ ( eX) − eX∥2,∞ ≤ ∥ ΠS+ (erτ )∥2 +
+
+∥ΠS+ (E)∥2,∞. If ∥ΠS+ (E)∥2,∞ ≤ ν and τ ≥ T⋆(ν), then ∥ΠS+ (erτ )∥2 ≤ (1 − ηα 2)τ / 2 bR0 ≤ ν. 
+
+Hence, we conclude that ∥F fWτ ( eX) − eX∥2,∞ ≤ 2ν. 
+
+18 A.3 From Cluster-Centered Inputs to Observed Inputs A.3.1 Output and Jacobian Perturbation Bounds 
+
+Before deriving the discrepancy bounds, we impose the following mild regularity condition on the activation function. This assumption is mild and is satisfied by many standard activations. For example, sigmoid satisfies (B1, B 2) = (1 /4, 1/(6 √3)) , while ReLU satisfies (B1, B 2) = (1 , 0) 
+
+almost everywhere, i.e., for all t̸ = 0 .
+
+Assumption A.6 (Activation bounds) . Assume that |ϕ′(t)| ≤ B1 and |ϕ′′ (t)| ≤ B2 for all t ∈ R.
+
+Let 
+
+Rμ := max  
+
+> 1≤k≤K
+
+∥μk∥2, RW := ∥W0∥F + Rloc ,
+
+and define 
+
+∆f := ∥A∥B1RW (εc + εo), ∆J := √n ∥A∥ B1 + B2RW Rμ
+
+(εc + εo).
+
+The following proposition quantifies how the mismatch between X and eX affects the autoencoder outputs and Jacobians. 
+
+Proposition A.7 (Output and Jacobian Discrepancy Bounds) . Under Assumption A.6, we have for every W ∈ D (W0, R loc ) that ∥F W (X) − F W ( eX)∥2,∞ ≤ ∆f and ∥J(W ) − eJ(W )∥ ≤ ∆J .
+
+Proof. Fix W ∈ D (W0, R loc ). Then ∥W ∥ ≤ ∥ W ∥F ≤ RW .For each i, since xi − exi = ξi + oi, Assumptions 3.1 and A.2 give ∥xi − exi∥2 ≤ ∥ ξi∥2 + ∥oi∥2 ≤
+
+εc + εo. For the output bound, for each i,
+
+∥FW (xi) − FW (exi)∥2 = ∥A(ϕ(W x i) − ϕ(W exi)) ∥2
+
+≤ ∥ A∥∥ ϕ(W x i) − ϕ(W exi)∥2
+
+≤ ∥ A∥B1∥W (xi − exi)∥2
+
+≤ ∥ A∥B1RW ∥xi − exi∥2
+
+≤ ∥ A∥B1RW (εc + εo) = ∆ f .
+
+Taking the maximum over i gives 
+
+∥F W (X) − F W ( eX)∥2,∞ ≤ ∆f .
+
+For the Jacobian bound, fix a matrix U ∈ RH×p with ∥U ∥F = 1 . For each i, let 
+
+Di := diag( ϕ′(W x i)) , eDi := diag( ϕ′(W exi)) .
+
+The directional derivative of FW (x) in direction U is Adiag( ϕ′(W x )) U x . Hence 
+
+(J(W ) − eJ(W ))[ U ]i = AD iU (xi − exi) + A(Di − eDi)U exi.
+
+Therefore 
+
+∥(J(W ) − eJ(W ))[ U ]i∥2 ≤ ∥ A∥∥ Di∥∥ U (xi − exi)∥2 + ∥A∥∥ Di − eDi∥∥ U exi∥2
+
+≤ ∥ A∥B1∥xi − exi∥2 + ∥A∥B2∥W (xi − exi)∥∞∥exi∥2
+
+≤ ∥ A∥ B1 + B2RW Rμ
+
+∥xi − exi∥2
+
+≤ ∥ A∥ B1 + B2RW Rμ
+
+(εc + εo).
+
+Summing over i and using ∥U ∥F = 1 , we obtain 
+
+∥(J(W ) − eJ(W ))[ U ]∥2 ≤ √n ∥A∥ B1 + B2RW Rμ
+
+(εc + εo) = ∆ J .
+
+Taking the supremum over ∥U ∥F = 1 concludes that 
+
+∥J(W ) − eJ(W )∥ ≤ ∆J .
+
+19 A.3.2 Deviation from the Cluster-Centered Path 
+
+Let (Wτ )τ ≥0 be the gradient descent sequence for the standard autoencoder loss: 
+
+wτ +1 = wτ − ηJ (Wτ )⊤rτ , where rτ := FWτ (X) − X, 
+
+and Wτ := mat( wτ ). Let 
+
+βX := β + ∆ J , κ := L bR0 + ββ X , γ := ∆ J bR0 + βX
+
+√n∆f .
+
+For any integer T ≥ 0, we further introduce 
+
+∆path (T ) := ηγT exp( ηκT ), ζT := ∆ f + β∆path (T ).
+
+Using Propositions A.5 and A.7 and Lemma A.6, we obtain the following proposition, which shows that the actual gradient descent path remains close to the cluster-centered path, together with a corresponding bound on the output discrepancy. 
+
+Proposition A.8 (Perturbation of gradient descent path) . Under Assumption A.6, if ∆path (T ) ≤
+
+Rloc − 2βα2 bR0, then for every τ ≤ T , we have 
+
+∥Wτ − fWτ ∥F ≤ ∆path (T )
+
+and 
+
+∥F Wτ (X) − F fWτ ( eX)∥2,∞ ≤ ζT .
+
+Proof. Let 
+
+dτ := ∥Wτ − fWτ ∥F , pτ := ∥F Wτ (X) − F fWτ ( eX)∥2.
+
+We prove by induction that Wτ ∈ D (W0, R loc ) and dτ ≤ ∆path (T ) for all τ ≤ T .At τ = 0 , we have d0 = 0 and W0 = fW0.Assume the claim holds up to time τ ≤ T − 1. Then Wτ , fWτ ∈ D (W0, R loc ). Using the update rules, we can derive dτ +1 = ∥Wτ +1 − fWτ +1 ∥F ≤ dτ + η∥(J(Wτ ) − eJ(fWτ )) ⊤erτ ∥2 + η∥J(Wτ )⊤(rτ −
+
+erτ )∥2. By Proposition A.7 and Proposition A.5(iii), 
+
+∥J(Wτ ) − eJ(fWτ )∥ ≤ ∥ J(Wτ ) − eJ(Wτ )∥ + ∥ eJ(Wτ ) − eJ(fWτ )∥ ≤ ∆J + Ld τ .
+
+Also 
+
+∥J(Wτ )∥ ≤ ∥ J(Wτ ) − eJ(Wτ )∥ + ∥ eJ(Wτ )∥ ≤ ∆J + β = βX .
+
+Furthermore, by Lemma A.6, we know that ∥erτ ∥2 ≤ bR0, leading to dτ +1 ≤ dτ + η(∆ J + Ld τ ) bR0 +
+
+ηβ X pτ . Now, we get pτ = ∥F Wτ (X) − F fWτ ( eX)∥2 ≤ ∥F Wτ (X) − F Wτ ( eX)∥2 + ∥F Wτ ( eX) −FfWτ ( eX)∥2 ≤ √n∆f + ∥ eJ(Wτ , fWτ )∥∥ Wτ − fWτ ∥F ≤ √n∆f + βd τ . Substituting this into the recursion for dτ +1 gives dτ +1 ≤ (1 + ηκ )dτ + ηγ. Since d0 = 0 , the induction gives 
+
+dτ ≤ ηγτ (1 + ηκ )τ ≤ ηγτ e ηκτ ≤ ∆path (T )
+
+for all τ ≤ T .Also, by Lemma A.6, it holds that ∥fWτ − W0∥F ≤ 2βα2 bR0. Therefore, we get 
+
+∥Wτ − W0∥F ≤ ∥ Wτ − fWτ ∥F + ∥fWτ − W0∥F ≤ ∆path (T ) + 2βα2 bR0 ≤ Rloc .
+
+So Wτ ∈ D (W0, R loc ) for all τ ≤ T .Finally, using the bound on pτ and the definition of ζT , we can conclude that 
+
+∥F Wτ (X) − F fWτ ( eX)∥2,∞ ≤ ∥F Wτ (X) − F Wτ ( eX)∥2,∞ + ∥F Wτ ( eX) − F fWτ ( eX)∥2
+
+≤ ∆f + βd τ ≤ ∆f + β∆path (T ) = ζT .
+
+20 A.4 Theoretical Results for the IM Effect A.4.1 IM Effect in the Exact Clustered Case (εc = 0) 
+
+We first show that, in the exact clustered case (εc = 0) , the autoencoder reconstructs the underlying cluster structure before fitting sample-specific perturbations. 
+
+Theorem A.9 (Early Memorization of Cluster Information in the Exact Clustered Case) . Suppose that Assumptions 3.2, A.2, A.3, A.4, A.5, and A.6 hold. Let α, β, L be as defined in Proposition A.5, and assume that 0 < η ≤ min 
+
+n α2 
+
+> 8β4
+
+, α2 
+
+> 2Lβ 2bR0
+
+o
+
+. Fix an integer T ≥ T⋆(ρε o). If ∆path (T ) ≤ Rloc − 2βα2 bR0
+
+and δ := min a̸=b ∥μa − μb∥2 > 2ζT + 4 ρε o, then 
+
+∥F WT (X) − eX∥2,∞ ≤ ζT + 2 ρε o.
+
+Equivalently, 
+
+∥FWT (xi) − μg(i)∥2 ≤ ζT + 2 ρε o for all i. 
+
+Consequently, it follows that 
+
+arg min 
+
+> 1≤k≤K
+
+∥FWT (xi) − μk∥2 = g(i) for all i. 
+
+Proof. Under Assumption A.3, we have E = O. By Lemma A.2, ∥ΠS+ (E)∥2,∞ ≤ ρε o. Applying Lemma A.6 with ν = ρε o and Proposition A.8 give ∥F fWT ( eX) − eX∥2,∞ ≤ 2ρε o and ∥F WT (X) −FfWT ( eX)∥2,∞ ≤ ζT . Hence, we have that 
+
+∥F WT (X) − eX∥2,∞ ≤ ζT + 2 ρε o,
+
+which results in ∥FWT (xi) − μg(i)∥2 ≤ ζT + 2 ρε o, for all i ∈ [n].
+
+Fix i and write k = g(i). For any b̸ = k,
+
+∥FWT (xi) − μb∥2 ≥ ∥ μb − μk∥2 − ∥ FWT (xi) − μk∥2 ≥ δ − (ζT + 2 ρε o).
+
+Since δ > 2ζT + 4 ρε o, we have δ − (ζT + 2 ρε o) > ζ T + 2 ρε o ≥ ∥ FWT (xi) − μk∥2. Therefore, we can conclude that 
+
+∥FWT (xi) − μb∥2 > ∥FWT (xi) − μk∥2 for all b̸ = k. 
+
+The following corollary shows that, in the exact clustered case, the early memorization of cluster information directly leads to the IM effect in terms of reconstruction-error separation between inliers and outliers. 
+
+Corollary A.10 (Reconstruction-Error Separation in the Exact Clustered Case) . Under the assump-tions of Theorem A.9, every inlier i / ∈ O satisfies 
+
+∥FWT (xi) − xi∥2 ≤ ζT + 2 ρε o.
+
+On the other hand, every outlier i ∈ O satisfies 
+
+∥FWT (xi) − xi∥2 ≥ ∥ oi∥2 − ζT − 2ρε o.
+
+Hence, if an outlier satisfies 
+
+∥oi∥2 > 2ζT + 4 ρε o,
+
+then its reconstruction error is strictly larger than that of every inlier. Proof. If i / ∈ O , then oi = 0 , and under Assumption A.3, xi = μg(i). Hence ∥FWT (xi) − xi∥2 =
+
+∥FWT (xi) − μg(i)∥2 ≤ ζT + 2 ρε o by Theorem A.9. If i ∈ O , then xi = μg(i) + oi. Therefore 
+
+∥FWT (xi) − xi∥2 = ∥FWT (xi) − μg(i) − oi∥2 ≥ ∥ oi∥2 − ∥ FWT (xi) − μg(i)∥2
+
+≥ ∥ oi∥2 − ζT − 2ρε o.
+
+Thus, if ∥oi∥2 > 2ζT + 4 ρε o, then 
+
+∥FWT (xi) − xi∥2 > ζ T + 2 ρε o,
+
+whereas every inlier has reconstruction error at most ζT + 2 ρε o.21 A.4.2 Main Results: IM Effect in the General Clustered Case (εc > 0) 
+
+We next extend the previous result to the general clustered case (εc > 0) , showing that the autoencoder still memorizes the underlying cluster structure early, up to an additional error induced by within-cluster variation. 
+
+Theorem A.11 (Early Memorization of Cluster Information in the General Case) . Assume As-sumptions 3.1, 3.2, A.2, A.4, A.5 and A.6. Let α, β, L be the values set in Proposition A.5. Assume 
+
+0 < η ≤ min 
+
+n α2 
+
+> 8β4
+
+, α2 
+
+> 2Lβ 2bR0
+
+o
+
+. Fix an integer T ≥ T⋆(εc + ρε o). If ∆path (T ) ≤ Rloc − 2βα2 bR0 and 
+
+δ := min a̸=b ∥μa − μb∥2 > 2ζT + 4( εc + ρε o), then, we have 
+
+∥F WT (X) − eX∥2,∞ ≤ ζT + 2( εc + ρε o).
+
+Equivalently, 
+
+∥FWT (xi) − μg(i)∥2 ≤ ζT + 2( εc + ρε o) for all i. 
+
+Consequently, 
+
+arg min 
+
+> 1≤k≤K
+
+∥FWT (xi) − μk∥2 = g(i) for all i. 
+
+Proof. By the triangle inequality and Lemmas A.2 and A.3, 
+
+∥ΠS+ (E)∥2,∞ ≤ ∥ ΠS+ (Ξ) ∥2,∞ + ∥ΠS+ (O)∥2,∞ ≤ εc + ρε o.
+
+Applying Lemma A.6 with ν = εc + ρε o gives ∥F fWT ( eX) − eX∥2,∞ ≤ 2( εc + ρε o). and applying Proposition A.8 gives ∥F WT (X) − F fWT ( eX)∥2,∞ ≤ ζT . Hence, we have 
+
+∥F WT (X) − eX∥2,∞ ≤ ζT + 2( εc + ρε o),
+
+which concludes 
+
+∥FWT (xi) − μg(i)∥2 ≤ ζT + 2( εc + ρε o) for all i. 
+
+Fix i and write k = g(i). For any b̸ = k,
+
+∥FWT (xi) − μb∥2 ≥ ∥ μb − μk∥2 − ∥ FWT (xi) − μk∥2 ≥ δ − (ζT + 2( εc + ρε o)) .
+
+Since δ > 2ζT + 4( εc + ρε o), we have 
+
+δ − (ζT + 2( εc + ρε o)) > ζ T + 2( εc + ρε o) ≥ ∥ FWT (xi) − μk∥2.
+
+Therefore 
+
+∥FWT (xi) − μb∥2 > ∥FWT (xi) − μk∥2 for all b̸ = k. 
+
+The following corollary presents our final main result: the early memorization of cluster information yields the IM effect even in the general clustered case (εc > 0) , where reconstruction errors still separate inliers from sufficiently large outliers despite within-cluster variation. 
+
+Corollary A.12 (Reconstruction-Error Separation in the Exact Clustered Case) . Under the assump-tions and settings of Theorem A.11, every inlier i / ∈ O satisfies 
+
+∥FWT (xi) − xi∥2 ≤ ζT + 3 εc + 2 ρε o.
+
+On the other hand, every outlier i ∈ O satisfies 
+
+∥FWT (xi) − xi∥2 ≥ ∥ oi∥2 − ζT − 3εc − 2ρε o.
+
+Hence, if an outlier satisfies 
+
+∥oi∥2 > δ + 2 εc,
+
+then its reconstruction error is strictly larger than that of every inlier. 
+
+22 Proof. Fix i. If i / ∈ O , then oi = 0 , so xi = μg(i) + ξi. Therefore 
+
+∥FWT (xi) − xi∥2 = ∥FWT (xi) − μg(i) − ξi∥2 ≤ ∥ FWT (xi) − μg(i)∥2 + ∥ξi∥2
+
+≤ ζT + 2( εc + ρε o) + εc = ζT + 3 εc + 2 ρε o.
+
+If i ∈ O , then xi = μg(i) + ξi + oi. Hence 
+
+∥FWT (xi) − xi∥2 = ∥FWT (xi) − μg(i) − ξi − oi∥2 ≥ ∥ oi∥2 − ∥ FWT (xi) − μg(i)∥2 − ∥ ξi∥2
+
+≥ ∥ oi∥2 − ζT − 2( εc + ρε o) − εc = ∥oi∥2 − ζT − 3εc − 2ρε o.
+
+Since Theorem A.11 assumes 
+
+δ > 2ζT + 4( εc + ρε o),
+
+we obtain 
+
+δ + 2 εc > 2ζT + 6 εc + 4 ρε o.
+
+Therefore, if 
+
+∥oi∥2 > δ + 2 εc,
+
+then 
+
+∥oi∥2 > 2ζT + 6 εc + 4 ρε o,
+
+and hence 
+
+∥oi∥2 − ζT − 3εc − 2ρε o > ζ T + 3 εc + 2 ρε o.
+
+Thus, every such outlier has reconstruction error strictly larger than that of every inlier. 
+
+A.4.3 Note: Monotonic Dependence of Key Quantities 
+
+We summarize the dependence of the key constants appearing in the proofs. Throughout, we use the notation c(·) to indicate monotonic dependence. We focus on the following elements: 
+
+nmin , n max , ε c, eR0, ρ, δ 
+
+We use the notation c = c(a1 ↑, . . . , a m ↓) to indicate that the constant c depends on a1, . . . , a m,where ↑ and ↓ denote that c is increasing or decreasing in the corresponding argument. Logarithmic factors are ignored when specifying monotonicity. The quantities α, β, and L scale with the cluster sizes as 
+
+α = c(nmin ↑), β = c(nmax ↑), L = c(nmax ↑).
+
+The approximation and Jacobian errors satisfy 
+
+∆f = c(εc ↑), ∆J = c(n ↑, ε c ↑),
+
+which imply 
+
+βX = β + ∆ J = c(nmax ↑, ε c ↑).
+
+The key growth parameters κ and γ satisfy 
+
+κ = c(nmax ↑, ε c ↑, eR0 ↑), γ = c(nmax ↑, ε c ↑, eR0 ↑).
+
+Consequently, the path deviation and residual bounds satisfy 
+
+∆path (T ) = c(T, n max ↑, ε c ↑, eR0 ↑), ζT = c(T, n max ↑, ε c ↑, eR0 ↑).
+
+The lower bound on the iteration index in the main theorem satisfies 
+
+T⋆(εc + ρε o) = c(nmin ↓),
+
+while the admissible range for the upper bound is determined by the conditions 
+
+∆path (T ) ≤ Rloc − 2βα2 bR0, δ > 2ζT + 4( εc + ρε o),
+
+which yield upper bounds of the form 
+
+c(nmin ↑, n max ↓, ε c ↓, eR0 ↓, ρ ↓, δ ↑)
+
+since bR0 = eR0 + √nε c + √ρnε o = c(ϵc ↑, eR0 ↑, ρ ↑). Therefore, the lower and upper bounds, i.e., 
+
+T1 and T2, on the iteration interval in the main theorem scale as 
+
+c(nmin ↓) and c(nmin ↑, n max ↓, ε c ↓, eR0 ↓, ρ ↓, δ ↑),
+
+respectively. 23 B Detailed Experimental Analysis 
+
+B.1 Data Description Simulation Datasets We generate a synthetic dataset consisting of n = 2 ,000 samples in R2 with 
+
+K = 3 cluster centers. The cluster centers μ1, μ 2, and μ3 are placed in [−10 , 10] 2 such that the minimum pairwise separation satisfies δ = 16 , ensuring well-separated clusters. Inlier samples are distributed approximately uniformly across the three clusters (about 633 samples per cluster) unless otherwise specified. Each inlier xi is generated as xi = μg(i) + ξi, where 
+
+g(i) ∈ { 1, 2, 3} denotes the cluster assignment and ξi ∼ N (0 , eε2 
+
+> c
+
+I) is Gaussian noise. The parameter 
+
+eεc controls the within-cluster variation, corresponding to εc in Assumption 3.1. Outliers are generated independently with an outlier rate ρ = 0 .05 , resulting in 100 outlier samples. These samples are drawn uniformly from [−18 , 18] 2, subject to the constraint that each outlier is at least a distance of 10 away from every cluster center, ensuring that they lie outside the inlier regions. Finally, all features are min-max scaled to the range [0 , 1/√2] , so that the resulting inputs have bounded ℓ2 norms not exceeding one. While the above describes the baseline data generation process, the parameters εc, (nmin , n max ), and 
+
+ρ are varied across simulation studies to examine their effects. We refer to Section 4.1 in the main manuscript for detailed configurations. 
+
+Real Benchmark Datasets We evaluate a total of 57 datasets from ADBench [ 51 ], including 46 tabular datasets, 6 image datasets, and 5 text datasets. The tabular datasets cover diverse application domains, including healthcare, finance, physical, and astronautics. Table B.1 summarizes the basic information of all datasets. For additional details, we refer the reader to the official ADBench GitHub repository 2.All input features, including both raw features and learned representations, are preprocessed using min-max scaling prior to model training. For tabular datasets without learned representations, we directly use the scaled raw features as inputs. For image and text datasets, we directly use the pre-computed embedding features provided in 
+
+ADBench . Specifically, image datasets are represented using features extracted from a pre-trained Vision Transformer (ViT, [ 43 ]), and text datasets are represented using embeddings obtained via BERT [44]. For tabular datasets, we construct representations using TabPFN-v2 [ 46 ] obtained from the official GitHub repository 3. Since TabPFN requires a supervised setup, we treat the first column as the target variable and the remaining columns as input features, and extract representations based on the resulting model. When the first column has negligible variance, we instead use the second column as the target. To ensure computational feasibility and representation quality, we restrict our analysis to datasets satisfying 4,000 < n < 50 ,000 and p < 50 . Under these criteria, the tabular datasets used for representation learning are: ALOI , annthyroid , campaign , landsat ,
+
+magic.gamma , mammography , PageBlocks , shuttle , SpamBase , Wilt , and yeast .
+
+B.2 Implementation Details 
+
+As described in Appendix B.1, all datasets are preprocessed using min-max scaling so that each feature lies in [0 , 1] . All experiments are run on a single NVIDIA H100 GPU using PyTorch . Each reported result is averaged over five independent runs with different random initializations and mini-batch orderings. For the simulation experiments involving eR0, randomness is introduced only through the mini-batch ordering, while the initialization is kept fixed. The remainder of this subsection details the architecture and optimization choices for the simulation study (Section 4.1) and the real-world experiments (Section 4.2). 
+
+> 2https://github.com/Minqi824/ADBench
+> 3https://github.com/PriorLabs/TabPFN
+
+24 Table B.1: Description of ADBench benchmark datasets. 
+
+Number Dataset Name #Samples #Features #Anomaly %Anomaly Category 1 ALOI 49534 27 1508 3.04 Image 
+
+2 annthyroid 7200 6 534 7.42 Healthcare 
+
+3 backdoor 95329 196 2329 2.44 Network 
+
+4 breastw 683 9 239 34.99 Healthcare 
+
+5 campaign 41188 62 4640 11.27 Finance 
+
+6 cardio 1831 21 176 9.61 Healthcare 
+
+7 Cardiotocography 2114 21 466 22.04 Healthcare 
+
+8 celeba 202599 39 4547 2.24 Image 
+
+9 census 299285 500 18568 6.2 Sociology 
+
+10 cover 286048 10 2747 0.96 Botany 
+
+11 donors 619326 10 36710 5.93 Sociology 
+
+12 fault 1941 27 673 34.67 Physical 
+
+13 fraud 284807 29 492 0.17 Finance 
+
+14 glass 214 7 9 4.21 Forensic 
+
+15 Hepatitis 80 19 13 16.25 Healthcare 
+
+16 http 567498 3 2211 0.39 Web 
+
+17 InternetAds 1966 1555 368 18.72 Image 
+
+18 Ionosphere 351 32 126 35.9 Oryctognosy 
+
+19 landsat 6435 36 1333 20.71 Astronautics 
+
+20 letter 1600 32 100 6.25 Image 
+
+21 Lymphography 148 18 6 4.05 Healthcare 
+
+22 magic.gamma 19020 10 6688 35.16 Physical 
+
+23 mammography 11183 6 260 2.32 Healthcare 
+
+24 mnist 7603 100 700 9.21 Image 
+
+25 musk 3062 166 97 3.17 Chemistry 
+
+26 optdigits 5216 64 150 2.88 Image 
+
+27 PageBlocks 5393 10 510 9.46 Document 
+
+28 pendigits 6870 16 156 2.27 Image 
+
+29 Pima 768 8 268 34.9 Healthcare 
+
+30 satellite 6435 36 2036 31.64 Astronautics 
+
+31 satimage-2 5803 36 71 1.22 Astronautics 
+
+32 shuttle 49097 9 3511 7.15 Astronautics 
+
+33 skin 245057 3 50859 20.75 Image 
+
+34 smtp 95156 3 30 0.03 Web 
+
+35 SpamBase 4207 57 1679 39.91 Document 
+
+36 speech 3686 400 61 1.65 Linguistics 
+
+37 Stamps 340 9 31 9.12 Document 
+
+38 thyroid 3772 6 93 2.47 Healthcare 
+
+39 vertebral 240 6 30 12.5 Biology 
+
+40 vowels 1456 12 50 3.43 Linguistics 
+
+41 Waveform 3443 21 100 2.9 Physics 
+
+42 WBC 223 9 10 4.48 Healthcare 
+
+43 WDBC 367 30 10 2.72 Healthcare 
+
+44 Wilt 4819 5 257 5.33 Botany 
+
+45 wine 129 13 10 7.75 Chemistry 
+
+46 WPBC 198 33 47 23.74 Healthcare 
+
+47 yeast 1484 8 507 34.16 Biology 
+
+48 CIFAR10 5263 512 263 5 Image 
+
+49 FashionMNIST 6315 512 315 5 Image 
+
+50 MNIST-C 10000 512 500 5 Image 
+
+51 MVTec-AD 5354 512 1258 23.5 Image 
+
+52 SVHN 5208 512 260 5 Image 
+
+53 Agnews 10000 768 500 5 NLP 
+
+54 Amazon 10000 768 500 5 NLP 
+
+55 Imdb 10000 768 500 5 NLP 
+
+56 Yelp 10000 768 500 5 NLP 
+
+57 20news 11905 768 591 4.96 NLP 
+
+25 Simulation Study We train a single-hidden-layer autoencoder FW (x) = A tanh( W x ) with hidden size H = 32 . Both the encoder weight W and the decoder weight A are trainable and initialized using the Kaiming uniform scheme [ 41 ]. Training uses the Adam optimizer [ 42 ] with a constant learning rate of 2 × 10 −4, batch size 500 , and 1,000 epochs (i.e., 4,000 optimizer updates given n = 2 ,000 ). The IM window is computed as the maximal contiguous interval of training epochs τ during which AUROC (τ ) ≥ 0.9. For experiment (iv), the three initializations with different eR0 are obtained by sampling three random initializations using the Kaiming uniform scheme [ 41 ]. All simulation results are averaged over three random seeds. 
+
+Real-World Experiments: Backbones and Baselines For the two IM-based backbones, ODIM [ 6]and ALTBI [ 8], we follow the original source codes published by their authors, including the network architectures, optimizers, batch sizes, and stopping criteria. Since ODIM and ALTBI share the same implementation details, we adopt the configuration provided in the official ODIM GitHub repository. 4
+
+Unless otherwise specified, we use min-max scaled raw input features for tabular data, ViT-based representations followed by min-max scaling for image data, and BERT-based representations followed by min-max scaling for text data. At the beginning of each training run, we maintain an exponential moving average (EMA) of the network parameters, ¯Wt = α ¯Wt−1 + (1 − α) Wt, with decay α = 0 .999 over the first 50 optimizer updates. The averaged parameters ¯W50 are then used as the initial weights for the main ALTBI/ODIM training run, after which the standard (non-EMA) optimizer dynamics resume. A decay of 0.999 
+
+corresponds to an effective averaging window of order 10 3 iterations, which is long enough that the warm-up phase emphasizes the slowly-changing inlier-driven component of the gradient and suppresses the irregular signal contributed by outliers, consistent with the role of eR0 identified in Theorem 3.1. The modified ODIM and ALTBI with two proposed strategies (denoted ODIM* and ALTBI*, respectively, in Figure 5 and Figure B.1) replace the input with a pre-trained representation (TabPFN for tabular data, ViT for image data) and warm up the parameters with the EMA scheme. The 22 baselines cover classical machine-learning detectors, deep autoencoder-based methods, and diffusion-based detectors. These methods include traditional machine-learning approaches implemented in ADBench , such as kNN [ 54 ], LOF [ 10 ], OCSVM [ 14 ], CBLOF [ 11 ], PCA [ 55 ], FeatureBagging [ 56 ], IForest [ 13 ], MCD [ 12 ], HBOS [ 57 ], LODA [ 58 ], COPOD [ 59 ], and ECOD [ 60 ]. We also consider two deep learning-based UOD methods, DAGMM [ 61 ] and DeepSVDD [ 16 ], which are available in ADBench , as well as more recent approaches beyond ADBench , including DROCC [62], ICL [21], GOAD [63], and DTE [27]. For fair comparison, the results of the 22 baseline methods are directly taken from the supplementary materials of [ 27 ], without re-running the corresponding models. In contrast, we implement ODIM, ALTBI, and their modified versions, by ourselves. 
+
+> 4https://github.com/jshwang0311/ODIM
+
+26 B.3 Detailed Experiment Results 
+
+This section supports Section 4.2 with three additional results: (i) an ablation study that disentangles the effect of EMA warm-up from that of the pre-trained representation, (ii) the AUPRC results, while the main body shows AUROC results, and (iii) a full benchmark comparison on ADBench evaluating the proposed guidelines across all datasets. 
+
+Ablation Study Results Table B.2 reports the AUROC of IM-based methods, ALTBI and ODIM, on the 47 tabular ADBench datasets under three configurations: (i) the vanilla raw input training without the proposed techniques, corresponding to the original implementations of ODIM and ALTBI, (ii) with the EMA warm-up applied to early iterations ( +EMA), and (iii) with both the EMA warm-up and a TabPFN embedding ( +EMA +TabPFN), where the TabPFN representation is applied only to the subset of datasets described in Appendix B.1. The EMA warm-up alone improves the AUROC of both methods by 0.6 to 0.7 points, supporting the role of small eR0 in widening the IM window. Using the TabPFN representation gives a further AUROC improvement for ALTBI, while for ODIM the two strategies yield comparable AUROC. Table B.2: Comparison of performance on 47 tabular ADBench datasets [ 51 ] in terms of the two proposed strategies. Best results are bolded .         
+
+> Method ALTBI ODIM Raw (Vanilla) 0.764 0.759
+> +EMA 0.770 0.766
+> +EMA +TabPFN (ours) 0.775 0.766
+
+Table B.3 reports the analogous comparison on the three image datasets. As in the tabular case, ‘Raw (Vanilla)’ denotes training on raw inputs without EMA warm-up, ‘ +EMA’ applies EMA to raw inputs, and ‘ +EMA + ViT’ further combines EMA with the ViT representation. Using EMA alone does not provide a significant improvement. In contrast, ‘ +EMA +ViT’ improves the performance of ALTBI on CIFAR10 and FashionMNIST , and consistently improves the performance of ODIM on these datasets, while yielding comparable AUROC on SVHN . This is because, on CIFAR10 and 
+
+FashionMNIST , the ViT embedding tightens the inlier cluster structure, allowing the EMA warm-up to further enlarge the IM window. In contrast, on SVHN , the ViT embedding does not produce sufficiently compact inlier clusters for the EMA warm-up to yield additional gains. Table B.3: Per-component ablation on the three image benchmarks, in AUROC averaged over the ten normal-class settings. ‘ +ViT’ applies the original ALTBI [ 8] or ODIM [ 6] method on a ViT embedding [ 43 ], and ‘ +EMA +ViT’ additionally adds the EMA warm-up. Best results are bolded .                          
+
+> Method ALTBI ODIM
+> CIFAR10 FashionMNIST SVHN CIFAR10 FashionMNIST SVHN
+> Raw (Vanilla) 0.576 0.901 0.592 0.578 0.893 0.577
+> +EMA 0.576 0.902 0.592 0.579 0.892 0.576
+> +EMA +ViT (ours) 0.888 0.920 0.581 0.876 0.902 0.579
+
+27 AUPRC Results Figure B.1 presents the performance comparison under the AUPRC metric. On the tabular datasets (leftmost panel), ALTBI* and ODIM* are still among the top-performing methods, although the gap to machine-learning-based baselines such as MCD and IForest narrows compared to AUROC. This result reflects the well-known sensitivity of AUPRC to the anomaly proportion, since on a subset of ADBench datasets with extremely low contamination rates, isolation- and density-based detectors can retain a relative advantage. On the image datasets, the improvement from the pre-trained representation is even more pronounced under AUPRC than under AUROC. That is, ALTBI* and ODIM* dominate all baselines on CIFAR10 and FashionMNIST by a large margin. 0.2 0.3 0.4                   
+
+> ALTBI
+> ALTBI*
+> 0.368
+> 0.370
+> Tabular (47 datasets)
+> 0.2 0.4 0.6
+> 0.085
+> 0.525
+> CIFAR10
+> 0.4 0.6 0.8
+> 0.554
+> 0.697
+> FashionMNIST
+> 0.04 0.05 0.06 0.07 0.08
+> 0.073
+> 0.065
+> SVHN
+> 0.2 0.3 0.4
+> ODIM
+> ODIM*
+> 0.358
+> 0.343
+> 0.2 0.4 0.6
+> 0.085
+> 0.376
+> 0.4 0.6 0.8
+> 0.484
+> 0.473
+> 0.04 0.05 0.06 0.07 0.08
+> 0.068
+> 0.065
+
+AUPRC  
+
+> Ours (EMA + embedding) Original (raw input, no EMA)
+
+Figure B.1: Unsupervised outlier detection performance (AUPRC) on the ADBench benchmark [ 51 ]. (Left → Right) average over 47 tabular datasets and results on CIFAR10, FashionMNIST, and SVHN. Hatched bars (ALTBI* and ODIM*) denote the proposed variants that combine the EMA-based initialization with a pre-trained representation. 
+
+Full Benchmark Results Table B.4 and Table B.5 compare the IM-based methods (ALTBI and ODIM) on all 57 ADBench datasets, under AUROC and AUPRC. In particular, we compare three variants: Original (the original ALTBI and ODIM using ADBench ’s default inputs for each data type, i.e., raw features for tabular data and ViT/BERT embeddings for image/text data), +EMA (applying EMA warm-up on the same inputs), and +EMA +TabPFN (additionally replacing a subset of tabular inputs with TabPFN embeddings). The proposed guidelines consistently improve performance over the original setting. The average AUROC of ALTBI rises from 0.757 (Original) to 0.762 (+EMA) and further to 0.766 (Ours), and a similar trend is observed for ODIM ( 0.751 → 0.756 → 0.757 ). Analogous improvements also appear for AUPRC, confirming consistent performance improvement across diverse data types. Tables B.6 and B.7 show comparisons between our proposed method and 22 existing baselines, including both classical machine-learning and deep-learning approaches. The baseline results are directly taken from [ 27 ], whereas ALTBI and ODIM are run by our own implementations. All reported results are averaged over three random initializations. We note that, since the original ALTBI and ODIM already employ embedding representations for image and text datasets, our modifications mainly consist of introducing the EMA warm-up and partially replacing tabular raw inputs with TabPFN embeddings. In Tables B.6 and B.7, we report only the modified variant of ALTBI. We can observe that ALTBI with our proposed approaches achieves the best performance in terms of both AUROC and AUPRC. 28 Table B.4: Per-dataset AUROC of the variants of the IM-based methods (Original, +EMA, Ours) on the 57 ADBench datasets. Best average AUROC for each method is bolded .
+
+Number Dataset Name ALTBI ODIM 
+
+Original +EMA Ours Original +EMA Ours 
+
+1 ALOI 0.521 0.526 0.601 0.525 0.530 0.606 
+
+2 annthyroid 0.633 0.642 0.691 0.632 0.625 0.685 
+
+3 backdoor 0.876 0.868 0.868 0.909 0.897 0.897 
+
+4 breastw 0.981 0.982 0.982 0.980 0.978 0.978 
+
+5 campaign 0.726 0.726 0.726 0.729 0.735 0.735 
+
+6 cardio 0.845 0.840 0.840 0.869 0.876 0.876 
+
+7 Cardiotocography 0.540 0.530 0.530 0.542 0.534 0.534 
+
+8 celeba 0.804 0.797 0.797 0.782 0.760 0.760 
+
+9 census 0.670 0.672 0.672 0.682 0.685 0.685 
+
+10 cover 0.897 0.910 0.910 0.920 0.914 0.914 
+
+11 donors 0.609 0.650 0.650 0.606 0.624 0.624 
+
+12 fault 0.661 0.658 0.658 0.678 0.671 0.671 
+
+13 fraud 0.920 0.925 0.925 0.913 0.920 0.920 
+
+14 glass 0.748 0.771 0.771 0.757 0.769 0.769 
+
+15 Hepatitis 0.811 0.818 0.818 0.703 0.719 0.719 
+
+16 http 0.996 0.996 0.996 0.996 0.996 0.996 
+
+17 InternetAds 0.733 0.745 0.745 0.731 0.734 0.734 
+
+18 Ionosphere 0.850 0.883 0.883 0.862 0.860 0.860 
+
+19 landsat 0.527 0.539 0.569 0.499 0.545 0.600 
+
+20 letter 0.722 0.733 0.733 0.730 0.736 0.736 
+
+21 Lymphography 0.988 0.988 0.988 0.980 0.994 0.994 
+
+22 magic.gamma 0.746 0.745 0.694 0.724 0.727 0.672 
+
+23 mammography 0.808 0.814 0.763 0.813 0.816 0.774 
+
+24 mnist 0.796 0.794 0.794 0.791 0.779 0.779 
+
+25 musk 1.000 1.000 1.000 0.971 0.945 0.945 
+
+26 optdigits 0.602 0.684 0.684 0.552 0.697 0.697 
+
+27 PageBlocks 0.868 0.882 0.807 0.864 0.861 0.815 
+
+28 pendigits 0.939 0.957 0.957 0.911 0.918 0.918 
+
+29 Pima 0.716 0.713 0.713 0.712 0.718 0.718 
+
+30 satellite 0.734 0.760 0.760 0.702 0.740 0.740 
+
+31 satimage-2 0.997 0.998 0.998 0.997 0.997 0.997 
+
+32 shuttle 0.983 0.984 0.985 0.982 0.981 0.709 
+
+33 skin 0.869 0.865 0.865 0.873 0.877 0.877 
+
+34 smtp 0.823 0.845 0.845 0.804 0.840 0.840 
+
+35 SpamBase 0.491 0.512 0.670 0.512 0.513 0.667 
+
+36 speech 0.471 0.468 0.468 0.471 0.469 0.469 
+
+37 Stamps 0.878 0.883 0.883 0.898 0.896 0.896 
+
+38 thyroid 0.938 0.939 0.939 0.938 0.942 0.942 
+
+39 vertebral 0.385 0.373 0.373 0.374 0.360 0.360 
+
+40 vowels 0.878 0.882 0.882 0.862 0.874 0.874 
+
+41 Waveform 0.749 0.713 0.713 0.763 0.780 0.780 
+
+42 WBC 0.994 0.993 0.993 0.992 0.993 0.993 
+
+43 WDBC 0.985 0.981 0.981 0.993 0.986 0.986 
+
+44 Wilt 0.349 0.375 0.409 0.364 0.382 0.401 
+
+45 wine 0.948 0.940 0.940 0.875 0.863 0.863 
+
+46 WPBC 0.506 0.503 0.503 0.502 0.526 0.526 
+
+47 yeast 0.411 0.411 0.469 0.398 0.409 0.471 
+
+48 CIFAR10 0.889 0.888 0.888 0.877 0.876 0.876 
+
+49 FashionMNIST 0.921 0.920 0.920 0.902 0.902 0.902 
+
+50 MNIST-C 0.739 0.741 0.741 0.726 0.727 0.727 
+
+51 MVTec-AD 0.867 0.860 0.860 0.849 0.845 0.845 
+
+52 SVHN 0.581 0.581 0.581 0.579 0.579 0.579 
+
+53 Agnews 0.868 0.864 0.864 0.862 0.862 0.862 
+
+54 Amazon 0.546 0.548 0.548 0.544 0.539 0.539 
+
+55 Imdb 0.523 0.527 0.527 0.524 0.526 0.526 
+
+56 Yelp 0.555 0.557 0.557 0.558 0.554 0.554 
+
+57 20news 0.725 0.725 0.725 0.725 0.722 0.722 
+
+Average 0.757 0.762 0.766 0.751 0.756 0.757 
+
+29 Table B.5: Per-dataset AUPRC of the variants of the IM-based methods (Original, +EMA, Ours) on the 57 ADBench datasets. Best average AUPRC for each method is bolded .
+
+Number Dataset Name ALTBI ODIM 
+
+Original +EMA Ours Original +EMA Ours 
+
+1 ALOI 0.035 0.035 0.057 0.037 0.037 0.064 
+
+2 annthyroid 0.156 0.155 0.181 0.154 0.154 0.192 
+
+3 backdoor 0.138 0.122 0.122 0.406 0.396 0.396 
+
+4 breastw 0.943 0.952 0.952 0.930 0.915 0.915 
+
+5 campaign 0.266 0.247 0.247 0.246 0.243 0.243 
+
+6 cardio 0.539 0.519 0.519 0.526 0.513 0.513 
+
+7 Cardiotocography 0.424 0.409 0.409 0.390 0.402 0.402 
+
+8 celeba 0.098 0.090 0.090 0.064 0.054 0.054 
+
+9 census 0.090 0.089 0.089 0.096 0.097 0.097 
+
+10 cover 0.047 0.051 0.051 0.068 0.060 0.060 
+
+11 donors 0.071 0.079 0.079 0.072 0.076 0.076 
+
+12 fault 0.477 0.475 0.475 0.495 0.487 0.487 
+
+13 fraud 0.299 0.323 0.323 0.329 0.283 0.283 
+
+14 glass 0.083 0.094 0.094 0.104 0.133 0.133 
+
+15 Hepatitis 0.454 0.459 0.459 0.242 0.250 0.250 
+
+16 http 0.296 0.309 0.309 0.285 0.289 0.289 
+
+17 InternetAds 0.365 0.405 0.405 0.336 0.343 0.343 
+
+18 Ionosphere 0.801 0.839 0.839 0.818 0.812 0.812 
+
+19 landsat 0.202 0.208 0.219 0.192 0.207 0.238 
+
+20 letter 0.120 0.130 0.130 0.135 0.132 0.132 
+
+21 Lymphography 0.782 0.705 0.705 0.563 0.846 0.846 
+
+22 magic.gamma 0.689 0.686 0.643 0.664 0.672 0.577 
+
+23 mammography 0.067 0.069 0.070 0.083 0.083 0.080 
+
+24 mnist 0.396 0.391 0.391 0.334 0.330 0.330 
+
+25 musk 1.000 1.000 1.000 0.537 0.316 0.316 
+
+26 optdigits 0.038 0.046 0.046 0.030 0.045 0.045 
+
+27 PageBlocks 0.553 0.584 0.584 0.543 0.543 0.457 
+
+28 pendigits 0.253 0.335 0.335 0.173 0.187 0.187 
+
+29 Pima 0.498 0.494 0.494 0.501 0.510 0.510 
+
+30 satellite 0.681 0.698 0.698 0.634 0.670 0.670 
+
+31 satimage-2 0.907 0.920 0.920 0.948 0.942 0.942 
+
+32 shuttle 0.959 0.960 0.972 0.944 0.949 0.302 
+
+33 skin 0.449 0.441 0.441 0.457 0.462 0.462 
+
+34 smtp 0.079 0.033 0.033 0.507 0.409 0.409 
+
+35 SpamBase 0.380 0.389 0.528 0.394 0.392 0.512 
+
+36 speech 0.017 0.017 0.017 0.018 0.019 0.019 
+
+37 Stamps 0.309 0.312 0.312 0.338 0.331 0.331 
+
+38 thyroid 0.228 0.220 0.220 0.244 0.253 0.253 
+
+39 vertebral 0.097 0.095 0.095 0.097 0.094 0.094 
+
+40 vowels 0.308 0.297 0.297 0.242 0.290 0.290 
+
+41 Waveform 0.129 0.113 0.113 0.180 0.217 0.217 
+
+42 WBC 0.862 0.869 0.869 0.859 0.876 0.876 
+
+43 WDBC 0.625 0.530 0.530 0.783 0.568 0.568 
+
+44 Wilt 0.037 0.039 0.042 0.038 0.039 0.042 
+
+45 wine 0.502 0.416 0.416 0.259 0.233 0.233 
+
+46 WPBC 0.230 0.233 0.233 0.230 0.242 0.242 
+
+47 yeast 0.300 0.299 0.331 0.291 0.298 0.337 
+
+48 CIFAR10 0.526 0.525 0.525 0.378 0.376 0.376 
+
+49 FashionMNIST 0.695 0.697 0.697 0.473 0.473 0.473 
+
+50 MNIST-C 0.304 0.313 0.313 0.213 0.215 0.215 
+
+51 MVTec-AD 0.535 0.534 0.534 0.510 0.503 0.503 
+
+52 SVHN 0.065 0.065 0.065 0.065 0.065 0.065 
+
+53 Agnews 0.281 0.264 0.264 0.286 0.285 0.285 
+
+54 Amazon 0.054 0.055 0.055 0.054 0.054 0.054 
+
+55 Imdb 0.055 0.056 0.056 0.055 0.055 0.055 
+
+56 Yelp 0.057 0.057 0.057 0.057 0.057 0.057 
+
+57 20news 0.117 0.119 0.119 0.129 0.129 0.129 
+
+Average 0.350 0.349 0.352 0.334 0.332 0.322 
+
+30 Table B.6: Per-dataset AUROC comparison on the 57  ADBench  datasets. Methods marked with ‘*’ are implemented and evaluated in our framework, while the remaining baseline results are taken from [27]. Best average AUROC for each method is  bolded .
+
+> CBLOF  COPOD  ECOD  FeatureBagging  HBOS  IForest  kNN  LODA  LOF  MCD  OCSVM  PCA  DAGMM  DeepSVDD  DROCC  GOAD  ICL  PlanarFlow  DDPM  DTE-NP  DTE-IG  DTE-C  ODIM*  ALTBI*  Ours* (w/ ALTBI) aloi  0.556  0.515  0.531  0.792  0.531  0.542  0.613  0.495  0.767  0.520  0.549  0.549  0.517  0.514  0.500  0.497  0.548  0.520  0.532  0.645  0.541  0.525  0.525  0.521  0.601 annthyroid  0.676  0.777  0.789  0.788  0.608  0.816  0.761  0.453  0.710  0.918  0.682  0.676  0.548  0.739  0.631  0.453  0.599  0.966  0.814  0.781  0.923  0.964  0.632  0.633  0.691 backdoor  0.897  0.500  0.500  0.790  0.740  0.725  0.826  0.515  0.764  0.848  0.889  0.888  0.752  0.735  0.500  0.587  0.936  0.787  0.892  0.806  0.753  0.875  0.909  0.876  0.868 breastw  0.961  0.994  0.990  0.408  0.984  0.983  0.980  0.970  0.446  0.985  0.935  0.946  0.811  0.625  0.847  0.845  0.807  0.965  0.766  0.976  0.905  0.891  0.980  0.981  0.982 campaign  0.738  0.783  0.769  0.594  0.768  0.704  0.750  0.493  0.614  0.775  0.737  0.734  0.581  0.508  0.500  0.443  0.766  0.566  0.724  0.746  0.660  0.789  0.729  0.726  0.726 cardio  0.832  0.921  0.935  0.579  0.839  0.922  0.830  0.856  0.551  0.815  0.934  0.949  0.625  0.498  0.655  0.908  0.461  0.796  0.723  0.777  0.631  0.721  0.869  0.845  0.840 cardiotocography  0.561  0.664  0.784  0.538  0.595  0.681  0.503  0.708  0.527  0.500  0.691  0.747  0.546  0.488  0.449  0.624  0.372  0.643  0.579  0.493  0.506  0.510  0.542  0.540  0.530 celeba  0.753  0.757  0.763  0.514  0.754  0.707  0.736  0.600  0.432  0.803  0.781  0.792  0.627  0.491  0.726  0.432  0.684  0.703  0.796  0.699  0.700  0.812  0.782  0.804  0.797 census  0.664  0.500  0.500  0.538  0.611  0.607  0.671  0.454  0.562  0.731  0.655  0.662  0.491  0.527  0.443  0.488  0.668  0.604  0.659  0.672  0.629  0.646  0.682  0.670  0.672 cover  0.922  0.882  0.919  0.571  0.707  0.873  0.866  0.922  0.568  0.696  0.952  0.934  0.742  0.580  0.747  0.124  0.681  0.417  0.808  0.838  0.635  0.697  0.920  0.897  0.910 donors  0.808  0.815  0.888  0.691  0.743  0.771  0.829  0.566  0.629  0.765  0.770  0.825  0.558  0.511  0.747  0.225  0.739  0.899  0.806  0.832  0.796  0.785  0.606  0.609  0.650 fault  0.665  0.455  0.468  0.591  0.506  0.544  0.715  0.478  0.579  0.505  0.537  0.480  0.495  0.522  0.668  0.546  0.661  0.469  0.562  0.726  0.577  0.590  0.678  0.661  0.658 fraud  0.954  0.943  0.949  0.616  0.945  0.950  0.955  0.856  0.548  0.911  0.954  0.952  0.857  0.769  0.500  0.724  0.931  0.895  0.924  0.956  0.942  0.938  0.913  0.920  0.925 glass  0.855  0.760  0.710  0.659  0.820  0.790  0.870  0.624  0.618  0.795  0.661  0.715  0.630  0.517  0.743  0.545  0.729  0.766  0.560  0.881  0.681  0.864  0.757  0.748  0.771 hepatitis  0.635  0.807  0.737  0.469  0.768  0.683  0.669  0.557  0.468  0.721  0.704  0.748  0.600  0.361  0.582  0.637  0.616  0.654  0.461  0.631  0.451  0.577  0.703  0.811  0.818 http  0.996  0.991  0.980  0.288  0.991  1.000  0.051  0.060  0.338  1.000  0.994  0.997  0.838  0.249  0.500  0.996  0.921  0.994  0.998  0.051  0.973  0.995  0.996  0.996  0.996 internetads  0.616  0.676  0.677  0.494  0.696  0.686  0.616  0.541  0.587  0.660  0.615  0.609  0.515  0.583  0.500  0.614  0.592  0.608  0.614  0.634  0.635  0.656  0.731  0.733  0.745 ionosphere  0.892  0.783  0.717  0.876  0.544  0.833  0.922  0.788  0.864  0.951  0.838  0.777  0.641  0.514  0.766  0.829  0.629  0.884  0.758  0.924  0.697  0.911  0.862  0.850  0.883 landsat  0.548  0.422  0.368  0.540  0.575  0.474  0.614  0.382  0.549  0.607  0.423  0.366  0.533  0.631  0.626  0.506  0.649  0.464  0.496  0.602  0.473  0.544  0.499  0.527  0.569 letter  0.763  0.560  0.573  0.886  0.589  0.616  0.812  0.537  0.878  0.804  0.598  0.524  0.503  0.517  0.780  0.598  0.737  0.689  0.847  0.850  0.676  0.781  0.730  0.722  0.733 lymphography  0.994  0.996  0.995  0.523  0.995  0.999  0.995  0.900  0.636  0.989  0.996  0.997  0.840  0.681  0.878  0.995  0.884  0.940  0.958  0.989  0.852  0.834  0.980  0.988  0.988 magic.gamma  0.725  0.681  0.638  0.700  0.709  0.721  0.795  0.655  0.678  0.699  0.673  0.667  0.584  0.604  0.728  0.442  0.676  0.742  0.763  0.801  0.782  0.765  0.724  0.746  0.694 mammography  0.795  0.905  0.906  0.726  0.838  0.860  0.852  0.867  0.702  0.690  0.871  0.888  0.719  0.451  0.779  0.414  0.658  0.782  0.749  0.849  0.799  0.810  0.813  0.808  0.763 musk  1.000  0.948  0.953  0.575  1.000  0.998  0.964  0.993  0.581  1.000  1.000  1.000  0.912  0.538  0.575  1.000  0.790  0.748  1.000  0.882  0.785  0.965  0.971  1.000  1.000 optdigits  0.785  0.500  0.500  0.539  0.868  0.696  0.395  0.493  0.538  0.413  0.507  0.518  0.408  0.519  0.565  0.657  0.533  0.492  0.402  0.386  0.513  0.508  0.552  0.602  0.684 pageblocks  0.893  0.875  0.914  0.758  0.779  0.897  0.919  0.712  0.703  0.923  0.914  0.907  0.753  0.592  0.914  0.609  0.768  0.908  0.820  0.906  0.850  0.924  0.864  0.868  0.807 pendigits  0.864  0.906  0.927  0.518  0.925  0.947  0.828  0.895  0.534  0.834  0.929  0.936  0.548  0.383  0.520  0.592  0.650  0.780  0.700  0.786  0.624  0.713  0.911  0.939  0.957 pima  0.655  0.662  0.604  0.573  0.704  0.674  0.723  0.595  0.563  0.686  0.631  0.651  0.522  0.510  0.542  0.606  0.524  0.615  0.537  0.707  0.599  0.624  0.712  0.716  0.713 satellite  0.742  0.633  0.583  0.545  0.762  0.695  0.721  0.614  0.550  0.804  0.662  0.601  0.675  0.562  0.608  0.702  0.627  0.671  0.715  0.702  0.582  0.711  0.702  0.734  0.760 satimage-2  0.999  0.975  0.965  0.526  0.976  0.993  0.992  0.981  0.539  0.995  0.997  0.977  0.911  0.551  0.579  0.996  0.898  0.970  0.996  0.980  0.858  0.946  0.997  0.997  0.998 shuttle  0.621  0.995  0.993  0.493  0.986  0.997  0.732  0.389  0.526  0.990  0.992  0.990  0.898  0.576  0.500  0.208  0.642  0.852  0.975  0.698  0.669  0.976  0.982  0.983  0.985 skin  0.675  0.471  0.490  0.534  0.588  0.670  0.720  0.442  0.550  0.892  0.547  0.447  0.554  0.548  0.708  0.579  0.265  0.773  0.461  0.718  0.741  0.741  0.873  0.869  0.865 smtp  0.863  0.912  0.882  0.794  0.809  0.905  0.933  0.819  0.899  0.948  0.845  0.856  0.868  0.895  0.500  0.915  0.656  0.784  0.956  0.930  0.769  0.951  0.804  0.823  0.845 spambase  0.541  0.688  0.656  0.424  0.664  0.637  0.566  0.480  0.453  0.446  0.534  0.548  0.488  0.584  0.490  0.496  0.459  0.528  0.510  0.545  0.509  0.515  0.512  0.491  0.670 speech  0.471  0.489  0.470  0.509  0.473  0.476  0.480  0.466  0.512  0.494  0.466  0.469  0.522  0.512  0.483  0.458  0.512  0.496  0.466  0.487  0.488  0.495  0.471  0.471  0.468 stamps  0.660  0.929  0.877  0.502  0.904  0.907  0.870  0.831  0.512  0.838  0.882  0.909  0.719  0.465  0.760  0.774  0.505  0.838  0.556  0.820  0.692  0.753  0.898  0.878  0.883 thyroid  0.909  0.939  0.977  0.707  0.948  0.979  0.965  0.819  0.657  0.986  0.958  0.955  0.719  0.505  0.889  0.574  0.693  0.992  0.871  0.964  0.828  0.990  0.938  0.938  0.939 vertebral  0.463  0.263  0.417  0.473  0.317  0.362  0.379  0.294  0.487  0.389  0.426  0.378  0.470  0.394  0.425  0.468  0.449  0.409  0.563  0.400  0.451  0.458  0.374  0.385  0.373 vowels  0.884  0.496  0.593  0.933  0.679  0.763  0.951  0.705  0.932  0.732  0.779  0.604  0.464  0.514  0.738  0.791  0.784  0.888  0.903  0.964  0.705  0.914  0.862  0.878  0.882 waveform  0.701  0.739  0.603  0.715  0.694  0.707  0.750  0.594  0.693  0.572  0.669  0.635  0.523  0.609  0.674  0.592  0.661  0.640  0.617  0.729  0.523  0.602  0.763  0.749  0.713 wbc  0.977  0.994  0.994  0.388  0.987  0.996  0.982  0.992  0.607  0.988  0.987  0.993  0.821  0.503  0.821  0.949  0.853  0.934  0.948  0.979  0.894  0.871  0.992  0.994  0.993 wdbc  0.990  0.993  0.971  0.867  0.989  0.988  0.980  0.980  0.849  0.969  0.984  0.988  0.715  0.602  0.347  0.983  0.738  0.985  0.965  0.975  0.566  0.835  0.993  0.985  0.981 wilt  0.396  0.345  0.394  0.666  0.348  0.451  0.511  0.313  0.678  0.859  0.317  0.239  0.432  0.465  0.400  0.555  0.649  0.794  0.659  0.552  0.834  0.851  0.364  0.349  0.409 wine  0.453  0.865  0.738  0.323  0.907  0.786  0.470  0.822  0.330  0.975  0.671  0.819  0.513  0.507  0.621  0.734  0.455  0.390  0.374  0.425  0.310  0.557  0.875  0.948  0.940 wpbc  0.487  0.519  0.489  0.436  0.548  0.516  0.512  0.501  0.447  0.534  0.485  0.486  0.449  0.493  0.483  0.466  0.488  0.483  0.493  0.502  0.489  0.468  0.502  0.506  0.503 yeast  0.461  0.380  0.443  0.465  0.402  0.394  0.396  0.461  0.453  0.406  0.420  0.418  0.503  0.520  0.396  0.503  0.466  0.442  0.463  0.400  0.446  0.420  0.398  0.411  0.469 CIFAR10  0.663  0.548  0.567  0.687  0.572  0.629  0.659  0.591  0.686  0.639  0.663  0.659  0.530  0.555  0.503  0.659  0.557  0.621  0.663  0.660  0.595  0.629  0.877  0.889  0.888 MNIST-C  0.757  0.500  0.500  0.702  0.689  0.733  0.786  0.591  0.699  0.739  0.751  0.741  0.581  0.552  0.594  0.752  0.670  0.705  0.751  0.788  0.703  0.746  0.726  0.739  0.741 MVTec-AD  0.754  0.500  0.500  0.745  0.732  0.747  0.763  0.644  0.742  0.618  0.735  0.724  0.596  0.603  0.544  0.730  0.683  0.637  0.732  0.761  0.655  0.730  0.849  0.867  0.860 SVHN  0.601  0.500  0.500  0.629  0.542  0.580  0.604  0.534  0.628  0.583  0.604  0.599  0.528  0.521  0.521  0.597  0.571  0.580  0.605  0.607  0.567  0.600  0.579  0.581  0.581 mnist  0.843  0.500  0.500  0.664  0.574  0.811  0.867  0.564  0.658  0.856  0.849  0.848  0.631  0.605  0.615  0.698  0.691  0.645  0.816  0.853  0.756  0.819  0.791  0.796  0.794 FashionMNIST  0.871  0.500  0.500  0.748  0.748  0.831  0.875  0.672  0.738  0.840  0.860  0.853  0.664  0.647  0.564  0.860  0.758  0.819  0.861  0.873  0.767  0.841  0.902  0.921  0.920 20news  0.564  0.533  0.544  0.610  0.537  0.550  0.567  0.539  0.610  0.583  0.559  0.545  0.518  0.515  0.496  0.553  0.547  0.513  0.547  0.570  0.527  0.579  0.725  0.725  0.725 agnews  0.619  0.551  0.552  0.715  0.554  0.584  0.647  0.568  0.714  0.665  0.601  0.566  0.508  0.494  0.500  0.592  0.591  0.497  0.571  0.652  0.545  0.627  0.862  0.868  0.864 amazon  0.579  0.571  0.541  0.572  0.563  0.558  0.603  0.526  0.571  0.597  0.565  0.550  0.501  0.464  0.500  0.560  0.528  0.495  0.551  0.603  0.535  0.556  0.544  0.546  0.548 imdb  0.496  0.512  0.471  0.499  0.499  0.489  0.494  0.466  0.500  0.504  0.484  0.478  0.487  0.526  0.500  0.486  0.521  0.493  0.478  0.495  0.486  0.484  0.524  0.523  0.527 yelp  0.635  0.605  0.578  0.661  0.600  0.602  0.670  0.581  0.661  0.655  0.621  0.592  0.498  0.524  0.504  0.590  0.545  0.527  0.594  0.671  0.514  0.602  0.558  0.555  0.557
+> Average  0.731  0.692  0.689  0.608  0.714  0.737  0.728  0.627  0.611  0.748  0.725  0.718  0.614  0.543  0.600  0.627  0.643  0.696  0.700  0.722  0.660  0.728  0.751  0.757  0.766
+
+31 Table B.7: Per-dataset AUPRC comparison on the 57  ADBench  datasets. Methods marked with ‘*’ are implemented and evaluated in our framework, while the remaining baseline results are taken from [27]. Best average AUPRC for each method is  bolded .
+
+> CBLOF  COPOD  ECOD  FeatureBagging  HBOS  IForest  kNN  LODA  LOF  MCD  OCSVM  PCA  DAGMM  DeepSVDD  DROCC  GOAD  ICL  PlanarFlow  DDPM  DTE-NP  DTE-IG  DTE-C  ODIM*  ALTBI*  Ours* (w/ ALTBI) aloi  0.037  0.031  0.033  0.104  0.034  0.034  0.048  0.033  0.097  0.032  0.039  0.037  0.033  0.034  0.030  0.033  0.046  0.032  0.036  0.056  0.040  0.033  0.037  0.035  0.057 annthyroid  0.169  0.174  0.272  0.206  0.228  0.312  0.224  0.098  0.163  0.503  0.188  0.196  0.109  0.192  0.186  0.131  0.123  0.654  0.297  0.228  0.380  0.670  0.154  0.156  0.181 backdoor  0.547  0.025  0.025  0.217  0.052  0.045  0.479  0.101  0.358  0.122  0.534  0.531  0.250  0.372  0.025  0.347  0.717  0.336  0.520  0.473  0.438  0.481  0.406  0.138  0.122 breastw  0.890  0.989  0.982  0.284  0.954  0.956  0.932  0.955  0.297  0.962  0.897  0.946  0.660  0.482  0.776  0.826  0.635  0.908  0.537  0.921  0.770  0.715  0.930  0.943  0.952 campaign  0.287  0.368  0.354  0.145  0.352  0.279  0.289  0.131  0.158  0.325  0.283  0.284  0.163  0.149  0.113  0.105  0.267  0.191  0.299  0.281  0.237  0.321  0.246  0.266  0.247 cardio  0.482  0.576  0.567  0.161  0.458  0.559  0.402  0.428  0.159  0.364  0.536  0.609  0.193  0.177  0.272  0.540  0.108  0.471  0.278  0.376  0.184  0.268  0.526  0.539  0.519 cardiotocography  0.335  0.403  0.502  0.276  0.361  0.436  0.324  0.463  0.272  0.311  0.408  0.462  0.271  0.252  0.258  0.403  0.188  0.348  0.338  0.312  0.250  0.276  0.390  0.424  0.409 celeba  0.069  0.093  0.095  0.024  0.090  0.063  0.061  0.047  0.018  0.092  0.103  0.112  0.044  0.031  0.047  0.021  0.045  0.066  0.093  0.052  0.058  0.077  0.064  0.098  0.090 census  0.088  0.062  0.062  0.061  0.073  0.073  0.088  0.065  0.069  0.153  0.085  0.087  0.062  0.075  0.058  0.072  0.095  0.074  0.086  0.090  0.083  0.081  0.096  0.090  0.089 cover  0.070  0.068  0.113  0.019  0.026  0.052  0.054  0.090  0.019  0.016  0.099  0.075  0.044  0.048  0.056  0.005  0.022  0.010  0.046  0.048  0.025  0.021  0.068  0.047  0.051 donors  0.148  0.209  0.265  0.120  0.135  0.124  0.182  0.255  0.109  0.141  0.139  0.166  0.086  0.112  0.123  0.040  0.119  0.241  0.143  0.188  0.164  0.140  0.072  0.071  0.079 fault  0.473  0.313  0.325  0.396  0.360  0.395  0.522  0.337  0.388  0.334  0.401  0.332  0.361  0.375  0.496  0.381  0.473  0.329  0.392  0.532  0.417  0.422  0.495  0.477  0.475 fraud  0.145  0.252  0.215  0.003  0.209  0.145  0.169  0.146  0.003  0.488  0.110  0.149  0.084  0.250  0.002  0.257  0.127  0.447  0.146  0.137  0.188  0.648  0.329  0.299  0.323 glass  0.144  0.111  0.183  0.151  0.161  0.144  0.167  0.090  0.144  0.113  0.130  0.112  0.111  0.090  0.159  0.076  0.122  0.113  0.073  0.206  0.135  0.168  0.104  0.083  0.094 hepatitis  0.304  0.389  0.295  0.225  0.328  0.243  0.252  0.275  0.214  0.363  0.277  0.339  0.253  0.170  0.221  0.291  0.231  0.317  0.165  0.238  0.215  0.257  0.242  0.454  0.459 http  0.464  0.280  0.145  0.047  0.302  0.886  0.010  0.004  0.050  0.865  0.356  0.500  0.368  0.093  0.004  0.441  0.091  0.363  0.642  0.024  0.295  0.440  0.285  0.296  0.309 internetads  0.297  0.505  0.505  0.182  0.523  0.486  0.296  0.242  0.232  0.344  0.291  0.276  0.207  0.252  0.197  0.288  0.237  0.262  0.295  0.290  0.275  0.302  0.336  0.365  0.405 ionosphere  0.881  0.663  0.633  0.821  0.353  0.779  0.911  0.741  0.807  0.947  0.829  0.721  0.473  0.392  0.728  0.781  0.472  0.824  0.633  0.920  0.610  0.880  0.818  0.801  0.839 landsat  0.212  0.176  0.164  0.246  0.231  0.194  0.258  0.183  0.250  0.253  0.175  0.163  0.230  0.362  0.272  0.198  0.329  0.187  0.200  0.255  0.203  0.223  0.192  0.202  0.219 letter  0.166  0.068  0.077  0.445  0.078  0.086  0.203  0.083  0.433  0.174  0.113  0.076  0.083  0.099  0.252  0.099  0.208  0.153  0.367  0.255  0.181  0.257  0.135  0.120  0.130 lymphography  0.915  0.907  0.894  0.090  0.919  0.972  0.894  0.491  0.135  0.767  0.885  0.935  0.454  0.254  0.463  0.897  0.264  0.417  0.731  0.805  0.388  0.381  0.563  0.782  0.705 magic.gamma  0.666  0.588  0.533  0.539  0.617  0.638  0.724  0.579  0.520  0.632  0.625  0.589  0.450  0.499  0.627  0.326  0.548  0.692  0.651  0.730  0.657  0.664  0.664  0.689  0.643 mammography  0.140  0.430  0.435  0.070  0.132  0.218  0.181  0.218  0.085  0.036  0.187  0.204  0.111  0.025  0.114  0.046  0.046  0.074  0.099  0.175  0.082  0.170  0.083  0.067  0.070 musk  1.000  0.369  0.475  0.140  0.999  0.945  0.708  0.842  0.118  0.992  1.000  1.000  0.500  0.107  0.196  1.000  0.128  0.391  0.984  0.434  0.137  0.553  0.537  1.000  1.000 optdigits  0.059  0.029  0.029  0.036  0.192  0.046  0.022  0.029  0.035  0.022  0.027  0.027  0.026  0.039  0.032  0.039  0.030  0.027  0.022  0.021  0.028  0.028  0.030  0.038  0.046 pageblocks  0.547  0.370  0.520  0.341  0.319  0.464  0.556  0.410  0.292  0.617  0.531  0.525  0.255  0.288  0.632  0.373  0.285  0.538  0.493  0.530  0.507  0.555  0.543  0.553  0.584 pendigits  0.192  0.177  0.270  0.048  0.247  0.260  0.100  0.186  0.040  0.069  0.226  0.219  0.056  0.022  0.027  0.075  0.045  0.060  0.056  0.089  0.044  0.044  0.173  0.253  0.335 pima  0.484  0.536  0.484  0.412  0.577  0.510  0.530  0.404  0.406  0.498  0.477  0.492  0.372  0.366  0.413  0.476  0.385  0.476  0.400  0.528  0.437  0.447  0.501  0.498  0.494 satellite  0.656  0.570  0.526  0.378  0.688  0.649  0.582  0.613  0.381  0.768  0.654  0.606  0.527  0.406  0.465  0.658  0.451  0.596  0.662  0.563  0.380  0.529  0.634  0.681  0.698 satimage-2  0.972  0.797  0.666  0.042  0.760  0.918  0.690  0.857  0.041  0.682  0.965  0.872  0.289  0.052  0.076  0.949  0.102  0.484  0.783  0.507  0.095  0.138  0.948  0.907  0.920 shuttle  0.184  0.962  0.905  0.081  0.965  0.976  0.193  0.168  0.109  0.841  0.907  0.913  0.438  0.149  0.072  0.136  0.135  0.346  0.779  0.187  0.247  0.626  0.944  0.959  0.972 skin  0.289  0.179  0.183  0.207  0.232  0.254  0.290  0.180  0.221  0.490  0.220  0.172  0.226  0.221  0.285  0.232  0.173  0.335  0.175  0.290  0.316  0.302  0.457  0.449  0.441 smtp  0.403  0.005  0.589  0.001  0.005  0.005  0.415  0.312  0.022  0.006  0.383  0.382  0.179  0.240  0.000  0.358  0.004  0.006  0.502  0.411  0.012  0.422  0.507  0.079  0.033 spambase  0.402  0.544  0.518  0.344  0.518  0.488  0.415  0.387  0.360  0.349  0.402  0.409  0.389  0.456  0.383  0.387  0.370  0.433  0.384  0.407  0.399  0.400  0.394  0.380  0.528 speech  0.019  0.019  0.020  0.022  0.023  0.021  0.019  0.016  0.022  0.019  0.019  0.018  0.022  0.018  0.020  0.019  0.020  0.018  0.020  0.019  0.019  0.020  0.018  0.017  0.017 stamps  0.211  0.398  0.324  0.143  0.332  0.347  0.317  0.280  0.153  0.257  0.318  0.364  0.198  0.099  0.241  0.285  0.117  0.284  0.143  0.273  0.235  0.226  0.338  0.309  0.312 thyroid  0.272  0.179  0.472  0.069  0.501  0.562  0.392  0.189  0.077  0.702  0.329  0.356  0.126  0.024  0.338  0.318  0.066  0.734  0.325  0.360  0.118  0.705  0.244  0.228  0.220 vertebral  0.123  0.085  0.110  0.124  0.091  0.097  0.095  0.089  0.130  0.101  0.107  0.099  0.134  0.107  0.118  0.124  0.115  0.111  0.150  0.098  0.133  0.119  0.097  0.097  0.095 vowels  0.166  0.034  0.083  0.314  0.078  0.162  0.443  0.127  0.326  0.085  0.196  0.069  0.041  0.037  0.178  0.154  0.219  0.295  0.311  0.504  0.166  0.417  0.242  0.308  0.297 waveform  0.122  0.057  0.040  0.078  0.048  0.056  0.133  0.040  0.071  0.040  0.052  0.044  0.032  0.061  0.150  0.042  0.063  0.150  0.050  0.109  0.037  0.043  0.180  0.129  0.113 wbc  0.691  0.883  0.882  0.037  0.728  0.948  0.743  0.898  0.077  0.839  0.813  0.913  0.327  0.069  0.358  0.736  0.211  0.431  0.758  0.722  0.348  0.194  0.859  0.862  0.869 wdbc  0.688  0.760  0.493  0.155  0.761  0.702  0.521  0.527  0.128  0.395  0.539  0.613  0.152  0.063  0.039  0.589  0.065  0.568  0.483  0.465  0.074  0.157  0.783  0.625  0.530 wilt  0.040  0.037  0.042  0.081  0.039  0.044  0.049  0.036  0.083  0.153  0.035  0.032  0.047  0.046  0.041  0.065  0.109  0.115  0.076  0.054  0.211  0.163  0.038  0.037  0.042 wine  0.170  0.364  0.195  0.061  0.412  0.207  0.081  0.250  0.064  0.737  0.135  0.264  0.120  0.116  0.126  0.229  0.087  0.086  0.075  0.074  0.064  0.103  0.259  0.502  0.416 wpbc  0.227  0.234  0.217  0.206  0.241  0.237  0.234  0.227  0.210  0.257  0.222  0.229  0.214  0.240  0.234  0.214  0.234  0.236  0.238  0.227  0.238  0.231  0.230  0.230  0.233 yeast  0.314  0.308  0.332  0.326  0.328  0.304  0.294  0.330  0.315  0.298  0.303  0.302  0.353  0.350  0.284  0.332  0.318  0.309  0.320  0.295  0.306  0.306  0.291  0.300  0.331 CIFAR10  0.103  0.065  0.067  0.115  0.075  0.089  0.102  0.086  0.115  0.084  0.102  0.101  0.062  0.073  0.060  0.102  0.070  0.085  0.102  0.104  0.078  0.092  0.378  0.526  0.525 MNIST-C  0.173  0.050  0.050  0.128  0.126  0.178  0.191  0.101  0.127  0.166  0.179  0.170  0.092  0.097  0.096  0.177  0.098  0.154  0.178  0.192  0.141  0.157  0.213  0.304  0.313 MVTec-AD  0.570  0.236  0.236  0.536  0.546  0.570  0.580  0.464  0.532  0.451  0.555  0.540  0.362  0.387  0.317  0.546  0.404  0.454  0.546  0.578  0.439  0.517  0.510  0.535  0.534 SVHN  0.079  0.050  0.050  0.084  0.064  0.073  0.079  0.064  0.083  0.068  0.078  0.078  0.059  0.063  0.060  0.078  0.068  0.074  0.078  0.080  0.069  0.077  0.065  0.065  0.065 mnist  0.386  0.092  0.092  0.241  0.109  0.290  0.409  0.170  0.233  0.308  0.385  0.381  0.215  0.253  0.237  0.297  0.232  0.259  0.374  0.400  0.276  0.368  0.334  0.396  0.391 FashionMNIST  0.329  0.050  0.050  0.194  0.269  0.320  0.346  0.180  0.188  0.245  0.329  0.319  0.138  0.181  0.106  0.328  0.158  0.297  0.325  0.339  0.213  0.267  0.473  0.695  0.697 20news  0.067  0.061  0.062  0.087  0.061  0.062  0.069  0.062  0.088  0.072  0.064  0.062  0.054  0.058  0.055  0.063  0.063  0.056  0.063  0.072  0.060  0.068  0.129  0.117  0.119 agnews  0.072  0.059  0.058  0.125  0.059  0.064  0.082  0.064  0.125  0.077  0.068  0.061  0.053  0.053  0.051  0.066  0.069  0.050  0.062  0.085  0.063  0.076  0.286  0.281  0.264 amazon  0.061  0.060  0.055  0.058  0.059  0.058  0.062  0.054  0.058  0.062  0.059  0.057  0.049  0.046  0.050  0.058  0.052  0.050  0.057  0.062  0.055  0.057  0.054  0.054  0.055 imdb  0.047  0.050  0.045  0.049  0.047  0.047  0.047  0.046  0.049  0.049  0.047  0.046  0.049  0.053  0.050  0.047  0.054  0.051  0.046  0.047  0.047  0.047  0.055  0.055  0.056 yelp  0.073  0.072  0.065  0.085  0.070  0.070  0.083  0.067  0.085  0.075  0.073  0.069  0.049  0.058  0.051  0.068  0.054  0.056  0.069  0.085  0.054  0.066  0.057  0.057  0.057
+> Average  0.318  0.288  0.296  0.179  0.308  0.336  0.308  0.260  0.181  0.337  0.324  0.328  0.198  0.170  0.199  0.285  0.185  0.283  0.301  0.295  0.216  0.288  0.334  0.350  0.352
+
+32 C Broader Impacts 
+
+Our paper provides a theoretical analysis of the IM effect together with a few simple modifications that improve the performance of existing IM-based outlier detection methods, and is foundational rather than tied to any specific release of generative models. Because outlier detection can be used as a general-purpose tool, downstream uses (e.g., fraud detection, cybersecurity, or medical screening) carry the usual risks of false positives and false negatives, but these risks arise at application phase rather than from the methodology proposed here. Beyond the considerations already common to outlier detection in such settings, we do not identify additional specific societal concerns introduced by this work. 33

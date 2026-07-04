@@ -1,0 +1,1073 @@
+Title: UniVAD v2: Unified Visual Anomaly Detection via Support-Conditioned Boundary Construction
+
+URL Source: https://arxiv.org/pdf/2606.29714v1
+
+Published Time: Tue, 30 Jun 2026 01:37:14 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 1
+
+# UniVAD v2: Unified Visual Anomaly Detection via Support-Conditioned Boundary Construction 
+
+Zhaopeng Gu, Bingke Zhu, Zhaowen Li, Guibo Zhu, Yingying Chen, Ming Tang, Member, IEEE ,Peng Su, Jinqiao Wang, Member, IEEE 
+
+Abstract —Unified visual anomaly detection seeks to train a single detector that can be deployed across categories, domains, and application scenarios. In the few-shot transfer regime, the key challenge is to estimate an episode-specific boundary for an unseen target category from a small support set. Existing approaches mainly infer this boundary from normal-side evidence and provide limited abnormal-side evidence for deployment-specific tolerance. Within the normal side, they often struggle to jointly capture local correspondences and global support-query relations, making their boundaries less reliable for unseen anomalies. To address these issues, we propose UniVAD v2, a two-sided support-conditioned boundary construction framework for unified visual anomaly detection. Built on the component-patch divide-and-conquer framework of UniVAD, UniVAD v2 strengthens the normal side with an Optimal 
+
+Transport-based Relational Modeling module (OTRM), which complements retrieval with support-query matching through transport-style allocation, and an Adaptive Coordination mechanism for Retrieval and Relational Modeling (ACRRM), which estimates episode-conditioned reliabilities to fuse the two sources of evidence. On the abnormal side, a Few-Shot Abnormal Reference module (FAR) converts optional abnormal references into rejection-side evidence for boundary adjustment. Experiments on six datasets spanning industrial, logical, and medical anomaly detection demonstrate strong cross-domain generalization. Under the 1N-shot protocol, UniVAD v2 improves the mean image-level AUC over UniVAD from 83.0% to 84.5%, and further reaches 85.7% in the 1N+1A-shot setting. On the MVTec-AD Severity Split (MVTec-AD-SS), UniVAD v2 achieves 96.2% image-level AUC and 96.9% pixel-level AUC, showing that abnormal references enable controllable boundary customization without retraining. 
+
+Index Terms —Support-conditioned boundary construction, unified anomaly detection, few-shot learning, optimal transport. 
+
+✦
+
+1 INTRODUCTION 
+
+# VISUAL anomaly detection is a fundamental topic in computer vision and artificial intelligence. Its core goal is to identify samples that deviate from normal patterns, supporting applications in intelligent manufacturing [1]–[7], medical image analysis [8]–[10], and safety monitoring [11]– [13]. Traditional anomaly detection methods [14]–[16] usu-ally follow a “one-class-one-model” paradigm, where a sep-arate detector is trained for each category or scenario. This design becomes increasingly restrictive when the target cat-egory, acquisition condition, or application domain changes. Unified anomaly detection methods [17]–[21] therefore aim 
+
+Zhaopeng Gu and Ming Tang are with the Foundation Model Research Center, Institute of Automation, Chinese Academy of Sciences, Beijing 100190, China, and also with the School of Artificial Intelligence, Uni-versity of Chinese Academy of Sciences, Beijing 100049, China (e-mail: guzhaopeng2023@ia.ac.cn; tangm@nlpr.ia.ac.cn). Bingke Zhu and Yingying Chen are at the Foundation Model Research Center, Institute of Automation, Chinese Academy of Sciences, Beijing 100190, China (e-mail: bingke.zhu@nlpr.ia.ac.cn; yingying.chen@nlpr.ia.ac.cn). Zhaowen Li and Peng Su are at the Yinwang Intelligent Technology Co. Ltd., China (e-mail: lizhaowen3@huawei.com; p.su@huawei.com). Guibo Zhu is with the Foundation Model Research Center, Institute of Au-tomation, Chinese Academy of Sciences, Beijing 100190, China, also with the School of Artificial Intelligence, University of Chinese Academy of Sciences, Beijing 100049, China, and also with the Shanghai Artificial Intelligence Laboratory, Shanghai 200232, China (e-mail: gbzhu@nlpr.ia.ac.cn). Jinqiao Wang is with the Foundation Model Research Center, Institute of Au-tomation, Chinese Academy of Sciences, Beijing 100190, China, also with the School of Artificial Intelligence, University of Chinese Academy of Sciences, Beijing 100049, China, also with the Wuhan AI Research, Wuhan 430073, China, also with the Peng Cheng Laboratory, Shenzhen 518066, China, and also with the Guangdong Provincial Key Laboratory of Intellectual Property & Big Data, Guangdong Polytechnic Normal University, Guangzhou 510665, China (e-mail: jqwang@nlpr.ia.ac.cn). 76.2 82.5 88.8 95.0 
+
+71.2 
+
+77.5 
+
+83.8 
+
+90.0 
+
+55.0 
+
+60.0 
+
+65.0 
+
+70.0 
+
+57.5 65.0 72.5 80.0 
+
+48.8 
+
+57.5 
+
+66.2 
+
+75.0 
+
+66.2 
+
+72.5 
+
+78.8 
+
+85.0 
+
+N/A 
+
+MVTec-AD 
+
+(Industrial) 
+
+VisA 
+
+(Industrial) 
+
+MVTec LOCO 
+
+(Logical) 
+
+BrainMRI 
+
+(Medical) 
+
+LiverCT 
+
+(Medical) 
+
+RESC 
+
+(Medical) 
+
+> AnomalyGPT
+> WinClip
+> MedClip
+> UniVAD
+> UniVAD v2 (ours)
+
+Fig. 1. Overall comparison of anomaly detection methods on six datasets spanning industrial, logical, and medical scenarios. The radar plot summarizes image-level AUC on each benchmark, where a larger enclosed region indicates a stronger and more balanced cross-domain performance profile. UniVAD v2 forms the outer frontier on all axes, highlighting its consistent advantage across heterogeneous settings. 
+
+to build a single detector that can be reused across het-erogeneous settings. In practical few-shot deployment, the detector is often applied to an unseen target category with only a small number of reference samples. The central problem is thus to construct a reliable decision boundary for the current support episode.  
+
+> arXiv:2606.29714v1 [cs.CV] 29 Jun 2026 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 2Normal Patches
+
+Memory Bank 
+
+> Normal Components
+> Wrong
+
+Abnormal Samples 
+
+Detection Results 
+
+> Combination
+
+(a) Memory -based Retrieval  (b) Le arned normality modeling 
+
+Large -scale  Normal Samples 
+
+Training 
+
+Feature Space 
+
+> Seen Normal
+> Seen Anomaly
+> Unseen Normal
+> Unseen Anomaly
+> Fixed
+> Boundary
+> Retrieval -based
+> Detection
+
+(c) Our UniVAD v2 
+
+Unseen Objects 
+
+> Normal
+> Supports
+> Abnormal
+> Supports
+
+Dynamic  Boundary Construction 
+
+> Normal Support
+> Mild Abnormal Support
+> Normal Query
+> Mild Abnormal Query
+> Severe Abnormal Query Severe Abnormal Support
+> Permissive Boundary Strict Boundary
+
+# Motivation of UniVAD v2:  Support -Conditioned Boundary Construction 
+
+Fig. 2. Comparison of boundary-evidence mechanisms in unified anomaly detection. (a) Memory-based retrieval builds memory banks from normal patches or components, but locally plausible matches may still form a wrong global combination and lead to missed anomalies. (b) Learned normality modeling estimates an effective boundary from large-scale normal samples, but the boundary is fixed after training and transfers weakly to unseen objects with different tolerance requirements. (c) UniVAD v2 constructs the boundary from normal supports and optional abnormal supports at inference time. Normal supports provide evidence for the acceptable side, while abnormal supports provide residual rejection-side evidence; different abnormal-support severities can induce stricter or more permissive effective boundaries for unseen objects. 
+
+As shown in Fig. 2, existing anomaly detection meth-ods mainly infer this boundary from normal-side evidence. Memory-based retrieval methods [1], [4], [17], [22] provide stable support matching, but their evidence is assembled from independent patch or component correspondences and may miss logical anomalies caused by wrong combination of normal components. Learned normality modeling meth-ods [3], [18], [19] encode broader context, but their effective scoring boundaries are typically fixed after training and transfer weakly to unseen objects or changing tolerance requirements. Thus, retrieval and learned normality model-ing provide complementary but incomplete normal-side ev-idence. Normal-side evidence alone also leaves the rejection side of the boundary implicit. In real inspection systems, the desired tolerance may vary across deployments, where mild defects can be acceptable in one setting but rejected in another. Abnormal references naturally provide evidence about which deviations should be rejected. Recent methods such as NAGL [23] use normal-abnormal references to im-prove generalist anomaly detection, but abnormal samples are mainly treated as additional guidance for strengthen-ing anomaly scores. How to combine abnormal-reference evidence with normal-side support evidence for support-conditioned boundary adjustment remains underexplored. To address this problem, we propose UniVAD v2, a support-conditioned boundary construction framework for unified visual anomaly detection. On the normal side, Uni-VAD v2 combines retrieval with an Optimal Transport-based Relational Modeling module (OTRM), which intro-duces global support-query matching through transport-style allocation. An Adaptive Coordination mechanism for Retrieval and Relational Modeling (ACRRM) predicts episode-conditioned fusion weights to coordinate local re-trieval evidence and global relational evidence. On the abnormal side, the Few-Shot Abnormal Reference mod-ule (FAR) converts optional abnormal references into resid-ual rejection-side evidence, allowing the effective boundary to change with the references provided at inference time. We evaluate UniVAD v2 on six datasets spanning indus-trial inspection [24], [25], medical imaging [8], and logical anomaly detection [26]. The main comparison fixes the selected normal supports for all methods, so the results measure how effectively different detectors construct the boundary from the same normal-support evidence on un-seen target categories. Under this fixed 1N-shot protocol, UniVAD v2 improves the six-dataset mean image-level AUC from 83.0% to 84.5% over UniVAD. With one abnormal reference, UniVAD v2 further reaches 85.7%. We then use controlled reference variations to analyze the behavior of the constructed boundary. On MVTec-AD-SS, UniVAD v2 achieves 96.2% image-level AUC and 96.9% pixel-level AUC, demonstrating support-conditioned boundary cus-tomization without retraining. Our contributions are summarized as follows: IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 3
+
+1) We formulate unified visual anomaly detection as support-conditioned boundary construction, where the inference-time decision boundary for unseen categories is estimated from the evidence available in the current support episode. 2) We strengthen normal-side boundary construction with ACRRM and OTRM, where retrieval provides stable local support evidence, OT-based relational modeling provides global support-query matching evidence, and adaptive coordination selects their reliability under each episode. 3) We extend support-conditioned boundary construc-tion to the abnormal side with FAR, which converts optional abnormal references into residual rejection-side evidence and enables support-conditioned boundary customization without retraining. 4) Experiments on six datasets and MVTec-AD-SS verify UniVAD v2’s cross-domain generalization, component complementarity, support scalability, and dynamic boundary adjustment under different abnormal-reference conditions. 
+
+2 RELATED WORK 
+
+2.1 Anomaly Detection 
+
+The growing need for anomaly detection systems that can transfer across products, imaging conditions, and applica-tion domains makes conventional “one-class-one-model” methods inadequate. As a result, anomaly detection is moving toward unified methods that can handle multi-category data across domains with a single model. From the perspective of support-conditioned boundary construction, current unified anomaly detection methods mainly differ in how they obtain boundary evidence for a target episode. Memory-based retrieval is a common way to construct normal-side evidence from reference samples [14], [27], [28]. PaDiM [14] is an early representative of this line of work. PatchCore [1] substantially reduces memory size through coreset sampling, achieving accurate local anomaly localiza-tion through nearest-neighbor search. To address more com-plex scenarios, recent studies adopt stronger retrieval mech-anisms. RegAD [29] uses STN-based [30] image registration before retrieval to improve feature correspondence, while UniVAD [17] and RAID [22] construct hierarchical memory banks to perform matching at multiple levels, including global, component, and patch levels. These methods are highly accurate for local structural defects such as scratches and stains, but they still rely heavily on independent patch or component correspondences. Consequently, when anomalies arise from incorrect combinations of otherwise normal features, local matching may miss them because plausible matches still exist in the normal memory bank. Learned normality modeling provides another source of boundary evidence by learning reconstruction mappings, scoring functions, or decision surfaces from training data [3], [18], [19], [31], [32]. Dinomaly [18] proposes a Transformer-based reconstruction framework for multi-class settings. UniNet [19] combines contrastive learning with domain-related feature selection to bridge the domain gap across in-dustrial and medical data. AnomalyMoE [3] uses a mixture-of-experts architecture to detect anomalies at different se-mantic levels. These methods naturally benefit from learn-able global contextual modeling, but their decision surfaces are learned from normal samples in the training categories and then kept static at inference time. Such static normal-side evidence creates two limitations. First, when the model encounters unseen objects, the learned reconstruction be-havior or decision function may not match the new category, so the performance can degrade sharply. Second, because the scoring behavior is fixed after training and is optimized only from normal data, it cannot be adjusted according to the abnormal references available during deployment. Recent work has begun to use abnormal references at inference time. NAGL [23] proposes a normal-abnormal-guided setting for anomaly detection and introduces Resid-ual Mining and Anomaly Feature Learning to exploit abnor-mal samples as auxiliary guidance for improving detection performance. This line of work shows that abnormal refer-ences are useful, but it does not directly address how test-time normal and abnormal supports should jointly shape the boundary for an unseen target episode. UniVAD v2 fo-cuses on this underexplored problem by treating abnormal samples as abnormal-side evidence that works with normal-side support to adjust the inference-time boundary. Overall, existing anomaly detectors provide limited mechanisms for jointly exploiting local correspondence, global support-query relations, and controllable abnormal-side references. UniVAD v2 addresses this gap by formu-lating unified anomaly detection as support-conditioned boundary construction, where normal supports and abnor-mal references play complementary roles. 
+
+2.2 Optimal Transport 
+
+Optimal transport (OT) studies the minimum-cost plan for transforming one probability distribution into another. Be-cause it preserves the geometry of the underlying feature space, OT has attracted growing interest in deep learning theory and visual correspondence. Recent work has also revealed a close connection between the Transformer ar-chitecture and optimal transport [33]–[35]. ICRL [36] shows that the softmax attention layer effectively simulates gradi-ent descent on the dual of entropy-regularized Wasserstein-2 optimal transport, which allows provable global align-ment over discrete point sets. Lotformer [37] further derives a doubly stochastic linear attention mechanism from the optimal transport perspective and achieves exact feature alignment in linear time through a learnable pivot mea-sure. In anomaly detection tasks, optimal transport also shows promise. RD++ [38] introduces a self-supervised op-timal transport loss into reverse distillation to improve the compactness of normal features. Prototype-based OT [39] measures the distance between test inputs and distribution prototypes for out-of-distribution detection. RoDA [40] ap-plies the Sinkhorn distance to domain adaptation and coarse distribution alignment in industrial inspection. Despite these advances, existing anomaly detection stud-ies mostly use OT as a training regularizer or a static dis-tance. Its mass-allocation view has been less explored as an inference-time matching principle for logical and structural anomaly detection. UniVAD v2 follows this direction by using OT-based relational modeling to complement inde-IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 4Normal 
+
+> Supports
+> Query
+> Image
+> Abnormal
+> Supports
+> (Optional)
+> Frozen Image Encoder Frozen Image Encoder
+> Normal
+> Feature
+> Query
+> Feature
+> Abnormal
+> Feature
+
+(1) Input and Encoding 
+
+UniVAD v2:  Support -Conditioned Boundary Construction 
+
+(2) Normal -Side Boundary Construction     
+
+> (a) Retrieval Branch
+> Query Support Mem
+> NN
+> Matching
+> (b) OTRM Module
+> Normal Feature
+> Query Feature Cross -Attention
+> OT Solver
+> Com -to -Com
+> Patch -to -Patch
+> Retrieval
+> Output (R)
+> Transformer
+> Output (T)
+> (c) ACRRM Module
+> Support Query RT
+> Relation
+> Encoding
+> Relation
+> Encoding
+
+(4) Fusion and Output  
+
+> (a) Evidence Fusion
+> Anomaly
+> Map Image
+> Score
+> Ground
+> Truth
+> (b) Support -conditioned
+> Boundary Construction
+
+(3) Abnormal -Side Boundary Construction            
+
+> Abnormal
+> Feature
+> Query
+> Feature
+> (a) R esidual Mining
+> Normal
+> Feature Abnormal
+> Residual (Ra)
+> Normal
+> Feature Query
+> Residual (Rq)
+> Minus
+> Minus
+> (b) Query Conditioning
+> P0
+> Ra
+> P1
+> Query
+> Feature
+> Rq
+> Strict
+> Boundary
+> Mild Abnormal
+> Support
+> Permissive
+> Boundary
+> Severe Abnormal
+> Support
+> Trained Modules Frozen Modules Normal Feature Abnormal Feature Query Feature Normal Query Mild Abnormal Query Severe Abnormal Query Add
+> QK, V
+
+ωT ωR
+
+> QK, V
+> Attention
+> QKV
+> Attention
+> 0.84
+> Learnable Gating Network Learnable Gating Network
+> Learnable Piror Learnable Piror
+> Normal -Side Output
+> Abnormal -Side
+> Output
+
+Fig. 3. Overview of UniVAD v2 as support-conditioned boundary construction. In stage (1), normal supports, the query image, and optional abnormal supports are encoded by frozen image encoders into dense visual features. In stage (2), normal-side boundary construction combines a frozen retrieval branch with trainable OTRM, and ACRRM predicts the fusion weights ωR and ωT from the support-query relation and the branch responses. In stage (3), FAR converts optional abnormal supports into abnormal-side evidence through residual mining and query conditioning. In stage (4), the normal-side and abnormal-side maps are fused to obtain the final anomaly map, while the support-conditioned boundary view illustrates how mild or severe abnormal supports induce strict or permissive effective boundaries. 
+
+pendent retrieval and to introduce global support-query matching into boundary construction. 
+
+3 METHOD 
+
+3.1 Problem Formulation 
+
+We consider a few-shot unified anomaly detection episode 
+
+E = ( Sn, Sa, I q ), where Sn = {Ini }Kn
+
+i=1 is a normal support set with Kn images, Sa = {Iaj }Ka
+
+j=1 is an optional abnormal support set with Ka images, and Iq is a query image from a previously unseen category. When no abnormal reference is available, Ka = 0 and Sa is empty. The goal is to learn an episode-conditioned predictor fθ that maps E to a dense anomaly map A ∈ RH×W and an image-level anomaly score 
+
+s ∈ R, where H × W denotes the spatial resolution of the query feature grid. Instead of relying on a static normal-side scoring behavior learned from training categories, fθ
+
+should construct decision evidence from the current support episode. The problem is therefore to estimate fθ such that the boundary can be accurately constructed from only a few references, remain transferable to unseen object categories and different domains, and be adjusted by abnormal-side evidence when abnormal references are provided. 
+
+3.2 Framework Overview 
+
+As illustrated in Fig. 3, UniVAD v2 follows a four-stage pipeline that constructs boundary evidence from the current support episode. In the first stage, frozen image encoders extract dense visual features from the normal supports, the query image, and the optional abnormal supports. Follow-ing UniVAD, we retain the component-patch divide-and-conquer view of the task, in which patch-level correspon-dence captures local defects and component-level matching captures structural and logical consistency. The second stage constructs normal-side boundary evidence from the normal supports. For each branch 
+
+b ∈ { loc , part , cmp }, where b denotes local patch match-ing, component-aware patch matching, and component-level matching, respectively, the retrieval branch performs nearest-neighbor matching over the support memory bank and produces a retrieval score Rb. In parallel, OTRM per-forms masked OT-based relational matching between sup-port and query tokens and produces a relational modeling score Tb. ACRRM then receives the support-query relation together with Rb and Tb, predicts branch-wise fusion coeffi-cients ωrb , ω tb ∈ [0 , 1] with ωrb +ωtb = 1 , and obtains the fused normal-side score as: 
+
+˜Ab = ωrb Rb + ωtbTb. (1) The normal-side anomaly map is defined by: 
+
+Apre = ˜Aloc + ˜Apart + Avl 
+
+3 + λc ˜Acmp , (2) where Avl denotes the feature map obtained from image-text similarity computation, and λc controls the contribu-IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 5
+
+tion of component-level evidence. This formulation covers images with and without meaningful component-aware ev-idence and therefore avoids separate hand-crafted fusion rules for different structural cases. The third stage constructs abnormal-side boundary evi-dence when abnormal supports are available. FAR converts the optional abnormal supports into an abnormal-side map 
+
+Afar that indicates how strongly query regions align with reference-defined abnormal patterns. The fourth stage fuses the normal-side and abnormal-side maps, and the final prediction is: 
+
+A = Apre + Afar . (3) This pipeline preserves the robustness of support-based matching, adds global relational modeling over the normal supports, and allows optional abnormal supports to adjust the effective scoring behavior at inference time. 
+
+3.3 Adaptive Coordination Module 
+
+The Adaptive Coordination of Retrieval and Relational Modeling module (ACRRM) constructs normal-side bound-ary evidence by integrating retrieval-based and relational-modeling scores within a single episode-conditioned frame-work. Instead of using fixed fusion coefficients, it predicts branch-specific weights from the support-query relation and from the current outputs of the two branches. In this way, UniVAD v2 retains the stability of support-based matching while allowing the final prediction to benefit from global relational modeling when it is informative. For each branch b ∈ { loc , part , cmp }, ACRRM receives a retrieval score map Rb, a relational modeling score map 
+
+Tb, a support set Sb, and a query set Qb. The first step is to encode the global relation between Sb and Qb in a category-agnostic manner. Since support and query features form unordered sets, the relation encoder should be permutation-invariant with respect to support ordering. Following the Deep Sets [41] principle, we first map each element into a la-tent space and then apply symmetric statistics to summarize the support set and the query set. Concretely, let ϕ(·) denote an element encoder. For each branch, ACRRM computes: 
+
+hSb =  mean( ϕ(Sb)); max( ϕ(Sb)); std( ϕ(Sb)) ,
+
+hQb =  mean( ϕ(Qb)); max( ϕ(Qb)); std( ϕ(Qb)) , (4) and then combines them with low-order statistics of pair-wise support-query similarity to obtain the relation embed-ding: 
+
+zb = ρ
+
+
+
+[hSb ; hQb ; sim( ϕ(Sb), ϕ (Qb))] 
+
+
+
+, (5) where ρ(·) is a nonlinear projector. ACRRM then determines the gating value through a precision-inspired fusion rule. To motivate this design, let 
+
+Yb denote the latent anomaly evidence to be estimated in branch b. In an idealized view, retrieval and relational modeling can be regarded as two noisy observations of Yb:
+
+Rb = Yb + εrb , Tb = Yb + εtb. (6) A simplified minimum-variance fusion objective would choose the branch weights by solving: 
+
+min  
+
+> ωrb+ωtb=1
+
+Var  ωrb Rb + ωtbTb
+
+ . (7) If the error covariance is further approximated by a diagonal form with scale parameters (σrb )2 and (σtb)2, this objective suggests inverse-variance-style weighting: 
+
+ωr⋆ b = πrb
+
+πrb + πtb
+
+, ωt⋆ b = πtb
+
+πrb + πtb
+
+, (8) where πrb = ( σrb )−2, π tb = ( σtb)−2. This idealized deriva-tion motivates a reliability-aware gating design. In the implemented model, the precision terms are amortized as learned reliability logits conditioned on the current support-query episode, rather than estimated as explicit statistical variances. Let sb denote the statistics of Rb, Tb, and their discrepancy, including the mean, standard deviation, peak response, and the magnitude of disagreement. The context is instantiated as cb = [ zb; sb]. We further introduce a learnable embedding g to encode the branch-specific structural prior. The gate computes: 
+
+ℓb = ψb(cb) + p(g), (9) where ψb(·) is an MLP for episode-conditioned reliability prediction, and p(·) is an MLP that maps the learnable embedding g to a prior logit. To adjust the sharpness of the branch mixture, a learnable temperature τ (g) is further introduced and the final weights are obtained by: 
+
+ωrb , ω tb
+
+ = Softmax 
+
+ ℓb
+
+τ (g)
+
+
+
+. (10) This gating formulation implements a reliability-aware mixture of the retrieval and relational branches. The soft-max operation normalizes the learned reliability logits into branch weights, and the logits are conditioned on both the support-query relation and the response statistics of the two branches. Therefore, ACRRM can assign larger weight to retrieval when local correspondence provides more dis-criminative evidence, and emphasize relational modeling when global support-query structure is more informative. Since the gate is computed from episode-level relations and branch responses rather than category identities, ACRRM remains category-agnostic and can be applied to unseen object categories. 
+
+3.4 Optimal Transport-Based Relational Modeling 
+
+OTRM is responsible for strengthening the relational part of normal-side boundary construction. Its purpose is to com-plement isolated nearest-neighbor retrieval with a learnable global matching mechanism grounded in optimal transport theory [42]. Let the support and query token sets induce two empirical measures: 
+
+μ =
+
+> U
+
+X
+
+> u=1
+
+au δsu , ν =
+
+> P
+
+X
+
+> p=1
+
+bp δqp , (11) where δx is the Dirac measure, a = {au}Uu=1 denotes the marginal masses of the support measure μ, and b = {bp}Pp=1 
+
+denotes the marginal masses of the query measure ν. For consistency with the query-to-support allocation matrix used by OTRM, the coupling set is defined as: 
+
+U(b, a) = 
+
+n
+
+Π ∈ RP ×U 
+
+> +
+
+| Π1U = b, Π⊤1P = a
+
+o
+
+. (12) IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 6
+
+Each entry Πp,u represents the transport mass assigned from query token qp to support token su. Entropic OT seeks a transport plan Π that minimizes 
+
+Π⋆ = arg min 
+
+> Π∈U (b,a)
+
+⟨Π, C ⟩ + εH (Π) , (13) where C ∈ RP ×U is the query-to-support transport cost matrix and H(Π) is the entropy regularizer. This formula-tion provides a principled description of global matching under mass conservation and competition among support candidates in the support set. Recent theory [36], [43] shows that Transformer [44] attention is closely connected to the optimization of entropic optimal transport. In particular, prior studies [43] relate softmax attention to gradient-based updates on the dual of entropy-regularized Wasserstein transport. This connection motivates OTRM as an OT-based relational matching mod-ule. In OTRM, query tokens allocate normalized mass over admissible support candidates, and structural masks define the support-query pairs that participate in the transport-style matching process. Concretely, given support tokens Xs and query tokens 
+
+Xq , OTRM first projects them into latent attention spaces 
+
+Qatt , Katt , Vatt and constructs the following relaxed allo-cation matrix: 
+
+˜Π = Softmax Qatt Katt ⊤
+
+√d + M
+
+!
+
+, (14) where M encodes structural admissibility. If a support-query pair is structurally invalid, its entry is suppressed so that ˜Πp,u = 0 after normalization. The resulting matrix is a masked one-sided transport relaxation, where each row describes how the mass of a query token is distributed over admissible normal-support candidates. The attended representation ˜Π · Vatt summarizes the support evidence allocated to each query token, and a prediction head maps this globally matched representation to anomaly scores. Therefore, the relational modeling score is produced by a trainable OT-based inference network whose attention pattern is shaped by competition among admissible support candidates, mass allocation, and structural constraints. This principle is instantiated at three levels. In the local branch, every query patch is matched against the whole support set, which gives OTRM a holistic view un-available to independent nearest-neighbor retrieval. In the part branch, the attention mask M enforces component-consistent matching, so the relaxed allocation is restricted to support tokens compatible with the refined component partition. In the component branch, support and query components are treated as structured sets of higher-level descriptors and are matched through the same OT-based re-lational modeling principle. Because all three branches share the same global matching philosophy, OTRM can model both local defects and inter-component logical anomalies within a unified learnable formulation. 
+
+3.5 Few-Shot Abnormal Reference Module 
+
+Most anomaly detectors estimate the data distribution from only the normal side of the decision boundary. This design is restrictive in industrial inspection, where the acceptable tolerance can vary across production requirements. Mild defects may be considered unacceptable in a strict quality-control setting but acceptable when the operational goal is to reject only severe defects. A detector whose boundary is determined only by normal supports has limited ability to express such deployment-specific tolerance. FAR is designed to construct abnormal-side boundary evidence rather than to use anomalous samples for in-cremental performance gain. It converts abnormal refer-ences into residual rejection-side evidence and combines them with normal supports to obtain a support-conditioned anomaly score. The normal supports anchor the acceptable side, while the abnormal supports specify which residual deviations should be rejected. FAR follows a residual anomaly modeling strategy in which anomaly evidence is extracted by subtracting normal correspondences and then distilled into a compact set of learnable proxies. Let Kn and Ka denote the numbers of normal and abnormal support images, P = H × W denote the number of spatial tokens in each image, and d denote the feature dimension. We denote the normal support token tensor by Sn ∈ RKn×P ×d, the abnormal support token tensor by Sa ∈ RKa×P ×d, and the query token tensor by 
+
+Xq ∈ R1×P ×d, where the singleton first dimension indicates that each episode contains one query image. FAR begins by constructing residual features. Let av be the v-th flattened abnormal-support token and qp be the token at the p-th query location. For each token, we remove the closest normal-support explanation: 
+
+rav = av − NN( av ; Sn), rqp = qp − NN( qp; Sn), (15) where NN( ·; Sn) denotes nearest-neighbor retrieval in the normal support set. This subtraction suppresses object iden-tity and preserves the residual deviation from normality. This residual view is essential for boundary customization because abnormal supports are not used as raw memories of particular defect instances, but are converted into devia-tions relative to the current normal support manifold. FAR therefore constrains the boundary with anomaly evidence that is both reference-specific and category-agnostic. The first stage of FAR is residual mining. A set of learnable anomaly proxies P0 = {p0
+
+> m
+
+}Mm=1 attends to the abnormal support set. In the implementation, each proxy performs cross-attention over abnormal support tokens, where the abnormal residuals serve as key and values. This design lets the proxies decide where to look using the actual abnormal context while aggregating the residual signal that distinguishes abnormal regions from the normal support manifold. A self-attention refinement block is then applied to the proxy set, yielding residual proxies P1:
+
+P1 = Attention  Q = P0, K = Ra, V = Ra; M a , (16) where Ra denotes the abnormal residual tokens and M a is the residual mining mask. The second stage is query conditioning, which adapts the mined abnormal proxies to the current query image. P1
+
+are used as queries to attend to the residual query tokens, while the original query tokens provide the values. This is again followed by self-attention refinement: 
+
+P2 = Attention  Q = P1, K = Rq , V = Xq  , (17) IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 7
+
+where Rq denotes the query residual tokens. This step transfers the anomaly patterns mined from the abnormal support set to the current query and adapts them to the query-specific context. Thus, FAR does not merely compare the query against a fixed abnormal memory. It first extracts anomaly prototypes and then reconditions these prototypes on the residual structure of the current query. The final FAR score is obtained by measuring the affinity between each query token and the learned anomaly proxies: 
+
+Afar (p) = 1
+
+M
+
+> M
+
+X
+
+> m=1
+
+cos  qp, p2
+
+> m
+
+ . (18) This score is complementary to OTRM. OTRM evaluates how well the query can be explained by the normal support distribution, whereas FAR evaluates how strongly the query aligns with residual patterns distilled from real anomalies. Since the final anomaly map in Eq. (3) increases with abnor-mal evidence and the ranking loss encourages anomalous patches to receive higher scores, a larger Afar makes a query region more likely to be rejected. The combination turns the detector into a bounded contrastive model shaped by both normal-side and abnormal-side few-shot references. Because the residual proxies are mined from the abnormal supports provided in the current episode, the resulting scoring behavior is reference-conditioned. Mild abnormal references contain subtle residual patterns, so they can raise the scores of mild deviations and induce a stricter effective boundary. Severe abnormal references emphasize stronger residual patterns; mild deviations then match the abnormal-side proxies less strongly and become more ac-ceptable under a tolerance-driven setting, producing a more permissive effective boundary that focuses on pronounced defects. When abnormal supports are not available, FAR is disabled and the model naturally reduces to the normal-only setting governed by the normal-side score. 
+
+3.6 Training Objective 
+
+Let Y ∈ { 0, 1}H×W be the query patch label map. Uni-VAD v2 is trained with a pairwise ranking objective that directly encourages anomalous query patches to receive higher scores than normal query patches: 
+
+Lrank = 1
+
+|Ω|
+
+X
+
+> (i,j )∈Ω
+
+max 
+
+
+
+0, γ − A+ 
+
+> i
+
++ A−
+
+> j
+
+
+
+, (19) where Ω is a set of sampled anomalous-normal patch pairs, 
+
+A+ 
+
+> i
+
+and A− 
+
+> j
+
+are anomaly scores from positive and nega-tive query patches, and γ is the ranking margin. During inference, the patch-level anomaly map is upsampled to the input resolution, and the image-level anomaly score is obtained from the peak response of the dense map. 
+
+4 EXPERIMENTS 
+
+4.1 Experimental Settings 
+
+4.1.1 Datasets 
+
+We evaluate UniVAD v2 on six datasets spanning indus-trial, logical, and medical anomaly detection. For industrial inspection, we use MVTec-AD [24] and VisA [25], which cover diverse texture and object defects. For logical anomaly detection, we use MVTec LOCO [26], where anomalies often arise from incorrect compositions of otherwise normal com-ponents. For the medical domain, we use BrainMRI [49], LiverCT [8], and RESC [50], which represent brain lesion detection, liver CT abnormality localization, and retinal anomaly detection, respectively. All datasets provide pixel-level annotations, allowing us to report both image-level de-tection and pixel-level localization performance. To evaluate boundary customization, we additionally construct MVTec-AD-SS from the abnormal samples in MVTec-AD. The split separates mild anomalies G1 from severe anomalies G2
+
+according to abnormal-region area, anomaly saliency, and human verification. G1 accounts for roughly 20% of abnor-mal images, and G2 contains the remaining 80%. 
+
+4.1.2 Evaluation Protocols 
+
+Following UniVAD, we denote a protocol with Kn nor-mal support images and Ka abnormal support images as 
+
+KnN+ KaA-shot ; when no abnormal support is used, we write KnN-shot . For fair comparison, we follow the com-mon few-shot evaluation protocol used in RegAD [29], Dic-tAS [51], and related methods. Specifically, for each KnN-shot setting, Kn normal support samples are randomly selected from the target category, and all compared methods are evaluated using the same selected normal supports. Under the 1N-shot setting, the model is not trained on target-domain data; instead, one normal support image is provided at inference time for each episode. This setting evaluates fair normal-side boundary construction from the same support information used by previous baselines. Un-der the 1N+1A-shot setting, one additional abnormal sup-port image is further provided to activate FAR and evaluate the benefit of abnormal-side evidence. For cross-domain transfer, the model trained on MVTec-AD is evaluated on VisA, MVTec LOCO, BrainMRI, LiverCT, and RESC, while the MVTec-AD results are obtained using the model trained on VisA. On MVTec-AD-SS, we directly use VisA-trained weights and do not perform any target-domain retraining. This protocol evaluates whether abnormal references from 
+
+G1 or G2 can induce different inference-time boundaries, including a permissive setting where G1 mild anomalies are treated as acceptable normal cases and G2 severe anoma-lies are treated as abnormal cases. Following established anomaly detection practice, we use image-level AUC and pixel-level AUC to evaluate anomaly detection and anomaly localization, respectively. 
+
+4.1.3 Implementation Details 
+
+In our experiments, the input resolution is set to 448 × 448 ,consistent with UniVAD. The model is trained with a batch size of 8, a learning rate of 1×10 −5, and the pairwise ranking loss in Eq. (19) for 50 epochs. During inference, the dense anomaly map is upsampled to the image resolution, and the image-level score is obtained from the peak response of the final map. All experiments are conducted on a single NVIDIA RTX A6000 GPU. 
+
+4.2 Comparison with State-of-the-Art 
+
+We compare UniVAD v2 with representative anomaly de-tection methods from different domains, including Patch-Core [1], AnomalyGPT [2], WinCLIP [45], ComAD [46], IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 8                                                                                                                                                  
+
+> TABLE 1 Comparison with existing methods on six datasets. Image-level AUC (Img.) and pixel-level AUC (Pixel) are reported for each dataset together with their six-dataset mean (Mean) (%). For the normal-support comparison, all methods are evaluated with the same selected normal supports. UniVAD v2 (1N-shot) provides the fixed-support fair comparison, while UniVAD v2 (1N+1A-shot) reports the reference-assisted setting with one additional abnormal reference. The best and second-best results are highlighted in bold and underlined, respectively.
+> Method MVTec-AD VisA MVTec LOCO BrainMRI LiverCT RESC Mean Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel PatchCore [1] 84.0 89.9 74.8 93.4 62.0 69.8 73.2 96.0 44.9 95.6 56.3 78.2 65.9 87.2 AnomalyGPT [2] 94.1 95.3 87.4 96.2 60.4 70.3 73.1 96.0 60.3 95.8 82.4 94.0 76.3 91.3 WinCLIP [45] 93.1 95.2 83.8 96.2 58.0 58.8 55.4 86.6 60.3 94.5 72.9 87.9 70.6 86.5 ComAD [46] 57.3 -53.9 -62.2 -33.3 -45.0 -73.5 -54.2 -UniAD [47] 70.3 90.7 61.3 90.3 50.9 70.6 50.0 93.6 35.0 88.5 53.5 80.7 53.5 85.7 MedCLIP [48] 75.2 79.1 69.0 88.2 54.9 69.1 69.7 91.7 40.5 93.8 66.9 91.5 62.7 85.6 UniVAD [17] 97.8 96.5 93.5 98.2 71.0 75.1 80.2 96.8 70.0 96.3 85.5 94.9 83.0 93.0 UniVAD v2 (1N-shot) 98.1 96.4 93.8 98.2 71.5 75.0 82.4 96.7 74.5 96.8 86.9 95.0 84.5 93.0 UniVAD v2 (1N+1A-shot) 98.3 96.5 94.6 98.2 72.1 74.9 85.8 96.8 75.6 97.0 87.5 95.2 85.7 93.1
+> TABLE 2 Average single-sample inference time in milliseconds.
+
+Method Inference Time (ms) UniVAD [17] 658.5 UniVAD v2 (1N+1A-shot) 679.3 
+
+UniAD [47], MedCLIP [48], and UniVAD [17]. Table 1 re-ports the results under the fixed normal-support protocol described above. Since all methods receive the same selected normal supports in each target category, the comparison isolates the ability of each method to construct a decision boundary from identical normal-support evidence. Under the 1N-shot setting, UniVAD v2 raises the six-dataset mean image-level AUC from 83.0% to 84.5% relative to UniVAD while maintaining the same 93.0% mean pixel-level AUC. This establishes a fair state-of-the-art comparison against existing normal-support methods and shows that ACRRM and OTRM strengthen normal-side boundary construction even without abnormal references. The gains are most vis-ible on the medical benchmarks, where image-level AUC increases from 80.2% to 82.4% on BrainMRI, from 70.0% to 74.5% on LiverCT, and from 85.5% to 86.9% on RESC. Under the reference-assisted 1N+1A-shot setting, UniVAD v2 further raises the mean image-level and pixel-level AUCs to 85.7% and 93.1%, respectively. The largest additional gain appears on BrainMRI, where image-level AUC increases from 82.4% to 85.8%. These results separate the two sources of improvement, since normal-side coordination improves cross-domain transfer in the fixed 1N-shot regime, while ab-normal supports provide complementary abnormal-side ev-idence for constructing a more flexible support-conditioned boundary at inference time. Table 2 further shows that UniVAD v2 preserves fa-vorable inference efficiency. Its average inference time is 679.3 ms per sample, only 20.8 ms slower than UniVAD. This result indicates that the added coordination of retrieval and relational modeling together with abnormal-reference modeling introduces only marginal overhead relative to the accuracy gains reported in Table 1. Normal        
+
+> G1 Anomaly
+> G2 Anomaly
+> Fig. 4. Illustration of MVTec-AD-SS. Each column shows one object category with normal samples, mild G1anomalies, and severe G2
+> anomalies. G1contains subtle deviations that may be acceptable under a permissive tolerance, while G2contains stronger defects.
+
+4.3 Support-conditioned Boundary Customization 
+
+We evaluate whether FAR can adjust the anomaly scoring behavior according to the abnormal references provided at inference time. This experiment is conducted on MVTec-AD-SS and directly uses the model trained on VisA. Dif-ferent from the fixed-support state-of-the-art comparison in Table 1, this analysis changes the abnormal-reference condition to probe how the inferred boundary responds to deployment-specific tolerance requirements. The opera-tional definition of abnormality is also changed, where mild defects in G1 can be treated as acceptable normal cases when the target application only needs to reject severe defects in 
+
+G2. Fig. 4 provides representative examples of the normal, 
+
+G1, and G2 groups. We use 4 abnormal references in this evaluation to obtain a more stable estimate of the abnormal side, since a single abnormal sample may reflect an instance-specific defect pattern rather than the intended severity level. This setting remains few-shot and uses the abnormal references only at inference time, so it still evaluates bound-ary customization without target-domain retraining. Table 3 reports the permissive-boundary setting, where abnormal references are sampled from the severe group G2
+
+and G1 mild anomalies are treated as acceptable samples. UniVAD v2 reaches 96.2% image-level AUC and 96.9% pixel-level AUC, outperforming PatchCore by 7.7 and 1.1 points and UniVAD by 4.6 and 1.0 points, respectively. This IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 9Test Input 
+
+Retrieval -branch 
+
+Output 
+
+Relational 
+
+Modeling Output 
+
+Final Output      
+
+> Fig. 5. Qualitative visualization of branch complementarity on diverse anomaly types. Each column shows a test input together with the anomaly maps from the retrieval branch, the relational modeling branch, and the final fused output. The retrieval branch tends to produce sharper responses on compact appearance defects, whereas the relational modeling branch provides more complete and spatially coherent activation for structurally extended anomalies. The final prediction combines local sensitivity with global consistency and localizes the anomalous regions more reliably across heterogeneous cases. TABLE 3 Boundary-customization evaluation on MVTec-AD-SS. G1mild anomalies are treated as acceptable samples, G2severe anomalies are treated as abnormal samples, and UniVAD v2 uses four abnormal references sampled from G2. No method is retrained on this split. AUC values are reported in %.
+
+Method Image-AUC Pixel-AUC PatchCore [1] 88.5 95.8 UniVAD [17] 91.6 95.9 Ours (1N+4A-shot) 96.2 96.9     
+
+> TABLE 4 Average FAR scores on MVTec-AD-SS under different abnormal-reference groups. G1references correspond to a stricter boundary, while G2references correspond to a more permissive boundary that focuses on severe defects.
+
+Abnormal references G1 mean score G2 mean score 
+
+G1 as references 0.61 ↑↑↑ 0.76 ↓↓↓
+
+G2 as references 0.57 ↓↓↓ 0.82 ↑↑↑
+
+result shows that FAR can use severe abnormal references to construct a boundary aligned with the target industrial tolerance, instead of assigning the same abnormal status to every visible deviation. Table 4 further confirms that the scoring behavior is conditioned on the selected abnormal references. When G1 mild anomalies are used as references, the mean FAR score of G1 samples increases from 0.57 to 0.61, which is consistent with a stricter effective boundary that rejects subtle defects. When G2 severe anomalies are used as references, the G1 score decreases to 0.57 while the G2 score increases to 0.82, yielding a wider separation between acceptable mild deviations and severe defects. These results support the key claim of FAR that abnormal references provide controllable negative-side evidence that adjusts the inference-time anomaly scoring behavior with-out retraining on the target category. 
+
+4.4 Ablation Study 
+
+We organize the ablation study around 4 factors, including 1) the complementarity between retrieval and relational modeling for normal-side boundary construction, 2) the contribution of FAR beyond the normal-only setting and the importance of its residual design, 3) the effectiveness of ACRRM relative to simpler fusion strategies, and 4) the insertion scope of OTRM within the hierarchical branches. Together, these studies clarify how each component con-tributes to the final performance and how normal-side and abnormal-side evidence shape the decision process. 
+
+4.4.1 Retrieval and Relational Modeling Integration 
+
+We first examine whether the relational modeling branch is effective on its own and whether combining it with retrieval is necessary for normal-side boundary construction. Table 5 compares a retrieval-only variant, a relational-modeling-only variant, and their integrated version without FAR. The results reveal a clear complementarity between the two branches. Compared with the retrieval-only variant, the relational-modeling-only variant raises the six-dataset mean image-level AUC from 83.0% to 84.1%, with particu-larly visible gains on VisA, LiverCT, and RESC, indicating that the OTRM branch better captures global context and category transfer. However, relational modeling alone is slightly less stable for pixel-level localization on several datasets, showing that the retrieval branch still provides stronger local correspondence. When the two branches are coordinated in the 1N-shot setting, the joint normal-side model further reaches 84.5% mean image-level AUC and 93.0% mean pixel-level AUC. This result confirms that retrieval and relational modeling provide complementary IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 10                                                                                                                                                         
+
+> TABLE 5 Effect of retrieval and relational modeling integration in the 1N-shot setting. Image-level AUC (Img.) and pixel-level AUC (Pixel) are reported for each dataset together with their six-dataset mean (Mean) (%). The joint row corresponds to UniVAD v2 (1N-shot) excludes FAR.
+> Variant MVTec-AD VisA MVTec LOCO BrainMRI LiverCT RESC Mean Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Retrieval branch only 97.8 96.5 93.5 98.2 71.0 75.0 80.2 96.8 70.0 96.3 85.5 94.9 83.0 93.0
+> Relational modeling branch only 98.1 96.4 94.5 97.7 71.2 74.6 80.4 96.6 74.3 96.2 85.8 95.0 84.1 92.8 Joint retrieval + relational modeling (1N-shot) 98.1 96.4 93.8 98.2 71.5 75.0 82.4 96.7 74.5 96.8 86.9 95.0 84.5 93.0
+> TABLE 6 Effect of the Few-Shot Abnormal Reference module (FAR) and its design choices. Image-level AUC (Img.) and pixel-level AUC (Pixel) are reported for each dataset together with their six-dataset mean (Mean) (%).
+> Variant MVTec-AD VisA MVTec LOCO BrainMRI LiverCT RESC Mean Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel 1N-shot 98.1 96.4 93.8 98.2 71.5 75.0 82.4 96.7 74.5 96.8 86.9 95.0 84.5 93.0 + abnormal-memory 97.8 96.4 93.9 97.9 69.4 74.8 84.5 96.4 75.6 96.8 86.5 95.0 84.6 92.9 + abnormal w/o residual 97.7 96.2 94.1 97.9 69.8 74.8 82.3 96.5 71.9 97.0 86.4 94.8 83.7 92.9 + query w/o residual 98.0 96.4 93.6 97.7 70.1 74.5 80.3 96.4 74.9 96.7 84.2 94.5 83.5 92.7 + full FAR 98.3 96.5 94.6 98.2 72.1 74.9 85.8 96.8 75.6 97.0 87.5 95.2 85.7 93.1
+
+evidence for normal-side boundary construction before any abnormal reference is introduced. Fig. 5 further shows that branch preference is instance-dependent rather than fixed. On compact and appearance-driven defects, the retrieval branch often produces sharper local peaks and cleaner con-trast around the abnormal region. On spatially extended or structurally organized anomalies, the relational mod-eling branch tends to generate more complete and spa-tially coherent responses because it models the support-query relation more holistically. After ACRRM fuses the two branches, the final prediction preserves localized high-confidence responses when the anomaly is small, while also covering the full abnormal region when broader structural context is required. This visual evidence is consistent with the quantitative results in Table 5, where neither branch is uniformly dominant across all cases, and their adaptive coordination yields the strongest overall performance. 
+
+4.4.2 Few-Shot Abnormal Reference Module 
+
+We next evaluate whether abnormal supports provide use-ful boundary-side information beyond normal supports and which parts of FAR are most important. Table 6 compares the normal-only 1N-shot setting, several degraded FAR variants, and the full 1N+1A-shot formulation. Adding one abnormal support image with the full FAR design improves the six-dataset mean image-level AUC from 84.5% to 85.7% and yields the highest or tied-highest value on 13 metrics among the 14 reported image-level and pixel-level AUC values over the six datasets and their mean. This isolates the main benefit of abnormal-side boundary evidence beyond the normal-side model analyzed in Table 5. Replacing FAR with a direct abnormal-memory branch still helps on some datasets, but its mean image-level AUC remains 1.1 points below the full design, showing that raw abnormal-feature storage does not provide a reliable bound-ary constraint. Removing residual mining on the abnormal side or the query side causes a larger drop, reducing the mean image-level AUC to 83.7% and 83.5%, respectively. These results confirm that the residual formulation is the key ingredient in FAR. It suppresses normal overlap in both abnormal supports and query features, converts abnormal references into category-agnostic deviations from the cur-rent normal manifold, and provides more reliable abnormal-side evidence for unseen categories. 
+
+4.4.3 Effect of ACRRM 
+
+We then assess whether the gain comes from the proposed coordination mechanism or from replacing the fixed fu-sion rule with simpler fusion strategies. Table 7 compares ACRRM with direct summation and a simple MLP gate. The ACRRM-based fusion model consistently outper-forms both direct summation and the MLP-based fusion baseline. Compared with direct summation, ACRRM im-proves the mean image-level AUC from 83.8% to 85.7% and the mean pixel-level AUC from 92.7% to 93.1%. Compared with the learnable MLP gate, ACRRM further raises the mean image-level AUC from 84.4% to 85.7% and the mean pixel-level AUC from 92.5% to 93.1%, indicating that the gain is not attributable to a generic fusion layer alone. Instead, the episode-conditioned coordination mechanism in ACRRM provides a more reliable way to decide when retrieval evidence should dominate and when relational-modeling evidence should be emphasized. 
+
+4.4.4 Effect of OTRM Insertion Scope 
+
+Finally, we study how OTRM should be inserted into the framework. Table 8 compares progressively broader OTRM insertion scopes, ranging from only the local branch to the full local-part-component configuration. Table 8 shows a clear performance trend as OTRM is inserted into progressively broader branches. With OTRM inserted only into the local branch, the model achieves 84.5% mean image-level AUC and 93.0% mean pixel-level AUC. Extending OTRM to both the local and part branches further raises the mean image-level and pixel-level AUCs to 85.0% and 93.2%, respectively. The full Local + Part + Component configuration then reaches the strongest image-level perfor-mance, achieving an 85.7% mean image-level AUC and the IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 11                                                                                                                             
+
+> TABLE 7 Effect of different fusion mechanisms. Image-level AUC (Img.) and pixel-level AUC (Pixel) are reported for each dataset together with their six-dataset mean (Mean) (%).
+> Fusion mechanism MVTec-AD VisA MVTec LOCO BrainMRI LiverCT RESC Mean Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Direct summation 97.7 96.5 93.6 97.7 71.0 74.2 83.4 96.5 71.7 96.2 85.5 95.1 83.8 92.7 MLP-based fusion 98.2 96.4 94.0 97.3 71.3 73.6 81.5 96.6 75.3 96.3 85.9 94.9 84.4 92.5 ACRRM-based fusion 98.3 96.5 94.6 98.2 72.1 74.9 85.8 96.8 75.6 97.0 87.5 95.2 85.7 93.1
+> TABLE 8 Effect of different OTRM insertion scopes. Image-level AUC (Img.) and pixel-level AUC (Pixel) are reported for each dataset together with their six-dataset mean (Mean) (%). “Local-Only,” “Local + Part,” and “Local + Part + Component” indicate that OTRM is inserted into the corresponding branches on top of the retrieval backbone.
+> OTRM variant MVTec-AD VisA MVTec LOCO BrainMRI LiverCT RESC Mean Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Img. Pixel Local-Only 98.0 96.5 94.2 98.1 71.3 74.9 83.5 96.5 73.6 96.9 86.4 95.3 84.5 93.0 Local + Part 98.1 96.5 94.5 98.2 71.5 75.0 85.2 96.7 73.6 97.1 87.2 95.4 85.0 93.2
+> Local + Part + Component (Full OTRM) 98.3 96.5 94.6 98.2 72.1 74.9 85.8 96.8 75.6 97.0 87.5 95.2 85.7 93.1
+
+best image-level result on all six datasets. Notably, the Local + Part variant yields the highest mean pixel-level AUC, whereas Full OTRM yields the highest mean image-level AUC. The reason is that the component branch propagates a consistent anomaly score over the spatial region associ-ated with the detected abnormal component. This behavior is beneficial for image-level anomaly detection because it strengthens the global abnormal evidence of the whole component. However, when the true defect covers only a subset of the component area, assigning elevated scores to the entire component can blur the spatial boundary of the anomaly and slightly reduce pixel-level AUC. These results indicate that transport-based relational modeling is benefi-cial at multiple semantic levels, and that component-level insertion is particularly important for image-level anomaly discrimination, whereas the Local + Part setting already provides the strongest average localization performance. 
+
+4.5 Additional Analysis 
+
+4.5.1 Effect of Support Composition and Scaling 
+
+To further evaluate how support-conditioned boundary construction benefits from additional references, we jointly increase the normal and abnormal support sets from 1N+1A to 2N+2A and 4N+4A. Fig. 6 summarizes the resulting image-level and pixel-level AUCs on all six datasets. The six-dataset mean image-level AUC rises steadily from 85.7% at 1N+1A to 86.2% at 2N+2A and 86.9% at 4N+4A, while the mean pixel-level AUC remains stable at 93.1% and further improves to 93.3% at 4N+4A. The most visible image-level gains appear on MVTec LOCO and VisA, indicating that additional paired supports strengthen both global re-lational modeling and support-conditioned boundary evi-dence. These results show that UniVAD v2 can continue to refine the boundary with larger paired support sets rather than saturating after a single support pair. We further decouple the two support types by fixing one side and increasing the other. Fig. 7 compares two asymmetric expansion strategies by increasing abnormal supports with a fixed 1N support set or increasing normal supports with a fixed 1A abnormal support set. UniVAD v2 benefits from both strategies. When the abnormal support count is fixed at 1, the six-dataset mean image-level AUC rises from 85.7% at 1N+1A to 86.0% at 2N+1A and 86.7% at 4N+1A. In contrast, when the normal support count is fixed at 1, increasing abnormal supports yields a more moderate but still consistent improvement from 85.7% to 85.8% and 86.0%. The mean pixel-level AUC remains stable in both settings and reaches 93.2% or above at larger support counts. These results suggest that normal supports remain the dominant source for defining the acceptable side of the boundary, whereas additional abnormal supports provide abnormal-side evidence for shaping the rejection side. 
+
+4.5.2 Image-Level Score Separation 
+
+To better understand why UniVAD v2 improves image-level discrimination, we compare the image-level score distribu-tions of UniVAD and UniVAD v2 under the 1N+1A-shot setting. Fig. 8 shows the score distributions. Fig. 8 shows that UniVAD v2 significantly enlarges the normal-abnormal score gap on five of the six datasets while maintaining a comparably large separation on MVTec-AD, where the baseline already exhibits strong separabil-ity. Averaged over all six datasets, the mean score gap increases from 0.103 for UniVAD to 0.129 for UniVAD v2. The improvement is especially clear on BrainMRI, LiverCT, and MVTec LOCO, where UniVAD v2 suppresses normal scores and raises abnormal scores more consistently. This observation supports the design motivation of UniVAD v2, since normal-side coordination together with abnormal-side reference modeling produces a cleaner support-conditioned decision boundary rather than relying on a fixed boundary learned only from normal training samples. 
+
+4.5.3 ACRRM Weight Allocation 
+
+To better understand the behavior of the coordination mech-anism, we visualize the average fusion weights assigned by ACRRM to the retrieval and relational modeling branches on each dataset in Fig. 9. Fig. 9 reveals a dataset-dependent IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 12 1N+1A 
+
+> 2N+2A
+> 4N+4A
+> 98.0
+> 98.2
+> 98.4
+> 98.6
+> 98.8
+> 99.0
+> Image-Level AUC (%)
+
+MVTec-AD 
+
+> 1N+1A
+> 2N+2A
+> 4N+4A
+> 94.5
+> 95.0
+> 95.5
+> 96.0
+> 96.5
+
+VisA 
+
+> 1N+1A
+> 2N+2A
+> 4N+4A
+> 72.0
+> 73.5
+> 75.0
+> 76.5
+> Image-Level AUC (%)
+
+MVTec LOCO 
+
+> 1N+1A
+> 2N+2A
+> 4N+4A
+> 85.50
+> 85.75
+> 86.00
+> 86.25
+> 86.50
+
+BrainMRI 
+
+> 1N+1A
+> 2N+2A
+> 4N+4A
+
+Support setting 
+
+> 75.2
+> 75.6
+> 76.0
+> 76.4
+> 76.8
+> Image-Level AUC (%)
+
+LiverCT 
+
+> 1N+1A
+> 2N+2A
+> 4N+4A
+
+Support setting 
+
+> 87.25
+> 87.50
+> 87.75
+> 88.00
+> 88.25
+
+RESC  
+
+> 96.00
+> 96.25
+> 96.50
+> 96.75
+> 97.00
+> 98.00
+> 98.25
+> 98.50
+> 98.75
+> 99.00
+> Pixel-Level AUC (%)
+> 74.50
+> 74.75
+> 75.00
+> 75.25
+> 75.50
+> 96.25
+> 96.50
+> 96.75
+> 97.00
+> 97.25
+> Pixel-Level AUC (%)
+> 96.6
+> 96.8
+> 97.0
+> 97.2
+> 97.4
+> 97.6
+> 95.00
+> 95.25
+> 95.50
+> 95.75
+> 96.00
+> Pixel-Level AUC (%)
+> Image-Level AUC Pixel-Level AUC
+
+Fig. 6. Effect of jointly scaling normal and abnormal support sets. Each subplot reports image-level and pixel-level AUC when the paired support set is expanded from 1N+1A to 2N+2A and 4N+4A. 
+
+allocation pattern. On MVTec-AD and VisA, ACRRM as-signs larger weights to the retrieval branch, which is con-sistent with the fact that these industrial datasets are domi-nated by local appearance anomalies. In contrast, on MVTec LOCO, LiverCT, and RESC, the relational modeling branch receives higher weights, suggesting that more global contex-tual or structural modeling is needed for robust discrimina-tion. BrainMRI exhibits a nearly balanced allocation, imply-ing that both local evidence and global relational modeling are important in that setting. Overall, these results support the design motivation of ACRRM, since UniVAD v2 adapts the relative importance of retrieval and relational modeling according to the characteristics of the target domain instead of relying on a fixed fusion rule. 
+
+4.5.4 Effect of Input Resolution 
+
+We further study the sensitivity of UniVAD v2 to input resolution. Fig. 10 reports the image-level and pixel-level AUCs when the input size is varied from 224 × 224 to 
+
+560 × 560 at inference time. Fig. 10 shows that higher input resolution consistently improves the performance of UniVAD v2. The six-dataset mean image-level AUC rises from 81.6% at 224 × 224 to 1 2 4
+
+> 98.0
+> 98.2
+> 98.4
+> 98.6
+> 98.8
+> 99.0
+> Image-Level AUC (%)
+
+MVTec-AD   
+
+> 124
+> 94.4
+> 94.8
+> 95.2
+> 95.6
+> 96.0
+
+VisA   
+
+> 124
+> 72
+> 73
+> 74
+> 75
+> Image-Level AUC (%)
+
+MVTec LOCO   
+
+> 124
+> 85.50
+> 85.75
+> 86.00
+> 86.25
+> 86.50
+
+BrainMRI   
+
+> 124
+
+Expanded shot count 
+
+> 75.3
+> 75.6
+> 75.9
+> 76.2
+> 76.5
+> Image-Level AUC (%)
+
+LiverCT   
+
+> 124
+
+Expanded shot count 
+
+> 87.25
+> 87.50
+> 87.75
+> 88.00
+> 88.25
+
+RESC 
+
+> 96.00
+> 96.25
+> 96.50
+> 96.75
+> 97.00
+> 98.00
+> 98.25
+> 98.50
+> 98.75
+> 99.00
+> Pixel-Level AUC (%)
+> 74.50
+> 74.75
+> 75.00
+> 75.25
+> 75.50
+> 96.25
+> 96.50
+> 96.75
+> 97.00
+> 97.25
+> Pixel-Level AUC (%)
+> 96.50
+> 96.75
+> 97.00
+> 97.25
+> 97.50
+> 94.75
+> 95.00
+> 95.25
+> 95.50
+> 95.75
+> Pixel-Level AUC (%)
+> 1N+kA Img.
+> kN+1A Img.
+> 1N+kA Pixel
+> kN+1A Pixel
+
+Fig. 7. Effect of asymmetric support composition. Each subplot com-pares two support-expansion strategies by increasing abnormal shots with a fixed 1N support set (1N+kA) or increasing normal shots with a fixed 1A abnormal support set (kN+1A). 
+
+83.0% at 336 ×336 , 85.7% at 448 ×448 , and 86.4% at 560 ×560 ,while the mean pixel-level AUC increases from 92.3% to 92.6%, 93.1%, and 93.4%, respectively. A larger resolution preserves small local defects more clearly and also provides denser spatial evidence for component-level and relational matching. This is useful for support-conditioned boundary construction because both normal-side correspondence and abnormal-side residual evidence depend on the quality of local visual evidence. These results suggest that UniVAD v2 can effectively exploit additional visual detail when the input resolution is increased. In the main experiments, we retain 448 × 448 as the default setting for fair comparison with UniVAD and to balance performance and computation. The 560 × 560 results indicate that further gains remain available under a larger inference budget, especially in scenarios where fine spatial defects or structural boundaries are important for reliable anomaly localization. 
+
+5 LIMITATIONS AND FUTURE WORK 
+
+Although UniVAD v2 constructs the inference-time bound-ary from the current support episode, the quality and repre-sentativeness of support samples can still affect the resulting IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 13 v1-N 
+
+> v1-A
+> v2-N
+> v2-A
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Image-level score
+
+MVTec-AD 
+
+> v1-N
+> v1-A
+> v2-N
+> v2-A
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+VisA 
+
+> v1-N
+> v1-A
+> v2-N
+> v2-A
+
+0.4 
+
+0.5 
+
+0.6 
+
+0.7 
+
+0.8 
+
+0.9 
+
+1.0 
+
+> Image-level score
+
+MVTec LOCO 
+
+> v1-N
+> v1-A
+> v2-N
+> v2-A
+
+0.6 
+
+0.7 
+
+0.8 
+
+0.9 
+
+BrainMRI 
+
+> v1-N
+> v1-A
+> v2-N
+> v2-A
+
+Method / label 
+
+0.5 
+
+0.6 
+
+0.7 
+
+0.8 
+
+0.9 
+
+> Image-level score
+
+LiverCT 
+
+> v1-N
+> v1-A
+> v2-N
+> v2-A
+
+Method / label 
+
+0.5 
+
+0.6 
+
+0.7 
+
+0.8 
+
+RESC 
+
+Fig. 8. Image-level score separation between normal and abnormal samples for UniVAD and UniVAD v2 under the 1N+1A-shot setting. Each subplot shows the score distributions of normal and abnormal images on one dataset. In the legend, v1 and v2 denote UniVAD and UniVAD v2, respectively, while N and A denote normal and abnormal samples. 
+
+boundary evidence in practical deployment. In the main benchmark comparison, this factor is controlled by fixing the selected normal supports across all compared meth-ods, so the reported state-of-the-art results reflect bound-ary construction under identical normal-support evidence rather than method-specific support selection. Exhaustively evaluating all possible support combinations is nevertheless infeasible, especially when the number of candidate normal samples varies across datasets and categories. Therefore, following the standard practice in few-shot anomaly de-tection methods such as RegAD [29] and DictAS [51], we randomly select Kn normal support samples for each KnN-shot protocol and evaluate all compared methods on the same selected supports. This protocol ensures a fair com-parison under identical support information, while support selection and support aggregation remain important factors for real-world deployment. In addition, MVTec-AD-SS eval-uates one practical severity-based tolerance setting, while MVTec-AD VisA 
+
+MVTec LOCO 
+
+BrainMRI 
+
+LiverCT 
+
+RESC 
+
+Dataset 
+
+0.0 
+
+0.1 
+
+0.2 
+
+0.3 
+
+0.4 
+
+0.5 
+
+0.6 
+
+0.7 
+
+> Average fusion weight
+
+Retrieval Relational Modeling 
+
+Fig. 9. Average branch weights assigned by ACRRM on different datasets. Higher retrieval weights indicate stronger reliance on local support-based matching, while higher relational-modeling weights indi-cate stronger reliance on global support-query relational modeling. 224x224 336x336 448x448 560x560 
+
+> 96.0 96.8 97.6 98.4 99.2
+> Image-Level AUC (%)
+
+MVTec-AD 
+
+> 224x224 336x336 448x448 560x560
+> 90 92 94 96
+
+VisA 
+
+> 224x224 336x336 448x448 560x560
+> 65.0 67.5 70.0 72.5
+> Image-Level AUC (%)
+
+MVTec LOCO 
+
+> 224x224 336x336 448x448 560x560
+> 83 84 85 86 87
+
+BrainMRI 
+
+> 224x224 336x336 448x448 560x560
+
+Input resolution 
+
+> 67.5 70.0 72.5 75.0 77.5
+> Image-Level AUC (%)
+
+LiverCT 
+
+> 224x224 336x336 448x448 560x560
+
+Input resolution 
+
+> 84.0 85.5 87.0 88.5
+
+RESC  
+
+> 96.00 96.25 96.50 96.75 97.00
+> 96.8 97.2 97.6 98.0 98.4 98.8
+> Pixel-Level AUC (%)
+> 73.2 73.8 74.4 75.0 75.6
+> 95.6 96.0 96.4 96.8 97.2
+> Pixel-Level AUC (%)
+> 96.0 96.5 97.0 97.5 98.0
+> 94.75 95.00 95.25 95.50 95.75
+> Pixel-Level AUC (%)
+> Image-Level AUC Pixel-Level AUC
+
+Fig. 10. Effect of input resolution. Each subplot reports image-level and pixel-level AUCs as the input resolution is increased from 224 × 224 to 
+
+560 × 560 .
+
+real deployments may involve more diverse and continu-ously varying definitions of acceptable defects. Future work will investigate more robust support selection, support ag-gregation, and broader forms of human- or policy-guided boundary specification. IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 14 
+
+6 CONCLUSION 
+
+We present UniVAD v2, a support-conditioned boundary construction framework for unified visual anomaly detec-tion across industrial, logical, and medical scenarios. Rather than treating unified anomaly detection as a choice be-tween memory-based retrieval and learned normality mod-eling, UniVAD v2 estimates episode-specific boundary from complementary support information. ACRRM and OTRM strengthen the normal side of this evidence by coordinating local retrieval stability with optimal transport-based global relational modeling, while FAR introduces abnormal-side residual evidence from optional abnormal references. Exten-sive experiments on six datasets demonstrate that UniVAD v2 improves cross-domain generalization in the fair 1N-shot setting and that retrieval and relational modeling provide complementary normal-side evidence. The 1N+1A-shot re-sults and MVTec-AD-SS analysis further confirm that FAR converts abnormal references into negative-side evidence, enabling stricter or more permissive effective inference-time boundaries from mild or severe abnormal references without retraining. These findings suggest that support-conditioned boundary construction is a practical and exten-sible formulation for scalable, interpretable, and deployable unified anomaly detection systems. 
+
+REFERENCES 
+
+[1] K. Roth, L. Pemula, J. Zepeda, B. Sch ¨ olkopf, T. Brox, and P. Gehler, “Towards total recall in industrial anomaly detection,” in Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2022, pp. 14 318–14 328. [2] Z. Gu, B. Zhu, G. Zhu, Y. Chen, M. Tang, and J. Wang, “Anoma-lygpt: Detecting industrial anomalies using large vision-language models,” in Proceedings of the AAAI Conference on Artificial Intelli-gence , vol. 38, no. 3, 2024, pp. 1932–1940. [3] Z. Gu, B. Zhu, G. Zhu, Y. Chen, W. Ge, M. Tang, and J. Wang, “Anomalymoe: Towards a language-free generalist model for unified visual anomaly detection,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 40, no. 6, 2026, pp. 4348– 4356. [4] Z. Gu, B. Zhu, G. Zhu, Y. Chen, H. Li, M. Tang, and J. Wang, “Filo: Zero-shot anomaly detection by fine-grained description and high-quality localization,” in Proceedings of the 32nd ACM International Conference on Multimedia , 2024, pp. 2041–2049. [5] Z. Gu, B. Zhu, G. Zhu, Y. Chen, M. Tang, and J. Wang, “Filo++: Zero-/few-shot anomaly detection by fused fine-grained descrip-tions and deformable localization,” IEEE Transactions on Circuits and Systems for Video Technology , 2026. [6] B. Zhu, Y. Chen, M. Tang, and J. Wang, “Pixel-level contrastive pre-trainer for industrial image representation,” IEEE Transactions on Instrumentation and Measurement , 2024. [7] L. Qian, B. Zhu, Y. Chen, M. Tang, and J. Wang, “Quality-aware language-conditioned local auto-regressive anomaly synthesis and detection,” in Proceedings of the AAAI Conference on Artificial Intelli-gence , vol. 40, no. 18, 2026, pp. 15 626–15 634. [8] J. Bao, H. Sun, H. Deng, Y. He, Z. Zhang, and X. Li, “Bmad: Benchmarks for medical anomaly detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 4042–4053. [9] C. Huang, A. Jiang, J. Feng, Y. Zhang, X. Wang, and Y. Wang, “Adapting visual-language models for generalizable anomaly de-tection in medical images,” in Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2024, pp. 11 375– 11 385. [10] J. Su, H. Shen, L. Peng, and D. Hu, “Few-shot domain-adaptive anomaly detection for cross-site brain images,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 46, no. 3, pp. 1819– 1835, 2021. [11] M.-I. Georgescu, A. Barbalau, R. T. Ionescu, F. S. Khan, M. Popescu, and M. Shah, “Anomaly detection in video via self-supervised and multi-task learning,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2021, pp. 12 742–12 752. [12] Z. Rong, R. Pang, B. Xu, and Y. Zhou, “Dam safety monitoring data anomaly recognition using multiple-point model with local outlier factor,” Automation in Construction , vol. 159, p. 105290, 2024. [13] P. Wu, X. Zhou, G. Pang, Y. Sun, J. Liu, P. Wang, and Y. Zhang, “Open-vocabulary video anomaly detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 18 297–18 307. [14] T. Defard, A. Setkov, A. Loesch, and R. Audigier, “Padim: a patch distribution modeling framework for anomaly detection and localization,” in International Conference on Pattern Recognition .Springer, 2021, pp. 475–489. [15] H. Deng and X. Li, “Anomaly detection via reverse distillation from one-class embedding,” in Proceedings of the IEEE/CVF confer-ence on computer vision and pattern recognition , 2022, pp. 9737–9746. [16] D. Gudovskiy, S. Ishizaka, and K. Kozuka, “Cflow-ad: Real-time unsupervised anomaly detection with localization via conditional normalizing flows,” in Proceedings of the IEEE/CVF winter conference on applications of computer vision , 2022, pp. 98–107. [17] Z. Gu, B. Zhu, G. Zhu, Y. Chen, M. Tang, and J. Wang, “Univad: A training-free unified model for few-shot visual anomaly detec-tion,” in Proceedings of the Computer Vision and Pattern Recognition Conference , 2025, pp. 15 194–15 203. [18] J. Guo, S. Lu, W. Zhang, F. Chen, H. Li, and H. Liao, “Dinomaly: The less is more philosophy in multi-class unsupervised anomaly detection,” in Proceedings of the Computer Vision and Pattern Recog-nition Conference , 2025, pp. 20 405–20 415. [19] S. Wei, J. Jiang, and X. Xu, “Uninet: A contrastive learning-guided unified framework with feature selection for anomaly detection,” in Proceedings of the Computer Vision and Pattern Recognition Confer-ence , 2025, pp. 9994–10 003. [20] Y. Fu, Z. Liu, and J. Lyu, “Reason and discovery: A new paradigm for open set recognition,” IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. [21] J. Willes, J. Harrison, A. Harakeh, C. Finn, M. Pavone, and S. L. Waslander, “Bayesian embeddings for few-shot open world recognition,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 46, no. 3, pp. 1513–1529, 2022. [22] M. Cai, Z. Zhang, G. Wu, T. Chai, and X. Zhu, “Raid: Retrieval-augmented anomaly detection,” arXiv preprint arXiv:2602.19611 ,2026. [23] Y. Wang, X. Wang, Y. Gong, and J. Xiao, “Normal-abnormal guided generalist anomaly detection,” arXiv preprint arXiv:2510.00495 ,2025. [24] P. Bergmann, M. Fauser, D. Sattlegger, and C. Steger, “Mvtec ad– a comprehensive real-world dataset for unsupervised anomaly detection,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2019, pp. 9592–9600. [25] Y. Zou, J. Jeong, L. Pemula, D. Zhang, and O. Dabeer, “Spot-the-difference self-supervised pre-training for anomaly detection and segmentation,” in European Conference on Computer Vision .Springer, 2022, pp. 392–408. [26] P. Bergmann, K. Batzner, M. Fauser, D. Sattlegger, and C. Steger, “Beyond dents and scratches: Logical constraints in unsupervised anomaly detection and localization,” International Journal of Com-puter Vision , vol. 130, no. 4, pp. 947–969, 2022. [27] N. Cohen and Y. Hoshen, “Sub-image anomaly detection with deep pyramid correspondences,” arXiv preprint arXiv:2005.02357 ,2020. [28] H. Shi, H. Li, Q. Wu, and K. N. Ngan, “Query reconstruction net-work for referring expression image segmentation,” IEEE Transac-tions on Multimedia , vol. 23, pp. 995–1007, 2020. [29] C. Huang, H. Guan, A. Jiang, Y. Zhang, M. Spratling, and Y.-F. Wang, “Registration based few-shot anomaly detection,” in 
+
+European Conference on Computer Vision . Springer, 2022, pp. 303– 319. [30] M. Jaderberg, K. Simonyan, A. Zisserman et al. , “Spatial trans-former networks,” Advances in neural information processing systems ,vol. 28, 2015. [31] N. Madan, N.-C. Ristea, R. T. Ionescu, K. Nasrollahi, F. S. Khan, T. B. Moeslund, and M. Shah, “Self-supervised masked convolu-tional transformer block for anomaly detection,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 46, no. 1, pp. 525– 542, 2023. IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 15 
+
+[32] B. Zhu, Z. Gu, G. Zhu, Y. Chen, M. Tang, and J. Wang, “Ad-former: Generalizable few-shot anomaly detection with dual cnn-transformer architecture,” IEEE Transactions on Instrumentation and Measurement , 2024. [33] A. Akbari, M. Awais, S. Fatemifar, and J. Kittler, “Deep order-preserving learning with adaptive optimal transport distance,” 
+
+IEEE transactions on pattern analysis and machine intelligence , vol. 45, no. 1, pp. 313–328, 2022. [34] J. He, Z. Huang, N. Wang, and Z. Zhang, “Learnable graph match-ing: A practical paradigm for data association,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 46, no. 7, pp. 4880– 4895, 2024. [35] C. Xu, K. Xu, X. Jiang, and T. Sun, “Plovad: Prompting vision-language models for open vocabulary video anomaly detection,” 
+
+IEEE Transactions on Circuits and Systems for Video Technology , 2025. [36] J. Wang, E. Blaser, H. Daneshmand, and S. Zhang, “Transformers can learn temporal difference methods for in-context reinforce-ment learning,” arXiv preprint arXiv:2405.13861 , 2024. [37] A. Shahbazi, C. Thrash, Y. Bai, K. Hamm, N. NaderiAlizadeh, and S. Kolouri, “Lotformer: Doubly-stochastic linear attention via low-rank optimal transport,” arXiv preprint arXiv:2509.23436 , 2025. [38] T. D. Tien, A. T. Nguyen, N. H. Tran, T. D. Huy, S. Duong, C. D. T. Nguyen, and S. Q. Truong, “Revisiting reverse distillation for anomaly detection,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 24 511–24 520. [39] A. Ke, W. Chen, C. Feng, Y. Cao, X. Xie, S. K. Zhou, and L. Feng, “Prototype-based optimal transport for out-of-distribution detec-tion,” arXiv preprint arXiv:2410.07617 , 2024. [40] J. Liao, X. Xu, Y. Su, R.-C. Tu, Y. Liu, D. Tao, and X. Yang, “Robust distribution alignment for industrial anomaly detection under distribution shift,” arXiv preprint arXiv:2503.14910 , 2025. [41] M. Zaheer, S. Kottur, S. Ravanbakhsh, B. Poczos, R. R. Salakhut-dinov, and A. J. Smola, “Deep sets,” Advances in neural information processing systems , vol. 30, 2017. [42] C. Villani et al. , Optimal transport: old and new . Springer, 2009, vol. 338. [43] H. Daneshmand, “Provable optimal transport with transformers: The essence of depth and prompt engineering,” arXiv preprint arXiv:2410.19931 , 2024. [44] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” 
+
+Advances in neural information processing systems , vol. 30, 2017. [45] J. Jeong, Y. Zou, T. Kim, D. Zhang, A. Ravichandran, and O. Dabeer, “Winclip: Zero-/few-shot anomaly classification and segmentation,” in Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , 2023, pp. 19 606–19 616. [46] T. Liu, B. Li, X. Du, B. Jiang, X. Jin, L. Jin, and Z. Zhao, “Component-aware anomaly detection framework for adjustable and logical industrial visual inspection,” Advanced Engineering Informatics , vol. 58, p. 102161, 2023. [47] Z. You, L. Cui, Y. Shen, K. Yang, X. Lu, Y. Zheng, and X. Le, “A unified model for multi-class anomaly detection,” Advances in Neural Information Processing Systems , vol. 35, pp. 4571–4584, 2022. [48] Z. Wang, Z. Wu, D. Agarwal, and J. Sun, “Medclip: Contrastive learning from unpaired medical images and text,” arXiv preprint arXiv:2210.10163 , 2022. [49] U. Baid, S. Ghodasara, S. Mohan, M. Bilello, E. Calabrese, E. Co-lak, K. Farahani, J. Kalpathy-Cramer, F. C. Kitamura, S. Pati 
+
+et al. , “The rsna-asnr-miccai brats 2021 benchmark on brain tu-mor segmentation and radiogenomic classification,” arXiv preprint arXiv:2107.02314 , 2021. [50] J. Hu, Y. Chen, and Z. Yi, “Automated segmentation of macular edema in oct using deep neural networks,” Medical image analysis ,vol. 55, pp. 216–227, 2019. [51] Z. Qu, X. Tao, X. Gong, S. Qu, X. Zhang, X. Wang, F. Shen, Z. Zhang, M. Prasad, and G. Ding, “Dictas: A framework for class-generalizable few-shot anomaly segmentation via dictionary lookup,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025, pp. 20 519–20 528. 
+
+Zhaopeng Gu received the B.E. degree from Beijing University of Post and Telecommunica-tion, Beijing, China, in 2023. He is currently pursuing a doctor’s degree with the Foundation Model Research Center of the Institute of Au-tomation, Chinese Academy of Sciences, Bei-jing. His research interests include computer vi-sion, anomaly detection, and multimodal learn-ing. 
+
+Bingke Zhu received the B.E. degree from Bei-jing University of Chemical Technology, Beijing, China, in 2016, and the Ph.D. degree from the University of Chinese Academy of Sciences, Bei-jing, in 2021. He is currently an Assistant Professor with the Foundation Model Research Center, Institute of Automation, Chinese Academy of Sciences, Beijing. His current research interests include pattern recognition and machine learning, image and video processing, semantic segmentation, and visual anomaly detection. 
+
+Zhaowen Li received the Ph.D. degree from the Foundation Model Research Center, Institute of Automation, Chinese Academy of Sciences, Beijing, in 2024. He is currently a Principal Re-searcher of Autonomous Driving Research and Development at Huawei. His current research interests include physical artificial intelligence, self-/un-supervised learning, and anomaly de-tection. 
+
+Guibo Zhu received the B.E. degree from Wuhan University, Wuhan, China, in 2009, the M.Sc. degree from the University of Chinese Academy of Sciences, Beijing, China, in 2013, and the Ph.D. degree from the National Labora-tory of Pattern Recognition, Institute of Automa-tion, Chinese Academy of Sciences, Beijing, in 2016. He is currently an Associate Professor with the Institute of Automation, Chinese Academy of Sciences, Beijing. His current research interests include computer vision, multimodal pretraining models, object tracking, and action recognition. IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 16 
+
+Yingying Chen received the B.S. degree from the Communication University of China, Beijing, China, in 2013, and the Ph.D. degree from the University of Chinese Academy of Sciences, Bei-jing, in 2018. She is currently an Associate Professor with the Foundation Model Research Center, Institute of Automation, Chinese Academy of Sciences, Beijing. Her current research interests include pattern recognition and machine learning, im-age and video processing, and intelligent video surveillance. 
+
+Ming Tang (Member, IEEE) received the B.S. degree in computer science and engineering and the M.S. degree in artificial intelligence from Zhejiang University, Hangzhou, China, in 1984 and 1987, respectively, and the Ph.D. degree in pattern recognition and intelligence systems from the Chinese Academy of Sciences, Beijing, China, in 2002. He is currently a Professor with the Institute of Automation, Chinese Academy of Sciences. His current research interests include computer vision and machine learning. 
+
+Peng Su received his Ph.D. in Electronic and In-formation Engineering from The Chinese Univer-sity of Hong Kong in 2020, specializing in com-puter vision and deep learning. He is currently Director of Autonomous Driving Research and Development at Huawei, leading the develop-ment of Physical AI systems for L4 autonomous driving. 
+
+Jinqiao Wang (Member, IEEE) received the B.E. degree from Hebei University of Technol-ogy, Tianjin, China, in 2001, the M.S. degree from Tianjin University, Tianjin, in 2004, and the Ph.D. degree in pattern recognition and intelli-gence systems from the National Laboratory of Pattern Recognition, Chinese Academy of Sci-ences, Beijing, in 2008. He is currently a Professor with the Chinese Academy of Sciences. His research interests in-clude pattern recognition and machine learning, large multimodal models, and image and video analysis.

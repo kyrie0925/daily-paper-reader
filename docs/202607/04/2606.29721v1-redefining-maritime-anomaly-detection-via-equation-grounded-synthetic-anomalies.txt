@@ -1,0 +1,861 @@
+Title: Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies
+
+URL Source: https://arxiv.org/pdf/2606.29721v1
+
+Published Time: Tue, 30 Jun 2026 01:38:07 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies 
+
+# Youngseok Hwang ∗
+
+yshwang35@snu.ac.kr Seoul National University Seoul, Republic of Korea 
+
+# Sungho Bae ∗
+
+sunghobae@snu.ac.kr Seoul National University Seoul, Republic of Korea 
+
+# Dohun Lee 
+
+dohun754@snu.ac.kr Seoul National University Seoul, Republic of Korea 
+
+# Jaeeun Seo 
+
+jaeeunseo@snu.ac.kr Seoul National University Seoul, Republic of Korea 
+
+# Jeehong Kim 
+
+williamkim10@snu.ac.kr Seoul National University Seoul, Republic of Korea 
+
+# Wonhee Lee 
+
+weelon@kriso.re.kr KRISO Daejeon, Republic of Korea 
+
+# Hyunwoo Park †
+
+hyunwoopark@snu.ac.kr Seoul National University Seoul, Republic of Korea 
+
+## Abstract 
+
+Maritime anomaly detection is essential for ensuring maritime safety, security, and efficient traffic management at sea, with Au-tomatic Identification System (AIS) data serving as a primary data source. Despite its importance, most publicly available AIS datasets lack predefined anomaly labels, forcing prior studies to rely on either distribution-based rarity or domain rule/expert-assisted la-beling. These approaches, however, face fundamental limitations: statistical rarity often fails to reflect practically critical events, while expert-based labeling is costly, subjective, and difficult to scale. Moreover, both paradigms tend to overlook interaction-driven haz-ards such as near-miss approaches between vessels. To address these challenges, we propose an equation-grounded anomaly taxon-omy that is implementable under a limited AIS observation schema and extensible to other AIS datasets. Specifically, the taxonomy defines three anomaly types: unexpected AIS activity (A1), route deviation (A2), and close approach (A3), covering both single-vessel and inter-vessel anomalies. Building on this taxonomy, we intro-duce a unified score–synthesize–label pipeline that produces LLM-guided plausibility scores, uses them to synthesize anomalies, and assigns timestamp-level labels. To rigorously assess detection per-formance, we further design benchmark evaluation settings that account for variations in temporal-window length and anomaly-type composition, and evaluate a broad range of time-series models and anomaly detection models. Together, these contributions pro-vide a systematic basis for evaluating maritime anomaly detection methods across different anomaly types. Our code is available at https://github.com/snudial/open-maritime-anomaly-detection.  
+
+> ∗Both authors contributed equally to this research.
+> †Corresponding author.
+> This work is licensed under a Creative Commons Attribution 4.0 International License.
+> KDD ’26, Jeju Island, Republic of Korea
+> ©2026 Copyright held by the owner/author(s). ACM ISBN 979-8-4007-2259-2/2026/08 https://doi.org/10.1145/3770855.3818984
+
+## CCS Concepts 
+
+• Computing methodologies → Machine learning .
+
+## Keywords 
+
+maritime anomaly detection, automatic identification system, syn-thetic anomaly generation, benchmark dataset, large language mod-els 
+
+ACM Reference Format: 
+
+Youngseok Hwang, Sungho Bae, Dohun Lee, Jaeeun Seo, Jeehong Kim, Wonhee Lee, and Hyunwoo Park. 2026. Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies. In Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V.2 (KDD ’26), August 09–13, 2026, Jeju Island, Republic of Korea. ACM, New York, NY, USA, 12 pages. https://doi.org/10.1145/3770855.3818984 
+
+## 1 Introduction 
+
+Maritime anomaly detection is a pivotal task highlighting the in-tersection of maritime safety, security, and traffic management [ 26 , 34 , 43 ]. AIS data have been widely used as one of the most common sources for this purpose. However, most of the publicly available AIS datasets do not provide predefined anomaly labels. As a result, prior studies have typically defined abnormal behav-iors based on either (i) distribution-based criteria or (ii) rule-based heuristics derived from current maritime operation procedures and regulations. The former often fails to capture practically critical events such as near-miss situations or abnormal maneuvers, since statistical rarity does not always indicate real-world importance. The latter requires rule-based or expert knowledge that is diffi-cult to obtain, costly to maintain, and impractical to generalize. In publicly available AIS datasets, most observed trajectories reflect routine and successfully completed vessel operations rather than hazardous events. Consequently, assigning anomaly labels solely based on statistical sparsity can result in a significant disconnect from real-world maritime safety risks (Figure 1). Building upon our prior work on spatio-temporal graph rep-resentations and benchmarking for maritime anomaly detection  
+
+> arXiv:2606.29721v1 [cs.LG] 29 Jun 2026 KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Youngseok Hwang et al.
+
+Figure 1: Motivation and Overview. Comparison between pre-vious and equation-grounded anomaly definitions on AIS data. Previous approaches often label deviations as anom-alies, while equation-grounded definitions focus on behav-iors grounded in domain knowledge. 
+
+[ 14 ], we formulate an equation-grounded anomaly taxonomy that remains implementable under a limited AIS observation schema while extending naturally to other AIS datasets. Specifically, we define three anomaly types inspired by prior maritime anomaly studies [ 17 ]: (i) unexpected AIS activity (A1), (ii) route deviation (A2), and (iii) close approach (A3). A1 and A2 correspond to single-vessel anomalies, while A3 represents an inter-vessel interaction anomaly. Unexpected AIS activity captures sensor-induced posi-tional discontinuities without accompanying kinematic changes. Route deviation models abrupt variations in course over ground (COG) and speed over ground (SOG) occurring over consecutive timestamps. Close approach is defined as a near-miss event in which the relative motion between a pair of vessels significantly increases collision risk within a specific temporal window. Based on this taxonomy, we propose a unified pipeline (Figure 2) following a score–synthesize–label paradigm. For each anomaly type, we first specify explicit equation-grounded conditions that formalize the target abnormal behavior. We then synthesize anom-aly data so that the resulting samples satisfy these conditions, and finally assign anomaly labels at both the segment level and the per-timestamp level according to well-defined temporal windows. In our framework, the LLM serves solely as a constrained scorer that selects the temporal window and scenario-specific parameters for anomaly generation, while all anomalies and labels are derived from the equation-grounded definitions. To the best of our knowledge, this work is among the first to systematically formalize maritime domain knowledge into an equation-grounded anomaly taxonomy and to use an LLM as a constrained scorer for generating data-driven and kinematically consistent maritime anomalies on public AIS datasets. Finally, we design benchmark evaluation settings that account for the differing modeling complexities across anomaly types, including variations in temporal-window length and anomaly-type composition. We evaluate a broad range of models, spanning traditional anomaly de-tection methods, dedicated time-series anomaly detection models, and time-series forecasting models adapted to anomaly detection through per-timestamp prediction-error scoring. We then analyze detection performance separately for each anomaly type (A1, A2, and A3). Overall, our main contributions are as follows: 
+
+• We formulate maritime anomalies in vessel trajectories as an equation-grounded taxonomy, defining three distinct and operationalizable anomaly types. 
+
+• We propose a unified score–synthesize–label framework with an LLM-based scorer for anomaly synthesis and labeling, which is applicable to other AIS datasets. 
+
+• We construct a standardized benchmark on a public AIS dataset and perform anomaly-type-specific evaluations and analyses across diverse baseline models. 
+
+## 2 Related Work 2.1 Maritime Anomaly Detection Methods 
+
+As maritime traffic density continues to grow, situation awareness and decision support in complex maritime environments become increasingly critical [ 37 ]. Maritime anomaly detection lies at the core of this effort, encompassing the identification of abnormal ves-sel behaviors, hazardous situations such as collisions and near-miss encounters, and even the principled construction of anomaly defini-tions [ 34 , 43 ]. Limitations of traditional approaches have motivated a shift toward ML/DL-based methods, spanning from conventional classifying algorithms to complex neural architectures [ 24 , 48 ]. However, a fundamental challenge persists: the lack of publicly available AIS datasets with explicit anomaly labels. To overcome this, recent studies [ 19 , 44 ] have adopted unsupervised strategies based on trajectory distributions. For instance, STAD [18 ] identifies anomalies through probabilistic models for unsupervised trajec-tory labeling. However, such approaches often lack domain-specific consistency. Alternative approaches rely on expert-defined labels [ 44 , 53 ], which are not only costly but also prone to subjectivity. Consequently, existing evaluation processes are considered arbi-trary and labor-intensive. 
+
+## 2.2 Challenges in Defining Maritime Anomalies 
+
+Despite extensive work on detection models, a physically grounded and context-aware definition of anomalies remains an open chal-lenge [ 17 , 25 , 30 , 43 ]. Specifically, existing definitions rarely account for inter-vessel dynamics, overlooking hazardous interactions that arise between vessels. For a detection model to truly understand and identify anomalies in an operationally meaningful way, it requires labels rooted in domain knowledge rather than mere statistical rar-ity. In this context, the maritime anomaly taxonomy proposed by Lane et al. [ 17 ] has served as a foundational categorization scheme in AIS-based monitoring and threat assessment. The taxonomy iden-tifies five anomalous ship behaviors: (i) deviation from standard routes, (ii) unexpected AIS activity, (iii) unexpected port arrival, (iv) close approach between vessels, and (v) entry into restricted or abnormal regions. Moreover, although the number of vessels involved is a key determinant of the nature and risk of maritime anomalies [ 41 ], prior works [ 21 , 29 , 31 ] have not systematically distinguished anomalies from the perspective of vessel interaction. To address these gaps, we redefine the taxonomy of Lane et al. [ 17 ] by explicitly categorizing anomalies according to the number Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+of vessels involved, distinguishing between single-vessel anom-alies and interaction-driven anomalies. We further formalize each anomaly type through equation-grounded definitions and apply them to a publicly available AIS dataset, thereby providing both a reproducible benchmark and an expandable labeling framework. 
+
+## 2.3 LLM-based Synthetic Data Generation 
+
+Synthetic data generation has emerged as a promising approach for addressing data scarcity when reliable labels are limited, improv-ing data coverage and model robustness [ 10 ]. Recent studies have explored LLMs for synthetic data generation in tabular [ 16 , 47 ]and time-series domains [ 23 , 32 ], leveraging their ability to encode contextual knowledge and generate diverse scenarios beyond tradi-tional rule-based approaches. However, directly generating time-series trajectories remains challenging in physical domains, where synthetic samples must satisfy kinematic and domain-specific con-straints. In the maritime domain, OceanGPT [2], LLM-MPC [ 52 ], and recent LLM-assisted vessel anomaly detection work [ 5] show that LLMs can provide useful domain-specific and contextual priors. In anomaly detection, real anomalous events are rare and labeling is costly [ 3 ], making synthetic anomaly construction a practical alter-native for controlled evaluation. For AIS trajectories, however, such anomalies must remain physically and operationally consistent. Therefore, rather than directly synthesizing AIS trajectories, we employ the LLM as a constrained scoring module that guides anom-aly placement and severity under predefined equation-grounded anomaly definitions. 
+
+## 3 Preliminaries 3.1 Notation 
+
+We model each vessel trajectory as a multivariate time series of AIS states. Let a full trajectory be X = {𝑥 0, . . . , 𝑥 𝑁 −1 }, which we seg-ment into non-overlapping windows of fixed length 𝑇 , yielding seg-ments R (𝑖 ) = {𝑥 (𝑖 ) 
+
+> 𝑡
+
+}𝑇 −1 
+
+> 𝑡 =0
+
+. Each AIS state vector 𝑥 (𝑖 ) 
+
+> 𝑡
+
+= (p(𝑖 ) 
+
+> 𝑡
+
+, v(𝑖 ) 
+
+> 𝑡
+
+) is decomposed into positional p(𝑖 ) 
+
+> 𝑡
+
+= (LAT (𝑖 ) 
+
+> 𝑡
+
+, LON (𝑖 ) 
+
+> 𝑡
+
+) and kinematic 
+
+v(𝑖 ) 
+
+> 𝑡
+
+= (COG (𝑖 ) 
+
+> 𝑡
+
+, SOG (𝑖 ) 
+
+> 𝑡
+
+) components, where p(𝑖 ) 
+
+> 𝑡
+
+denotes latitude and longitude, and v(𝑖 ) 
+
+> 𝑡
+
+denotes course and speed over ground. We report results with 𝑇 ∈ { 12 , 24 } unless otherwise stated, excluding the first and last 𝑇 observations to avoid implausible boundary cases. For anomaly synthesis, we introduce per-timestamp plausibil-ity scores of vessel 𝑖 at time 𝑡 , denoted by 𝑎 (𝑖 ) 
+
+> 𝑡
+
+, produced by an LLM-guided plausibility scorer (Section 4). For each synthesis run, we assign per-timestamp anomaly labels 𝑦 (𝑖 ) 
+
+> 𝑡
+
+∈ { 0, 1} over each trajectory segment, given a target anomaly type 𝐴 ∈ { A1 , A2 , A3 }.For inter-vessel anomaly, we adopt standard maritime terminology: the own ship 𝑜 refers to the observed vessel and the target ship 
+
+𝑣 denotes a synthetically generated counterpart. Collision risk is characterized by the closest point of approach (CPA) concept under COLREGs [ 12 ], quantified by the distance and time to CPA (DCPA and TCPA, respectively). 
+
+## 3.2 Problem Formulation 
+
+We define maritime anomalies into three types and formalize them using equation-grounded criteria. We further address the problem of constructing maritime anomaly detection tasks that are suitable for learning and evaluation by systematically labeling the anomaly types defined in Table 1 from AIS data without predefined anomaly labels. 
+
+Table 1: Maritime anomaly types by vessel scope Vessel Scope Anomaly Type Description Single-vessel     
+
+> Unexpected AIS Activity (A1) Position spike without commen-surate kinematic change Route Deviation (A2) Abrupt maneuver with abnor-mal kinematic variations
+> Inter-vessel Close Approach (A3) Interaction-driven near-miss event
+
+We consider three anomaly types (A1–A3) that can be consis-tently synthesized, labeled, and evaluated under realistic AIS obser-vation constraints. Unexpected AIS activity (A1) captures position spikes in latitude or longitude without commensurate changes in motion states such as SOG or COG, and is interpreted as a sensor-induced anomaly. Route deviation (A2) captures kinematics-driven abrupt maneuvers, characterized by short-window anom-alies in SOG/COG that induce physically plausible but abnormal motion. Close approach (A3) captures interaction-driven near-miss events between vessels. Since public AIS data do not provide paired near-miss labels, we introduce a virtual counterpart trajectory con-structed relative to the original trajectory, enabling reproducible synthesis and labeling. We use an LLM as a plausibility scorer that reflects the seman-tic and contextual information of the AIS data and the predefined anomaly types. All anomaly labels are assigned deterministically based on predefined equations, and the LLM does not directly gener-ate anomaly values or labels. Algorithm 1 summarizes the trajectory segmentation and equation-grounded labeling pipeline. 
+
+Algorithm 1 Equation-grounded AIS anomaly labeling 
+
+Input: AIS trajectory set D, window length 𝑇 , prompt P, target anomaly type 𝐴 ∈ { A1 , A2 , A3 }
+
+Output: Labeled samples { ( ˜R (𝑖 ) , y(𝑖 ) ) }  
+
+> 1:
+
+for all X ∈ D do  
+
+> 2:
+
+Segment X into fixed-length windows { R (𝑖 ) } 
+
+> 3:
+
+for all R (𝑖 ) do  
+
+> 4:
+
+Compute segment statistics s(𝑖 ) ← Stats ( R (𝑖 ) ) 
+
+> 5:
+
+Compute scores a(𝑖 ) ← 1 LLMScorer ( R (𝑖 ) , s(𝑖 ) , P, 𝐴 ) 
+
+> 6:
+
+if 𝐴 ∈ { A1 , A2 } then  
+
+> 7:
+
+( ˜R (𝑖 ) , y(𝑖 ) ) ← 2 AnomalySynthesizer ( R (𝑖 ) , a(𝑖 ) , 𝐴 ) 
+
+> 8:
+
+⊲ y(𝑖 ) ∈ { 0, 1}𝑇  
+
+> 9:
+
+else  
+
+> 10:
+
+( ˜R (𝑖 ) , y(𝑖 ) ) ← 2 AnomalySynthesizer ( R (𝑖 ) , a(𝑖 ) , 𝐴 ) 
+
+> 11:
+
+⊲ constructs paired segment  
+
+> 12:
+
+˜R (𝑖 ) = [ R (𝑖 ) ; V (𝑖 ) ], y(𝑖 ) ∈ { 0, 1}2𝑇  
+
+> 13:
+
+end if  
+
+> 14:
+
+Append ( ˜R (𝑖 ) , y(𝑖 ) ) to output set  
+
+> 15:
+
+end for  
+
+> 16:
+
+end for  
+
+> 17:
+
+return labeled samples { ( ˜R (𝑖 ) , y(𝑖 ) ) } KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Youngseok Hwang et al. 
+
+Figure 2: Overview of the framework. We propose a pipeline for synthesizing and labeling maritime anomalies in AIS data. An LLM-based scorer produces per-timestamp anomaly scores, which guide the placement and magnitude of synthesized anomalies. An equation-grounded synthesizer then generates anomalous values and labels for A1, A2, A3. Single-vessel anomalies span 𝑇 
+
+rows, while the inter-vessel anomaly forms paired samples with 2𝑇 rows. 
+
+## 4 Methodology 
+
+In this section, we describe how the LLM guides anomaly synthe-sis under controlled and equation-grounded constraints. Figure 2 illustrates the overall framework. We provide the LLM with the trajectory segment R (𝑖 ) , kinematic summary statistics s(𝑖 ) , and a predefined prompt P that encodes dataset descriptions and anomaly definitions. The resulting output is a per-timestamp anomaly score vector: 
+
+a(𝑖 ) = 𝑓 LLM 
+
+
+
+R (𝑖 ) , s(𝑖 ) , P
+
+
+
+∈ [ 0, 1]𝑇 (1) Each element 𝑎 (𝑖 ) 
+
+> 𝑡
+
+represents the semantic plausibility of synthesiz-ing an anomaly at timestamp 𝑡 within the segment R (𝑖 ) . Importantly, 
+
+𝑎 (𝑖 ) 
+
+> 𝑡
+
+is not used to directly generate trajectory coordinates. Instead, it is used exclusively for (i) determining synthesis timestamps and (ii) scaling the severity of the anomaly in the subsequent synthesis stage. The rationale for this approach lies in the challenge of captur-ing the contextual and semantic nuances of diverse trajectory data. Moreover, defining explicit rules for where and how severely to inject anomalies into normal data is fundamentally impossible, as there is no ground truth in a counterfactual injection setting. Due to the uncalibrated nature of LLM outputs [ 7], we apply min-max normalization to capture the relative semantic plausibility within the segment. We use Qwen3-8B [ 46 ] as the LLM backbone, which enables reproducible plausibility scoring with efficient computation suitable for large-scale AIS trajectory processing. 
+
+## 4.1 Single-vessel Anomalies 
+
+We generate the anomalous trajectory ˜𝑅 (𝑖 ) by perturbing the ob-served segment 𝑅 (𝑖 ) = {x𝑖,𝑡 }𝑇 −1 
+
+> 𝑡 =0
+
+based on an anomaly score profile 
+
+a(𝑖 ) . To control the anomaly intensity, we select the top-𝐾 times-tamps from a(𝑖 ) corresponding to fixed ratios 𝐾 /𝑇 ∈ { 0.25 , 0.5, 0.75 }
+
+and semantically modulate the perturbation magnitude at each se-lected step. 
+
+A1: Unexpected AIS Activity. Unexpected AIS Activity repre-sents position-driven anomalies where reported coordinates p(𝑖 ) 
+
+> 𝑡
+
+ex-hibit abrupt cross-track deviations without corresponding updates in the kinematic vector v(𝑖 ) 
+
+> 𝑡
+
+. To quantify the geometric variation of the trajectory, we employ the Perpendicular Euclidean Distance (PED). We define 𝜇 (𝑖 ) 
+
+> PED
+
+as the mean PED computed over all valid triplets for a trajectory segment, treating it as the average noise level of the trajectory: 
+
+𝜇 (𝑖 ) 
+
+> PED
+
+= 1
+
+𝑇 − 2 
+
+> 𝑇 −2
+
+∑︁ 
+
+> 𝑘 =1
+
+PED 
+
+
+
+p(𝑖 ) 
+
+> 𝑘 −1
+
+, p(𝑖 ) 
+
+> 𝑘
+
+, p(𝑖 )
+
+> 𝑘 +1
+
+
+
+(2) To ensure the generated perturbations are clearly distinguishable from average noise, we set the scaling parameter 𝜃 𝑝 = 3. For a selected timestamp 𝑡 , we synthesize the perturbed position ˜p(𝑖 ) 
+
+> 𝑡
+
+by displacing the point perpendicularly to the trajectory path, ensuring it satisfies: PED (p(𝑖 ) 
+
+> 𝑡 −1
+
+, ˜p(𝑖 ) 
+
+> 𝑡
+
+, p(𝑖 )
+
+> 𝑡 +1
+
+) ≥ 𝜃 𝑝 · ( 1 + 𝑎 (𝑖 ) 
+
+> 𝑡
+
+) · 𝜇 (𝑖 ) 
+
+> PED
+
+(3) 
+
+A2: Route Deviation. Route Deviation represents kinematics-driven anomalies characterized by abrupt variations in speed ( SOG )and heading ( COG ) that propagate over time. Unlike the point-wise perturbation of A1, A2 anomalies are synthesized over a consecutive temporal window to reflect the sequential dependencies inherent in vessel motion. We first define the discrete changes in speed and heading be-tween consecutive timestamps as |ΔSOG (𝑖 ) 
+
+> 𝑡
+
+| and |ΔCOG (𝑖 ) 
+
+> 𝑡
+
+|, respec-tively. We calculate the baseline variations 𝜇 (𝑖 ) 
+
+> ΔSOG
+
+and 𝜇 (𝑖 ) 
+
+> ΔCOG
+
+by averaging these changes over a window 𝑇 :
+
+𝜇 (𝑖 ) 
+
+> ΔSOG
+
+= 1
+
+𝑇 − 1 
+
+> 𝑇 −1
+
+∑︁ 
+
+> 𝑘 =1
+
+|ΔSOG (𝑖 ) 
+
+> 𝑘
+
+|, 𝜇 (𝑖 ) 
+
+> ΔCOG
+
+= 1
+
+𝑇 − 1 
+
+> 𝑇 −1
+
+∑︁ 
+
+> 𝑘 =1
+
+|ΔCOG (𝑖 ) 
+
+> 𝑘
+
+|. (4) Starting from the last normal state x𝑖,𝑡 −1, the anomalous trajec-tory is generated by perturbing the original states and accumulating Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+Figure 3: Equation-grounded anomaly examples for three anomaly types (A1–A3) 
+
+them recursively: 
+
+˜SOG (𝑖 ) 
+
+> 𝑡
+
+= SOG (𝑖 ) 
+
+> 𝑡
+
++ 𝜃 𝑣 · ( 1 + 𝑎 (𝑖 ) 
+
+> 𝑡
+
+) · 𝜇 (𝑖 )
+
+> ΔSOG
+
+,
+
+˜COG (𝑖 ) 
+
+> 𝑡
+
+= COG (𝑖 ) 
+
+> 𝑡
+
++ 𝜃 ℎ · ( 1 + 𝑎 (𝑖 ) 
+
+> 𝑡
+
+) · 𝜇 (𝑖 )
+
+> ΔCOG
+
+,
+
+˜p(𝑖 ) 
+
+> 𝑡 +1
+
+= ˜p(𝑖 ) 
+
+> 𝑡
+
++ ˜SOG (𝑖 ) 
+
+> 𝑡
+
+· Δ𝑡 ·
+
+"
+
+cos ˜COG (𝑖 )
+
+> 𝑡
+
+sin ˜COG (𝑖 )
+
+> 𝑡
+
+#
+
+.
+
+(5) This recursive construction ensures that the synthesized trajectory maintains temporal continuity, while allowing the anomalous be-havior to gradually deviate from the original voyage patterns. In this study, the scaling parameters 𝜃 𝑣 and 𝜃 ℎ are set to 2 to facilitate a progressive deviation. Furthermore, to ensure the vessel eventu-ally returns to the original route, the anomaly window of size 𝐾 is divided into two phases: an injection phase (the first 2/3) where the deviation accumulates, and a recovery phase (the remaining 1/3)where the trajectory smoothly converges back to the ground truth. 
+
+Labeling rule. We assign a binary label to each timestamp within the synthesized segment ˜R (𝑖 ) . We assign 𝑦 (𝑖 ) 
+
+> 𝑡
+
+= 1 to the timestamps where the anomaly is injected, and 𝑦 (𝑖 ) 
+
+> 𝑡
+
+= 0 to all remaining timestamps. The final labeled sample is returned as 
+
+( ˜R (𝑖 ) , y(𝑖 ) ).
+
+## 4.2 Inter-Vessel Anomaly 
+
+Close Approach is an inter-vessel anomaly synthesized by construct-ing a virtual vessel segment V (𝑖 ) and pairing it with an observed segment R (𝑖 ) . Importantly, A3 does not modify the own-ship trajec-tory. The interaction is synthesized solely through the construction of V (𝑖 ) .
+
+Virtual Vessel Trajectory Generation. Given the per-timestamp anomaly scores a𝑡 , we select the anchor index as 𝑘 = arg max 𝑗 a𝑗 ,where ties are broken uniformly at random, and define the length-3
+
+anomalous window as {𝑘 − 1, 𝑘, 𝑘 + 1}. We represent the own-ship positions p(𝑜 ) 
+
+> 𝑡
+
+in a local East-North-Up (ENU) frame anchored at timestamp 𝑘 , i.e., a local east–north Cartesian coordinate system centered at the anchor point. We synthesize a virtual vessel by laterally offsetting the own-ship trajectory: 
+
+p(𝑣 ) 
+
+> 𝑡
+
+= p(𝑜 ) 
+
+> 𝑡
+
++ 𝑑 𝑡 n𝑡 , 𝑡 = 0, . . . ,𝑇 −1, (6) where 𝑑 𝑡 ≥ 0 controls the magnitude of the pairwise separation and 
+
+n𝑡 ∈ R2 is a unit lateral direction. At the anchor point, we assign a virtual velocity v(𝑣 ) according to predefined speed statistics which leads the relative velocity to be defined as 
+
+u = v(𝑣 ) − v(𝑜 ) . Based on this relative motion, we select a refer-ence lateral unit normal n𝑘 perpendicular to u, with a consistent left/right orientation with respect to the own-ship heading. We then specify a minimum target separation e𝐷 as a surrogate for the DCPA concept and place the virtual vessel’s anchor point at a lateral offset of e𝐷 along n𝑘 . In practice, e𝐷 is sampled from the DANGEROUS range in our risk taxonomy (Table 2), i.e., e𝐷 ∈[0.1, 0.3] NM, guided by the anomaly plausibility scores. 
+
+Table 2: Close Approach Risk Level Classification 
+
+Level DCPA (NM) TCPA (min) Reference 
+
+CRITICAL < 0.1 < 3 [49] 
+
+DANGEROUS 0.1–0.3 3–5 [6, 13, 36] CLOSE 0.3–0.5 5–10 [8] WATCH 0.5–1.0 10 –15 [8, 9] MONITOR ≥ 1.0 ≥ 15 [13] 
+
+The taxonomy described in Table 2 is calculated using the meta-data of vessel directory from International Maritime Organization, focusing on the cargo ships and tankers. DCPA and TCPA are de-pendent on average vessel lengths and heights (of the masts). Given this anchor configuration, the time-varying separation distance 
+
+𝑑 𝑡 is constructed to follow a CPA-inspired baseline profile [ 12 ], ensuring that the minimum separation occurs at 𝑘 and increases smoothly away from the anchor point. To avoid a trivial parallel translation of the own-ship trajectory, the lateral direction n𝑡 is allowed to vary over time by rotating n𝑘 
+
+according to a score-derived heading profile 𝜃 (𝑡 ), and the resulting lateral offset is given by r𝑡 = 𝑑 𝑡 n𝑡 .Finally, the full virtual vessel trajectory is obtained as p(𝑣 ) 
+
+> 𝑡
+
+=
+
+p(𝑜 ) 
+
+> 𝑡
+
++ r𝑡 , and its kinematic states are recovered deterministically through finite differences in the ENU frame, ensuring consistency between position, speed, and course. 
+
+Labeling rule. We limit each anomaly event to a three-timestamp window to filter out normal co-traveling behaviors. Accordingly, we assign 𝑦 (𝑖 ) 
+
+> 𝑡
+
+= 1 for 𝑡 ∈ { 𝑘 − 1, 𝑘, 𝑘 + 1} and 𝑦 (𝑖 ) 
+
+> 𝑡
+
+= 0 other-wise. For A3, the labeled sample is formed as a paired segment 
+
+˜R (𝑖 ) = [R (𝑖 ) ; V (𝑖 ) ], and the same per-timestamp labels are applied to both the own-ship and virtual-ship rows, since the anomaly is defined as a pairwise event. The labeled sample ( ˜R (𝑖 ) , y(𝑖 ) ) is returned as the result. This design constrains A3 anomalies to short-term proximity events of at most three hours, consistent with the CPA/DCPA-based interpretation of collision risk under COLREGs [12] (Rules 7–8). 
+
+## 5 LLM Scorer Validation 5.1 Distributional Analysis 
+
+To verify that the LLM scorer produces anomaly-type-aware guid-ance rather than assigning high scores to fixed timestamp positions, we sample 𝑁 = 1000 normal trajectory segments with 𝑇 = 12 and query the LLM once per segment for each anomaly type. As shown KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Youngseok Hwang et al. 
+
+in Figure 4, which visualizes the score profiles of 100 randomly selected segments, A1 produces sparse peaks whose positions vary across segments, A2 forms broad contiguous high-score regions con-sistent with route-deviation anomalies, and A3 produces an anchor-centered score profile suitable for constructing a close-approach event. These patterns confirm that the scorer is compatible with the synthesis rules for each anomaly type. 0 1 2 3 4 5 6 7 8 9 10 11                      
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> Segment (sorted by argmax)  A1
+> 012345678910 11
+> Timestamp t
+> 0
+> 20
+> 40
+> 60
+> 80
+> A2
+> 012345678910 11
+> 0
+> 20
+> 40
+> 60
+> 80
+> A3
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> LLM score
+
+Figure 4: Distributional analysis of LLM scores across anom-aly types. Each panel shows per-timestamp LLM scores for 100 trajectory segments randomly selected from the 𝑁 =1000 
+
+sampled segments. 
+
+## 5.2 Repeatability 
+
+Since the synthesizer uses score rankings rather than exact values, we further examine whether repeated queries under the same input yield stable timestamp selections. We query the LLM 𝑅 = 100 times with varying decoding temperature 𝜏 ∈ { 0.2, 0.3, 0.4} and record the top-𝐾 selected timestamps. As shown in Figure 5, selection patterns remain stable across temperatures for all three anomaly types, supporting the reliable use of the LLM scorer as a guide for equation-grounded anomaly synthesis. 0 1 2 3 4 5 6 7 8 9 10 11                    
+
+> Timestamp t
+> A1 (=0.2)
+> A1 (=0.3)
+> A1 (=0.4)
+> A2 (=0.2)
+> A2 (=0.3)
+> A2 (=0.4)
+> A3 (=0.2)
+> A3 (=0.3)
+> A3 (=0.4)
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Selection frequency
+
+Figure 5: Decision-level repeatability of the LLM scorer. Each cell shows the selection frequency of timestamp 𝑡 over 𝑅 = 100 
+
+repeated queries under the same input. 
+
+Together, the distributional and repeatability analyses show that the LLM scorer produces anomaly-type-aware score profiles whose timestamp selections remain stable across repeated queries and tem-perature settings. This supports using LLM-derived scores to guide anomaly timestamp selection and normalized severity modulation in the equation-grounded synthesizer. Given these score profiles, we partition the set of trajectory segments and pre-assign a target anomaly type to each segment to maintain a balanced anomaly-type composition. For each as-signed segment R (𝑖 ) , anomalous values and row-wise labels are then generated deterministically according to the corresponding equation-grounded conditions. A1 and A2 are grouped as single-vessel anomalies because they modify the observed trajectory val-ues, whereas A3 follows a paired inter-vessel synthesis paradigm in which the observed own-ship trajectory remains intact and a virtual counterpart is constructed. Figure 3 shows representative synthesized and labeled examples for A1–A3. 
+
+## 5.3 Backbone Ablation 
+
+We evaluate three Qwen3 backbones (4B, 8B, 14B) on 𝑛 = 6,289 seg-ments per anomaly type ( 𝑇 = 12 ) and measure pairwise agreement via Pearson 𝑟 on raw scores and Jaccard similarity on top-𝐾 selected timestamps. A3 scores are structurally constrained to a unimodal mid-segment profile, leaving little room for backbone-dependent variation, so we focus on A1 and A2. As shown in Table 3, Pearson 
+
+𝑟 ranges from 0.52 to 0.71, indicating that different backbones agree on which regions are suitable for anomaly placement. No single model size introduces a systematic bias, supporting the backbone-agnostic use of the LLM scorer. 
+
+Table 3: Pairwise backbone agreement on LLM scorer outputs.                     
+
+> Pair A1 Pearson 𝑟 A1 Top-𝐾 Jaccard A2 Pearson 𝑟 A2 Top-𝐾 Jaccard 4B vs 8B 0.565 0.580 0.629 0.612
+> 4B vs 14B 0.609 0.607 0.521 0.560
+> 8B vs 14B 0.597 0.606 0.710 0.656
+
+## 6 Experiments 6.1 Synthetic Anomaly Dataset 
+
+We use the publicly available AIS dataset OMTAD [ 25 ]. In OMTAD, each vessel track corresponds to a navigation leg within a region of interest near the western coast of Australia. The dataset spans three years (2018–2020) and includes four vessel categories: cargo, tanker, fishing, and passenger. In this work, we conduct our analysis on cargo and tanker tracks. Fishing and passenger tracks are relatively scarce and exhibit highly irregular, task-driven movement patterns unsuitable for equation-grounded synthesis [ 18 , 21 , 50 ]. In contrast, cargo and tanker vessels typically follow more stable and repetitive route patterns, providing a better foundation for defining and in-jecting structurally controlled anomalies. As described in Section 4, we construct anomaly-labeled datasets for three anomaly types (A1, A2, and A3) by leveraging LLM-derived anomaly plausibility scores. For experiments, we segment each track into fixed-length se-quences with 𝑇 ∈ { 12 , 24 } timestamps. We then generate synthetic anomalies at four anomaly ratios (1%, 3%, 5%, and 10%), enabling systematic evaluation across different settings. As a representa-tive setting, the dataset statistics under the 5% anomaly ratio are summarized in Table 4. The table shows how the number of anoma-lous timestamps varies across anomaly types (A1–A3), reflecting heterogeneity in their anomaly-specific labeling rules. Since the anomaly ratio is applied at the segment level, the resulting pro-portion of anomalous timestamps can be lower than the nominal Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+Table 4: Single-timestamp level dataset statistics at anomaly ratio of 5%. 
+
+𝑇 Type Train Test                            
+
+> Normal Anomaly (%) Normal Anomaly (%)
+> 12 A1 516,042 12,846 (2.43) 110,565 2,751 (2.43)
+> A2 516,039 12,837 (2.43) 110,574 2,754 (2.43)
+> A3 568,518 13,206 (2.27) 121,815 2,829 (2.27)
+> 24 A1 460,350 11,058 (2.35) 98,658 2,382 (2.36)
+> A2 460,338 11,070 (2.35) 98,664 2,376 (2.35)
+> A3 512,655 5,889 (1.14) 109,860 1,260 (1.13)
+
+ratio. Specifically, the number of timestamps selected for injec-tion is derived by scaling the segment length 𝑇 by a factor chosen from {0.25 , 0.5, 0.75 }. We use this 5% setting to compare equation-grounded anomalies with distribution-based anomalies. Figure 6 visualizes the distributional differences in an embedding space constructed from representations of synthesized anomaly features, which are projected onto two dimensions via PCA. Given the same number of anomalous timestamps between sparsity-based selection and equation-grounded anomalies, A1 and A3 exhibit substantially less overlap compared to A2. 
+
+Figure 6: Comparison of sparsity-based and equation-grounded anomalies in the feature space (PCA). 
+
+Table 5 reports the recall of equation-grounded anomalies as the selection proportion of sparsity-based methods increases, where re-call is defined as Recall = | sparsity-selected ∩ equation-grounded anomalies || equation-grounded anomalies | .
+
+Even with large selection proportions, a substantial fraction of equation-grounded anomalies remains uncaptured—particularly for A1 and A3. Together, these results demonstrate that physically meaningful anomalies are not necessarily characterized by statisti-cal rarity. 
+
+Table 5: Recall of equation-grounded anomalies under sparsity-based selection proportions (%) at an anomaly ratio of 5%. Type 5% 10% 15% 20% 25% 30% 35% 40% 45% 50% A1 3.31 6.01 8.89 13.23 18.36 23.84 28.71 34.14 38.74 44.40                     
+
+> A2 22.96 47.82 69.78 83.54 91.33 96.31 98.48 99.36 99.80 99.85
+> A3 4.42 10.36 16.57 23.11 31.12 39.02 46.81 54.04 60.06 65.21
+
+## 6.2 Evaluation Protocol 
+
+We perform maritime anomaly detection for all three anomaly types (A1–A3) under multiple anomaly ratio settings. We consider two sequence lengths, 𝑇 ∈ { 12 , 24 }, and report results separately for each anomaly type. We adopt a strict point-wise evaluation protocol that directly compares per-timestamp predictions against ground-truth labels without any point adjustment, event-level matching, or window-based tolerance. This is consistent with our synthesis procedure, which assigns anomaly labels at the individual times-tamp level. We use AUROC and AUPRC as primary threshold-free metrics, alongside the best achievable F1 score, which is obtained by sweeping thresholds over the anomaly score distribution and reporting the maximum F1 across all thresholds. This allows F1 to reflect the model’s upper-bound point-level discriminative capacity independent of threshold selection. 
+
+## 6.3 Experimental Setup 
+
+Our baselines span a broad range of approaches, including tradi-tional anomaly detection methods, dedicated time-series anomaly detection models, and forecasting-based models adapted to anomaly detection. For these models, we use per-timestamp MSE prediction error as the anomaly score rather than a classifier head, as this score-based formulation is more aligned with the anomaly detection task. Detailed descriptions of baselines are provided in Appendix A. All experiments are implemented in PyTorch and run on NVIDIA RTX 3090 and H100 GPUs. 
+
+## 6.4 Experimental Results 
+
+The experimental results are summarized in Table 6. Since each anomaly type exhibits distinct characteristics, we analyze and re-port the detection performance separately for each anomaly type. We characterize the detection challenges posed by each anomaly type across diverse model architectures. 
+
+A1: Unexpected AIS Activity. For A1, forecasting-based models using MSE prediction error as the anomaly score consistently out-perform dedicated anomaly detection models across both window lengths. Informer achieves the strongest performance across all three metrics for 𝑇 =12 (54.59, 2.83, 5.81), with VanillaTransformer and LSTM following closely, while VanillaTransformer leads for 
+
+𝑇 =24 (53.46, 2.60, 5.27), with Informer ranking second. In contrast, dedicated anomaly detection models such as Anomaly Transformer, OmniAnomaly, and LSTM-VAE show near-random AUROC ( ≈44– 52), suggesting that their unsupervised reconstruction-based objec-tives are poorly aligned with position-only perturbations that leave kinematic signals intact. These trends reflect the defining charac-teristics of A1, where anomalies appear as sparse timestamp-level positional irregularities without corresponding kinematic changes. The dominant cue is a subtle, channel-specific deviation rather than a pronounced kinematic discontinuity, making A1 easily con-founded with normal positional variability. Nevertheless, even top-performing models achieve only marginal gains over random (AU-ROC ≈54), indicating that position-only spikes without kinematic changes pose a fundamentally distinct detection challenge. 
+
+A2: Route Deviation. For A2, performance improves substan-tially over A1 across all models, reflecting that kinematic-coupled deviations provide clearer discriminative cues than position-only perturbations. At the 5% anomaly ratio, VanillaTransformer achieves the strongest performance across all three metrics for 𝑇 =12 (94.39, KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Youngseok Hwang et al. 
+
+Table 6: Timestamp-level anomaly detection at a 5% anomaly ratio (AUROC / AUPRC / Best F1). Bold and underline denote the best and second-best scores per metric within each setting. Anomaly Type A1: Unexpected AIS Activity A2: Route Deviation A3: Close Approach Window Length 𝑇 =12 𝑇 =24 𝑇 =12 𝑇 =24 𝑇 =12 𝑇 =24 Metric ROC PRC F1 ROC PRC F1 ROC PRC F1 ROC PRC F1 ROC PRC F1 ROC PRC F1 LOF [4] 50.16 2.41 4.78 50.13 2.40 4.69 83.88 12.63 20.47 78.10 10.39 18.79 55.67 2.77 5.53 54.39 1.29 2.71 
+
+OCSVM [33] 49.42 2.31 4.80 47.33 2.14 4.63 79.74 18.13 27.19 82.88 20.66 29.68 49.45 2.20 4.46 49.49 1.07 2.31 
+
+IForest [20] 49.71 2.32 4.86 48.34 2.20 4.65 85.52 10.19 19.93 88.81 13.51 23.22 52.44 2.35 4.78 51.38 1.13 2.44 
+
+LSTM-VAE [28] 49.60 2.33 4.79 47.52 2.16 4.64 90.96 19.55 31.35 93.36 23.11 34.56 64.13 4.67 11.04 62.38 1.97 5.11 
+
+OmniAnomaly [35] 45.63 2.12 4.75 44.13 1.98 4.61 93.07 20.76 31.35 94.70 25.53 34.80 54.69 3.00 5.67 55.59 1.46 3.41 
+
+USAD [1] 49.84 2.35 4.79 48.48 2.19 4.65 81.81 14.57 20.21 83.68 16.75 22.77 50.09 2.24 4.48 50.81 1.12 2.38 
+
+TranAD [38] 49.33 2.36 4.80 48.41 2.24 4.66 72.74 9.65 14.24 78.42 11.83 16.54 50.63 2.30 4.59 52.11 1.18 2.51 
+
+Anomaly Transformer [45] 51.49 2.48 4.99 51.75 2.39 4.89 54.74 6.94 16.86 40.56 4.29 9.39 75.42 7.88 16.12 49.88 1.09 2.30 
+
+LSTM [11] 54.42 2.80 5.76 53.09 2.58 5.19 92.95 26.35 36.60 92.15 22.13 32.48 66.07 4.57 10.98 66.59 2.47 6.71 
+
+VanillaTransformer [39] 54.34 2.80 5.79 53.46 2.60 5.27 94.39 28.84 38.85 92.64 23.60 33.56 66.77 4.84 12.14 66.26 2.47 6.89 Informer [54] 54.59 2.83 5.81 53.25 2.60 5.25 91.91 25.45 35.87 91.84 22.14 32.27 65.45 4.49 10.91 66.13 2.43 6.70 
+
+Autoformer [42] 50.55 2.58 5.22 49.41 2.33 4.84 65.30 7.61 13.15 76.62 12.86 19.44 49.32 2.39 4.86 48.75 1.12 2.39 
+
+FEDformer [55] 50.84 2.61 5.23 49.53 2.34 4.87 58.72 5.50 9.84 71.34 11.24 17.38 48.40 2.33 4.85 49.14 1.14 2.41 
+
+Pyraformer [22] 51.34 2.62 5.32 51.33 2.47 4.96 83.70 12.26 22.47 88.84 17.60 28.65 57.46 3.03 6.59 58.36 1.55 3.63 
+
+PatchTST [27] 46.25 2.31 5.09 46.73 2.19 4.76 86.42 8.93 19.44 89.03 10.51 21.98 54.54 2.62 6.16 56.60 1.41 3.39 
+
+DLinear [51] 48.75 2.48 5.19 50.34 2.44 4.92 66.11 5.28 12.08 64.94 4.22 9.62 63.73 3.37 8.38 56.56 1.35 3.38 
+
+Note: ROC and PRC denote AUROC and AUPRC; F1 denotes Best F1 (maximum F1 over threshold sweep). 
+
+28.84, 38.85), with LSTM ranking second in AUPRC and F1 (26.35, 36.60), indicating that forecasting-based models with prediction-error scoring effectively capture salient kinematic deviations. For 
+
+𝑇 =24 , OmniAnomaly achieves the strongest performance across all three metrics (94.70, 25.53, 34.80), with LSTM-VAE ranking second in AUROC and F1, suggesting that probabilistic reconstruction-based models benefit from longer context when modeling the se-quential propagation of route deviations. Notably, the leading mod-els differ between 𝑇 =12 and 𝑇 =24 , indicating that the optimal in-ductive bias for A2 detection depends on the available temporal context. Overall, A2 is more amenable to detection than A1, as the anomaly mechanism produces a distinctive kinematic signature that discriminative and generative models can both exploit. 
+
+A3: Close Approach. For A3, performance falls between A1 and A2, reflecting the inherently interaction-driven nature of the anom-aly, where detection depends on modeling pairwise relative-motion dynamics rather than properties of individual trajectories. While A3 outperforms A1 in terms of AUROC (particularly for models such as Anomaly Transformer achieving 75.42), it remains substantially be-low A2, indicating that interaction-driven cues are more detectable than position-only spikes but harder to capture than kinematic de-viations. At the 5% anomaly ratio, Anomaly Transformer achieves the strongest performance across all three metrics for 𝑇 =12 (75.42, 7.88, 16.12), leveraging its association discrepancy mechanism to capture interaction-induced temporal inconsistencies. For 𝑇 =24 ,forecasting-based models dominate: LSTM leads in AUROC (66.59) and VanillaTransformer leads in F1 (6.89), suggesting that these models produce better-calibrated anomaly scores when interaction cues propagate over longer temporal contexts. Notably, perfor-mance rankings are inconsistent across 𝑇 =12 and 𝑇 =24 , and no single model dominates across both window lengths and metrics, 
+
+Table 7: Comparison of single-trajectory and pairwise inter-vessel representations for A3 under F1 score. STGVAD is evaluated only with pairwise inputs because its graph con-struction requires inter-vessel relations. Results are from a single experimental run and may differ from Table 6, which reports averages over multiple runs. Ratio 𝑇 
+
+Single Pairwise Inter-vessel Input LSTM LSTM STGVAD Base Concat Diff Concat Diff 1% 12 3.59 4.79 (+1.20) 8.28 (+4.69) 7.51 (+3.92) 8.14 (+4.55) 
+
+24 2.24 2.03 (-0.21) 4.40 (+2.16) 3.36 (+1.12) 6.59 (+4.35) 
+
+3% 12 9.89 21.04 (+11.15) 31.99 (+22.10) 27.20 (+17.31) 28.12 (+18.23) 
+
+24 6.23 7.58 (+1.35) 17.18 (+10.95) 17.01 (+10.78) 26.56 (+20.33) 
+
+5% 12 16.13 32.69 (+16.56) 41.99 (+25.86) 39.19 (+23.06) 42.41 (+26.28) 
+
+24 10.82 13.48 (+2.66) 22.76 (+11.94) 28.85 (+18.03) 38.44 (+27.62) 
+
+10% 12 29.86 49.66 (+19.80) 55.86 (+26.00) 55.23 (+25.37) 57.54 (+27.68) 
+
+24 19.77 28.83 (+9.06) 39.15 (+19.38) 47.29 (+27.52) 53.74 (+33.97) 
+
+underscoring that A3 poses a fundamentally harder detection prob-lem than single-vessel anomalies. Excluding Anomaly Transformer, most dedicated anomaly detectors produce near-random AUROC, confirming that standard unsupervised reconstruction objectives are poorly aligned with interaction-driven anomaly cues. These findings motivate the pairwise representation experiment discussed below. Since a single-trajectory segment cannot fully capture the rela-tional nature of inter-vessel anomalies, we conduct an additional experiment that explicitly encodes pairwise vessel interactions. Fol-lowing prior work on STGVAD [ 15 ], we construct paired inputs using two schemes: (i) concatenation , which directly concatenates feature vectors of the own ship and the interacting vessel, and (ii) Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+difference , which encodes relative-motion cues via feature-wise dif-ferences. For the graph-based input, we use a minimal interaction graph between two vessels at time 𝑡 and 𝑡 +1, evaluated using the same GAT [ 40 ]+LSTM architecture from STGVAD. Note that since STGVAD operates under a supervised setting with labeled anom-alies, this experiment departs from the anomaly-free training pro-tocol used elsewhere and instead adopts a supervised configuration with a 70/15/15 train/validation/test split using ground-truth anom-aly labels; thus absolute numbers are not directly comparable to Table 6. As shown in Table 7, incorporating inter-vessel information improves detection performance in most settings, with STGVAD Diff achieving the best F1 in the majority of configurations. The gains become more pronounced at higher anomaly ratios, confirm-ing that explicitly modeling relative-motion structure is beneficial for robust A3 detection, while variability at lower ratios (1%) reflects the inherent difficulty of detecting sparse interaction anomalies. 
+
+Table 8: AUPRC across anomaly ratios (timestamp-level). Bold and underline denote the best and second-best per col-umn. Type Model T=12 T=24                                                                                                                                    
+
+> 1% 3% 5% 1% 3% 5%
+> A1 IForest 0.44 1.35 2.32 0.34 1.19 2.20 OmniAnomaly 0.35 1.25 2.12 0.31 1.12 1.98 LSTM-VAE 0.39 1.37 2.33 0.33 1.23 2.16 Anomaly Transformer 0.42 1.45 2.48 0.39 1.44 2.39 LSTM 0.48 1.66 2.80 0.40 1.49 2.58 VanillaTransformer 0.49 1.66 2.80 0.41 1.49 2.60
+> Informer 0.50 1.68 2.83 0.41 1.49 2.60
+> A2 IForest 1.78 6.33 10.19 1.77 7.03 13.51 OmniAnomaly 3.14 11.56 20.76 3.51 12.33 25.53
+> LSTM-VAE 3.46 11.58 19.55 3.59 12.57 23.11 Anomaly Transformer 1.24 4.18 6.94 0.83 2.55 4.29 LSTM 5.02 15.72 26.35 3.47 12.44 22.13 VanillaTransformer 5.46 17.52 28.84 4.08 13.71 23.60 Informer 4.80 15.42 25.45 3.65 12.55 22.14 A3 IForest 0.50 1.44 2.35 0.23 0.68 1.13 OmniAnomaly 0.61 1.69 3.00 0.39 0.91 1.46 LSTM-VAE 0.86 2.71 4.67 0.38 1.26 1.97 Anomaly Transformer 1.63 4.76 7.88 0.22 0.65 1.09 LSTM 0.88 2.68 4.57 0.47 1.51 2.47
+> VanillaTransformer 0.92 2.83 4.84 0.49 1.56 2.47
+> Informer 0.85 2.62 4.49 0.46 1.53 2.43
+
+Discussion. As shown in Table 8, AUPRC degrades consistently as the anomaly ratio decreases, yet the degree of degradation and model rankings vary markedly by anomaly type. For A1, all mod-els stay uniformly low, with rankings stable across both window lengths. For A2, forecasting-based models outperform classical ones and drop steeply at lower ratios, but their leadership likewise per-sists across 𝑇 =12 and 𝑇 =24 . For A3, in contrast, model leadership shifts substantially between 𝑇 =12 and 𝑇 =24 .Overall, detection performance is primarily governed by the match between an anomaly type’s defining cues and a model’s in-ductive bias: position-centric anomalies (A1) remain challenging for most baselines as position-only spikes leave kinematic signals intact, kinematic deviations (A2) are more amenable to represen-tation learning as they produce distinctive SOG/COG signals, and near-miss events (A3) expose a clear limitation of sequence-centric modeling as interaction-driven cues require explicit pairwise rea-soning beyond single-trajectory representations. These findings justify anomaly-type-specific evaluation and motivate future work on interaction-aware detection architectures. 
+
+## 7 Conclusion 
+
+This study addresses a central challenge in maritime anomaly detec-tion: defining and evaluating domain-defined anomalies in public AIS datasets. We distinguish single-vessel and inter-vessel anom-alies and propose an equation-grounded taxonomy operationaliz-able under a limited AIS schema. We further employ an LLM as a constrained scoring module to generate context-conditioned plau-sibility scores, which guide an equation-grounded synthesizer to place and label anomalies. Across diverse settings and baselines, we find performance is largely determined by how well a model’s assumptions align with anomaly-specific cues, underscoring the ad-vantage of domain-defined supervision over sparsity-based labeling. Taken together, our results introduce an equation-grounded score– synthesize–label pipeline and a standardized evaluation framework, while motivating further research on interaction-aware modeling and broader anomaly taxonomies. 
+
+## 8 GenAI Disclosure 
+
+A large language model was used in two limited capacities: as a constrained scoring module within the anomaly synthesis frame-work (Section 4), with all outputs validated against domain-defined thresholds; and for minor manuscript copyediting. All research design, experimental decisions, and scientific interpretations were made solely by the authors. 
+
+## 9 Limitations and Ethical Considerations 
+
+Our framework addresses a restricted subset of formalizable anom-aly types and does not cover the full spectrum of real-world mar-itime anomalies. LLM scorer outputs may reflect prompt design choices and dataset-specific priors, motivating future work on more comprehensive taxonomies and semantically grounded labeling strategies. The framework itself is dataset-agnostic: Algorithm 1 accepts any AIS data with standard fields regardless of geographic region or temporal resolution. Extension to other vessel types and regions remains for future work. The expert evaluation was con-ducted with informed consent; no personal data was collected. 
+
+## Acknowledgments 
+
+This work was supported by the Korea Research Institute of Ships and Ocean Engineering (KRISO) through the Endowment Project “Digital Service Development to Support Marine Digital Transfor-mation,” funded by the Ministry of Oceans and Fisheries, Republic of Korea (Grant No. 2520001041, PES5950); by the Institute of In-formation & Communications Technology Planning & Evaluation (IITP) under the “Leading Generative AI Human Resources Develop-ment” grant (IITP-2024-RS-2024-00397085) funded by the Ministry of Science and ICT (MSIT); and by the Korea Health Technology R&D Project through the Korea Health Industry Development Insti-tute (KHIDI), funded by the Ministry of Health & Welfare, Republic of Korea (Grant No. RS-2025-02307233). KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Youngseok Hwang et al. 
+
+## References 
+
+[1] Julien Audibert, Pietro Michiardi, Frédéric Guyard, Sébastien Marti, and Maria A Zuluaga. 2020. Usad: Unsupervised anomaly detection on multivariate time series. In Proceedings of the 26th ACM SIGKDD international conference on knowledge discovery & data mining . 3395–3404. [2] Zhen Bi, Ningyu Zhang, Yida Xue, Yixin Ou, Daxiong Ji, Guozhou Zheng, and Huajun Chen. 2024. Oceangpt: A large language model for ocean science tasks. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . 3357–3372. [3] Ane Blázquez-García, Angel Conde, Usue Mori, and Jose A Lozano. 2021. Areview on outlier/anomaly detection in time series data. ACM computing surveys (CSUR) 54, 3 (2021), 1–33. [4] Markus M Breunig, Hans-Peter Kriegel, Raymond T Ng, and Jörg Sander. 2000. LOF: identifying density-based local outliers. In Proceedings of the 2000 ACM SIGMOD International Conference on Management of Data . 93–104. [5] Nanyu Chen, Anran Yang, Luo Chen, Hui Wu, and Ning Jing. 2025. MSCE: Empowering Vessel Identity Anomaly Detection with Multimodal LLMs. IEEE Trans. Aerospace Electron. Systems (2025). [6] TG Coldwell. 1983. Marine Traffic Behaviour in Restricted Waters. Journal of Navigation 36, 3 (1983), 430–444. [7] Yanai Elazar, Nora Kassner, Shauli Ravfogel, Abhilasha Ravichander, Eduard Hovy, Hinrich Schütze, and Yoav Goldberg. 2021. Measuring and Improving Consistency in Pretrained Language Models. Transactions of the Association for Computational Linguistics 9 (2021), 1012–1031. doi:10.1162/tacl_a_00410 [8] Elisabeth M Goodwin. 1975. A Statistical Study of Ship Domains. Journal of Navigation 28, 3 (1975), 328–344. [9] Jisang Ha, Myung-Il Roh, and Hye-Won Lee. 2021. Quantitative calculation method of the collision risk for collision avoidance in ship navigation using the CPA and ship domain. Journal of Computational Design and Engineering 8, 3 (2021), 894–909. [10] Alex Havrilla, Andrew Dai, Laura O’Mahony, Koen Oostermeijer, Vera Zisler, Alon Albalak, Fabrizio Milo, Sharath Chandra Raparthy, Kanishk Gandhi, Baber Abbasi, et al . 2024. Surveying the effects of quality, diversity, and complexity in synthetic data from large language models. arXiv preprint arXiv:2412.02980 
+
+(2024). [11] Sepp Hochreiter and Jürgen Schmidhuber. 1997. Long short-term memory. Neural computation 9, 8 (1997), 1735–1780. [12] International Maritime Organization. 1972. Convention on the International Regulations for Preventing Collisions at Sea, 1972 (COLREGs). https://www.imo. org/en/about/conventions/pages/colreg.aspx Accessed: 2026-01-07. [13] International Maritime Organization. 1995. Resolution A.823(19): Perfor-mance Standards for Automatic Radar Plotting Aids (ARPAs). IMO Assem-bly Resolution. https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/ IndexofIMOResolutions/AssemblyDocuments/A.823(19).pdf Adopted 23 Novem-ber 1995. [14] Jeehong Kim, Youngseok Hwang, Minchan Kim, Sungho Bae, and Hyunwoo Park. 2025. Spatio-Temporal Graphs Beyond Grids: Benchmark for Maritime Anomaly Detection. arXiv preprint arXiv:2512.20086 (2025). [15] Jeehong Kim, Minchan Kim, Youngseok Hwang, Sungho Bae, Deuk Jae Cho, Wonhee Lee, and Hyunwoo Park. 2026. STGVAD: Spatio-Temporal Graph-Based Vessel Behavior Anomaly Detection. IEEE Access 14 (2026), 2152–2165. doi:10. 1109/ACCESS.2025.3609783 [16] Jinhee Kim, Taesung Kim, and Jaegul Choo. 2024. Epic: Effective prompting for imbalanced-class data synthesis in tabular data classification via large language models. Advances in Neural Information Processing Systems 37 (2024), 31504– 31542. [17] Richard O Lane, David A Nevell, Steven D Hayward, and Thomas W Beaney. 2010. Maritime anomaly detection and threat assessment. In 2010 13th International conference on information fusion . IEEE, 1–8. [18] Hui Li, Wengen Li, Shuyu Wang, Hanchen Yang, Jihong Guan, and Yichao Zhang. 2024. STAD: Ship trajectory anomaly detection in ocean with dynamic pattern clustering. Ocean Engineering 313 (2024), 119530. [19] Maohan Liang, Lingxuan Weng, Ruobin Gao, Yan Li, and Liang Du. 2024. Unsu-pervised maritime anomaly detection for intelligent situational awareness using AIS data. Knowledge-Based Systems 284 (2024), 111313. [20] Fei Tony Liu, Kai Ming Ting, and Zhi-Hua Zhou. 2008. Isolation Forest. In 2008 Eighth IEEE International Conference on Data Mining . 413–422. doi:10.1109/ICDM. 2008.17 [21] Jinliang Liu, Jianghui Li, and Chunshan Liu. 2024. AIS-based kinematic anomaly classification for maritime surveillance. Ocean Engineering 305 (2024), 118026. [22] Shizhan Liu, Hang Yu, Cong Liao, Jianguo Li, Weiyao Lin, Alex X Liu, and Schahram Dustdar. 2022. Pyraformer: Low-complexity pyramidal attention for long-range time series modeling and forecasting. In International Conference on Learning Representations .[23] Lin Long, Rui Wang, Ruixuan Xiao, Junbo Zhao, Xiao Ding, Gang Chen, and Haobo Wang. 2024. On LLMs-Driven Synthetic Data Generation, Curation, and Evaluation: A Survey. In Findings of the Association for Computational Linguistics: ACL 2024 . Association for Computational Linguistics, 11065–11082. [24] Quandang Ma, Sunrong Lian, Dingze Zhang, Xiao Lang, Hao Rong, Wengang Mao, and Mingyang Zhang. 2025. A machine learning method for the recognition of ship behavior using AIS data. Ocean Engineering 315 (2025), 119791. doi:10. 1016/j.oceaneng.2024.119791 [25] Martin Masek, Chiou Peng Lam, Travis Rybicki, Jacob Snell, Daniel Wheat, Luke Kelly, and Cheryl Smith-Gander. 2021. The Open Maritime Traffic Analysis Dataset. In Proceedings of the 24th International Congress on Modelling and Simu-lation (MODSIM2021) . Sydney, NSW, Australia. [26] Lucas May Petry, Amilcar Soares, Vania Bogorny, Bruno Brandoli, and Stan Matwin. 2020. Challenges in vessel behavior and anomaly detection: From classical machine learning to deep learning. In Canadian Conference on Artificial Intelligence . Springer, 401–407. [27] Yuqi Nie, Nam H Nguyen, Phanwadee Sinthong, and Jayant Kalagnanam. 2023. A Time Series is Worth 64 Words: Long-term Forecasting with Transformers. In 
+
+The Eleventh International Conference on Learning Representations .[28] Daehyung Park, Yuuna Hoshi, and Charles C Kemp. 2018. A multimodal anomaly detector for robot-assisted feeding using an lstm-based variational autoencoder. 
+
+IEEE Robotics and Automation Letters 3, 3 (2018), 1544–1551. [29] Yuhao Qi, Jiaxuan Yang, Dongsheng Xu, Ran Shao, Yangyang Duan, and Yangjie Wang. 2026. Vessel Trajectory Anomaly Detection Based on Multi-scale Convo-lutional Autoencoder. Ocean Engineering 343 (2026), 123564. [30] Claudio V Ribeiro, Aline Paes, and Daniel de Oliveira. 2023. AIS-based maritime anomaly traffic detection: A review. Expert Systems with Applications 231 (2023), 120561. [31] Maria Riveiro, Giuliana Pallotta, and Michele Vespe. 2018. Maritime anomaly detection: A review. Wiley Interdisciplinary Reviews: Data Mining and Knowledge Discovery 8, 5 (2018), e1266. [32] Cécile Rousseau, Tobia Boschi, Giandomenico Cornacchia, Dhaval Salwala, Alessandra Pascale, and Juan Bernabe Moreno. 2025. Forging Time Series with Language: A Large Language Model Approach to Synthetic Data Generation. In 
+
+The Thirty-ninth Annual Conference on Neural Information Processing Systems .[33] Bernhard Schölkopf, John C Platt, John Shawe-Taylor, Alex J Smola, and Robert C Williamson. 2001. Estimating the support of a high-dimensional distribution. 
+
+Neural Computation 13, 7 (2001), 1443–1471. [34] Abdoulaye Sidibé and Gao Shu. 2017. Study of automatic anomalous behaviour detection techniques for maritime vessels. The journal of Navigation 70, 4 (2017), 847–858. [35] Ya Su, Youjian Zhao, Chenhao Niu, Rong Liu, Wei Sun, and Dan Pei. 2019. Robust anomaly detection for multivariate time series through stochastic recurrent neural network. In Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining . 2828–2837. [36] Bowen Sui, Jianqiang Zhang, and Zhong Liu. 2023. A real-time ship encounter collision risk detection approach in close-quarters situation. Measurement and Control 56, 9-10 (2023), 1613–1625. [37] Weiwei Tian, Beatriz Sanguino, Mingda Zhu, Øivind Kåre Kjerstad, Guoyuan Li, and Houxiang Zhang. 2025. Knowledge extraction from decision-making data for maritime navigation support. Ocean Engineering 331 (2025), 121268. [38] Shreshth Tuli, Giuliano Casale, and Nicholas R Jennings. 2022. TranAD: deep transformer networks for anomaly detection in multivariate time series data. 
+
+Proceedings of the VLDB Endowment 15, 6 (2022), 1201–1214. [39] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. Advances in neural information processing systems 30 (2017). [40] Petar Veličković, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Lio, and Yoshua Bengio. 2017. Graph attention networks. arXiv preprint arXiv:1710.10903 (2017). [41] Yuanqiao Wen, Wei Tao, Zhongyi Sui, Miquel Angel Piera, and Rongxin Song. 2022. Dynamic model-based method for the analysis of ship behavior in marine traffic situation. Ocean Engineering 257 (2022), 111578. [42] Haixu Wu, Jiehui Xu, Jianmin Wang, and Mingsheng Long. 2021. Autoformer: De-composition transformers with auto-correlation for long-term series forecasting. 
+
+Advances in Neural Information Processing Systems 34 (2021), 22419–22430. [43] Zhexin Xie, Xiangen Bai, Xiaofeng Xu, and Yingjie Xiao. 2024. An anomaly detection method based on ship behavior trajectory. Ocean Engineering 293 (2024), 116640. [44] Dongsheng Xu, Jiaxuan Yang, Ken Sinkou Qin, Yuhao Qi, and Ziyao Zhou. 2025. Anomaly detection method for ship trajectory based on stay region mining. 
+
+Ocean Engineering 331 (2025), 121364. [45] Jiehui Xu, Haixu Wu, Jianmin Wang, and Mingsheng Long. 2022. Anomaly Transformer: Time Series Anomaly Detection with Association Discrepancy. In 
+
+International Conference on Learning Representations .[46] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, et al . 2025. Qwen3 technical report. arXiv preprint arXiv:2505.09388 (2025). [47] June Yong Yang, Geondo Park, Joowon Kim, Hyeongwon Jang, and Eunho Yang. 2024. Language-interfaced tabular oversampling via progressive imputation and self-authentication. In The Twelfth International Conference on Learning Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea 
+
+Representations .[48] Ying Yang, Yang Liu, Guorong Li, Zekun Zhang, and Yanbin Liu. 2024. Harness-ing the power of Machine learning for AIS Data-Driven maritime Research: A comprehensive review. Transportation research part E: logistics and transportation review 183 (2024), 103426. [49] Sang-Lok Yoo. 2018. Near-miss density map for safe navigation of ships. Ocean Engineering 163 (2018), 15–21. [50] Qiaochan Yu, Xiangjun Yin, Xiongfei Geng, Siyuan Chen, and Jingyu Yang. 2025. AISFormer for long-term vessel trajectory prediction. Ocean Engineering 340 (2025), 122098. [51] Ailing Zeng, Muxi Chen, Lei Zhang, and Qiang Xu. 2023. Are transformers effective for time series forecasting?. In Proceedings of the AAAI conference on artificial intelligence , Vol. 37. 11121–11128. [52] Tianyi Zeng and Yao Zhang. 2026. Large language model-augmented model predictive control for marine vessels in uncertain marine environments. Ocean Engineering 346 (2026), 123628. [53] Weibin Zhang, Floris Goerlandt, Jakub Montewka, and Pentti Kujala. 2015. A method for detecting possible near miss ship collisions from AIS data. Ocean Engineering 107 (2015), 60–69. [54] Haoyi Zhou, Shanghang Zhang, Jieqi Peng, Shuai Zhang, Jianxin Li, Hui Xiong, and Wancai Zhang. 2021. Informer: Beyond efficient transformer for long se-quence time-series forecasting. In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 35. 11106–11115. [55] Tian Zhou, Ziqing Ma, Qingsong Wen, Xue Wang, Liang Sun, and Rong Jin. 2022. FEDformer: Frequency enhanced decomposed transformer for long-term series forecasting. In International Conference on Machine Learning . PMLR, 27268– 27286. 
+
+## A Additional Details of Baselines 
+
+• LOF [ 4 ]: Density-based detector that scores each point by comparing its local reachability density to neighboring points. 
+
+• OCSVM [ 33 ]: Learns a decision boundary enclosing normal data in feature space, treating points outside as anomalies. 
+
+• IForest [20 ]: Isolates anomalies via recursive random parti-tioning, where anomalous points yield shorter path lengths. 
+
+• LSTM-VAE [28 ]: LSTM-based VAE that flags anomalies via reconstruction probability or reconstruction error. 
+
+• OmniAnomaly [ 35 ]: Probabilistic RNN with stochastic la-tent variables that detects anomalies via low reconstruction probability. 
+
+• USAD [ 1]: Dual-autoencoder framework with adversarial training to amplify reconstruction errors on anomalies. 
+
+• TranAD [38 ]: Transformer with focus scores and adversarial training to leverage broader temporal context for detection. 
+
+• Anomaly Transformer [45 ]: Detects anomalies via prior– series association discrepancy, trained with a minimax ob-jective for normal–abnormal separability. 
+
+• LSTM [11 ]: Recurrent network with gated memory cells for capturing long-term temporal dependencies. 
+
+• VanillaTransformer [ 39 ]: Multi-head self-attention model for parallelizable long-range dependency modeling. 
+
+• Informer [54 ]: Long-sequence Transformer using Prob-Sparse attention and distillation to reduce complexity. 
+
+• Autoformer [ 42 ]: Auto-Correlation model with progressive series decomposition for trend and seasonality modeling. 
+
+• FEDformer [ 55 ]: Seasonal-trend decomposition Transformer with Fourier and Wavelet frequency-domain attention. 
+
+• Pyraformer [ 22 ]: Pyramidal attention model with inter-and intra-scale connections for linear-complexity modeling. 
+
+• PatchTST [27 ]: Patch-tokenized Transformer with channel-independent attention for long-horizon forecasting. 
+
+• DLinear [51 ]: Decomposition-based linear model that sepa-rately forecasts trend and residual components. 
+
+• STGVAD [15 ]: Constructs spatio-temporal graphs from AIS trajectories and applies graph-based representation learning for vessel anomaly detection. 
+
+## B LLM Prompts 
+
+For all anomaly types (A1–A3), we structure the LLM interaction with a clear separation between a system prompt and a user query .The system prompt fixes the LLM’s role as an anomaly timestamp scoring module and enforces constraints on output format, score semantics, and anomaly-type-specific structural rules. The user query provides the concrete task instance with externally fixed parameters, without allowing the LLM to redefine scenarios or thresholds. 
+
+## B.1 Unified Scoring Prompt 
+
+System Prompt 
+
+> You are an "Anomaly Timestamp Scoring Module" for AIS trajectory segments. Your task is NOT to define anomaly scenarios. The target anomaly type is provided in the user query and is already defined by the fixed rules below. Your ONLY responsibility: Given a fixed-length trajectory segment (T timestamps), compute a per-timestamp anomaly suitability score in [0,1], which will later be used by an Equation-Grounded Anomaly Synthesizer to decide WHERE to inject anomalies. The scores represent RELATIVE PRIORITY, not probabilities. ================================================== GENERAL SETTING - Number of timestamps: T (e.g., T=24). - You must output exactly T scores. - Scores should be interpretable and consistent with the anomaly-type-specific constraints. - You MUST respect anomaly-type-specific structural constraints below. - When a target anomaly count K is provided externally, it is FIXED. - K MUST NOT be inferred, predicted, or modified. ================================================== ANOMALY-TYPE-SPECIFIC CONSTRAINTS [A1: Unexpected AIS Activity] - Nature: position noise / sensor artifact. - The anomaly count is fixed to the externally provided K. - Anomalous timestamps: - do NOT need to be consecutive. - MAY be scattered. - Score characteristics: - spike-like or irregular patterns are allowed. - local sharp increases are acceptable. - surrounding timestamps may remain low. - Physical intuition: - anomaly suitability increases where implied motion inferred from positions conflicts with stable SOG/COG. - temporal smoothness is NOT required. [A2: Route Deviation] - Nature: real but atypical maneuver. - The anomaly count is fixed to the externally provided K. - Anomalous timestamps are consecutive in time. - Score characteristics: - scores should form a single contiguous high-score region. - smooth rise $\rightarrow$ plateau $\rightarrow$ fall patterns are preferred. - isolated spikes are NOT allowed. - Physical intuition: - anomaly suitability increases where SOG and/or COG change rapidly relative to their surrounding context.
+
+KDD ’26, August 09–13, 2026, Jeju Island, Republic of Korea Youngseok Hwang et al. 
+
+- vessel positions remain physically consistent. [A3: Close Approach] - Nature: interaction-induced near-miss between two vessels. - Interpretation: the segment is a short temporal crop from a longer trajectory, chosen such that a single close-approach event is contained within it. - The event corresponds to the moment when the two vessels are closest, in the sense of a DCPA-like concept. Physical interpretation of scores: - A higher score indicates that the timestamp is more representative of the near-miss interaction apex, i.e., when the inter-vessel separation is closest to a reference distance $\tilde{D}$. - $\tilde{D}$ should be interpreted as an approximate DCPA surrogate, typically within the range of 0.1--0.3 nautical miles. - The score does NOT encode distance directly, but reflects how suitable a timestamp is for detecting such a close-approach configuration. ================================================== SCORING RULES - Output scores in [0,1]. - Scores indicate how strongly a timestamp should be selected by a downstream anomaly synthesizer. - The absolute scale matters less than RELATIVE ordering. - Your task is to assign scores such that a downstream localization rule can naturally select the most suitable timestamps. - Do NOT explicitly mark, identify, or select the top-K timestamps yourself. - Do NOT threshold or binarize scores. ================================================== OUTPUT STRICTNESS - Return JSON ONLY. Do not output any text outside the JSON object. - Do not add any extra keys beyond the output schema. - "anomaly_type" must match the target anomaly type provided in the user query. - "scores" must have length exactly T. - If K is provided in the user query, include "K" and set it exactly to the externally provided fixed K. - (Optional) Round scores to 3 decimal places. ================================================== OUTPUT FORMAT (JSON ONLY) {"T": <int>, "anomaly_type": "<A1|A2|A3>", "K": <int or null>, "scores": [<float>, ..., <float>] }================================================== IMPORTANT - Do NOT restate anomaly definitions. - Do NOT invent missing data. - If information is insufficient, still produce a plausible score shape consistent with the target anomaly type. - The downstream system will decide thresholds and perform deterministic anomaly synthesis using the returned scores. When an input segment is provided, output the JSON score vector. 
+
+## B.2 User Query Template 
+
+User Query 
+
+[Input Trajectory Segment] Metadata: - Vessel Type: {vessel_type} - Duration: {duration} - Segment length: T = {T} - Baseline Statistics: Avg SOG, Std SOG, Avg COG, Std COG 
+
+Dynamics (Vectorized for T): - SOG (knots): {sog_sequence} - COG (degrees): {cog_sequence} - Latitude: {lat_sequence} - Longitude: {lon_sequence} ================================================== [Target Anomaly Type] {anomaly_type} ================================================== [Fixed Target Count] (Applies to A1/A2 only) - Target anomaly count K is FIXED to {target_k}. - This value is externally specified and MUST be respected. ================================================== [Task] Generate anomaly suitability scores for Anomaly Type: {anomaly_type}. Focus on identifying timestamps that are most suitable for the target anomaly type, according to the anomaly-type-specific structural rules defined in the system prompt. Return JSON only. 
+
+## C Anomaly Quality Validation 
+
+Expert Evaluation. To assess the operational plausibility of the synthesized anomalies, we conducted a domain expert evaluation with five researchers from the Korea Research Institute of Ships and Ocean Engineering (KRISO). Each expert independently assessed 30 synthesized samples per anomaly type (90 samples total, 450 ratings), evaluating each sample on two criteria: (i) operational plausibility (whether the anomaly reflects a realistic maritime event) and (ii) severity (whether the perturbation magnitude is appropriate or too severe). As shown in Table 9, A3 achieves 100.0% operational plausibility, while A1 and A2 reach 76.7% and 83.3%, respectively. A3 shows higher severity ratings (50.0% “too severe”), consistent with its DANGEROUS-range DCPA values ( e𝐷 ∈ [ 0.1, 0.3] NM) being at the boundary of operationally critical thresholds. 
+
+Table 9: Expert evaluation results for synthesized anomalies. Plausibility rates are computed over majority-plausible sam-ples; A1 and A2 rates include ‘Uncertain’ responses alongside ‘No’ responses. Type Operationally Plausible (%) Appropriate (%) Too Severe (%) 
+
+A1 76.7 69.4 30.6 A2 83.3 62.5 37.5 A3 100.0 50.0 50.0 
+
+Geographic Validation. Geographic plausibility of A3 is fur-ther confirmed: we verified synthesized points against two coastline datasets (Natural Earth 10m, GSHHG), finding that over 98.6% of A3 points remain at sea ( 𝑇 =12 : 0.18% on-land; 𝑇 =24 : 1.38% on-land), with all flagged cases attributable to coastline polygon approxi-mation rather than inland trajectories. Together, these results sup-port that the synthesized anomalies reflect meaningful real-world abnormal behaviors rather than merely satisfying the synthesis equations.
