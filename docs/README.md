@@ -6,87 +6,74 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-04
-- 运行时间：2026-07-04 21:11:57 UTC
+- 最新运行日期：2026-07-05
+- 运行时间：2026-07-05 20:18:10 UTC
 - 运行状态：成功
-- 本次总论文数：21
-- 精读区：8
-- 速读区：13
+- 本次总论文数：17
+- 精读区：6
+- 速读区：11
 
 ### 今日简报（AI）
-今日精读8篇、速读13篇，聚焦鲁棒稀疏辨识与异常检测两大方向。
-
-最值得关注的两篇9分论文：非线性动力学鲁棒稀疏辨识方法（LTS框架）与逻辑结构异常检测统一框架LogiCo。
-
-普通读者可优先精读这两篇，后续关注3D异常检测合成框架与基于DC规划的快速鲁棒回归方法。
-- 详情：[/202607/04/README](/202607/04/README)
+- 今日共生成 17 篇推荐（精读 6 篇，速读 11 篇）
+- 精读：《Fully Unsupervised Detection of Physical Contacts on Subsea Cables via State-of-Polarization Monitoring》（9.0/10）, 《Modelling and detecting mild and gross anomalies in circular data via double-contaminated models》（8.0/10）
+- 速读：《FlexTab: A Flexible Encoder-Decoder Architecture for In-Context Learning Across Diverse Tabular Tasks》（7.0/10）, 《FlexTab: A Flexible Encoder-Decoder Architecture for In-Context Learning Across Diverse Tabular Tasks》（7.0/10）, 《MARVEL: Margin-Aware Robust von Mises-Fischer Expert Learning for Long-Tailed Out-of-Distribution Detection》（7.0/10）
+- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+- 详情：[/202607/05/README](/202607/05/README)
 
 ### 精读区论文标签
-1. [Robust Sparse Identification of Nonlinear Dynamics via Least Trimmed Squares](/202607/04/2606.28584v1-robust-sparse-identification-of-nonlinear-dynamics-via-least-trimmed-squares)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：基于ILTS的鲁棒SINDy方法用于异常值检测和动力学模型辨识
-2. [LogiCo: A Unified Framework for Logical and Structural Anomaly Detection](/202607/04/2606.28688v1-logico-a-unified-framework-for-logical-and-structural-anomaly-detection)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：统一检测逻辑与结构异常
-3. [Robust Zero-shot Anomaly Detection under Limited Auxiliary Anomaly Priors](/202607/04/2606.29428v1-robust-zero-shot-anomaly-detection-under-limited-auxiliary-anomaly-priors)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：零样本异常检测方法
-4. [Redefining Maritime Anomaly Detection via Equation-Grounded Synthetic Anomalies](/202607/04/2606.29721v1-redefining-maritime-anomaly-detection-via-equation-grounded-synthetic-anomalies)  
+1. [Fully Unsupervised Detection of Physical Contacts on Subsea Cables via State-of-Polarization Monitoring](/202607/05/2607.01484v1-fully-unsupervised-detection-of-physical-contacts-on-subsea-cables-via-state-of-polarization-monitoring)  
    标签：评分：9.0/10、query:ocean-qc
-   evidence：基于AIS数据和合成异常的海洋异常检测
-5. [What Drives the Inlier-Memorization Effect? A Theory of Outlier Detection via Early Training Dynamics](/202607/04/2606.29791v1-what-drives-the-inlier-memorization-effect-a-theory-of-outlier-detection-via-early-training-dynamics)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：基于正常样本记忆效应的异常检测理论分析
-6. [Locally stationary Argo ocean heat content estimates: Modeling, validation and uncertainty quantification](/202607/04/2606.31957v1-locally-stationary-argo-ocean-heat-content-estimates-modeling-validation-and-uncertainty-quantification)  
-   标签：评分：9.0/10、query:ocean-qc
-   evidence：Argo海洋热含量估计与不确定性量化，与海洋数据质量控制相关
-7. [Queue-Aware Graph Reinforcement Learning for UAV-ISAC-Assisted Maritime Data Collection](/202607/04/2607.00324v1-queue-aware-graph-reinforcement-learning-for-uav-isac-assisted-maritime-data-collection)  
-   标签：评分：9.0/10、query:ocean-obs
-   evidence：无人机与浮标结合的海洋监测
-8. [Fast and Accurate Anomaly Detection in Time Series](/202607/04/2607.02046v1-fast-and-accurate-anomaly-detection-in-time-series)  
-   标签：评分：9.0/10、query:anomaly-id
-   evidence：快速准确的时间序列异常检测
+   evidence：海洋环境下海底电缆物理接触的无监督检测
+2. [Modelling and detecting mild and gross anomalies in circular data via double-contaminated models](/202607/05/2606.29524v1-modelling-and-detecting-mild-and-gross-anomalies-in-circular-data-via-double-contaminated-models)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：提出了用于圆形数据异常检测的双污染模型
+3. [Information-Aided DVL Calibration](/202607/05/2606.31216v1-information-aided-dvl-calibration)  
+   标签：评分：8.0/10、query:ocean-qc
+   evidence：DVL校准确保AUV测量精度
+4. [Distributed Hierarchical Temporal Memory with Shared Associative Memory for Cross-Entity Preemptive Warning](/202607/05/2606.31789v1-distributed-hierarchical-temporal-memory-with-shared-associative-memory-for-cross-entity-preemptive-warning)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：多变量时间序列异常检测方法
+5. [Generative AI and Federated Learning for Intrusion Detection Systems: A Survey](/202607/05/2607.01305v1-generative-ai-and-federated-learning-for-intrusion-detection-systems-a-survey)  
+   标签：评分：8.0/10、query:anomaly-id
+   evidence：利用生成式AI和联邦学习进行异常检测的综述
+6. [Is the 2026 East Asia Summer Extreme Heat Forecast Credible?](/202607/05/2607.01781v1-is-the-2026-east-asia-summer-extreme-heat-forecast-credible)  
+   标签：评分：8.0/10、query:ocean-qc
+   evidence：利用海表温度异常评估预报可信度
 
 ### 速读区论文标签
-1. [RGLD: Randomized Global-Local Density Estimation for Tabular Anomaly Detection](/202607/04/2606.28970v1-rgld-randomized-global-local-density-estimation-for-tabular-anomaly-detection)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：无监督表格异常检测方法RGLD
-2. [Faster than Fast-LTS: Robust Regression and Outlier Detection with DC Programming](/202607/04/2606.28974v1-faster-than-fast-lts-robust-regression-and-outlier-detection-with-dc-programming)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：使用DC编程的鲁棒回归和离群点检测
-3. [Anomaly Factory 3D: A Modular Framework for Diverse Pseudo-Anomaly Synthesis in Unsupervised 3D Anomaly Detection](/202607/04/2606.29181v1-anomaly-factory-3d-a-modular-framework-for-diverse-pseudo-anomaly-synthesis-in-unsupervised-3d-anomaly-detection)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：用于异常检测的伪异常合成框架
-4. [Modelling and detecting mild and gross anomalies in circular data via double-contaminated models](/202607/04/2606.29524v1-modelling-and-detecting-mild-and-gross-anomalies-in-circular-data-via-double-contaminated-models)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：双重污染模型用于圆形数据异常检测
-5. [UniVAD v2: Unified Visual Anomaly Detection via Support-Conditioned Boundary Construction](/202607/04/2606.29714v1-univad-v2-unified-visual-anomaly-detection-via-support-conditioned-boundary-construction)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：通过支持条件边界构建的统一视觉异常检测
-6. [Exploiting Local Flatness for Efficient Out-of-Distribution Detection](/202607/04/2606.29952v1-exploiting-local-flatness-for-efficient-out-of-distribution-detection)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：使用Hessian曲率进行分布外检测
-7. [Detecting the Undetectable: Enhancing Unsupervised time series Anomaly Detection via Active Learning](/202607/04/2607.00720v1-detecting-the-undetectable-enhancing-unsupervised-time-series-anomaly-detection-via-active-learning)  
-   标签：评分：8.0/10、query:anomaly-id
-   evidence：通过主动学习增强的无监督时间序列异常检测
-8. [Fast and Accurate Outlier-Aware LiDAR Super-Resolution for SLAM Applications](/202607/04/2606.28607v1-fast-and-accurate-outlier-aware-lidar-super-resolution-for-slam-applications)  
+1. [FlexTab: A Flexible Encoder-Decoder Architecture for In-Context Learning Across Diverse Tabular Tasks](/202607/05/2606.30336v1-flextab-a-flexible-encoder-decoder-architecture-for-in-context-learning-across-diverse-tabular-tasks)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：面向SLAM的异常感知激光雷达超分辨率
-9. [Beta-trees for testing multivariate goodness-of-fit and localizing deviations from a model](/202607/04/2606.29021v1-beta-trees-for-testing-multivariate-goodness-of-fit-and-localizing-deviations-from-a-model)  
+   evidence：提出了一种灵活架构，将异常检测作为下游任务之一
+2. [FlexTab: A Flexible Encoder-Decoder Architecture for In-Context Learning Across Diverse Tabular Tasks](/202607/05/2606.30336v2-flextab-a-flexible-encoder-decoder-architecture-for-in-context-learning-across-diverse-tabular-tasks)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：用于异常检测的拟合优度检验
-10. [Multi-Level Distributional Entropy for Explainable Network Intrusion Detection](/202607/04/2606.29797v1-multi-level-distributional-entropy-for-explainable-network-intrusion-detection)  
+   evidence：提出了一种灵活架构，将异常检测作为下游任务之一
+3. [MARVEL: Margin-Aware Robust von Mises-Fischer Expert Learning for Long-Tailed Out-of-Distribution Detection](/202607/05/2607.02435v1-marvel-margin-aware-robust-von-mises-fischer-expert-learning-for-long-tailed-out-of-distribution-detection)  
    标签：评分：7.0/10、query:anomaly-id
-   evidence：多级分布熵用于可解释入侵检测
-11. [Distributed Hierarchical Temporal Memory with Shared Associative Memory for Cross-Entity Preemptive Warning](/202607/04/2606.31789v1-distributed-hierarchical-temporal-memory-with-shared-associative-memory-for-cross-entity-preemptive-warning)  
-   标签：评分：7.0/10、query:anomaly-id
-   evidence：分布式多变量时间序列异常检测方法
-12. [Towards Improved Anomaly Detection for Cloud Cybersecurity via Graph Neural Networks](/202607/04/2606.28923v1-towards-improved-anomaly-detection-for-cloud-cybersecurity-via-graph-neural-networks)  
+   evidence：面向长尾医学数据分布外检测的方法
+4. [Towards Improved Anomaly Detection for Cloud Cybersecurity via Graph Neural Networks](/202607/05/2606.28923v1-towards-improved-anomaly-detection-for-cloud-cybersecurity-via-graph-neural-networks)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：基于自监督图神经网络的云日志异常检测
-13. [Robust Extended Kalman Filter for Land Navigation Using Massive Array of MEMS IMUs](/202607/04/2606.29271v1-robust-extended-kalman-filter-for-land-navigation-using-massive-array-of-mems-imus)  
+   evidence：利用图神经网络对云日志进行异常检测
+5. [Learning Where and When: Patch-Based Spatiotemporal Localization in Weakly Supervised Video Anomaly Detection](/202607/05/2606.29498v1-learning-where-and-when-patch-based-spatiotemporal-localization-in-weakly-supervised-video-anomaly-detection)  
    标签：评分：6.0/10、query:anomaly-id
-   evidence：通过动态百分位门控抑制传感器异常
+   evidence：提出视频时空异常定位方法
+6. [Streak detection in the VST/OmegaCAM archive using deep learning](/202607/05/2606.30286v1-streak-detection-in-the-vstomegacam-archive-using-deep-learning)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：天文图像中条纹检测的深度学习流水线
+7. [Hybrid Topological Data Analysis and LSTM Networks for Enhanced Network Intrusion Detection Using CIC-IDS2017 Dataset](/202607/05/2606.31619v1-hybrid-topological-data-analysis-and-lstm-networks-for-enhanced-network-intrusion-detection-using-cic-ids2017-dataset)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：结合拓扑数据分析与LSTM的网络流量异常检测
+8. [Multi-Scale Contrastive Attention for Light-Curve Representation Learning](/202607/05/2606.31627v1-multi-scale-contrastive-attention-for-light-curve-representation-learning)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：自监督时间序列表示学习可用于异常检测
+9. [Aionoscope: Debugging Latent-State Accessibility in Time-Series Representations](/202607/05/2607.00956v1-aionoscope-debugging-latent-state-accessibility-in-time-series-representations)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：时间序列表示调试可用于异常检测
+10. [Sampling for Region-Aggregated Spatial Scan Statistics](/202607/05/2607.01451v1-sampling-for-region-aggregated-spatial-scan-statistics)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：使用扫描统计的空间异常检测
+11. [LiZAD: A Lightweight Zero-Shot Anomaly Detection Framework for Industrial Manufacturing](/202607/05/2607.01949v1-lizad-a-lightweight-zero-shot-anomaly-detection-framework-for-industrial-manufacturing)  
+   标签：评分：6.0/10、query:anomaly-id
+   evidence：轻量级零样本异常检测框架用于工业制造
 
 
 <div class="dpr-home-promo-card">
